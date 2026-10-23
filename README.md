@@ -20,6 +20,7 @@ existing toolchain; a larger app can adopt Kotlin later.
 ./scripts/bootstrap.sh
 ./scripts/build.sh
 adb -d install --no-incremental -r build/inkprobe-debug.apk
+./scripts/read-display-policy.sh
 adb -d shell am start -W -n org.eink.inkprobe/.MainActivity
 ```
 
@@ -77,6 +78,18 @@ Software logs and screenshots cannot measure physical pen-to-ink latency.
 External high-frame-rate video is needed for quantitative latency claims.
 
 ## Current status and limitations
+
+Version 0.1 failed the physical comparison: severe delay and black/white blinking.
+Version 0.2 declares `hw_eink.app.refresh.mode=3`, matching native Notes, and
+uses RGBA_8888 for both firmware surfaces. On this firmware, missing app metadata
+causes an automatic policy (`mode=1, video_mode=11`), which differs from Notes.
+These application-policy values are distinct from raw EPDC waveform numbers.
+
+The host policy query verifies the effective value without changing settings.
+The ordinary APK cannot access that hidden vendor readback API, so its own export
+labels the manifest value as **declared**, rather than claiming it is effective.
+Firmware mode construction refuses a missing/incorrect manifest declaration.
+Physical testing, rather than successful policy readback, establishes writing quality.
 
 See [the investigation plan](matepad-handwriting-plan.md) and
 [device test record](docs/device-testing.md).

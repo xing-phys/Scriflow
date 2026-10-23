@@ -3,6 +3,7 @@ package org.eink.inkprobe;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.PixelFormat;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
@@ -23,13 +24,19 @@ final class HuaweiInk implements SurfaceHolder.Callback {
 
     HuaweiInk(Context context, Trace trace, Reporter reporter, boolean onTop, boolean editor) throws Exception {
         this.trace = trace; this.reporter = reporter; this.editor = editor;
+        // Refuse the previously failing generic automatic/video policy before creating ink surfaces.
+        DisplayPolicy.requireHandwritingPolicy(context);
+        report("Declared app display policy: 3 (effective policy checked separately from ADB)");
         Class<?> type = Class.forName(editor ? "android.eink.view.edit.HWEditView" : "android.eink.view.HWSurfaceView");
         view = (SurfaceView) type.getConstructor(Context.class).newInstance(context);
         if (editor) {
             // Preserve native editor's own pixel format, Z ordering, and point listener.
             Object picture = get(view, "getSurfacePicture");
             call(picture, "bindColor", new Class<?>[]{int.class}, Color.WHITE);
-        } else view.setZOrderOnTop(onTop);
+        } else {
+            view.getHolder().setFormat(PixelFormat.RGBA_8888);
+            view.setZOrderOnTop(onTop);
+        }
         view.getHolder().addCallback(this);
         report(type.getSimpleName() + " constructed; " + (editor ? "native defaults" : "zOnTop=" + onTop));
     }
@@ -116,6 +123,7 @@ final class HuaweiInk implements SurfaceHolder.Callback {
     }
     org.json.JSONObject nativeSnapshot() throws Exception {
         org.json.JSONObject result = new org.json.JSONObject();
+        result.put("viewPostMode", get(view, "getPostMode"));
         result.put("autoHandWrite", surface != null && Boolean.TRUE.equals(get(surface, "isAutoHandWrite")));
         if (!editor) return result;
         result.put("state", get(view, "getState"));

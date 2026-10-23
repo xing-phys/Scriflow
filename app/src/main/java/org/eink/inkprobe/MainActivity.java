@@ -42,7 +42,7 @@ public final class MainActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(Color.WHITE);
         TextView title = new TextView(this);
-        title.setText("Ink Probe · MatePad Paper"); title.setTextSize(22); title.setTextColor(Color.BLACK);
+        title.setText("Ink Probe 0.2 · MatePad Paper"); title.setTextSize(22); title.setTextColor(Color.BLACK);
         title.setPadding(16, 12, 12, 6); root.addView(title);
         LinearLayout modes = row(root);
         button(modes, "Android", () -> select("Android"));
@@ -69,6 +69,8 @@ public final class MainActivity extends Activity {
         root.addView(paper, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(root);
         report("Device " + Build.MODEL + "; " + Build.DISPLAY + "; API " + Build.VERSION.SDK_INT);
+        try { report("Declared display policy: " + DisplayPolicy.json(this)); }
+        catch (Exception e) { report("Display policy unavailable: " + e); }
         select("Android");
     }
     private LinearLayout row(LinearLayout root) {
@@ -124,9 +126,12 @@ public final class MainActivity extends Activity {
         // Explicit snapshot only; callbacks never trigger disk I/O.
         try {
             JSONObject snapshot = trace.json();
+            snapshot.put("appVersion", "0.2");
             snapshot.put("model", Build.MODEL); snapshot.put("firmware", Build.DISPLAY);
             snapshot.put("mode", mode); snapshot.put("zOnTop", onTop);
             snapshot.put("canvasWidth", paper.getWidth()); snapshot.put("canvasHeight", paper.getHeight());
+            try { snapshot.put("displayPolicy", DisplayPolicy.json(this)); }
+            catch (Exception e) { snapshot.put("displayPolicyError", e.toString()); }
             if (ink != null) snapshot.put("firmwareSurface", ink.nativeSnapshot());
             JSONArray log = new JSONArray();
             synchronized (events) { for (String e : events) log.put(e); }
