@@ -1,0 +1,9 @@
+# Downloaded SDK, caches, local signing keys, and device firmware
+.tools/
+# Compiled classes, APKs, and probe output
+build/
+*.apk
+*.keystore
+*.jks
+# Local device captures and logs
+artifacts/
