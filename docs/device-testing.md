@@ -356,3 +356,29 @@ This identifies and suppresses the recurring notification-driven redraws while
 retaining the VPN. A new Native edit surface is open for a short physical pen
 test. Handwriting improvement and the exact reason earlier cable/state changes
 affected the symptom remain unconfirmed until that test.
+
+## Physical result with static Clash notification
+
+On a fresh Native edit surface in version 0.6, with Clash running and Show Traffic
+off, the user reports **almost smooth writing throughout from the beginning,
+with only occasional brief sticking; substantially better than before**.
+
+The saved export contains one complete 15.839-second stroke, 1,389 observer
+samples, and one native widget track. AHW remained true, writable state 1, and
+zero disable tokens. Actual system-UI flags were 0x2500, fullscreen on, and
+keep-screen-on off. Callback delay was p50 1 ms, p95 3 ms, maximum 65 ms.
+The 65 ms maximum occurred at DOWN. One later sample, 13.007 seconds into the
+stroke, had 50 ms callback delay; the following event-time gap was 61 ms.
+There were no other mid-stroke callback delays above 20 ms.
+
+No optical timestamps identify the reported rare pauses, so this software sample
+cannot establish that the 50 ms callback delay caused a visible pause. No matching
+app GC/suspension log was found. Further changes should target reproducible
+remaining pauses rather than infer a new cause from this single event.
+
+The controlled notification change removed the recurring redraws and produced a
+large reported physical improvement. This establishes a practical configuration
+for continuing development, while consistent native-Notes parity and robust
+behavior around unrelated background updates remain open checks. Clash is
+running with only Show Traffic changed to off; no proprietary code or private
+stroke/log exports are committed.

@@ -131,8 +131,9 @@ activity recreation; captured strokes remain disposable.
 
 Automatic idle comparisons found about 20 new StatusBar timestamp rows per ten
 seconds with either option and with both, including the restored control. These
-window differences did not suppress that producer. Physical writing in 0.6 has
-not yet been tested.
+window differences did not suppress that producer. After suppressing the Clash
+notification updates described below, the user reports almost smooth writing
+from the beginning, with only occasional short pauses.
 
 The uninstalled version 0.5 experiment requesting a frame at pen-down was
 removed in 0.6. Further native inspection showed that firmware already takes its
@@ -180,7 +181,16 @@ The installed Clash build uses a one-second ticker for this feature. With the
 user's authorization, **Settings → App → Service → Show Traffic** was switched
 off while Clash was stopped, then Clash was restarted. Its VPN service remained
 running; new StatusBar submissions fell from about 20 per ten seconds to zero
-in the measured idle comparison. The effect on physical writing is pending.
+in the measured idle comparison. On a fresh Native edit surface, the user then
+reported almost smooth writing from the beginning with only seldom occurring
+pauses, a substantial improvement. The saved continuous stroke lasted 15.8
+seconds and retained all 1,389 observed samples in the diagnostic export.
+
+Callback delay was p50 1 ms, p95 3 ms, maximum 65 ms. One mid-stroke sample was
+delivered 50 ms after its timestamp; no optical pause timestamps were recorded,
+so its relationship to the remaining visible pauses is unconfirmed. These
+results establish a useful working configuration, not complete parity with
+native Notes or an optical latency measurement.
 
 This establishes a source of display activity that exists outside the notes
 app's own layers. A static floating overlay does not exclude notification-driven
