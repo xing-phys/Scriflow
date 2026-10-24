@@ -103,6 +103,25 @@ public final class NotebookStore {
         return publish(page.withSize(width, height));
     }
 
+    /**
+     * Creates a fully sized blank page in one atomic publication, including its chosen paper.
+     * Used before a new page is indexed, so interruption cannot expose an intermediate template.
+     * An existing page is accepted only when it is the exact empty target; writing is untouched.
+     */
+    public NotebookPage initializePage(int width, int height, NotebookPage.Template template) throws IOException {
+        requireReady();
+        validateDimensions(width, height, false);
+        if (template == null) throw new IllegalArgumentException("Missing paper template");
+        if (!page.strokes.isEmpty()) throw new IOException("Cannot initialize a page containing writing");
+        if (page.isInitialized()) {
+            if (page.width != width || page.height != height || page.template != template) {
+                throw new IOException("Existing page has different dimensions or paper; files were preserved.");
+            }
+            return needsSnapshot ? publish(page) : page;
+        }
+        return publish(page.withSize(width, height).withTemplate(template));
+    }
+
     public NotebookPage setTemplate(NotebookPage.Template template) throws IOException {
         requireReady();
         if (template == null) throw new IllegalArgumentException("Missing paper template");

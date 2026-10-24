@@ -1,12 +1,12 @@
 # Ink Notebook
 
-A small notebook app for Huawei MatePad Paper HMW-W09. The first milestone is
-one fixed page with blank or lined paper, native low-latency handwriting,
-automatic saving of completed strokes, and editable restoration after reopening.
+A small notebook app for Huawei MatePad Paper HMW-W09, with blank/lined pages,
+native low-latency handwriting, automatic saving of completed strokes, and
+editable restoration after reopening.
 
-The current build is an early development APK, version 0.8.1, with undo/redo and
-a whole-stroke eraser. Notebook/page navigation, pen selection, and export are
-later milestones. Handwriting currently uses one black ballpoint pen. The
+The current build is an early development APK, version 0.9, with multiple pages,
+undo/redo, and a whole-stroke eraser. A library of separate notebooks, pen
+selection, and export are later milestones. Handwriting uses one black ballpoint pen. The
 original diagnostic screen remains available separately for development.
 
 ## Use
@@ -14,12 +14,20 @@ original diagnostic screen remains available separately for development.
 Open **Ink Notebook**, write on Page 1, then pause briefly. **Saved · N strokes**
 confirms how many completed strokes have been saved; an empty page shows
 **Autosave on**. There is no manual save button. The **Blank/Lined** button changes
-the paper without clearing writing. The menu shows the page's save state.
+the current page's paper without clearing writing. Tap it to toggle between
+blank and lined paper. The menu shows the page's save state.
+
+Use **‹** and **›** to move between pages, and **+ Page** to append an empty page
+at the end. New pages inherit the current page's paper; each page keeps its own
+writing and paper choice. The indicator shows **Page X of Y**. Navigation waits
+for completed strokes to save, and reopening returns to your last selected page.
+Your existing single-page notebook becomes Page 1 without moving its file.
+There is a limit of 1,000 pages; deletion and reordering are not yet included.
 
 Choose **Eraser**, move the stylus across writing, then lift it to remove every
 touched stroke. There is no live eraser preview; a gesture removes entire strokes,
 not small pieces of a stroke. Choose **Pen** to resume smooth native writing.
-**Undo/Redo** remember up to 100 writing or erase actions within the current app
+**Undo/Redo** remember up to 100 writing or erase actions **per page** within the current app
 process. They survive leaving and returning while that process remains alive;
 restarting the process begins a new history. Erasing, undo, and redo autosave.
 New writing or a successful erase clears Redo; a no-hit erase preserves it.
@@ -35,7 +43,7 @@ Completed strokes survive app force-stop once **Saved** is shown. An unfinished
 stroke is discarded when leaving the app. Notes are stored on this tablet in
 the app's private directory; uninstalling the app removes that data. Keep the
 local signing key when installing updates over an existing version.
-Version 0.8 reads the unchanged version-1 notebook format from 0.7. Install it as
+Version 0.9 reads the unchanged version-1 page format from earlier releases. Install it as
 an update over the existing app; **do not uninstall** to install the update.
 
 This firmware is sensitive to unrelated background display activity. During
@@ -73,6 +81,9 @@ bounded undo/redo, and the real-file notebook store/coordinator. They cover a
 frozen 0.7 document fixture, edits followed by reopening, interrupted appends,
 checksum corruption, and save-error recovery with optimistic unsaved edits.
 They do not execute Android SDK stubs.
+Index and notebook tests also cover legacy Page 1 byte preservation, per-page
+history and paper isolation, last-page restoration, interrupted page creation,
+and failed navigation without replacing the visible page or overwriting data.
 
 The debug build also contains an isolated on-device restoration check. It opens
 only synthetic drawings and writes results under `files/notebook-selftest/`,
@@ -90,6 +101,10 @@ latency, completed-stroke capture, and continued writing after reopening.
 Add `--ez pauseBoundary true` to the disposable check to simulate completed-UP,
 partial, and cancelled input around a pause. This is explicitly a simulated
 callback-order test, not a physical stylus benchmark.
+
+Add `--ez inPlaceEdits true` to exercise synthetic erase/undo/redo and page
+switching with opposite paper templates on the same surface and bitmap. This
+optional device check is prepared for 0.9 but was not run during offline development.
 
 To explicitly verify the actual notebook's restored native tracks in a debug
 build, cold-launch NotebookActivity with `--ez verifyRestore true`, then read
@@ -110,6 +125,13 @@ single posted frame; a no-hit erase skips the redraw. This visual fix was
 developed offline and still needs physical tablet confirmation. See
 [editing milestone and installation checks](docs/notebook-editing.md) and
 [the edit refresh fix](docs/notebook-edit-refresh.md).
+
+Version 0.9 removes Material button ripples and animations and keeps toolbar
+appearance static while saves/edits run. Availability remains enforced in click
+handlers and exposed to accessibility. Ordinary page and paper changes reuse the
+bound bitmap and native surface, posting the new content together. The button
+flash improvement and new page UI still need physical tablet acceptance. See
+[multiple-page milestone](docs/notebook-pages.md).
 
 See [milestone design and acceptance](docs/notebook-milestone.md), the
 [device test record](docs/device-testing.md), and the retained

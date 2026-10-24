@@ -216,10 +216,29 @@ public final class NotebookSelfTestActivity extends Activity implements Notebook
         applyAndVerifyEdit(edits.current());
         require(edits.undo(), "Final undo failed");
         applyAndVerifyEdit(edits.current());
+
+        // A second disposable page has its own model and the opposite paper. Switching
+        // must repaint the already bound bitmap without replacing the visible Surface.
+        NotebookPage.Template otherTemplate = template == NotebookPage.Template.BLANK
+            ? NotebookPage.Template.LINED : NotebookPage.Template.BLANK;
+        NotebookPage otherPage = NotebookPage.empty().withSize(expected.width, expected.height)
+            .withTemplate(otherTemplate);
+        applyAndVerifyEdit(otherPage);
+        NotebookPage.Stroke otherStroke = new NotebookPage.Stroke(2, 5f, Color.BLACK, Arrays.asList(
+            new NotebookPage.Point(expected.width * 0.12f, expected.height * 0.72f, 10000L, 0.30f),
+            new NotebookPage.Point(expected.width * 0.20f, expected.height * 0.78f, 10012L, 0.65f),
+            new NotebookPage.Point(expected.width * 0.31f, expected.height * 0.73f, 10024L, 0.25f)));
+        otherPage = otherPage.withStroke(otherStroke);
+        applyAndVerifyEdit(otherPage);
+        applyAndVerifyEdit(expected);
+        applyAndVerifyEdit(otherPage);
+        applyAndVerifyEdit(expected);
         verifyNativePage(expected);
         require(emittedStrokes.isEmpty(), "Synthetic edits emitted a new pen stroke");
         JSONObject result = new JSONObject();
         result.put("syntheticEraseUndoRedoNoHitRoundTrip", true);
+        result.put("syntheticEmptyAndWrittenPageSwitchRoundTrip", true);
+        result.put("oppositeTemplatesRepaintedInPlace", true);
         result.put("surfaceAndPaperIdentityRetained", true);
         result.put("noHitNativeTrackIdentityRetained", true);
         result.put("coordinatesStylePressureTimeMatch", true);
@@ -235,6 +254,7 @@ public final class NotebookSelfTestActivity extends Activity implements Notebook
         require(!ink.isReady(), "Editor resumed before explicit start");
         verifyEditIdentities();
         verifyNativePage(updated);
+        verifyPaper(updated.template);
     }
 
     private void verifyEditIdentities() throws Exception {
@@ -336,11 +356,15 @@ public final class NotebookSelfTestActivity extends Activity implements Notebook
     }
 
     private JSONObject verifyPaper() throws Exception {
+        return verifyPaper(template);
+    }
+
+    private JSONObject verifyPaper(NotebookPage.Template expectedTemplate) throws Exception {
         Object picture = call(ink.view, "getSurfacePicture");
         Bitmap bitmap = (Bitmap) call(picture, "getBitmap");
         JSONObject result = new JSONObject();
         if (bitmap == null) {
-            require(template == NotebookPage.Template.BLANK, "Lined paper has no bitmap");
+            require(expectedTemplate == NotebookPage.Template.BLANK, "Lined paper has no bitmap");
             require(((Integer) call(picture, "getColor")) == Color.WHITE, "Blank paper is not white");
             result.put("representation", "solid-white");
             return result;
@@ -354,7 +378,7 @@ public final class NotebookSelfTestActivity extends Activity implements Notebook
             require(Color.alpha(pixel) == 255, "Paper is not opaque");
             if (pixel != Color.WHITE) nonWhite++;
         }
-        if (template == NotebookPage.Template.BLANK) require(nonWhite == 0, "Blank paper contains ruling");
+        if (expectedTemplate == NotebookPage.Template.BLANK) require(nonWhite == 0, "Blank paper contains ruling");
         else require(nonWhite > 0 && nonWhite < bitmap.getHeight() / 3, "Lined ruling not found on white paper");
         result.put("representation", "bitmap");
         result.put("width", bitmap.getWidth());

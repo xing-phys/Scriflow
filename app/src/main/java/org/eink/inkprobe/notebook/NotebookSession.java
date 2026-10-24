@@ -22,14 +22,15 @@ final class NotebookSession {
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
-    private final NotebookDocument document;
+    private final NotebookBook document;
     private final AtomicInteger pending = new AtomicInteger();
     private volatile NotebookPage page;
     private volatile IOException problem;
     private volatile boolean undoAvailable, redoAvailable;
+    private volatile int pageNumber = 1, pageCount = 1;
 
     private NotebookSession(Context context) {
-        document = new NotebookDocument(new File(context.getFilesDir(), "notebook"));
+        document = new NotebookBook(new File(context.getFilesDir(), "notebook"));
     }
 
     NotebookPage current() { return page; }
@@ -37,6 +38,8 @@ final class NotebookSession {
     IOException error() { return problem; }
     boolean canUndo() { return undoAvailable; }
     boolean canRedo() { return redoAvailable; }
+    int pageNumber() { return pageNumber; }
+    int pageCount() { return pageCount; }
 
     void load(Callback callback) { submit(document::load, callback); }
     void initializeSize(int width, int height, Callback callback) {
@@ -54,6 +57,10 @@ final class NotebookSession {
         submit(() -> document.setTemplate(template), callback);
     }
     void retry(Callback callback) { submit(document::retry, callback); }
+    void selectPage(int number, Callback callback) {
+        submit(() -> document.selectPage(number), callback);
+    }
+    void addPage(Callback callback) { submit(document::addPage, callback); }
 
     private void submit(Operation operation, Callback callback) {
         pending.incrementAndGet();
@@ -65,6 +72,8 @@ final class NotebookSession {
             page = document.current();
             undoAvailable = document.canUndo();
             redoAvailable = document.canRedo();
+            pageNumber = document.pageNumber();
+            pageCount = document.pageCount();
             problem = failure == null ? document.error() : failure;
             pending.decrementAndGet();
             final NotebookPage snapshot = page;

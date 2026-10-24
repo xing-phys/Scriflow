@@ -32,6 +32,8 @@ public final class NotebookStoreTest {
             editSnapshotAndContinuedWriting();
             interruptedEditSnapshotPublication();
             rejectedEditsPreserveCommittedData();
+            atomicPageInitialization();
+            failedFirstPagePublicationAndRetry();
             System.out.println("NotebookStore: " + assertions + " assertions passed (host JVM, real files).");
         } finally {
             for (File directory : directories) deleteTree(directory);
@@ -379,6 +381,45 @@ public final class NotebookStoreTest {
         store.load();
         store.initializeSize(1200, 1600);
         return store;
+    }
+
+    private static void atomicPageInitialization() throws Exception {
+        File directory = directory(); NotebookStore store = new NotebookStore(directory); store.load();
+        expectIo(() -> store.initializePage(0, 1600, NotebookPage.Template.LINED));
+        expectIllegal(() -> store.initializePage(1200, 1600, null));
+        equal(0, directory.list().length, "invalid first-page metadata writes nothing");
+        NotebookPage page = store.initializePage(1200, 1600, NotebookPage.Template.LINED);
+        equal(1200, page.width, "atomic initialization width"); equal(1600, page.height, "atomic initialization height");
+        check(page.template == NotebookPage.Template.LINED, "first snapshot already has requested paper");
+        check(!new File(directory, "page.nbk.bak").exists(), "first initialization uses one publication");
+        byte[] original = bytes(directory, "page.nbk");
+        store.initializePage(1200, 1600, NotebookPage.Template.LINED);
+        check(Arrays.equals(original, bytes(directory, "page.nbk")), "matching empty initialization is a byte-preserving no-op");
+        expectIo(() -> store.initializePage(1100, 1600, NotebookPage.Template.LINED));
+        expectIo(() -> store.initializePage(1200, 1600, NotebookPage.Template.BLANK));
+        check(Arrays.equals(original, bytes(directory, "page.nbk")), "unexpected initialization metadata preserves page");
+        store.appendStroke(stroke(10)); byte[] writing = bytes(directory, "page.nbk");
+        expectIo(() -> store.initializePage(1200, 1600, NotebookPage.Template.LINED));
+        check(Arrays.equals(writing, bytes(directory, "page.nbk")), "initialization never erases existing writing");
+        check(new NotebookStore(directory).load().template == NotebookPage.Template.LINED, "atomic paper survives reload");
+    }
+
+    private static void failedFirstPagePublicationAndRetry() throws Exception {
+        File directory = directory(); NotebookStore store = new NotebookStore(directory); store.load();
+        File temporary = new File(directory, "page.nbk.tmp"); check(temporary.mkdir(), "block first snapshot temporary path");
+        expectIo(() -> store.initializePage(1200, 1600, NotebookPage.Template.LINED));
+        check(!new File(directory, "page.nbk").exists(), "failed first publication has no intermediate primary");
+        check(!store.current().isInitialized(), "failed first publication leaves current page unsized");
+        expectIo(() -> store.initializePage(1200, 1600, NotebookPage.Template.LINED));
+        check(temporary.delete(), "remove first-publication blocker");
+        store.load(); store.initializePage(1200, 1600, NotebookPage.Template.LINED);
+        byte[] complete = bytes(directory, "page.nbk");
+        File interrupted = directory(); Files.write(new File(interrupted, "page.nbk.tmp").toPath(), complete);
+        NotebookStore recovered = new NotebookStore(interrupted); NotebookPage page = recovered.load();
+        check(page.template == NotebookPage.Template.LINED, "first fully written temporary has correct paper");
+        equal(1200, page.width, "first fully written temporary has correct dimensions");
+        recovered.initializePage(1200, 1600, NotebookPage.Template.LINED);
+        check(Arrays.equals(complete, bytes(interrupted, "page.nbk")), "temporary recovery republishes exact complete first snapshot");
     }
 
     private static NotebookPage.Stroke stroke(int offset) {

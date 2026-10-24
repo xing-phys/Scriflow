@@ -14,9 +14,14 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookStore.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookEdits.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookDocument.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookIndex.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookBook.java \
   tests/CallbackTimingTest.java tests/NotebookStoreTest.java \
-  tests/NotebookEditsTest.java tests/NotebookDocumentTest.java
+  tests/NotebookEditsTest.java tests/NotebookDocumentTest.java \
+  tests/NotebookIndexTest.java tests/NotebookBookTest.java
 java -ea -cp build/host-tests org.eink.inkprobe.CallbackTimingTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookStoreTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookEditsTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookDocumentTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookIndexTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookBookTest

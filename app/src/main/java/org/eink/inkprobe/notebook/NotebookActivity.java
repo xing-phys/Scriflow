@@ -17,17 +17,18 @@ import android.widget.TextView;
 import java.io.IOException;
 import java.util.List;
 
-/** One durable notebook page, native pen ink, and document-level editing. */
+/** Durable notebook pages, native pen ink, and document-level editing. */
 public final class NotebookActivity extends Activity {
     private final Handler main = new Handler(Looper.getMainLooper());
     private NotebookSession session;
     private NotebookInk ink;
     private FrameLayout canvas;
-    private TextView saveState;
-    private Button paperButton, penButton, eraserButton, undoButton, redoButton;
+    private TextView saveState, pageLabel;
+    private NotebookButton paperButton, penButton, eraserButton, undoButton, redoButton;
+    private NotebookButton previousButton, nextButton, addButton;
     private NotebookPage page;
     private IOException shownError;
-    private boolean active, penDown, changingPaper, geometryPending, editing;
+    private boolean active, penDown, geometryPending, editing;
     private NotebookInk.Tool tool = NotebookInk.Tool.PEN;
     private boolean verifyOnReady;
     private int generation;
@@ -51,25 +52,31 @@ public final class NotebookActivity extends Activity {
         toolbar.setGravity(Gravity.CENTER_VERTICAL);
         toolbar.setPadding(dp(18), dp(8), dp(12), dp(8));
         TextView title = new TextView(this);
-        title.setText("Notebook"); title.setTextColor(Color.BLACK); title.setTextSize(23);
+        title.setText("Ink"); title.setTextColor(Color.BLACK); title.setTextSize(23);
+        title.setSingleLine(true);
         toolbar.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
+        previousButton = toolButton(toolbar, "‹", 44, () -> switchPage(-1));
+        previousButton.setTextSize(26); previousButton.setContentDescription("Previous page");
+        nextButton = toolButton(toolbar, "›", 44, () -> switchPage(1));
+        nextButton.setTextSize(26); nextButton.setContentDescription("Next page");
+        addButton = toolButton(toolbar, "+ Page", 76, this::addPage);
         penButton = toolButton(toolbar, "Pen", 64, () -> selectTool(NotebookInk.Tool.PEN));
         eraserButton = toolButton(toolbar, "Eraser", 76, () -> selectTool(NotebookInk.Tool.ERASER));
         undoButton = toolButton(toolbar, "Undo", 64, () -> changeHistory(false));
         redoButton = toolButton(toolbar, "Redo", 64, () -> changeHistory(true));
-        paperButton = new Button(this);
+        paperButton = new NotebookButton(this);
         paperButton.setText("Blank"); paperButton.setAllCaps(false); paperButton.setTextSize(15);
-        paperButton.setEnabled(false); paperButton.setOnClickListener(v -> choosePaper());
+        paperButton.setAvailable(false); paperButton.setOnClickListener(v -> choosePaper());
         toolbar.addView(paperButton, new LinearLayout.LayoutParams(dp(106), dp(48)));
-        Button info = new Button(this);
+        NotebookButton info = new NotebookButton(this);
         info.setText("⋮"); info.setContentDescription("Page information"); info.setTextSize(24);
         info.setOnClickListener(v -> pageInformation());
         toolbar.addView(info, new LinearLayout.LayoutParams(dp(44), dp(48)));
         root.addView(toolbar, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout subline = new LinearLayout(this);
         subline.setPadding(dp(20), 0, dp(20), dp(9));
-        TextView pageLabel = new TextView(this);
-        pageLabel.setText("Page 1"); pageLabel.setTextSize(13); pageLabel.setTextColor(0xff555555);
+        pageLabel = new TextView(this);
+        pageLabel.setText("Page 1 of 1"); pageLabel.setTextSize(13); pageLabel.setTextColor(0xff555555);
         subline.addView(pageLabel, new LinearLayout.LayoutParams(0, -2, 1));
         saveState = new TextView(this);
         saveState.setText("Opening…"); saveState.setTextSize(13); saveState.setTextColor(0xff555555);
@@ -108,6 +115,7 @@ public final class NotebookActivity extends Activity {
         editing = false;
         page = loaded; geometryPending = false;
         paperButton.setText(loaded.template == NotebookPage.Template.LINED ? "Lined" : "Blank");
+        updatePageLabel();
         updateControls();
         try {
             ink = new NotebookInk(this, loaded, new NotebookInk.Listener() {
@@ -162,27 +170,32 @@ public final class NotebookActivity extends Activity {
         } catch (Exception error) { showError(new IOException("Could not open the writing surface", error)); }
     }
 
-    private Button toolButton(LinearLayout toolbar, String label, int width, Runnable action) {
-        Button button = new Button(this);
+    private NotebookButton toolButton(LinearLayout toolbar, String label, int width, Runnable action) {
+        NotebookButton button = new NotebookButton(this);
         button.setText(label); button.setAllCaps(false); button.setTextSize(14);
         button.setPadding(dp(2), 0, dp(2), 0);
-        button.setEnabled(false); button.setOnClickListener(v -> action.run());
+        button.setAvailable(false); button.setOnClickListener(v -> action.run());
         toolbar.addView(button, new LinearLayout.LayoutParams(dp(width), dp(48)));
         return button;
     }
 
     private boolean canEdit() {
-        return active && !editing && !changingPaper && shownError == null && session.error() == null
+        return active && !editing && shownError == null && session.error() == null
             && page != null && ink != null && ink.isReady() && !ink.isPenDown();
     }
 
     private void updateControls() {
-        boolean ready = active && !editing && !changingPaper && shownError == null && session.error() == null
-            && page != null && ink != null && ink.isReady();
-        paperButton.setEnabled(ready);
-        penButton.setEnabled(ready); eraserButton.setEnabled(ready);
-        undoButton.setEnabled(ready && session.canUndo());
-        redoButton.setEnabled(ready && session.canRedo());
+        // Availability is logical, with no animated or temporary disabled appearance.
+        // canEdit() gates every action while the surface or writer is busy.
+        boolean ready = active && shownError == null && session.error() == null
+            && page != null && page.isInitialized();
+        paperButton.setAvailable(ready);
+        penButton.setAvailable(ready); eraserButton.setAvailable(ready);
+        undoButton.setAvailable(ready && session.canUndo());
+        redoButton.setAvailable(ready && session.canRedo());
+        previousButton.setAvailable(ready && session.pageNumber() > 1);
+        nextButton.setAvailable(ready && session.pageNumber() < session.pageCount());
+        addButton.setAvailable(ready && session.pageCount() < NotebookIndex.MAX_PAGES);
         String pen = tool == NotebookInk.Tool.PEN ? "✓ Pen" : "Pen";
         String eraser = tool == NotebookInk.Tool.ERASER ? "✓ Eraser" : "Eraser";
         if (!pen.contentEquals(penButton.getText())) penButton.setText(pen);
@@ -218,7 +231,6 @@ public final class NotebookActivity extends Activity {
         ink.pauseForEdit();
         main.removeCallbacks(updateSaveState);
         updateControls();
-        if (shownError == null) saveState.setText("Saving…");
     }
 
     private void finishEdit(int request, NotebookPage updated, IOException error) {
@@ -230,6 +242,9 @@ public final class NotebookActivity extends Activity {
             return;
         }
         page = updated;
+        updatePageLabel();
+        String paper = updated.template == NotebookPage.Template.LINED ? "Lined" : "Blank";
+        if (!paper.contentEquals(paperButton.getText())) paperButton.setText(paper);
         try {
             // A rare unfinished vendor track or changed surface size still needs a fresh
             // widget; ordinary completed edits reuse the visible surface.
@@ -245,6 +260,28 @@ public final class NotebookActivity extends Activity {
         ink.start();
         updateControls();
         scheduleSaveState();
+    }
+
+    private void updatePageLabel() {
+        String text = "Page " + session.pageNumber() + " of " + session.pageCount();
+        if (!text.contentEquals(pageLabel.getText())) pageLabel.setText(text);
+    }
+
+    private void switchPage(int offset) {
+        int target = session.pageNumber() + offset;
+        if (!canEdit() || target < 1 || target > session.pageCount()) return;
+        pauseForEdit();
+        if (shownError != null) return;
+        final int request = generation;
+        session.selectPage(target, (updated, error) -> finishEdit(request, updated, error));
+    }
+
+    private void addPage() {
+        if (!canEdit() || session.pageCount() >= NotebookIndex.MAX_PAGES) return;
+        pauseForEdit();
+        if (shownError != null) return;
+        final int request = generation;
+        session.addPage((updated, error) -> finishEdit(request, updated, error));
     }
 
     private void scheduleSaveState() {
@@ -269,12 +306,15 @@ public final class NotebookActivity extends Activity {
         updateControls();
         main.removeCallbacks(updateSaveState);
         saveState.setText("Not saved · tap here");
-        saveState.setOnClickListener(v -> new AlertDialog.Builder(this)
-            .setTitle("Couldn’t save the page")
-            .setMessage("Writing is paused. Your open page is retained in memory.\n\n"
-                + (error == null ? "Please retry." : error.getMessage()))
-            .setNegativeButton("Keep open", null)
-            .setPositiveButton("Retry", (dialog, which) -> retrySaving()).show());
+        saveState.setOnClickListener(v -> {
+            AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Couldn’t save the notebook")
+                .setMessage("Writing is paused. Your open pages are retained in memory.\n\n"
+                    + (error == null ? "Please retry." : error.getMessage()))
+                .setNegativeButton("Keep open", null)
+                .setPositiveButton("Retry", (choice, which) -> retrySaving()).create();
+            showStaticDialog(dialog);
+        });
     }
     private void retrySaving() {
         final int request = ++generation;
@@ -288,46 +328,50 @@ public final class NotebookActivity extends Activity {
 
     private void choosePaper() {
         if (!canEdit()) return;
-        if (ink != null) ink.stop();
-        AlertDialog choice = new AlertDialog.Builder(this)
-            .setTitle("Paper")
-            .setSingleChoiceItems(new String[]{"Blank", "Lined"},
-                page.template == NotebookPage.Template.LINED ? 1 : 0, (dialog, which) -> {
-                    NotebookPage.Template selected = which == 1 ? NotebookPage.Template.LINED : NotebookPage.Template.BLANK;
-                    changingPaper = true; paperButton.setEnabled(false);
-                    updateControls();
-                    saveState.setText("Saving…");
-                    dialog.dismiss();
-                    final int request = ++generation;
-                    session.setTemplate(selected, (updated, error) -> {
-                        changingPaper = false;
-                        if (!active || request != generation) return;
-                        page = updated;
-                        if (error != null) { showError(error); return; }
-                        openCanvas(updated); scheduleSaveState();
-                    });
-                }).setNegativeButton("Cancel", null).create();
-        choice.setOnDismissListener(dialog -> {
-            if (!changingPaper && active) loadPage();
-        });
-        choice.show();
+        NotebookPage.Template selected = page.template == NotebookPage.Template.LINED
+            ? NotebookPage.Template.BLANK : NotebookPage.Template.LINED;
+        pauseForEdit();
+        if (shownError != null) return;
+        final int request = generation;
+        session.setTemplate(selected, (updated, error) -> finishEdit(request, updated, error));
     }
 
     private void pageInformation() {
         if (!canEdit()) return;
-        if (ink != null) ink.stop();
+        pauseForEdit();
+        if (shownError != null) return;
+        final int request = generation;
         NotebookPage current = session.current();
         String message = current == null ? "Your page is opening." :
-            "Page 1 · " + (current.template == NotebookPage.Template.LINED ? "Lined" : "Blank")
+            "Page " + session.pageNumber() + " of " + session.pageCount() + " · "
+            + (current.template == NotebookPage.Template.LINED ? "Lined" : "Blank")
             + "\n" + current.strokes.size() + " strokes\n"
             + (session.error() != null ? "Some writing has not been saved."
                 : session.isSaving() ? "Saving your latest writing…" : "Your completed strokes are saved on this tablet.")
-            + "\n\nEraser removes whole strokes after you lift the pen. Undo and Redo remember up to 100 edits while the app process stays open."
+            + "\n\nUse ‹ and › to change pages. + Page adds an empty page at the end using this page’s paper. Tap Blank/Lined to change this page’s paper."
+            + "\n\nEraser removes whole strokes after you lift the pen. Each page remembers up to 100 Undo/Redo edits while the app process stays open."
             + "\n\nNew writing or a successful erase clears Redo. Changing paper keeps your stroke history.";
         AlertDialog info = new AlertDialog.Builder(this).setTitle("This page")
             .setMessage(message).setPositiveButton("Done", null).create();
-        info.setOnDismissListener(dialog -> { if (active) loadPage(); });
-        info.show();
+        info.setOnDismissListener(dialog -> {
+            if (active && request == generation)
+                session.load((loaded, error) -> finishEdit(request, loaded, error));
+        });
+        showStaticDialog(info);
+    }
+
+    private void showStaticDialog(AlertDialog dialog) {
+        dialog.create(); // Apply theme defaults before overriding their dim/fade attributes.
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            dialog.getWindow().setDimAmount(0f);
+            dialog.getWindow().setWindowAnimations(0);
+        }
+        dialog.show();
+        for (int which : new int[]{AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE, AlertDialog.BUTTON_NEUTRAL}) {
+            Button button = dialog.getButton(which);
+            if (button != null) NotebookButton.makeStatic(button);
+        }
     }
 
     @Override protected void onPause() {

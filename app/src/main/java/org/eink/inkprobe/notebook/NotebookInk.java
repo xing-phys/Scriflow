@@ -132,16 +132,15 @@ public final class NotebookInk implements SurfaceHolder.Callback {
     }
 
     /**
-     * Apply a completed stroke edit on this paused native surface. The existing background
-     * stays bound, so one native draw publishes paper and replacement ink together. False
+     * Apply a page or completed edit on this paused surface. The existing bitmap stays bound;
+     * paper changes repaint that owned bitmap before one draw posts paper and tracks. False
      * requests a fresh widget when native input or surface geometry cannot safely be reused.
      */
     public boolean applyEditPage(NotebookPage page) {
         if (!alive || failed) return false;
         if (page == null) throw new IllegalArgumentException("Missing page");
         if (wanted || enabled || penDown) throw new IllegalStateException("Pause before editing the page");
-        if (page.width != this.page.width || page.height != this.page.height
-                || page.template != this.page.template) {
+        if (page.width != this.page.width || page.height != this.page.height) {
             return false;
         }
         try {
@@ -149,13 +148,15 @@ public final class NotebookInk implements SurfaceHolder.Callback {
                     || paperBitmap.getWidth() != surfaceWidth || paperBitmap.getHeight() != surfaceHeight
                     || Boolean.TRUE.equals(get(view, "isReceivingTrack"))) return false;
             boolean sameStrokes = sameStrokeReferences(completed, page.strokes);
+            boolean samePaper = this.page.template == page.template;
             this.page = page;
             completed.clear();
             completed.addAll(page.strokes);
-            if (sameStrokes && restored) return true; // No-hit erasing leaves unchanged ink alone.
+            if (sameStrokes && samePaper && restored) return true;
             restored = false;
             restoring = true;
             try {
+                if (!samePaper) paintPaper(paperBitmap);
                 replaceNativeTracks();
                 restored = true;
             } finally { restoring = false; }
@@ -461,22 +462,25 @@ public final class NotebookInk implements SurfaceHolder.Callback {
         try {
             Bitmap background = Bitmap.createBitmap(surfaceWidth, surfaceHeight, Bitmap.Config.ARGB_8888);
             background.setDensity(Bitmap.DENSITY_NONE);
-            Canvas canvas = new Canvas(background);
-            canvas.drawColor(Color.WHITE);
-            if (page.template == NotebookPage.Template.LINED) {
-                Paint rule = new Paint();
-                rule.setColor(Color.rgb(210, 210, 210));
-                rule.setStrokeWidth(Math.max(1f, widthScale));
-                for (float y = 72; y < page.height; y += 72) {
-                    canvas.drawLine(0, y * scaleY, surfaceWidth, y * scaleY, rule);
-                }
-            }
+            paintPaper(background);
             // bindBitmap and setTrackList redraw synchronously on a prepared native surface.
             call(get(view, "getSurfacePicture"), "bindBitmap", new Class<?>[]{Bitmap.class}, background);
             paperBitmap = background;
             replaceNativeTracks();
             restored = true;
         } finally { restoring = false; }
+    }
+
+    private void paintPaper(Bitmap bitmap) {
+        Canvas canvas = new Canvas(bitmap);
+        canvas.drawColor(Color.WHITE);
+        if (page.template == NotebookPage.Template.LINED) {
+            Paint rule = new Paint();
+            rule.setColor(Color.rgb(210, 210, 210));
+            rule.setStrokeWidth(Math.max(1f, widthScale));
+            for (float y = 72; y < page.height; y += 72)
+                canvas.drawLine(0, y * scaleY, surfaceWidth, y * scaleY, rule);
+        }
     }
 
     private void replaceNativeTracks() throws Exception {
