@@ -302,3 +302,57 @@ or any battery/global-display changes.
 Validation: APK build and signature verification passed, effective policy readback
 passed, existing host timing tests passed all 60 assertions, and own-app exports
 verified the control states on the device. No new app permissions were added.
+
+## Interrupted offline capture
+
+After the user unplugged and reconnected USB, host USB descriptors exposed only
+MTP/storage, with no ADB interface. The user restored debugging by switching
+USB debugging off and on. The on-device recorder had ended without its COMPLETE
+marker; it retained only five plugged-in samples, elapsed 0–21 seconds, with
+no new StatusBar rows after its initial history. No unplugged sample was saved,
+so this capture cannot establish the effect of cable removal. It must not be
+used as an unplugged control.
+
+The collector now supports explicitly recovering a valid-header partial log
+after the recorded start time plus duration plus ten seconds. Default collection
+still retains incomplete logs. Recovery labels the log PARTIAL and records
+`complete=false`; cleanup removes only the recorder's two generated files after
+the local save. Both host fake-ADB checks and this actual partial recovery passed.
+
+## Clash traffic notification identified
+
+A five-second metadata-only gfx/view/window/Binder trace contained five calls
+from PID 7343, `com.github.metacubex.clash.meta:background`, to
+`INotificationManager` transaction 6. This exact firmware's Stub maps transaction
+6 to `enqueueNotificationWithTag`. Calls were approximately one second apart.
+Each was followed by SystemUI fetching its notification within 7–10 ms, then
+the paired UI frames within 23–66 ms. No notification text or note contents
+were inspected to identify the sender.
+
+Read-only inspection of the installed Clash APK, version 2.11.34.Meta/code
+211034, confirmed that DynamicNotificationModule uses a one-second ticker and
+posts traffic counters while interactive. App Settings' Show Traffic switch
+maps to ServiceStore.dynamicNotification, is disabled while Clash runs, and
+selects the dynamic versus static notification module at service startup.
+Public counterparts:
+
+- [Dynamic notification module](https://github.com/MetaCubeX/ClashMetaForAndroid/blob/main/service/src/main/java/com/github/kr328/clash/service/clash/module/DynamicNotificationModule.kt)
+- [App settings control](https://github.com/MetaCubeX/ClashMetaForAndroid/blob/main/design/src/main/java/com/github/kr328/clash/design/AppSettingsDesign.kt)
+- [Service module selection](https://github.com/MetaCubeX/ClashMetaForAndroid/blob/main/service/src/main/java/com/github/kr328/clash/service/ClashService.kt)
+
+After being asked about a brief VPN restart to change only this preference,
+the user stopped Clash. Automatic measurement then found zero new StatusBar
+rows over ten seconds. The setting was observed ON, switched OFF through its
+normal UI, and Clash was restarted. Its foreground TunService was verified
+running. Other App-settings switches retained their original OFF states.
+
+| Condition | New StatusBar rows per approximately ten seconds |
+| --- | --- |
+| Clash running, Show Traffic on | About 20 |
+| Clash stopped by user | 0 |
+| Clash restarted, Show Traffic off | 0 |
+
+This identifies and suppresses the recurring notification-driven redraws while
+retaining the VPN. A new Native edit surface is open for a short physical pen
+test. Handwriting improvement and the exact reason earlier cable/state changes
+affected the symptom remain unconfirmed until that test.

@@ -117,23 +117,37 @@ def collect(args):
             or remote_log != prefix + token + '.txt'):
         raise ValueError('Invalid remote paths in session state.')
     if state.get('status') == 'collected':
-        print(f'Already collected: {session / "timestamps.txt"}')
+        label = 'complete' if state.get('complete', True) else 'PARTIAL'
+        print(f'Already collected ({label}): {session / "timestamps.txt"}')
         return
     # cat receives an explicit serial; reconnecting a different tablet cannot match.
     data = shell(serial, f'cat {shlex.quote(remote_log)}')
     if 'OFFLINE_LAYER_CADENCE_V1\n' not in data:
         raise ValueError('Sampler did not start correctly; remote files retained.')
-    if not data.rstrip().endswith('COMPLETE'):
-        raise ValueError('Sampler is unfinished or timed out; remote files retained. '
-                         'Wait until the window ends and retry collect.')
+    complete = data.rstrip().endswith('COMPLETE')
+    if not complete:
+        if not args.allow_partial:
+            raise ValueError('Sampler is unfinished, timed out, or possibly terminated '
+                             'during USB removal; remote files retained. Retry after '
+                             'the window ends, or use --allow-partial after the '
+                             'recorded start time + duration + 10 seconds.')
+        started = datetime.datetime.fromisoformat(state['startedAtUtc'])
+        if started.tzinfo is None:
+            raise ValueError('Session start time has no timezone; remote files retained.')
+        deadline = started + datetime.timedelta(seconds=state['durationSeconds'] + 10)
+        if datetime.datetime.now(datetime.timezone.utc) < deadline:
+            raise ValueError('Partial collection is allowed only after the recorded '
+                             'start time + duration + 10 seconds; remote files retained.')
     destination = session / 'timestamps.txt'
     destination.write_text(data)
-    # Success means the full marked log is safely written locally before cleanup.
+    # The complete log, or explicitly accepted partial log, is saved before cleanup.
     shell(serial, f'rm -- {shlex.quote(remote_script)} {shlex.quote(remote_log)}')
     state['status'] = 'collected'
+    state['complete'] = complete
     state['collectedAtUtc'] = datetime.datetime.now(datetime.timezone.utc).isoformat()
     state_path.write_text(json.dumps(state, indent=2) + '\n')
-    print(f'Saved {destination}; removed the two temporary device files.')
+    label = 'complete' if complete else 'PARTIAL (sampler did not finish)'
+    print(f'Saved {label}: {destination}; removed the two temporary device files.')
     print('Compare battery USB powered transitions with new, deduplicated '
           'StatusBar timestamps. These are not physical refresh measurements.')
 
@@ -150,6 +164,8 @@ def main():
     begin.set_defaults(action=start)
     end = commands.add_parser('collect', help='Fetch the completed log after reconnecting')
     end.add_argument('session', type=pathlib.Path)
+    end.add_argument('--allow-partial', action='store_true',
+                     help='Recover an incomplete log after start + duration + 10 seconds')
     end.set_defaults(action=collect)
     args = parser.parse_args()
     if args.command == 'start':

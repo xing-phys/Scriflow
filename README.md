@@ -165,6 +165,29 @@ old rows remain in the history even when no frames arrive. `/proc/uptime` and
 SurfaceFlinger timestamps use different clock domains, so do not subtract them.
 These are layer submissions, not optical refresh or handwriting latency.
 
+On this Huawei USB mode, cable removal can stop the ADB service and interrupt
+the recorder. An incomplete log is retained by default. After the recorded
+start time plus duration plus ten seconds, it can be explicitly recovered with
+`collect artifacts/usb-comparison --allow-partial`; such a log is labeled partial
+and must not be treated as evidence of an unplugged interval unless it actually
+contains unplugged samples.
+
+## Background notification interference
+
+A metadata-only system trace identified Clash Meta's background service posting
+its traffic notification every second, followed by SystemUI's paired frames.
+The installed Clash build uses a one-second ticker for this feature. With the
+user's authorization, **Settings → App → Service → Show Traffic** was switched
+off while Clash was stopped, then Clash was restarted. Its VPN service remained
+running; new StatusBar submissions fell from about 20 per ten seconds to zero
+in the measured idle comparison. The effect on physical writing is pending.
+
+This establishes a source of display activity that exists outside the notes
+app's own layers. A static floating overlay does not exclude notification-driven
+activity from another background app. Avoid routine traffic/clock/status updates
+inside a handwriting app's own UI as well. Compatibility testing should include
+background notifications and a freshly opened writing surface.
+
 See [the investigation plan](matepad-handwriting-plan.md) and
 [device test record](docs/device-testing.md).
 
