@@ -382,3 +382,43 @@ for continuing development, while consistent native-Notes parity and robust
 behavior around unrelated background updates remain open checks. Clash is
 running with only Show Traffic changed to off; no proprietary code or private
 stroke/log exports are committed.
+
+## Version 0.7: one-page notebook
+
+The user authorized the first notebook milestone: blank/lined paper, native
+writing, automatic saving, and editable restoration. The launcher now opens
+NotebookActivity as Ink Notebook; the original probe remains a separate
+development Activity. No application permissions or network features were added.
+
+Host verification passed: 60 timing assertions and 1,254 real-file storage
+assertions. Storage tests cover style/coordinate/time/pressure round trips,
+every truncation boundary of the final append, appending after tail recovery,
+checksum/header/content corruption without overwriting source bytes, and
+metadata replacement with backups.
+
+On the tablet, isolated synthetic restoration checks passed for both templates:
+two native tracks and nine points matched coordinates, pressure, timestamps,
+and pen styles. Blank paper's background had no ruling; lined paper's opaque
+bitmap had 24 ruled rows at the measured test height. A separate simulated
+callback-boundary check passed: an UP preceding native commit was emitted once
+on stop, repeated stop did not duplicate it, and partial/cancelled strokes were
+discarded. This simulated check does not claim real stylus latency coverage.
+
+First physical result: the user reports smooth writing, but the unchanging
+Saved label did not communicate what had been saved. The document contained
+22 completed strokes and 799 points on lined paper, in a 1404×1688 logical
+canvas. The Saved indicator was improved to show the saved stroke count after
+a quiet interval; it remains unchanged while the pen is active.
+
+After a force-stop and reopen, the page file was byte-for-byte unchanged.
+An explicit debug check of the actual reopened widget confirmed all 22 tracks
+and 799 points matched the saved model, including coordinates, pressure,
+timestamps, and pen styles. Switching the actual page to blank paper and back
+to lined paper, with force-stops between, passed the same full native-track
+comparison in both cases. These checks did not inspect handwritten text or
+commit private stroke data.
+
+Continued physical writing after restoration and the saved-count feedback are
+pending the user's final short test. The tablet is left on the restored lined
+page with 22 saved strokes. The source includes guards against handwriting
+before restoration is ready and against losing a completed UP during pause.
