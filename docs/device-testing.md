@@ -418,7 +418,16 @@ to lined paper, with force-stops between, passed the same full native-track
 comparison in both cases. These checks did not inspect handwritten text or
 commit private stroke data.
 
-Continued physical writing after restoration and the saved-count feedback are
-pending the user's final short test. The tablet is left on the restored lined
-page with 22 saved strokes. The source includes guards against handwriting
-before restoration is ready and against losing a completed UP during pause.
+The final physical acceptance check passed: the user confirms the previous
+writing is present, the saved count increases after adding writing, and writing
+remains smooth. The updated durable lined page contains 36 strokes and 1,120
+points, with no incomplete tail. Exact comparison confirms all original 22
+strokes and 799 points remain unchanged as the document prefix, including pen
+style, coordinates, timestamps, and pressure. Thus 14 new strokes and 321 points
+were appended successfully after restoration.
+
+The one-page milestone is accepted: blank/lined paper, native writing, completed
+stroke autosave, forced-stop recovery, and continued writing after reopening.
+The source also guards handwriting before restoration is ready and preserves a
+completed UP when pause precedes its native track notification. No further app
+or device changes were made for this final metadata/file comparison.

@@ -92,3 +92,8 @@ force-stop/interrupted writes; sudden hardware power loss is a separate check.
 Host corruption/interruption tests and synthetic hardware restoration support
 these checks, but do not substitute for real stylus input or optical latency
 observations. Current device results are recorded in `device-testing.md`.
+
+Accepted on 2026-10-24. Real writing remained smooth after reopening, the saved
+count advanced, and the durable document grew from 22 strokes/799 points to
+36 strokes/1,120 points with every original stroke preserved exactly. Both
+paper templates also passed forced-stop native-track restoration checks.

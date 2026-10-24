@@ -83,6 +83,12 @@ build, cold-launch NotebookActivity with `--ez verifyRestore true`, then read
 pressure, timestamps, and style and exports only result metadata. It does not
 change the document and does not run during normal use.
 
+The first milestone passed physical acceptance on this tablet: smooth continued
+writing after reopening, visible save-count updates, and 36 saved strokes with
+all 22 pre-restart strokes preserved exactly. Both templates passed native
+restoration checks. This is a device-specific usability result, not a measured
+optical latency claim.
+
 See [milestone design and acceptance](docs/notebook-milestone.md), the
 [device test record](docs/device-testing.md), and the retained
 [Ink Probe guide](docs/ink-probe.md).
