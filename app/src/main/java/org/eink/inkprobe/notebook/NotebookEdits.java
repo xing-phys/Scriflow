@@ -3,6 +3,7 @@ package org.eink.inkprobe.notebook;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.Collections;
 import java.util.List;
 
 /** Session-local stroke editing. Call only after a complete pen/eraser gesture. */
@@ -38,18 +39,33 @@ public final class NotebookEdits {
     }
 
     public boolean append(NotebookPage.Stroke stroke) {
-        if (stroke == null) throw new IllegalArgumentException("Missing stroke");
+        return appendAll(Collections.singletonList(stroke));
+    }
+
+    /** Disconnected pieces of one physical pen gesture share one history command. */
+    public boolean appendAll(List<NotebookPage.Stroke> strokes) {
+        if (strokes == null) throw new IllegalArgumentException("Missing strokes");
+        if (strokes.isEmpty()) return false;
         if (!page.isInitialized()) throw new IllegalStateException("Page size is not initialized");
-        if (page.strokes.size() >= NotebookStore.MAX_STROKES
-                || (long) page.pointCount + stroke.points.size() > NotebookStore.MAX_TOTAL_POINTS) {
+        if ((long) page.strokes.size() + strokes.size() > NotebookStore.MAX_STROKES) {
             throw new IllegalArgumentException("Notebook stroke/point limit reached");
         }
-        for (NotebookPage.Point point : stroke.points) {
-            if (point.x < 0 || point.y < 0 || point.x > page.width || point.y > page.height) {
-                throw new IllegalArgumentException("Stroke is outside page bounds");
+        ArrayList<NotebookPage.Stroke> combined = new ArrayList<>(page.strokes);
+        long points = page.pointCount;
+        for (NotebookPage.Stroke stroke : strokes) {
+            if (stroke == null) throw new IllegalArgumentException("Missing stroke");
+            points += stroke.points.size();
+            if (points > NotebookStore.MAX_TOTAL_POINTS) {
+                throw new IllegalArgumentException("Notebook stroke/point limit reached");
             }
+            for (NotebookPage.Point point : stroke.points) {
+                if (point.x < 0 || point.y < 0 || point.x > page.width || point.y > page.height) {
+                    throw new IllegalArgumentException("Stroke is outside page bounds");
+                }
+            }
+            combined.add(stroke);
         }
-        return commit(page.withStroke(stroke));
+        return commit(page.withStrokes(combined));
     }
 
     /**
@@ -58,20 +74,33 @@ public final class NotebookEdits {
      * The caller must discard canceled gestures instead of submitting their partial paths.
      */
     public boolean erase(List<NotebookPage.Point> path, float radius) {
-        if (path == null || !NotebookPage.finite(radius) || radius < 0) {
+        return erasePaths(Collections.singletonList(path), radius);
+    }
+
+    /** Disconnected portions of one viewport gesture are one edit, without phantom joins. */
+    public boolean erasePaths(List<List<NotebookPage.Point>> paths, float radius) {
+        if (paths == null || !NotebookPage.finite(radius) || radius < 0) {
             throw new IllegalArgumentException("Invalid eraser path/radius");
         }
-        for (NotebookPage.Point point : path) {
-            if (point == null) throw new IllegalArgumentException("Missing eraser point");
+        ArrayList<Segment[]> segments = new ArrayList<>();
+        ArrayList<Bounds> bounds = new ArrayList<>();
+        for (List<NotebookPage.Point> path : paths) {
+            if (path == null) throw new IllegalArgumentException("Missing eraser path");
+            for (NotebookPage.Point point : path) {
+                if (point == null) throw new IllegalArgumentException("Missing eraser point");
+            }
+            if (!path.isEmpty()) { segments.add(segments(path)); bounds.add(new Bounds(path)); }
         }
-        if (path.isEmpty() || page.strokes.isEmpty()) return false;
-        Segment[] eraser = segments(path);
-        Bounds eraserBounds = new Bounds(path);
+        if (segments.isEmpty() || page.strokes.isEmpty()) return false;
         ArrayList<NotebookPage.Stroke> kept = new ArrayList<>(page.strokes.size());
         for (NotebookPage.Stroke stroke : page.strokes) {
             double reach = (double) radius + stroke.width / 2.0;
-            if (!eraserBounds.near(new Bounds(stroke.points), reach)
-                    || !touches(stroke, eraser, reach)) kept.add(stroke);
+            Bounds inkBounds = new Bounds(stroke.points);
+            boolean hit = false;
+            for (int i = 0; i < segments.size() && !hit; i++) {
+                hit = bounds.get(i).near(inkBounds, reach) && touches(stroke, segments.get(i), reach);
+            }
+            if (!hit) kept.add(stroke);
         }
         if (kept.size() == page.strokes.size()) return false;
         return commit(page.withStrokes(kept));

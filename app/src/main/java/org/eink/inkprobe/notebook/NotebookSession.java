@@ -7,6 +7,9 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Collections;
+import java.util.ArrayList;
+import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -32,6 +35,11 @@ final class NotebookSession {
     private volatile int notebookId = 1;
     private volatile String notebookName = "My Notebook";
     private volatile List<NotebookCatalog.Entry> entries = Collections.emptyList();
+    private List<Integer> windowIds = Collections.emptyList();
+    private volatile Map<Integer, NotebookPage> window = Collections.emptyMap();
+    private Map<Integer, NotebookPage> deliveredWindow = Collections.emptyMap();
+    private volatile Map<Integer, Boolean> undoWindow = Collections.emptyMap(), redoWindow = Collections.emptyMap();
+    private volatile NotebookScrollStore.State position;
 
     private NotebookSession(Context context) {
         document = new NotebookLibrary(new File(context.getFilesDir(), "notebook"));
@@ -47,14 +55,18 @@ final class NotebookSession {
     int notebookId() { return notebookId; }
     String notebookName() { return notebookName; }
     List<NotebookCatalog.Entry> entries() { return entries; }
+    Map<Integer, NotebookPage> window() { return deliveredWindow; }
+    boolean canUndo(int id) { return Boolean.TRUE.equals(undoWindow.get(id)); }
+    boolean canRedo(int id) { return Boolean.TRUE.equals(redoWindow.get(id)); }
+    NotebookScrollStore.State scrollPosition() { return position; }
 
     void load(Callback callback) { submit(document::load, callback); }
     void list(Callback callback) { submit(document::loadCatalog, callback); }
     void openNotebook(int id, Callback callback) {
-        submit(() -> document.openNotebook(id), callback);
+        submit(() -> { document.openNotebook(id); windowIds = Collections.emptyList(); }, callback);
     }
     void createNotebook(String name, Callback callback) {
-        submit(() -> document.createNotebook(name), callback);
+        submit(() -> { document.createNotebook(name); windowIds = Collections.emptyList(); }, callback);
     }
     void renameNotebook(int id, String name, Callback callback) {
         submit(() -> document.renameNotebook(id, name), callback);
@@ -78,6 +90,57 @@ final class NotebookSession {
         submit(() -> document.selectPage(number), callback);
     }
     void addPage(Callback callback) { submit(document::addPage, callback); }
+    void addPage(int sourcePage, Callback callback) {
+        submit(() -> { document.selectPage(sourcePage); document.addPage(); }, callback);
+    }
+    void window(List<Integer> ids, Callback callback) {
+        final List<Integer> requested = new ArrayList<>(ids);
+        submit(() -> {
+            windowIds = requested;
+            for (int id : requested) document.page(id);
+        }, callback);
+    }
+    void appendViewport(Map<Integer, List<NotebookPage.Stroke>> strokes, Callback callback) {
+        submit(() -> {
+            IOException first = null;
+            for (Map.Entry<Integer, List<NotebookPage.Stroke>> entry : strokes.entrySet()) {
+                try { document.appendStrokesToPage(entry.getKey(), entry.getValue()); }
+                catch (IOException error) { if (first == null) first = error; }
+            }
+            if (first != null) throw first;
+        }, callback);
+    }
+    void eraseViewport(List<NotebookViewport.EraseGesture> gestures, Callback callback) {
+        submit(() -> {
+            IOException first = null;
+            for (NotebookViewport.EraseGesture gesture : gestures) {
+                try { document.eraseOnPagePaths(gesture.pageId, gesture.paths, gesture.radius); }
+                catch (IOException error) { if (first == null) first = error; }
+            }
+            if (first != null) throw first;
+        }, callback);
+    }
+    void undo(int id, Callback callback) { submit(() -> document.undoOnPage(id), callback); }
+    void redo(int id, Callback callback) { submit(() -> document.redoOnPage(id), callback); }
+    void setTemplate(int id, NotebookPage.Template template, Callback callback) {
+        submit(() -> document.setPageTemplate(id, template), callback);
+    }
+    void saveScroll(int id, double fraction, Callback callback) {
+        submit(() -> document.saveScrollPosition(id, fraction), callback);
+    }
+
+    private void publishWindow() {
+        Map<Integer, NotebookPage> pages = new LinkedHashMap<>();
+        Map<Integer, Boolean> undo = new LinkedHashMap<>(), redo = new LinkedHashMap<>();
+        for (int id : windowIds) {
+            try {
+                pages.put(id, document.cachedPage(id));
+                undo.put(id, document.canUndoOnPage(id)); redo.put(id, document.canRedoOnPage(id));
+            } catch (IOException ignored) { /* A failed window load is reported by its operation. */ }
+        }
+        window = Collections.unmodifiableMap(pages);
+        undoWindow = Collections.unmodifiableMap(undo); redoWindow = Collections.unmodifiableMap(redo);
+    }
 
     private void submit(Operation operation, Callback callback) {
         pending.incrementAndGet();
@@ -94,11 +157,17 @@ final class NotebookSession {
             notebookId = document.notebookId();
             notebookName = document.notebookName();
             entries = document.entries();
+            position = document.scrollPosition();
+            publishWindow();
             problem = failure == null ? document.error() : failure;
             pending.decrementAndGet();
             final NotebookPage snapshot = page;
             final IOException error = problem;
-            main.post(() -> callback.complete(snapshot, error));
+            final Map<Integer, NotebookPage> savedWindow = window;
+            main.post(() -> {
+                deliveredWindow = savedWindow;
+                callback.complete(snapshot, error);
+            });
         });
     }
 }

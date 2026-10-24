@@ -44,6 +44,7 @@ public final class NotebookLibrary {
     public boolean canRedo() { return book != null && book.canRedo(); }
     public int pageNumber() { return book == null ? 1 : book.pageNumber(); }
     public int pageCount() { return book == null ? 1 : book.pageCount(); }
+    public NotebookScrollStore.State scrollPosition() { return book == null ? null : book.scrollPosition(); }
     public List<NotebookCatalog.Entry> entries() { return state == null ? Collections.emptyList() : state.entries; }
     public int notebookId() { return book == null ? state == null ? 1 : state.selectedId : bookId; }
     public String notebookName() {
@@ -102,6 +103,37 @@ public final class NotebookLibrary {
     public void setTemplate(NotebookPage.Template template) throws IOException { edit(() -> book.setTemplate(template)); }
     public void selectPage(int number) throws IOException { edit(() -> book.selectPage(number)); }
     public void addPage() throws IOException { edit(() -> book.addPage()); }
+    public NotebookPage page(int number) throws IOException {
+        final NotebookPage[] result = {null}; edit(() -> result[0] = book.page(number)); return result[0];
+    }
+    public NotebookPage cachedPage(int number) throws IOException {
+        if (book == null) throw new IOException("No notebook is open");
+        return book.cachedPage(number);
+    }
+    public void appendToPage(int number, NotebookPage.Stroke stroke) throws IOException { edit(() -> book.appendToPage(number, stroke)); }
+    public void appendStrokesToPage(int number, List<NotebookPage.Stroke> strokes) throws IOException {
+        edit(() -> book.appendStrokesToPage(number, strokes));
+    }
+    public void setPageTemplate(int number, NotebookPage.Template template) throws IOException { edit(() -> book.setPageTemplate(number, template)); }
+    public void saveScrollPosition(int number, double fraction) throws IOException { edit(() -> book.saveScrollPosition(number, fraction)); }
+    public boolean eraseOnPage(int number, List<NotebookPage.Point> path, float radius) throws IOException {
+        final boolean[] result = {false}; edit(() -> result[0] = book.eraseOnPage(number, path, radius)); return result[0];
+    }
+    public boolean eraseOnPagePaths(int number, List<List<NotebookPage.Point>> paths, float radius) throws IOException {
+        final boolean[] result = {false}; edit(() -> result[0] = book.eraseOnPagePaths(number, paths, radius)); return result[0];
+    }
+    public boolean undoOnPage(int number) throws IOException {
+        final boolean[] result = {false}; edit(() -> result[0] = book.undoOnPage(number)); return result[0];
+    }
+    public boolean redoOnPage(int number) throws IOException {
+        final boolean[] result = {false}; edit(() -> result[0] = book.redoOnPage(number)); return result[0];
+    }
+    public boolean canUndoOnPage(int number) throws IOException {
+        final boolean[] result = {false}; edit(() -> result[0] = book.canUndoOnPage(number)); return result[0];
+    }
+    public boolean canRedoOnPage(int number) throws IOException {
+        final boolean[] result = {false}; edit(() -> result[0] = book.canRedoOnPage(number)); return result[0];
+    }
     public boolean erase(List<NotebookPage.Point> path, float radius) throws IOException {
         final boolean[] result = {false}; edit(() -> result[0] = book.erase(path, radius)); return result[0];
     }

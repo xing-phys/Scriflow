@@ -17,7 +17,64 @@ public final class NotebookEditsTest {
         boundedHistorySharesImmutableStrokes();
         invalidEditsAreAtomic();
         initialPageSizing();
+        disconnectedEraserPathsShareOneHistoryCommand();
+        disconnectedPenPiecesShareOneHistoryCommand();
         System.out.println("NotebookEdits: " + assertions + " assertions passed (host JVM).");
+    }
+
+    private static void disconnectedPenPiecesShareOneHistoryCommand() {
+        NotebookEdits edits = new NotebookEdits(page());
+        NotebookPage.Stroke existing = stroke(100, 100, 200, 100);
+        NotebookPage.Stroke first = stroke(10, 20, 0, 20), last = stroke(0, 80, 10, 80);
+        edits.append(existing);
+        check(edits.appendAll(Arrays.asList(first, last)), "page exit and reentry pieces accepted as one gesture");
+        equal(3, edits.current().strokes.size(), "every disconnected pen piece retained");
+        check(edits.undo(), "one undo removes whole pen gesture");
+        equal(1, edits.current().strokes.size(), "undo removes both disconnected pieces");
+        check(edits.current().strokes.get(0) == existing, "undo preserves previous writing");
+        NotebookPage before = edits.current();
+        check(!edits.appendAll(Collections.<NotebookPage.Stroke>emptyList()), "empty append group is no-op");
+        check(edits.current() == before && edits.canRedo(), "empty group preserves page and redo");
+        expectIllegal(() -> edits.appendAll(Arrays.asList(first, null)));
+        expectIllegal(() -> edits.appendAll(Arrays.asList(first, stroke(-1, 30, 10, 30))));
+        expectIllegal(() -> edits.appendAll(null));
+        check(edits.current() == before && edits.canRedo(), "invalid later piece preserves complete model and history");
+        check(edits.redo(), "one redo restores whole pen gesture");
+        check(edits.current().strokes.get(1) == first && edits.current().strokes.get(2) == last,
+                "redo shares exact immutable pen pieces");
+
+        NotebookEdits full = new NotebookEdits(page().withStrokes(Collections.nCopies(NotebookStore.MAX_STROKES - 1, existing)));
+        expectIllegal(() -> full.appendAll(Arrays.asList(first, last)));
+        equal(NotebookStore.MAX_STROKES - 1, full.current().strokes.size(), "whole-group stroke limit validated before commit");
+        check(!full.canUndo(), "failed whole-group stroke limit creates no history");
+        NotebookPage.Stroke many = new NotebookPage.Stroke(2, 4, 0xff000000,
+                Collections.nCopies(NotebookStore.MAX_POINTS_PER_STROKE, new NotebookPage.Point(10, 10, 0, 1)));
+        NotebookEdits nearlyFull = new NotebookEdits(page().withStrokes(Collections.nCopies(4, many)));
+        expectIllegal(() -> nearlyFull.appendAll(Arrays.asList(many, many)));
+        equal(800000, nearlyFull.current().pointCount, "whole-group point limit validated before commit");
+        check(!nearlyFull.canUndo(), "failed whole-group point limit creates no history");
+    }
+
+    private static void disconnectedEraserPathsShareOneHistoryCommand() {
+        NotebookEdits edits = new NotebookEdits(page());
+        NotebookPage.Stroke first = stroke(10, 10, 20, 10);
+        NotebookPage.Stroke middle = stroke(50, 10, 60, 10);
+        NotebookPage.Stroke last = stroke(90, 10, 100, 10);
+        edits.append(first); edits.append(middle); edits.append(last);
+        check(edits.erasePaths(Arrays.asList(path(15, 10), path(95, 10)), 0), "separate visible path portions hit both ends");
+        equal(1, edits.current().strokes.size(), "disconnected paths do not invent a connecting segment");
+        check(edits.current().strokes.get(0) == middle, "middle stroke survives phantom bridge avoidance");
+        check(edits.undo(), "one undo restores every disconnected eraser portion");
+        equal(3, edits.current().strokes.size(), "whole gesture restored");
+        check(edits.redo(), "one redo removes both end strokes");
+        equal(1, edits.current().strokes.size(), "whole gesture redone");
+        check(edits.undo(), "restore redo state for validation");
+        check(!edits.erasePaths(Arrays.asList(Collections.<NotebookPage.Point>emptyList(), path(500, 500)), 0), "empty and no-hit portions are no-op");
+        check(edits.canRedo(), "no-hit union preserves redo");
+        boolean invalid = false;
+        try { edits.erasePaths(Arrays.asList(path(15, 10), null), 0); }
+        catch (IllegalArgumentException expected) { invalid = true; }
+        check(invalid && edits.current().strokes.size() == 3, "all path validation finishes before an edit");
     }
 
     private static void drawingHistoryAndBranches() {

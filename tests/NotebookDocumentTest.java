@@ -24,10 +24,99 @@ public final class NotebookDocumentTest {
             initialLoadRequiresExplicitRetry();
             initializationFailureRetainsCompletedDrawing();
             validationErrorsUseIOException();
+            cachedValidationReadsWithoutPublishing();
+            groupedAppendIsOneDurableHistoryCommand();
+            groupedAppendFailureRetainsEveryPiece();
             System.out.println("NotebookDocument: " + assertions + " assertions passed (host JVM, real files).");
         } finally {
             for (File directory : directories) deleteTree(directory);
         }
+    }
+
+    private static void groupedAppendIsOneDurableHistoryCommand() throws Exception {
+        File directory = directory(); NotebookDocument document = ready(directory);
+        document.append(stroke(1));
+        document.appendAll(Arrays.asList(stroke(10), stroke(40)));
+        equal(3, saved(directory).strokes.size(), "grouped pen pieces all saved");
+        check(document.undo(), "one undo removes grouped pen pieces");
+        equal(1, saved(directory).strokes.size(), "grouped undo preserves prior writing on disk");
+        byte[] before = bytes(directory);
+        document.appendAll(Collections.<NotebookPage.Stroke>emptyList());
+        check(document.canRedo(), "empty append group preserves redo");
+        check(Arrays.equals(before, bytes(directory)), "empty append group does not write disk");
+        expectIo(() -> document.appendAll(Arrays.asList(stroke(70), null)));
+        equal(1, document.current().strokes.size(), "invalid later piece does not accept earlier piece");
+        check(document.canRedo(), "invalid group preserves redo history");
+        check(Arrays.equals(before, bytes(directory)), "invalid group preserves disk bytes");
+        document.retry();
+        check(document.redo(), "redo remains available after validation retry");
+        equal(3, saved(directory).strokes.size(), "one redo saves complete group");
+    }
+
+    private static void groupedAppendFailureRetainsEveryPiece() throws Exception {
+        for (int variant = 0; variant < 3; variant++) {
+            File directory = directory(); NotebookDocument document = ready(directory);
+            document.append(stroke(1));
+            // Deny precisely the second journal open. This leaves a real, valid first-piece
+            // prefix on disk without adding a production-only fault injection API.
+            denySecondJournalWrite(directory, () -> document.appendAll(Arrays.asList(stroke(10), stroke(40), stroke(70))));
+            equal(4, document.current().strokes.size(), "entire failed pen group retained in memory");
+            equal(2, saved(directory).strokes.size(), "first grouped piece acknowledged before later write fails");
+            if (variant == 2) {
+                NotebookStore external = new NotebookStore(directory); external.load(); external.appendStroke(stroke(70));
+                byte[] unexpected = bytes(directory);
+                expectIo(document::retry);
+                check(Arrays.equals(unexpected, bytes(directory)), "unexpected same-length group prefix is preserved");
+                equal(4, document.current().strokes.size(), "refused retry retains complete intended group");
+                continue;
+            }
+            if (variant == 1) {
+                // Simulate the second piece completing but its acknowledgement being lost.
+                NotebookStore external = new NotebookStore(directory); external.load(); external.appendStroke(stroke(40));
+            }
+            expectIo(() -> document.appendAll(Arrays.asList(stroke(80), stroke(90))));
+            equal(6, document.current().strokes.size(), "later queued pen group retained after earlier failure");
+            document.retry();
+            NotebookPage result = saved(directory);
+            equal(6, result.strokes.size(), "retry saves all groups without duplicating durable pieces");
+            int[] expected = {1, 10, 40, 70, 80, 90};
+            for (int i = 0; i < expected.length; i++) firstX(expected[i], result, i);
+            check(document.undo(), "undo later queued gesture after retry");
+            equal(4, saved(directory).strokes.size(), "one undo removes entire later group");
+            check(document.undo(), "undo original failed gesture after retry");
+            equal(1, saved(directory).strokes.size(), "one undo removes original complete group including durable prefix");
+            check(document.redo() && document.redo(), "redo each complete recovered gesture");
+            equal(6, saved(directory).strokes.size(), "group history remains complete after recovery");
+        }
+    }
+
+    private static void denySecondJournalWrite(File directory, Task task) throws Exception {
+        final String journal = new File(directory, "page.nbk").getAbsolutePath();
+        SecurityManager previous = System.getSecurityManager();
+        System.setSecurityManager(new SecurityManager() {
+            private int writes;
+            @Override public void checkPermission(java.security.Permission permission) { }
+            @Override public void checkWrite(String file) {
+                if (journal.equals(file) && ++writes == 2) throw new SecurityException("Simulated second-piece write failure");
+            }
+        });
+        try { expectIo(task); }
+        finally { System.setSecurityManager(previous); }
+    }
+
+    private static void cachedValidationReadsWithoutPublishing() throws Exception {
+        File directory = directory(); NotebookDocument document = ready(directory); document.append(stroke(10));
+        document.append(stroke(40)); document.undo();
+        byte[] primary = bytes(directory), backup = Files.readAllBytes(new File(directory, "page.nbk.bak").toPath());
+        document.validateDisk();
+        check(Arrays.equals(primary, bytes(directory)), "cached validation preserves journal bytes");
+        check(Arrays.equals(backup, Files.readAllBytes(new File(directory, "page.nbk.bak").toPath())), "cached validation preserves backup");
+        check(!new File(directory, "page.nbk.tmp").exists(), "cached validation creates no snapshot");
+        check(document.canRedo(), "cached validation preserves editing history");
+        NotebookStore external = new NotebookStore(directory); external.load(); external.appendStroke(stroke(70));
+        byte[] changed = bytes(directory); expectIo(document::validateDisk);
+        check(Arrays.equals(changed, bytes(directory)), "cached validation refuses unexpected disk without writing");
+        equal(1, document.current().strokes.size(), "cached validation retains original open snapshot");
     }
 
     private static void editingAndHistoryLifetime() throws Exception {

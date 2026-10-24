@@ -23,6 +23,16 @@ public final class NotebookDocument {
     public boolean canUndo() { return editor != null && editor.canUndo(); }
     public boolean canRedo() { return editor != null && editor.canRedo(); }
 
+    /** Validates a cached page against disk without syncing, publishing or losing its history. */
+    public void validateDisk() throws IOException {
+        execute(() -> {
+            requireEditor(); requireWritable();
+            if (!samePage(store.load(), durablePage)) {
+                throw new IOException("The saved page differs from the open page; files were preserved.");
+            }
+        });
+    }
+
     /** Recreated Activities wait behind outstanding work; they never reload over unsaved edits. */
     public void load() throws IOException {
         execute(() -> {
@@ -45,12 +55,20 @@ public final class NotebookDocument {
     }
 
     public void append(NotebookPage.Stroke stroke) throws IOException {
+        appendAll(java.util.Collections.singletonList(stroke));
+    }
+
+    /** Retain the entire gesture before I/O; journal each piece against its exact durable prefix. */
+    public void appendAll(List<NotebookPage.Stroke> strokes) throws IOException {
         execute(() -> {
             requireEditor();
-            editor.append(stroke);
+            List<NotebookPage.Stroke> group = strokes == null ? null : new java.util.ArrayList<>(strokes);
+            if (!editor.appendAll(group)) return;
             requireWritable();
-            attemptedPage = current();
-            acknowledged(store.appendStroke(stroke));
+            for (NotebookPage.Stroke stroke : group) {
+                attemptedPage = durablePage.withStroke(stroke);
+                acknowledged(store.appendStroke(stroke));
+            }
         });
     }
 
@@ -67,10 +85,14 @@ public final class NotebookDocument {
     }
 
     public boolean erase(List<NotebookPage.Point> path, float radius) throws IOException {
+        return erasePaths(java.util.Collections.singletonList(path), radius);
+    }
+
+    public boolean erasePaths(List<List<NotebookPage.Point>> paths, float radius) throws IOException {
         final boolean[] changed = {false};
         execute(() -> {
             requireEditor();
-            changed[0] = editor.erase(path, radius);
+            changed[0] = editor.erasePaths(paths, radius);
             if (changed[0]) publishEdit();
         });
         return changed[0];

@@ -4,8 +4,8 @@ A small notebook app for Huawei MatePad Paper HMW-W09, with blank/lined pages,
 native low-latency handwriting, automatic saving of completed strokes, and
 editable restoration after reopening.
 
-The current build is an early development APK, version 0.10, with a notebook
-library, multiple pages, undo/redo, and a whole-stroke eraser. Pen selection and
+The current build is an early development APK, version 0.11, with a notebook
+library, continuously scrolling pages, undo/redo, and a whole-stroke eraser. Pen selection and
 export are later milestones. Handwriting uses one black ballpoint pen. The
 original diagnostic screen remains available separately for development.
 
@@ -23,10 +23,14 @@ confirms how many completed strokes have been saved; an empty page shows
 the current page's paper without clearing writing. Tap it to toggle between
 blank and lined paper. The menu shows the page's save state.
 
-Use **‹** and **›** to move between pages, and **+ Page** to append an empty page
-at the end. New pages inherit the current page's paper; each page keeps its own
-writing and paper choice. The indicator shows **Page X of Y**. Navigation waits
-for completed strokes to save, and reopening returns to your last selected page.
+**Drag vertically with one finger** to scroll, then lift it to stop at any
+position, including between pages. **Write with the stylus** on either visible
+page. There is no snapping or inertial fling. **‹ / ›** still jump to page tops,
+and **+ Page** appends an empty page at the end. New pages inherit the active
+page's paper. Each page keeps its own writing and paper choice. The indicator
+shows **Page X of Y** for the most recently written page, or the page nearest
+the viewport center after scrolling. Eraser, Undo/Redo, and paper choice use
+that page context. The fractional scroll position is saved per notebook.
 Your existing single-page notebook becomes Page 1 without moving its file.
 There is a limit of 1,000 pages; deletion and reordering are not yet included.
 
@@ -49,7 +53,7 @@ Completed strokes survive app force-stop once **Saved** is shown. An unfinished
 stroke is discarded when leaving the app. Notes are stored on this tablet in
 the app's private directory; uninstalling the app removes that data. Keep the
 local signing key when installing updates over an existing version.
-Version 0.10 reads the unchanged version-1 page format from earlier releases. Install it as
+Version 0.11 reads the unchanged version-1 page format from earlier releases. Install it as
 an update over the existing app; **do not uninstall** to install the update.
 
 This firmware is sensitive to unrelated background display activity. During
@@ -94,6 +98,10 @@ Library tests cover old notebook files remaining in place, independent notebook
 positions/history, naming, creation, catalog retry, and preservation of missing
 or corrupt data. The checksummed catalog treats names as metadata; paths use
 stable numeric IDs.
+Scrolling tests additionally cover clipping and strict page bounds, strokes
+crossing page boundaries, per-page gesture undo, mixed finger/pen ownership,
+pending preview acknowledgements, and saved fractional positions. These tests
+cannot establish native scrolling speed or physical pen latency.
 
 The debug build also contains an isolated on-device restoration check. It opens
 only synthetic drawings and writes results under `files/notebook-selftest/`,
@@ -148,6 +156,13 @@ existing path as **My Notebook**. New notebook creation, selection, and renaming
 run on the same background worker as writing. The app builds offline with the
 same signing key; the new library UI still needs tablet acceptance. See
 [notebook library milestone](docs/notebook-library.md).
+
+Version 0.11 keeps one native writing surface fixed on screen. Finger dragging
+uses cached page previews; after release, the exact visible page portions become
+native editable tracks again. Pen input waits until all visible content has
+loaded. Completed strokes are saved to explicit page IDs, including strokes
+that cross a page gap. The new hardware path still needs tablet acceptance.
+See [continuous pages](docs/continuous-pages.md).
 
 See [milestone design and acceptance](docs/notebook-milestone.md), the
 [device test record](docs/device-testing.md), and the retained

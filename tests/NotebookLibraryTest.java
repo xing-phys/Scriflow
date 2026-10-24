@@ -30,8 +30,38 @@ public final class NotebookLibraryTest {
             failedCreationParentAndRetry();
             initialCatalogCorruptionCanBeRepaired();
             invalidNamesCannotChangeFiles();
+            viewportEditsAndPositionsStayWithTheirNotebook();
+            groupedViewportInkStaysWithItsNotebook();
             System.out.println("NotebookLibrary: " + assertions + " assertions passed (host JVM, real files).");
         } finally { for (File directory : directories) deleteTree(directory); }
+    }
+
+    private static void groupedViewportInkStaysWithItsNotebook() throws Exception {
+        File root = directory(); NotebookLibrary library = ready(root); library.addPage();
+        library.page(1); library.page(2);
+        byte[] first = bytes(root, "page.nbk");
+        check(new File(root, "page.nbk").delete(), "remove first notebook page journal for grouped failure");
+        check(new File(root, "page.nbk").mkdir(), "block first notebook page group");
+        expectIo(() -> library.appendStrokesToPage(1, Arrays.asList(stroke(10), stroke(30))));
+        IOException failure = library.error();
+        library.appendStrokesToPage(2, Arrays.asList(stroke(50), stroke(70)));
+        check(library.error() == failure, "healthy grouped viewport save preserves library error");
+        equal(2, library.cachedPage(1).strokes.size(), "library retains every failed grouped piece");
+        equal(2, library.cachedPage(2).strokes.size(), "library accepts healthy later-page group");
+        check(new File(root, "page.nbk").delete(), "remove library grouped failure obstruction");
+        Files.write(new File(root, "page.nbk").toPath(), first);
+        library.retry();
+        library.createNotebook("Other grouped notes"); library.initializeSize(100, 120);
+        library.appendStrokesToPage(1, Arrays.asList(stroke(80), stroke(90)));
+        library.openNotebook(1); library.undoOnPage(1);
+        equal(0, library.page(1).strokes.size(), "one first-notebook undo removes complete recovered group");
+        equal(2, library.page(2).strokes.size(), "first-notebook undo leaves other page group intact");
+        library.openNotebook(2);
+        equal(2, library.page(1).strokes.size(), "other notebook grouped ink isolated");
+        library.undoOnPage(1);
+        equal(0, library.page(1).strokes.size(), "one other-notebook undo removes its entire group");
+        library.redoOnPage(1);
+        equal(2, library.page(1).strokes.size(), "one other-notebook redo restores its entire group");
     }
 
     private static void legacyPagesAndSelectionRemainByteExact() throws Exception {
@@ -249,6 +279,29 @@ public final class NotebookLibraryTest {
         library.retry(); expectIo(() -> library.renameNotebook(1, "two\nlines"));
         check(Arrays.equals(before, bytes(root, "library.nbl")), "invalid rename leaves catalog unchanged");
         library.retry(); equal("Named", library.notebookName(), "retry retains acknowledged name");
+    }
+
+    private static void viewportEditsAndPositionsStayWithTheirNotebook() throws Exception {
+        File root = directory(); NotebookLibrary library = ready(root); library.addPage();
+        library.page(1); library.appendToPage(1, stroke(10));
+        library.setPageTemplate(1, NotebookPage.Template.LINED); library.saveScrollPosition(1, 0.375);
+        check(library.canUndoOnPage(1), "library exposes explicit-page history");
+        library.eraseOnPagePaths(1, Collections.singletonList(Collections.singletonList(new NotebookPage.Point(10, 20, 100, 1))), 0);
+        equal(0, library.cachedPage(1).strokes.size(), "library applies page-targeted erase");
+        library.undoOnPage(1); equal(1, library.cachedPage(1).strokes.size(), "library applies targeted undo");
+        check(library.canRedoOnPage(1), "targeted redo exposed");
+        library.redoOnPage(1); equal(0, library.cachedPage(1).strokes.size(), "library applies targeted redo");
+        library.undoOnPage(1);
+        library.createNotebook("Other"); library.initializeSize(100, 120); library.addPage();
+        library.page(1); library.appendToPage(1, stroke(70)); library.saveScrollPosition(2, 0.75);
+        library.openNotebook(1);
+        equal(1, library.scrollPosition().page, "first notebook anchor page retained");
+        check(library.scrollPosition().fraction == 0.375, "first notebook fraction retained"); firstX(10, library.page(1));
+        equal(2, library.pageNumber(), "targeted viewport operations keep legacy selected page independent");
+        library.openNotebook(2); firstX(70, library.page(1));
+        check(library.scrollPosition().page == 2 && library.scrollPosition().fraction == 0.75, "second notebook has its own anchor");
+        NotebookLibrary reopened = reopen(root);
+        check(reopened.scrollPosition().page == 2 && reopened.scrollPosition().fraction == 0.75, "restart restores selected notebook anchor");
     }
 
     private static NotebookLibrary ready(File root) throws Exception {

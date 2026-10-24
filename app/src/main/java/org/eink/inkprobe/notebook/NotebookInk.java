@@ -28,6 +28,11 @@ public final class NotebookInk implements SurfaceHolder.Callback {
     /** Fixed radius in the page's logical pixels, independent of the displayed surface size. */
     public static final float ERASER_RADIUS = 18f;
 
+    /** Paints only the opaque paper/background of the current physical viewport. */
+    public interface PaperRenderer {
+        void draw(Canvas canvas, int width, int height);
+    }
+
     public interface Listener {
         void onGeometryReady(int width, int height);
         void onStrokeComplete(NotebookPage.Stroke stroke);
@@ -35,6 +40,8 @@ public final class NotebookInk implements SurfaceHolder.Callback {
         void onReady();
         void onError(String message);
         default void onEraseGesture(List<NotebookPage.Point> path, float radius) { }
+        /** Synchronous borrowed event; callers must not retain it after this callback. */
+        default void onFingerEvent(MotionEvent event) { }
     }
 
     public final SurfaceView view;
@@ -43,8 +50,11 @@ public final class NotebookInk implements SurfaceHolder.Callback {
     private final ArrayList<NotebookPage.Stroke> completed = new ArrayList<>();
     private final ArrayDeque<Completion> awaitingCommit = new ArrayDeque<>();
     private final ArrayDeque<NotebookPage.Stroke> nativeCommits = new ArrayDeque<>();
+    private final NotebookFingerStream fingerStream = new NotebookFingerStream();
     private Object surface, pointListener, editListener;
     private Bitmap paperBitmap;
+    private PaperRenderer paperRenderer;
+    private boolean paperDirty, previewVisible;
     private boolean alive = true, wanted, prepared, enabled, restored, attached;
     private boolean penDown, failed, geometryReported, restoring;
     private int surfaceWidth, surfaceHeight, retries, configuredPenType = -1;
@@ -89,6 +99,7 @@ public final class NotebookInk implements SurfaceHolder.Callback {
     /** Activity recreates this widget after pause, so its private partial native stroke is discarded. */
     public void stop() {
         wanted = false;
+        fingerStream.reset();
         // UP and the firmware's track commit can arrive as separate queue messages. Preserve a
         // completed UP even when pause occurs before the later native track notification.
         flushCompletedUps();
@@ -148,23 +159,69 @@ public final class NotebookInk implements SurfaceHolder.Callback {
                     || paperBitmap.getWidth() != surfaceWidth || paperBitmap.getHeight() != surfaceHeight
                     || Boolean.TRUE.equals(get(view, "isReceivingTrack"))) return false;
             boolean sameStrokes = sameStrokeReferences(completed, page.strokes);
-            boolean samePaper = this.page.template == page.template;
+            boolean samePaper = this.page.template == page.template && !paperDirty;
             this.page = page;
             completed.clear();
             completed.addAll(page.strokes);
-            if (sameStrokes && samePaper && restored) return true;
+            if (sameStrokes && samePaper && restored && !previewVisible) return true;
             restored = false;
             restoring = true;
             try {
                 if (!samePaper) paintPaper(paperBitmap);
                 replaceNativeTracks();
                 restored = true;
+                previewVisible = false;
             } finally { restoring = false; }
             return true;
         } catch (Exception e) {
             fail("Cannot update notebook ink", e);
             return false;
         }
+    }
+
+    /** Set before initial start, or while paused; rendering waits for canonical restoration. */
+    public void setPaperRenderer(PaperRenderer renderer) {
+        requirePaused();
+        paperRenderer = renderer;
+        paperDirty = true;
+    }
+
+    /** Post a composed viewport on the existing surface after scrolling or an edit. */
+    public boolean updateViewport(NotebookPage viewport, PaperRenderer renderer) {
+        setPaperRenderer(renderer);
+        return applyEditPage(viewport);
+    }
+
+    /**
+     * One display post during finger scrolling, without rebuilding native tracks or changing
+     * the saved/completed model. Canonical tracks are restored before the next pen input.
+     */
+    public boolean showScrollPreview(Bitmap preview) {
+        requirePaused();
+        if (!alive || failed) return false;
+        if (preview == null || preview.isRecycled())
+            throw new IllegalArgumentException("Missing scroll preview");
+        if (!prepared || !view.getHolder().getSurface().isValid()) return false;
+        if (preview.getWidth() != surfaceWidth || preview.getHeight() != surfaceHeight)
+            throw new IllegalArgumentException("Scroll preview differs from viewport size");
+        try {
+            Canvas canvas = view.getHolder().lockCanvas();
+            if (canvas == null) return false;
+            try {
+                canvas.drawColor(Color.WHITE);
+                canvas.drawBitmap(preview, 0, 0, null);
+                previewVisible = true;
+            } finally { view.getHolder().unlockCanvasAndPost(canvas); }
+            return true;
+        } catch (Exception e) {
+            fail("Cannot display notebook scrolling", e);
+            return false;
+        }
+    }
+
+    private void requirePaused() {
+        if (wanted || enabled || penDown)
+            throw new IllegalStateException("Pause before changing the notebook viewport");
     }
 
     private static boolean sameStrokeReferences(List<NotebookPage.Stroke> left,
@@ -231,6 +288,7 @@ public final class NotebookInk implements SurfaceHolder.Callback {
         view.setOnTouchListener(null);
         // SurfacePicture may still be drawing this bitmap. Let its owner release it naturally.
         paperBitmap = null;
+        paperRenderer = null;
     }
 
     private void tryEnable() {
@@ -258,6 +316,11 @@ public final class NotebookInk implements SurfaceHolder.Callback {
             scaleY = (float) surfaceHeight / page.height;
             widthScale = (float) Math.sqrt((double) scaleX * scaleY);
             if (!restored) restoreDocument();
+            else if (previewVisible || paperDirty) {
+                if (paperDirty) paintPaper(paperBitmap);
+                replaceNativeTracks();
+                previewVisible = false;
+            }
             call(surface, "setAhwToolTypes", new Class<?>[]{int[].class},
                 new int[]{MotionEvent.TOOL_TYPE_STYLUS});
             call(surface, "setNeedAddDownEvent", new Class<?>[]{boolean.class}, true);
@@ -305,6 +368,29 @@ public final class NotebookInk implements SurfaceHolder.Callback {
     }
 
     private boolean touch(MotionEvent event) {
+        if (!alive || failed) return true;
+        // Own an accepted finger stream while AHW is paused. A pen joining that stream must
+        // not hide its terminal event or restart native handwriting with contacts still down.
+        boolean penPresent = false;
+        for (int i = 0; i < event.getPointerCount(); i++)
+            if (isEraserInput(event.getToolType(i))) { penPresent = true; break; }
+        boolean changedFinger = event.getPointerCount() > 0
+            && event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_FINGER;
+        NotebookFingerStream.Dispatch dispatch = fingerStream.accept(event.getActionMasked(),
+            penPresent, changedFinger, penDown);
+        if (dispatch != NotebookFingerStream.Dispatch.UNHANDLED) {
+            MotionEvent cancellation = null;
+            try {
+                if (dispatch == NotebookFingerStream.Dispatch.FORWARD) listener.onFingerEvent(event);
+                else if (dispatch == NotebookFingerStream.Dispatch.CANCEL) {
+                    cancellation = MotionEvent.obtain(event);
+                    cancellation.setAction(MotionEvent.ACTION_CANCEL);
+                    listener.onFingerEvent(cancellation);
+                }
+            } catch (Exception e) { fail("Cannot handle notebook scrolling", e); }
+            finally { if (cancellation != null) cancellation.recycle(); }
+            return true;
+        }
         if (!isReady()) return true;
         if (tool == Tool.PEN) {
             // Prevent a physical eraser tip from silently changing native track history.
@@ -468,12 +554,20 @@ public final class NotebookInk implements SurfaceHolder.Callback {
             paperBitmap = background;
             replaceNativeTracks();
             restored = true;
+            previewVisible = false;
         } finally { restoring = false; }
     }
 
     private void paintPaper(Bitmap bitmap) {
         Canvas canvas = new Canvas(bitmap);
         canvas.drawColor(Color.WHITE);
+        if (paperRenderer != null) {
+            int checkpoint = canvas.save();
+            try { paperRenderer.draw(canvas, bitmap.getWidth(), bitmap.getHeight()); }
+            finally { canvas.restoreToCount(checkpoint); }
+            paperDirty = false;
+            return;
+        }
         if (page.template == NotebookPage.Template.LINED) {
             Paint rule = new Paint();
             rule.setColor(Color.rgb(210, 210, 210));
@@ -481,6 +575,7 @@ public final class NotebookInk implements SurfaceHolder.Callback {
             for (float y = 72; y < page.height; y += 72)
                 canvas.drawLine(0, y * scaleY, surfaceWidth, y * scaleY, rule);
         }
+        paperDirty = false;
     }
 
     private void replaceNativeTracks() throws Exception {
@@ -559,6 +654,7 @@ public final class NotebookInk implements SurfaceHolder.Callback {
     private void fail(String message, Exception cause) {
         if (failed || !alive) return;
         failed = true;
+        fingerStream.reset();
         wanted = false;
         enabled = false;
         activePoints = null;

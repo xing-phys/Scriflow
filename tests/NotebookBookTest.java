@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /** Real-file tests of page isolation, process-local history, and interrupted navigation. */
 public final class NotebookBookTest {
@@ -31,8 +32,60 @@ public final class NotebookBookTest {
             interruptedBlankCreationIsAdopted();
             initialLoadRetry();
             invalidInitialTargetCanBeRepaired();
+            targetedViewportPagesDoNotPublishSelection();
+            failedSplitStrokeRetainsEveryPage();
+            scrollAnchorAndRetry();
+            corruptScrollNeverResetsPosition();
+            oneCrossPageGestureUsesOneHistoryStepPerPage();
+            failedGroupedSplitRetainsHealthyPages();
             System.out.println("NotebookBook: " + assertions + " assertions passed (host JVM, real files).");
         } finally { for (File directory : directories) deleteTree(directory); }
+    }
+
+    private static void oneCrossPageGestureUsesOneHistoryStepPerPage() throws Exception {
+        File root = directory(); NotebookBook book = ready(root); book.addPage();
+        book.appendToPage(1, stroke(5)); book.appendToPage(2, stroke(75));
+        NotebookViewport viewport = new NotebookViewport(2, 100, 100, 100, 180, 24);
+        NotebookPage.Stroke gesture = new NotebookPage.Stroke(2, 4, 0xff000000, Arrays.asList(
+                new NotebookPage.Point(10, 80, 0, 1), new NotebookPage.Point(10, 150, 10, 1),
+                new NotebookPage.Point(20, 150, 20, 1), new NotebookPage.Point(20, 80, 30, 1)));
+        Map<Integer, List<NotebookPage.Stroke>> split = viewport.splitStroke(gesture, 0);
+        equal(2, split.get(1).size(), "one gesture exits and reenters the first page");
+        for (Map.Entry<Integer, List<NotebookPage.Stroke>> entry : split.entrySet())
+            book.appendStrokesToPage(entry.getKey(), entry.getValue());
+        equal(3, book.page(1).strokes.size(), "both first-page pieces accepted");
+        equal(2, book.page(2).strokes.size(), "second-page portion accepted independently");
+        book.undoOnPage(1);
+        equal(1, book.page(1).strokes.size(), "one undo removes both first-page pieces");
+        equal(2, book.page(2).strokes.size(), "first-page undo preserves second-page portion");
+        book.undoOnPage(2);
+        equal(1, book.page(2).strokes.size(), "one second-page undo removes its portion");
+        book.redoOnPage(1); book.redoOnPage(2);
+        equal(3, new NotebookStore(root).load().strokes.size(), "first-page grouped redo saved");
+        equal(2, new NotebookStore(new File(root, "pages/2")).load().strokes.size(), "second-page grouped redo saved");
+        equal(2, book.pageNumber(), "grouped viewport edits preserve selected-page index");
+    }
+
+    private static void failedGroupedSplitRetainsHealthyPages() throws Exception {
+        File root = directory(); NotebookBook book = ready(root); book.addPage();
+        book.page(1); book.page(2);
+        byte[] first = bytes(root, "page.nbk");
+        check(new File(root, "page.nbk").delete(), "remove first-page journal before failed group");
+        check(new File(root, "page.nbk").mkdir(), "block first-page grouped journal writes");
+        expectIo(() -> book.appendStrokesToPage(1, Arrays.asList(stroke(10), stroke(30))));
+        IOException failure = book.error();
+        book.appendStrokesToPage(2, Arrays.asList(stroke(50), stroke(70)));
+        check(book.error() == failure, "healthy page group preserves earlier split failure");
+        equal(2, book.cachedPage(1).strokes.size(), "every failed-page group piece retained");
+        equal(2, book.cachedPage(2).strokes.size(), "every healthy-page group piece accepted");
+        equal(2, new NotebookStore(new File(root, "pages/2")).load().strokes.size(), "healthy-page group saved despite other-page failure");
+        check(new File(root, "page.nbk").delete(), "remove failed-group obstruction");
+        Files.write(new File(root, "page.nbk").toPath(), first);
+        book.retry();
+        equal(2, new NotebookStore(root).load().strokes.size(), "retry saves full failed-page group");
+        book.undoOnPage(1); book.undoOnPage(2);
+        equal(0, book.cachedPage(1).strokes.size(), "one undo removes recovered failed-page group");
+        equal(0, book.cachedPage(2).strokes.size(), "one undo removes healthy-page group");
     }
 
     private static void legacyUpgradePreservesBytes() throws Exception {
@@ -243,6 +296,94 @@ public final class NotebookBookTest {
         Files.write(new File(root, "pages/2/page.nbk").toPath(), valid);
         book.retry(); equal(2, book.pageNumber(), "repaired initial page selected");
         equal(100, book.current().width, "initial retry rereads repaired page dimensions");
+    }
+
+    private static void targetedViewportPagesDoNotPublishSelection() throws Exception {
+        File root = directory(); NotebookBook book = ready(root); book.append(stroke(10)); book.addPage(); book.append(stroke(70));
+        byte[] index = bytes(root, "book.nbi"), first = bytes(root, "page.nbk");
+        book.page(1); book.page(2);
+        equal(2, book.pageNumber(), "viewport reads keep selected page");
+        check(Arrays.equals(index, bytes(root, "book.nbi")), "viewport reads never publish selection index");
+        check(Arrays.equals(first, bytes(root, "page.nbk")), "viewport reads never rewrite page");
+        book.appendToPage(1, stroke(30));
+        equal(2, book.pageNumber(), "late completed stroke keeps current selection");
+        equal(2, book.cachedPage(1).strokes.size(), "late completed stroke goes to its explicit page");
+        equal(1, book.cachedPage(2).strokes.size(), "other page untouched");
+        book.setPageTemplate(1, NotebookPage.Template.LINED);
+        check(book.cachedPage(1).template == NotebookPage.Template.LINED, "paper belongs to explicit page");
+        check(book.cachedPage(2).template == NotebookPage.Template.BLANK, "other paper untouched");
+        book.eraseOnPagePaths(1, Arrays.asList(path(10), path(30)), 0);
+        equal(0, book.cachedPage(1).strokes.size(), "disconnected erase paths applied together");
+        check(book.canUndoOnPage(1) && !book.canRedoOnPage(1), "page-specific history available");
+        book.undoOnPage(1); equal(2, book.cachedPage(1).strokes.size(), "one undo restores all portions of eraser gesture");
+        book.redoOnPage(1); equal(0, book.cachedPage(1).strokes.size(), "one redo removes all portions");
+        check(Arrays.equals(index, bytes(root, "book.nbi")), "targeted editing never publishes selection index");
+        byte[] backup = bytes(root, "page.nbk.bak");
+        deleteTree(new File(root, "page.nbk")); deleteTree(new File(root, "page.nbk.bak"));
+        equal(0, book.cachedPage(1).strokes.size(), "cachedPage does not access missing disk files");
+        expectIo(() -> book.page(1));
+        check(!new File(root, "page.nbk").exists(), "missing indexed viewport page not recreated");
+        Files.write(new File(root, "page.nbk.bak").toPath(), backup);
+    }
+
+    private static void failedSplitStrokeRetainsEveryPage() throws Exception {
+        File root = directory(); NotebookBook book = ready(root); book.addPage(); book.page(1); book.page(2);
+        block(root, "page.nbk.tmp");
+        // Force page 1's append to fail by replacing its writable journal with a directory.
+        byte[] first = bytes(root, "page.nbk"); check(new File(root, "page.nbk").delete(), "remove page1 journal for failure simulation");
+        check(new File(root, "page.nbk").mkdir(), "block page1 journal");
+        expectIo(() -> book.appendToPage(1, stroke(10)));
+        IOException failure = book.error();
+        book.appendToPage(2, stroke(70));
+        check(book.error() == failure, "later healthy split piece does not clear earlier error");
+        equal(1, book.cachedPage(1).strokes.size(), "failed piece retained in source-page memory");
+        equal(1, book.cachedPage(2).strokes.size(), "other completed piece still accepted");
+        equal(1, new NotebookStore(new File(root, "pages/2")).load().strokes.size(), "healthy split piece persisted");
+        equal(1, book.page(1).strokes.size(), "repaint reads accepted memory while saving has failed");
+        expectIo(() -> book.saveScrollPosition(2, 0.25));
+        check(new File(root, "page.nbk").delete(), "remove journal obstruction");
+        Files.write(new File(root, "page.nbk").toPath(), first); unblock(root, "page.nbk.tmp");
+        book.retry(); check(book.error() == null, "retry clears global error after every cached page saved");
+        equal(1, new NotebookStore(root).load().strokes.size(), "retry persists failed nonselected page");
+        equal(1, book.cachedPage(2).strokes.size(), "retry keeps healthy page piece exactly once");
+    }
+
+    private static void scrollAnchorAndRetry() throws Exception {
+        File root = directory(); NotebookBook book = ready(root); book.addPage();
+        NotebookBook oldUpgrade = reopen(root);
+        equal(2, oldUpgrade.scrollPosition().page, "absent scroll anchor defaults to legacy selected page");
+        check(oldUpgrade.scrollPosition().fraction == 0, "legacy anchor begins at page top");
+        byte[] index = bytes(root, "book.nbi");
+        oldUpgrade.saveScrollPosition(1, 0.375);
+        equal(2, oldUpgrade.pageNumber(), "saving scroll anchor does not select a page");
+        check(Arrays.equals(index, bytes(root, "book.nbi")), "scroll never rewrites page selection index");
+        NotebookBook reopened = reopen(root);
+        equal(1, reopened.scrollPosition().page, "restart restores scroll page");
+        check(reopened.scrollPosition().fraction == 0.375, "restart restores exact viewport fraction");
+        block(root, "scroll.nbs.tmp"); expectIo(() -> reopened.saveScrollPosition(2, 0.625));
+        equal(1, reopened.scrollPosition().page, "failed scroll publication keeps acknowledged position");
+        unblock(root, "scroll.nbs.tmp");
+        // A save may have completed even though its acknowledgement was uncertain.
+        NotebookScrollStore external = new NotebookScrollStore(root); external.load(1); external.save(2, 0.625);
+        reopened.retry(); equal(2, reopened.scrollPosition().page, "exact ambiguous scroll save accepted");
+        check(reopened.scrollPosition().fraction == 0.625, "retry retains intended fraction");
+        external.load(1); external.save(1, 0.875);
+        byte[] changed = bytes(root, "scroll.nbs"); expectIo(reopened::retry);
+        check(Arrays.equals(changed, bytes(root, "scroll.nbs")), "unexpected viewport position not overwritten");
+    }
+
+    private static void corruptScrollNeverResetsPosition() throws Exception {
+        File root = directory(); NotebookBook original = ready(root); original.append(stroke(10)); original.saveScrollPosition(1, 0.25);
+        byte[] valid = bytes(root, "scroll.nbs"), bad = valid.clone(); bad[0] ^= 1;
+        Files.write(new File(root, "scroll.nbs").toPath(), bad);
+        NotebookBook book = new NotebookBook(root); expectIo(book::load); expectIo(book::retry);
+        check(Arrays.equals(bad, bytes(root, "scroll.nbs")), "bad scroll file preserved rather than reset");
+        firstX(10, book.current());
+        Files.write(new File(root, "scroll.nbs").toPath(), valid); book.retry();
+        check(book.scrollPosition().fraction == 0.25, "fixed scroll position loaded on explicit retry");
+        NotebookScrollStore invalidPage = new NotebookScrollStore(root); invalidPage.load(1); invalidPage.save(2, 0);
+        NotebookBook missing = new NotebookBook(root); expectIo(missing::load);
+        check(new NotebookScrollStore(root).load(1).page == 2, "out-of-range scroll page never reset silently");
     }
 
     private static NotebookBook ready(File root) throws Exception {
