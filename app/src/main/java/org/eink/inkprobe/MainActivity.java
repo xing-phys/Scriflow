@@ -6,6 +6,7 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
@@ -37,6 +38,8 @@ public final class MainActivity extends Activity {
     private String mode = "Android";
     private boolean onTop;
     private boolean fullscreen;
+    private boolean startFrame;
+    private final List<long[]> startFrameRequests = new ArrayList<>();
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
@@ -44,7 +47,7 @@ public final class MainActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(Color.WHITE);
         TextView title = new TextView(this);
-        title.setText("Ink Probe 0.4 · MatePad Paper"); title.setTextSize(22); title.setTextColor(Color.BLACK);
+        title.setText("Ink Probe 0.5 · MatePad Paper"); title.setTextSize(22); title.setTextColor(Color.BLACK);
         title.setPadding(16, 12, 12, 6); root.addView(title);
         LinearLayout modes = row(root);
         button(modes, "Android", () -> select("Android"));
@@ -67,6 +70,11 @@ public final class MainActivity extends Activity {
         LinearLayout windowActions = row(root);
         button(windowActions, "Fullscreen: off", this::toggleFullscreen);
         fullscreenButton = (Button) windowActions.getChildAt(0);
+        button(windowActions, "Start frame: off", () -> {
+            startFrame = !startFrame;
+            ((Button) windowActions.getChildAt(1)).setText(startFrame ? "Start frame: on" : "Start frame: off");
+            report("Stroke-start frame=" + startFrame + "; one ordinary frame requested per DOWN, no per-move repaint.");
+        });
         status = new TextView(this); status.setTextSize(14); status.setTextColor(Color.BLACK);
         status.setPadding(16, 4, 16, 8); status.setMinLines(3); status.setMaxLines(4);
         root.addView(status, new LinearLayout.LayoutParams(-1, (int) (88 * getResources().getDisplayMetrics().density)));
@@ -101,7 +109,7 @@ public final class MainActivity extends Activity {
         zButton.setEnabled("Huawei".equals(mode));
         if ("Huawei".equals(mode) || "Native".equals(mode)) {
             try {
-                ink = new HuaweiInk(this, trace, this::report, onTop, "Native".equals(mode));
+                ink = new HuaweiInk(this, trace, this::report, onTop, "Native".equals(mode), this::penDown);
                 paper.addView(ink.view, new FrameLayout.LayoutParams(-1, -1));
                 ink.start();
                 report("Native".equals(mode) ? "Native editor owns rendering and tracks; Replay is unavailable."
@@ -127,6 +135,7 @@ public final class MainActivity extends Activity {
     }
     private void clear() {
         trace.clear();
+        startFrameRequests.clear();
         if (ink != null) {
             try { ink.stop(); ink.clearSurface(); ink.start(); }
             catch (Exception e) { report("ERROR clearing: " + e); return; }
@@ -134,15 +143,27 @@ public final class MainActivity extends Activity {
         for (int i = 0; i < paper.getChildCount(); i++) paper.getChildAt(i).invalidate();
         report("Cleared captured points and writing surface");
     }
+    private void penDown(long eventTimeMs) {
+        if (!startFrame) return;
+        startFrameRequests.add(new long[]{eventTimeMs, SystemClock.uptimeMillis()});
+        getWindow().getDecorView().postInvalidateOnAnimation();
+        // No status, logcat, stroke rendering, or disk I/O from this callback.
+    }
     private void saveLog() {
         // Explicit snapshot only; callbacks never trigger disk I/O.
         try {
             JSONObject snapshot = trace.json();
-            snapshot.put("appVersion", "0.4");
+            snapshot.put("appVersion", "0.5");
             snapshot.put("model", Build.MODEL); snapshot.put("firmware", Build.DISPLAY);
             snapshot.put("mode", mode); snapshot.put("zOnTop", onTop);
             snapshot.put("fullscreen", fullscreen);
             snapshot.put("windowFlags", getWindow().getAttributes().flags);
+            snapshot.put("strokeStartFrameEnabled", startFrame);
+            JSONArray requests = new JSONArray();
+            for (long[] request : startFrameRequests) {
+                JSONArray pair = new JSONArray(); pair.put(request[0]); pair.put(request[1]); requests.put(pair);
+            }
+            snapshot.put("strokeStartFrameRequests_eventTime_requestUptimeMs", requests);
             snapshot.put("canvasWidth", paper.getWidth()); snapshot.put("canvasHeight", paper.getHeight());
             try { snapshot.put("displayPolicy", DisplayPolicy.json(this)); }
             catch (Exception e) { snapshot.put("displayPolicyError", e.toString()); }

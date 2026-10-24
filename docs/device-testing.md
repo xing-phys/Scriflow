@@ -168,3 +168,37 @@ pairs, so fullscreen did not eliminate that periodic activity. Its effect on
 physical writing is pending user comparison. If ineffective, the next justified
 isolate is requesting one ordinary app frame on pen-down, with no per-move
 repainting, to test the observed wait for ordinary composition.
+
+## Version 0.4 physical result and unrelated layer cadence
+
+Fullscreen physical result: first stroke improved; some subsequent strokes
+initially followed the stylus and then fell behind. The saved export contains
+15 native tracks and 1209 observer points. Median callback delay remains 1 ms,
+p95 4 ms, maximum 133 ms. This does not establish consistent smooth handwriting.
+
+A passive pair of SurfaceFlinger samples, 10.23 seconds apart, identified the
+source of periodic buffer submission:
+
+| Layer | Frame counter change |
+| --- | --- |
+| Hidden StatusBar | 45158 → 45179 |
+| Probe activity | 7 → 7 |
+| Probe handwriting surface | 1 → 1 |
+| Visible floating overlay | 2 → 2 |
+
+The status bar submitted roughly one-second pairs despite being hidden in
+fullscreen. The floating overlay did not update in this sample, so its mere
+presence does not implicate it. These measurements identify the periodic buffer
+producer, not its optical effect or which SystemUI feature drives it.
+
+The next physical isolate is unplugging USB while leaving version 0.4 open,
+writing, then reconnecting. Charging animation is a candidate explanation, not
+an established cause. No battery spoofing, SystemUI stopping, or global display
+setting changes have been applied.
+
+Version 0.5 was built locally in parallel as an optional subsequent experiment:
+one ordinary decor-frame request on pen-down, none on move/up. It remains off
+by default, uses app-local invalidation rather than a forced waveform, records
+each request time, and does not paint ink. Build/signature and existing host
+tests pass. It has not yet been installed or physically tested; version 0.4
+remains the current tablet build during the unplugged comparison.

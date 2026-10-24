@@ -14,16 +14,19 @@ import java.lang.reflect.Proxy;
 /** Strict, firmware-specific adapter: successful invocation is not evidence of visible live ink. */
 final class HuaweiInk implements SurfaceHolder.Callback {
     interface Reporter { void report(String message); }
+    interface PenDownObserver { void onPenDown(long eventTimeMs); }
     final SurfaceView view;
     private final Reporter reporter;
     private final Trace trace;
     private final boolean editor;
+    private final PenDownObserver penDown;
     private Object surface, listener;
     private boolean wanted, attached, alive = true, surfaceReady, enabled, initialized;
     private int retries;
 
-    HuaweiInk(Context context, Trace trace, Reporter reporter, boolean onTop, boolean editor) throws Exception {
-        this.trace = trace; this.reporter = reporter; this.editor = editor;
+    HuaweiInk(Context context, Trace trace, Reporter reporter, boolean onTop, boolean editor,
+              PenDownObserver penDown) throws Exception {
+        this.trace = trace; this.reporter = reporter; this.editor = editor; this.penDown = penDown;
         // Refuse the previously failing generic automatic/video policy before creating ink surfaces.
         DisplayPolicy.requireHandwritingPolicy(context);
         report("Declared app display policy: 3 (effective policy checked separately from ADB)");
@@ -82,7 +85,9 @@ final class HuaweiInk implements SurfaceHolder.Callback {
                         case "onAhwAddPoint":
                             trace.point(editor ? "huawei-native" : "huawei", (Integer) args[0], (Float) args[1], (Float) args[2],
                                 (Long) args[3], (Float) args[4]);
-                            // Deliberately NO app repaint, including at pen-up.
+                            if ((Integer) args[0] == MotionEvent.ACTION_DOWN)
+                                penDown.onPenDown((Long) args[3]);
+                            // No per-move or pen-up painting. Optional one-frame wakeup is controlled separately.
                             break;
                     }
                     return null;

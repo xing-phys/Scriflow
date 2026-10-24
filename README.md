@@ -120,6 +120,12 @@ only `FLAG_FULLSCREEN`; policy, pen configuration, keep-screen-on behavior,
 and callback timing remain unchanged. Save a trial before switching, since
 resizing the writing surface can affect in-memory widget contents.
 
+Version 0.5 prepares an optional **Start frame** comparison. When enabled it
+requests exactly one ordinary decor frame on each observed pen-down; moves and
+pen-up still do not repaint through the app. It does not render stroke points.
+Exports include the option state and paired event/request uptimes. The option
+defaults off and is an experiment, not a confirmed latency fix.
+
 See [the investigation plan](matepad-handwriting-plan.md) and
 [device test record](docs/device-testing.md).
 
