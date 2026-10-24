@@ -114,6 +114,12 @@ The version 0.2 physical result was **no blinking, but usually delayed ink with
 occasional smooth strokes**. Version 0.3 instruments that remaining problem; it
 does not claim to fix latency.
 
+Version 0.4 adds a **Fullscreen** comparison button. The export records both
+the requested fullscreen state and actual window flags. Toggling it changes
+only `FLAG_FULLSCREEN`; policy, pen configuration, keep-screen-on behavior,
+and callback timing remain unchanged. Save a trial before switching, since
+resizing the writing surface can affect in-memory widget contents.
+
 See [the investigation plan](matepad-handwriting-plan.md) and
 [device test record](docs/device-testing.md).
 

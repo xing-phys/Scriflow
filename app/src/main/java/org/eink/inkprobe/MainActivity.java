@@ -32,9 +32,11 @@ public final class MainActivity extends Activity {
     private FrameLayout paper;
     private TextView status;
     private Button zButton;
+    private Button fullscreenButton;
     private HuaweiInk ink;
     private String mode = "Android";
     private boolean onTop;
+    private boolean fullscreen;
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
@@ -42,7 +44,7 @@ public final class MainActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(Color.WHITE);
         TextView title = new TextView(this);
-        title.setText("Ink Probe 0.3 · MatePad Paper"); title.setTextSize(22); title.setTextColor(Color.BLACK);
+        title.setText("Ink Probe 0.4 · MatePad Paper"); title.setTextSize(22); title.setTextColor(Color.BLACK);
         title.setPadding(16, 12, 12, 6); root.addView(title);
         LinearLayout modes = row(root);
         button(modes, "Android", () -> select("Android"));
@@ -62,6 +64,9 @@ public final class MainActivity extends Activity {
             report("Z order changed to " + onTop); select(mode);
         });
         zButton = (Button) actions.getChildAt(3);
+        LinearLayout windowActions = row(root);
+        button(windowActions, "Fullscreen: off", this::toggleFullscreen);
+        fullscreenButton = (Button) windowActions.getChildAt(0);
         status = new TextView(this); status.setTextSize(14); status.setTextColor(Color.BLACK);
         status.setPadding(16, 4, 16, 8); status.setMinLines(3); status.setMaxLines(4);
         root.addView(status, new LinearLayout.LayoutParams(-1, (int) (88 * getResources().getDisplayMetrics().density)));
@@ -113,6 +118,13 @@ public final class MainActivity extends Activity {
         if ("Native".equals(mode)) return;
         report("Inspect: " + trace.summary() + "; canvas " + paper.getWidth() + "x" + paper.getHeight());
     }
+    private void toggleFullscreen() {
+        fullscreen = !fullscreen;
+        if (fullscreen) getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        fullscreenButton.setText(fullscreen ? "Fullscreen: on" : "Fullscreen: off");
+        report("Fullscreen=" + fullscreen + "; only the fullscreen window flag changed. Save log before switching.");
+    }
     private void clear() {
         trace.clear();
         if (ink != null) {
@@ -126,9 +138,11 @@ public final class MainActivity extends Activity {
         // Explicit snapshot only; callbacks never trigger disk I/O.
         try {
             JSONObject snapshot = trace.json();
-            snapshot.put("appVersion", "0.3");
+            snapshot.put("appVersion", "0.4");
             snapshot.put("model", Build.MODEL); snapshot.put("firmware", Build.DISPLAY);
             snapshot.put("mode", mode); snapshot.put("zOnTop", onTop);
+            snapshot.put("fullscreen", fullscreen);
+            snapshot.put("windowFlags", getWindow().getAttributes().flags);
             snapshot.put("canvasWidth", paper.getWidth()); snapshot.put("canvasHeight", paper.getHeight());
             try { snapshot.put("displayPolicy", DisplayPolicy.json(this)); }
             catch (Exception e) { snapshot.put("displayPolicyError", e.toString()); }

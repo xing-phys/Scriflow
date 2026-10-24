@@ -139,3 +139,32 @@ would direct attention to display/compositor behavior. Late or batched delivery
 would direct attention to the callback/widget processing path. Fullscreen is a
 confirmed window difference from Notes and a candidate subsequent isolated test;
 no fullscreen or global refresh changes are bundled into this measurement build.
+
+## Physical timing result and fullscreen comparison
+
+The user reports all requested strokes delayed. The saved version 0.3 export
+contains 20 native tracks and 1007 observer points, including earlier input in
+the same session, so it is not a clean five-stroke-only dataset. Aggregate
+callback delay was median 1 ms, p95 14 ms, maximum 73 ms. The final five tracks
+likewise arrived throughout writing, not as a batch at pen-up. Native and observer
+track counts agree. This points toward a display-side issue while leaving the
+physical panel latency unmeasured.
+
+The overlapping compositor log contains ordinary refresh pairs roughly once per
+second, including idle periods. After each of the final five pen-down events,
+the first logged framebuffer comparison/copy occurs 258–803 ms later at a periodic
+refresh. This correlation is an investigation lead; it does not prove the copy
+operation gates visible ink, and direct handwriting updates may use another log
+path.
+
+Version 0.4 adds a single-variable fullscreen on/off comparison. Native Notes
+was observed using FLAG_FULLSCREEN; the prototype did not. Policy, pixel format,
+pen settings, and keep-screen-on behavior remain unchanged. Effective app policy
+3, native AHW readiness, and actual fullscreen flag were verified after install.
+Resize reinitialization passed without duplicate listener attachment or errors.
+
+A 35-second passive fullscreen log still contains the roughly one-second refresh
+pairs, so fullscreen did not eliminate that periodic activity. Its effect on
+physical writing is pending user comparison. If ineffective, the next justified
+isolate is requesting one ordinary app frame on pen-down, with no per-move
+repainting, to test the observed wait for ordinary composition.
