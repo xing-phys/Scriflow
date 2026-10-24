@@ -23,12 +23,18 @@ import java.util.List;
 
 /** MatePad Paper editor bridge. The firmware owns live ink; our model owns completed strokes. */
 public final class NotebookInk implements SurfaceHolder.Callback {
+    public enum Tool { PEN, ERASER }
+
+    /** Fixed radius in the page's logical pixels, independent of the displayed surface size. */
+    public static final float ERASER_RADIUS = 18f;
+
     public interface Listener {
         void onGeometryReady(int width, int height);
         void onStrokeComplete(NotebookPage.Stroke stroke);
         void onPenStateChanged(boolean down);
         void onReady();
         void onError(String message);
+        default void onEraseGesture(List<NotebookPage.Point> path, float radius) { }
     }
 
     public final SurfaceView view;
@@ -43,6 +49,9 @@ public final class NotebookInk implements SurfaceHolder.Callback {
     private boolean penDown, failed, geometryReported, restoring;
     private int surfaceWidth, surfaceHeight, retries, configuredPenType = -1;
     private PointBuffer activePoints;
+    private PointBuffer eraserPoints;
+    private int eraserPointer = -1;
+    private Tool tool = Tool.PEN;
     private float scaleX = 1, scaleY = 1, widthScale = 1;
 
     public NotebookInk(Context context, NotebookPage page, Listener listener) throws Exception {
@@ -64,10 +73,9 @@ public final class NotebookInk implements SurfaceHolder.Callback {
         call(surface, "setAutoHandWrite", new Class<?>[]{boolean.class}, false);
         // Keep the known-working native RGBA8888 format, Z ordering and internal pen listener.
         call(get(view, "getSurfacePicture"), "bindColor", new Class<?>[]{int.class}, Color.WHITE);
-        // Erasing/selecting are not in this milestone: do not allow an eraser tip to silently edit
-        // the native track list without a corresponding durable document operation.
-        view.setOnTouchListener((v, event) ->
-            event.getToolType(event.getActionIndex()) != MotionEvent.TOOL_TYPE_STYLUS);
+        // Native firmware handles pen ink. Erasing is a document operation collected through
+        // ordinary touch input with native handwriting off; no vendor pixel eraser is involved.
+        view.setOnTouchListener((v, event) -> touch(event));
         view.getHolder().addCallback(this);
     }
 
@@ -86,6 +94,7 @@ public final class NotebookInk implements SurfaceHolder.Callback {
         flushCompletedUps();
         enabled = false;
         activePoints = null;
+        clearEraser();
         awaitingCommit.clear();
         nativeCommits.clear();
         setPenDown(false);
@@ -97,6 +106,35 @@ public final class NotebookInk implements SurfaceHolder.Callback {
     }
 
     public boolean isPenDown() { return penDown; }
+
+    /** Ready to accept the selected tool; eraser readiness does not imply native AHW is on. */
+    public boolean isReady() { return alive && wanted && enabled && !failed; }
+
+    public Tool getTool() { return tool; }
+
+    public void setTool(Tool tool) {
+        if (tool == null) throw new IllegalArgumentException("Missing tool");
+        if (!alive || failed || this.tool == tool) return;
+        // A completed UP remains an edit even if its native commit notification is pending.
+        // An unfinished pen stroke or eraser gesture is discarded on a tool change.
+        boolean needsRestore = activePoints != null || !awaitingCommit.isEmpty()
+            || !nativeCommits.isEmpty();
+        try {
+            if (surface != null) call(surface, "setAutoHandWrite", new Class<?>[]{boolean.class}, false);
+            enabled = false;
+            flushCompletedUps();
+            if (failed) return;
+            this.tool = tool;
+            activePoints = null;
+            clearEraser();
+            awaitingCommit.clear();
+            nativeCommits.clear();
+            setPenDown(false);
+            if (needsRestore) restored = false;
+            retries = 0;
+            if (wanted) view.post(this::tryEnable);
+        } catch (Exception e) { fail("Cannot change notebook tool", e); }
+    }
 
     /** Use only for initial load and explicit paper changes, never for an autosave acknowledgement. */
     public void setPage(NotebookPage page) {
@@ -161,9 +199,10 @@ public final class NotebookInk implements SurfaceHolder.Callback {
                 ballpoint, 4f * widthScale, Color.BLACK);
             call(view, "setState", new Class<?>[]{int.class},
                 view.getClass().getField("STATE_HADNWRITE").getInt(null));
-            call(surface, "setAutoHandWrite", new Class<?>[]{boolean.class}, true);
-            if (!Boolean.TRUE.equals(get(surface, "isAutoHandWrite"))) {
-                throw new IllegalStateException("Firmware refused handwriting activation");
+            boolean autoInk = tool == Tool.PEN;
+            call(surface, "setAutoHandWrite", new Class<?>[]{boolean.class}, autoInk);
+            if (Boolean.TRUE.equals(get(surface, "isAutoHandWrite")) != autoInk) {
+                throw new IllegalStateException("Firmware refused the selected notebook tool");
             }
             enabled = true;
             listener.onReady();
@@ -176,7 +215,7 @@ public final class NotebookInk implements SurfaceHolder.Callback {
             (proxy, method, args) -> {
                 Object base = objectMethod(proxy, method, args, "NotebookPenListener");
                 if (base != NOT_OBJECT_METHOD) return base;
-                if ("onAhwAddPoint".equals(method.getName()) && enabled && !restoring) {
+                if ("onAhwAddPoint".equals(method.getName()) && enabled && !restoring && tool == Tool.PEN) {
                     point((Integer) args[0], (Float) args[1], (Float) args[2],
                         (Long) args[3], (Float) args[4]);
                 }
@@ -190,10 +229,71 @@ public final class NotebookInk implements SurfaceHolder.Callback {
             (proxy, method, args) -> {
                 Object base = objectMethod(proxy, method, args, "NotebookCommitListener");
                 if (base != NOT_OBJECT_METHOD) return base;
-                if ("onEdit".equals(method.getName()) && enabled && !restoring) nativeCommit();
+                if ("onEdit".equals(method.getName()) && enabled && !restoring && tool == Tool.PEN) nativeCommit();
                 return null;
             });
         call(view, "setOnEditListener", new Class<?>[]{editType}, editListener);
+    }
+
+    private boolean touch(MotionEvent event) {
+        if (!isReady()) return true;
+        if (tool == Tool.PEN) {
+            // Prevent a physical eraser tip from silently changing native track history.
+            return event.getToolType(event.getActionIndex()) != MotionEvent.TOOL_TYPE_STYLUS;
+        }
+        try {
+            int action = event.getActionMasked();
+            if (action == MotionEvent.ACTION_CANCEL) {
+                clearEraser();
+                setPenDown(false);
+                return true;
+            }
+            int changed = event.getActionIndex();
+            if ((action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN)
+                    && eraserPointer == -1 && isEraserInput(event.getToolType(changed))) {
+                eraserPointer = event.getPointerId(changed);
+                eraserPoints = new PointBuffer();
+                addEraserPoint(event, changed, -1);
+                setPenDown(true);
+            } else if (eraserPointer != -1) {
+                int index = event.findPointerIndex(eraserPointer);
+                if (index < 0) {
+                    clearEraser();
+                    setPenDown(false);
+                    return true;
+                }
+                if (action == MotionEvent.ACTION_MOVE) {
+                    for (int h = 0; h < event.getHistorySize(); h++) addEraserPoint(event, index, h);
+                    addEraserPoint(event, index, -1);
+                } else if ((action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_POINTER_UP)
+                        && event.getPointerId(changed) == eraserPointer) {
+                    addEraserPoint(event, index, -1);
+                    List<NotebookPage.Point> path = eraserPoints.toPoints();
+                    clearEraser();
+                    setPenDown(false);
+                    listener.onEraseGesture(path, ERASER_RADIUS);
+                }
+            }
+        } catch (Exception e) { fail("Cannot capture eraser input", e); }
+        // Consume all eraser-mode touch, including fingers. No redraw or document edit on MOVE.
+        return true;
+    }
+
+    private static boolean isEraserInput(int type) {
+        return type == MotionEvent.TOOL_TYPE_STYLUS || type == MotionEvent.TOOL_TYPE_ERASER;
+    }
+
+    private void addEraserPoint(MotionEvent event, int index, int history) {
+        float x = history < 0 ? event.getX(index) : event.getHistoricalX(index, history);
+        float y = history < 0 ? event.getY(index) : event.getHistoricalY(index, history);
+        float pressure = history < 0 ? event.getPressure(index) : event.getHistoricalPressure(index, history);
+        long time = history < 0 ? event.getEventTime() : event.getHistoricalEventTime(history);
+        eraserPoints.add(clamp(x / scaleX, page.width), clamp(y / scaleY, page.height), time, pressure);
+    }
+
+    private void clearEraser() {
+        eraserPointer = -1;
+        eraserPoints = null;
     }
 
     private void point(int action, float x, float y, long time, float pressure) {
@@ -260,7 +360,8 @@ public final class NotebookInk implements SurfaceHolder.Callback {
                 try {
                     call(surface, "setAutoHandWrite", new Class<?>[]{boolean.class}, false);
                     restoreDocument();
-                    call(surface, "setAutoHandWrite", new Class<?>[]{boolean.class}, true);
+                    call(surface, "setAutoHandWrite", new Class<?>[]{boolean.class},
+                        wanted && enabled && tool == Tool.PEN);
                 } catch (Exception e) { fail("Cannot discard cancelled stroke", e); }
                 continue;
             }
@@ -383,6 +484,7 @@ public final class NotebookInk implements SurfaceHolder.Callback {
         wanted = false;
         enabled = false;
         activePoints = null;
+        clearEraser();
         awaitingCommit.clear();
         nativeCommits.clear();
         if (surface != null) {
@@ -502,13 +604,17 @@ public final class NotebookInk implements SurfaceHolder.Callback {
         }
 
         NotebookPage.Stroke toStroke(int penType) {
+            return new NotebookPage.Stroke(penType, 4f, Color.BLACK, toPoints());
+        }
+
+        List<NotebookPage.Point> toPoints() {
             ArrayList<NotebookPage.Point> points = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 int index = i * 3;
                 points.add(new NotebookPage.Point(coordinates[index], coordinates[index + 1],
                     times[i], coordinates[index + 2]));
             }
-            return new NotebookPage.Stroke(penType, 4f, Color.BLACK, points);
+            return Collections.unmodifiableList(points);
         }
     }
 }

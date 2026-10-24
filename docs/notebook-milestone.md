@@ -57,8 +57,9 @@ per-point refresh in the notebook UI. A static saved-stroke count changes only
 after a completed save and a pen-idle interval, providing visible confirmation
 without a live counter while writing. Errors stop handwriting and show an
 explicit retry action. Pending completed strokes remain in the process's model.
-Retry reloads the saved file, verifies its exact stroke prefix, and appends only
-missing strokes; this avoids duplication after an ambiguous failed sync.
+In version 0.7, retry verified the exact saved stroke prefix before appending
+missing strokes. Version 0.8 supports deletions and uses exact acknowledged or
+attempted page states instead; see `notebook-editing.md` for the recovery rules.
 
 ## On-disk record
 

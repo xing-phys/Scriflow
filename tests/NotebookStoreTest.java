@@ -28,6 +28,10 @@ public final class NotebookStoreTest {
             templateAndBackupRecovery();
             failedSnapshotLeavesCommittedDocument();
             validationDoesNotDiscardCommittedData();
+            release07FixtureSurvivesEdits();
+            editSnapshotAndContinuedWriting();
+            interruptedEditSnapshotPublication();
+            rejectedEditsPreserveCommittedData();
             System.out.println("NotebookStore: " + assertions + " assertions passed (host JVM, real files).");
         } finally {
             for (File directory : directories) deleteTree(directory);
@@ -250,6 +254,124 @@ public final class NotebookStoreTest {
         expectIllegal(() -> new NotebookPage.Stroke(2, 0, 0xff000000,
             Collections.singletonList(new NotebookPage.Point(0, 0, 100, 1))));
         equal(1, new NotebookStore(directory).load().strokes.size(), "invalid input leaves saved page readable");
+    }
+
+    /** Fixed release-0.7 bytes, not produced by the writer under test: lined snapshot + append. */
+    private static void release07FixtureSurvivesEdits() throws Exception {
+        String hex = "4e424b310000000100000046ffffffb901000004b0000006400100000001"
+            + "0000000240800000ff00000000000002412000004120000000000000000003e8"
+            + "3e8000004170000041a0000000000000000003ed3fe00000ee792135"
+            + "00000039ffffffc6020000000240800000ff0000000000000241a0000041200000"
+            + "00000000000003e83e80000041c8000041a0000000000000000003ed3fe0000044dd9104";
+        File directory = directory();
+        byte[] fixture = new byte[hex.length() / 2];
+        for (int i = 0; i < fixture.length; i++) fixture[i] = (byte) Integer.parseInt(hex.substring(i * 2, i * 2 + 2), 16);
+        Files.write(new File(directory, "page.nbk").toPath(), fixture);
+        NotebookStore store = new NotebookStore(directory);
+        NotebookPage page = store.load();
+        equal(1200, page.width, "release fixture width");
+        equal(1600, page.height, "release fixture height");
+        check(page.template == NotebookPage.Template.LINED, "release fixture lined paper");
+        equal(2, page.strokes.size(), "release fixture snapshot and journal strokes");
+        sameStroke(stroke(10), page.strokes.get(0));
+        sameStroke(stroke(20), page.strokes.get(1));
+        check(Arrays.equals(fixture, bytes(directory, "page.nbk")), "reading release fixture changes no bytes");
+        store.replaceStrokes(Collections.singletonList(page.strokes.get(1)));
+        store.appendStroke(stroke(30));
+        NotebookPage reopened = new NotebookStore(directory).load();
+        equal(2, reopened.strokes.size(), "release fixture supports edit then append");
+        sameStroke(stroke(20), reopened.strokes.get(0));
+        sameStroke(stroke(30), reopened.strokes.get(1));
+        equal(1, intAt(bytes(directory, "page.nbk"), 4), "editing keeps version 1 on disk");
+    }
+
+    private static void editSnapshotAndContinuedWriting() throws Exception {
+        File directory = directory();
+        NotebookStore store = initialized(directory);
+        store.setTemplate(NotebookPage.Template.LINED);
+        store.appendStroke(stroke(10));
+        store.appendStroke(stroke(20));
+        NotebookPage original = store.current();
+        ArrayList<NotebookPage.Stroke> retained = new ArrayList<>(Collections.singletonList(original.strokes.get(1)));
+        NotebookPage edited = store.replaceStrokes(retained);
+        retained.clear();
+        equal(2, original.strokes.size(), "edit does not mutate preceding page");
+        equal(1, edited.strokes.size(), "edit owns replacement list");
+        equal(2, edited.pointCount, "edit recounts points");
+        equal(1200, edited.width, "edit retains logical width");
+        equal(1600, edited.height, "edit retains logical height");
+        check(edited.template == NotebookPage.Template.LINED, "edit retains paper");
+        NotebookPage reopened = new NotebookStore(directory).load();
+        equal(1, reopened.strokes.size(), "subset replacement durable immediately");
+        sameStroke(stroke(20), reopened.strokes.get(0));
+        store.replaceStrokes(Collections.<NotebookPage.Stroke>emptyList());
+        reopened = new NotebookStore(directory).load();
+        equal(0, reopened.strokes.size(), "erasing last stroke persists empty page");
+        equal(0, reopened.pointCount, "empty edit resets point count");
+        check(reopened.template == NotebookPage.Template.LINED, "empty edit retains paper");
+        store.appendStroke(stroke(30));
+        reopened = new NotebookStore(directory).load();
+        equal(1, reopened.strokes.size(), "drawing after erase-all persists");
+        sameStroke(stroke(30), reopened.strokes.get(0));
+        store.replaceStrokes(original.strokes);
+        reopened = new NotebookStore(directory).load();
+        equal(2, reopened.strokes.size(), "undo can durably restore old stroke list");
+        sameStroke(stroke(10), reopened.strokes.get(0));
+        sameStroke(stroke(20), reopened.strokes.get(1));
+    }
+
+    private static void interruptedEditSnapshotPublication() throws Exception {
+        File source = directory();
+        NotebookStore store = initialized(source);
+        store.appendStroke(stroke(10));
+        byte[] old = bytes(source, "page.nbk");
+        store.replaceStrokes(Collections.<NotebookPage.Stroke>emptyList());
+        byte[] edited = bytes(source, "page.nbk");
+        // Before publication, both a partial and a complete temporary file must leave primary intact.
+        for (int cut : new int[] {0, 8, edited.length - 1, edited.length}) {
+            File copy = directory();
+            Files.write(new File(copy, "page.nbk").toPath(), old);
+            Files.write(new File(copy, "page.nbk.tmp").toPath(), Arrays.copyOf(edited, cut));
+            equal(1, new NotebookStore(copy).load().strokes.size(), "primary wins over uncommitted edit " + cut);
+        }
+        // Between renames, recover the last completed document, not an uncommitted replacement.
+        File betweenRenames = directory();
+        Files.write(new File(betweenRenames, "page.nbk.bak").toPath(), old);
+        Files.write(new File(betweenRenames, "page.nbk.tmp").toPath(), edited);
+        NotebookStore recovered = new NotebookStore(betweenRenames);
+        equal(1, recovered.load().strokes.size(), "backup wins during interrupted edit publication");
+        recovered.replaceStrokes(Collections.<NotebookPage.Stroke>emptyList());
+        equal(0, new NotebookStore(betweenRenames).load().strokes.size(), "edit after backup recovery publishes correctly");
+        // An I/O failure before publication cannot erase the last saved page or claim success.
+        File blocked = directory();
+        NotebookStore failing = initialized(blocked);
+        failing.appendStroke(stroke(10));
+        byte[] committed = bytes(blocked, "page.nbk");
+        check(new File(blocked, "page.nbk.tmp").mkdir(), "block edit temporary output");
+        expectIo(() -> failing.replaceStrokes(Collections.<NotebookPage.Stroke>emptyList()));
+        check(Arrays.equals(committed, bytes(blocked, "page.nbk")), "failed edit preserves committed bytes");
+        equal(1, failing.current().strokes.size(), "failed edit preserves in-memory page");
+        expectIo(() -> failing.appendStroke(stroke(20)));
+    }
+
+    private static void rejectedEditsPreserveCommittedData() throws Exception {
+        File directory = directory();
+        NotebookStore store = initialized(directory);
+        store.appendStroke(stroke(10));
+        byte[] committed = bytes(directory, "page.nbk");
+        NotebookPage.Stroke outside = new NotebookPage.Stroke(2, 4, 0xff000000,
+            Collections.singletonList(new NotebookPage.Point(1201, 10, 100, 1)));
+        expectIo(() -> store.replaceStrokes(Arrays.asList(stroke(20), outside)));
+        expectIllegal(() -> store.replaceStrokes(null));
+        expectIllegal(() -> store.replaceStrokes(Arrays.asList(stroke(20), null)));
+        expectIo(() -> store.replaceStrokes(Collections.nCopies(NotebookStore.MAX_STROKES + 1, stroke(20))));
+        NotebookPage.Stroke manyPoints = new NotebookPage.Stroke(2, 4, 0xff000000,
+            Collections.nCopies(NotebookStore.MAX_POINTS_PER_STROKE, new NotebookPage.Point(20, 20, 100, 1)));
+        expectIo(() -> store.replaceStrokes(Collections.nCopies(6, manyPoints)));
+        check(Arrays.equals(committed, bytes(directory, "page.nbk")), "invalid edits preserve exact document bytes");
+        equal(1, store.current().strokes.size(), "invalid edits preserve in-memory state");
+        store.appendStroke(stroke(30));
+        equal(2, new NotebookStore(directory).load().strokes.size(), "validation rejection allows subsequent valid writes");
     }
 
     private static NotebookStore initialized(File directory) throws IOException {

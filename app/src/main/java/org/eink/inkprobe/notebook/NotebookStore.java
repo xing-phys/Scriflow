@@ -15,7 +15,8 @@ import java.util.zip.CRC32;
 /**
  * Single-writer page store. Call only from a serialized background worker, never pen callbacks.
  * A synced, checksummed record commits each completed stroke without rewriting previous points.
- * Size/template changes publish an atomic snapshot and retain the previous file as a backup.
+ * Size/template changes and stroke edits publish an atomic snapshot and retain the previous file
+ * as a backup. Editing uses the same version-1 format as the initial notebook release.
  */
 public final class NotebookStore {
     public static final int MAX_POINTS_PER_STROKE = 200000;
@@ -133,6 +134,26 @@ public final class NotebookStore {
             failed = true;
             throw error;
         }
+    }
+
+    /**
+     * Durably replaces the completed strokes after an undo, redo or stroke erase. Call once per
+     * completed edit, never per pen point. Validation finishes before any on-disk file is changed.
+     * The page's logical dimensions and paper template are preserved.
+     */
+    public NotebookPage replaceStrokes(List<NotebookPage.Stroke> strokes) throws IOException {
+        requireReady();
+        if (!page.isInitialized()) throw new IOException("Notebook size has not been initialized");
+        if (strokes == null) throw new IllegalArgumentException("Missing strokes");
+        if (strokes.size() > MAX_STROKES) throw new IOException("Notebook page has reached its stroke limit");
+        ArrayList<NotebookPage.Stroke> copy = new ArrayList<>(strokes);
+        int pointCount = 0;
+        for (NotebookPage.Stroke stroke : copy) {
+            validateStroke(page, stroke);
+            pointCount += stroke.points.size();
+            if (pointCount > MAX_TOTAL_POINTS) throw new IOException("Notebook page has reached its point limit");
+        }
+        return publish(NotebookPage.restored(page.width, page.height, page.template, copy, pointCount));
     }
 
     private void requireReady() throws IOException {

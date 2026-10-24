@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Exercise timing and durable notebook storage without Android SDK stub execution.
+# Exercise timing, editing and durable storage without Android SDK stub execution.
 set -euo pipefail
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
@@ -12,6 +12,11 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   app/src/main/java/org/eink/inkprobe/CallbackTiming.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPage.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookStore.java \
-  tests/CallbackTimingTest.java tests/NotebookStoreTest.java
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookEdits.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookDocument.java \
+  tests/CallbackTimingTest.java tests/NotebookStoreTest.java \
+  tests/NotebookEditsTest.java tests/NotebookDocumentTest.java
 java -ea -cp build/host-tests org.eink.inkprobe.CallbackTimingTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookStoreTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookEditsTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookDocumentTest

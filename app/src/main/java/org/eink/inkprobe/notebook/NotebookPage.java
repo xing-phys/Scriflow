@@ -81,6 +81,12 @@ public final class NotebookPage {
         return new NotebookPage(width, height, template, copy, pointCount + stroke.points.size());
     }
 
+    NotebookPage withStrokes(List<Stroke> strokes) {
+        int count = 0;
+        for (Stroke stroke : strokes) count = Math.addExact(count, stroke.points.size());
+        return new NotebookPage(width, height, template, strokes, count);
+    }
+
     static NotebookPage restored(int width, int height, Template template, List<Stroke> strokes,
                                  int pointCount) {
         return new NotebookPage(width, height, template, strokes, pointCount);
