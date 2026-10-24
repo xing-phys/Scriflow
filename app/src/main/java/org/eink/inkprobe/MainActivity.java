@@ -42,7 +42,7 @@ public final class MainActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(Color.WHITE);
         TextView title = new TextView(this);
-        title.setText("Ink Probe 0.2 · MatePad Paper"); title.setTextSize(22); title.setTextColor(Color.BLACK);
+        title.setText("Ink Probe 0.3 · MatePad Paper"); title.setTextSize(22); title.setTextColor(Color.BLACK);
         title.setPadding(16, 12, 12, 6); root.addView(title);
         LinearLayout modes = row(root);
         button(modes, "Android", () -> select("Android"));
@@ -126,7 +126,7 @@ public final class MainActivity extends Activity {
         // Explicit snapshot only; callbacks never trigger disk I/O.
         try {
             JSONObject snapshot = trace.json();
-            snapshot.put("appVersion", "0.2");
+            snapshot.put("appVersion", "0.3");
             snapshot.put("model", Build.MODEL); snapshot.put("firmware", Build.DISPLAY);
             snapshot.put("mode", mode); snapshot.put("zOnTop", onTop);
             snapshot.put("canvasWidth", paper.getWidth()); snapshot.put("canvasHeight", paper.getHeight());

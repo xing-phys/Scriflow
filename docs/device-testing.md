@@ -104,5 +104,38 @@ Both surfaces initialized with pixel format 1 (RGBA_8888), AHW true, stylus
 accepted, and zero disable tokens. Native writable state remained 1. Both raw
 view post modes read 0; no speculative waveform or global override was applied.
 
-The revised build is installed. A short, specifically identified Native edit pen
-comparison is pending. Configuration matching is not yet proof of resolved latency.
+The revised build was physically tested in Native edit. The user reports no
+blinking, but most writing is delayed and some strokes are occasionally smooth.
+The retained export contains 23 native tracks. These observations establish
+improvement after the policy/format changes, not consistent low latency.
+
+## Version 0.3 timing investigation (2026-10-24)
+
+Preserve rendering/policy/pen settings while adding an external timing listener
+to Native edit. Native HWEditView's internal listener remains registered. The
+framework's explicit add/remove listener methods are hidden from an ordinary
+APK on this firmware, so use the exposed setter/null pair whose implementation
+multiplexes external and internal handlers. No hidden-API bypass is used.
+
+The observer stores callback arrival uptime paired with the firmware event time,
+without per-point UI updates, log writes, or refresh commands. Arrival follows
+the framework's internal handler and therefore includes its processing time.
+This measures software delivery; it cannot measure the physical panel's latency.
+
+Validation before physical input:
+
+- Java host timing tests: 60 assertions passed, including delayed delivery with
+  regular sample timestamps, clock errors, percentiles, reset, and ring eviction.
+- APK build/sign/install passed. Effective app policy remains 3.
+- Ordinary synthetic swipe: 16 recorded samples, delivery p50 24 ms, p95/max
+  26 ms; all event/receipt arrays aligned, no invalid clock samples. This is not
+  a real-pen benchmark.
+- Native edit: AHW true, format RGBA_8888, observer attached, zero disable tokens.
+  Native handler remains responsible for tracks and drawing.
+
+Next: collect five separate physical strokes and compare event span against
+arrival span and delay percentiles. Prompt event delivery despite visible delay
+would direct attention to display/compositor behavior. Late or batched delivery
+would direct attention to the callback/widget processing path. Fullscreen is a
+confirmed window difference from Notes and a candidate subsequent isolated test;
+no fullscreen or global refresh changes are bundled into this measurement build.

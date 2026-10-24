@@ -72,7 +72,7 @@ final class HuaweiInk implements SurfaceHolder.Callback {
             if (get(view, "getActiveBuffer") == null)
                 throw new IllegalStateException("Surface changed but active buffer is null");
             report("Framebuffer surface: " + surface.getClass().getName());
-            if (!attached && !editor) {
+            if (!attached) {
                 Class<?> iface = Class.forName("android.eink.view.IAhwTouchListener");
                 listener = Proxy.newProxyInstance(iface.getClassLoader(), new Class<?>[]{iface}, (proxy, m, args) -> {
                     switch (m.getName()) {
@@ -80,13 +80,15 @@ final class HuaweiInk implements SurfaceHolder.Callback {
                         case "hashCode": return System.identityHashCode(proxy);
                         case "equals": return proxy == args[0];
                         case "onAhwAddPoint":
-                            trace.point("huawei", (Integer) args[0], (Float) args[1], (Float) args[2],
+                            trace.point(editor ? "huawei-native" : "huawei", (Integer) args[0], (Float) args[1], (Float) args[2],
                                 (Long) args[3], (Float) args[4]);
                             // Deliberately NO app repaint, including at pen-up.
                             break;
                     }
                     return null;
                 });
+                // This exposed setter multiplexes with the widget's internal listener.
+                // The explicit add/remove methods are hidden from ordinary APKs on this ROM.
                 call(surface, "setAhwTouchListener", new Class<?>[]{iface}, listener);
                 attached = true;
                 report("Point listener attached");

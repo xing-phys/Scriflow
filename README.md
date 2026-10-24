@@ -74,6 +74,25 @@ not assumed calibrated. Native edit's points are under
 `firmwareSurface.tracks_x_y_time_pressure`; other modes' points are under
 `strokes`. `Save log` overwrites only this app's prior `probe.json`.
 
+Version 0.3 adds a callback timing observer in Native edit as well as HW live.
+The exposed firmware listener setter adds an observer alongside the native
+widget's own handler; removing our observer leaves the widget handler intact.
+Callbacks do not redraw, update status, or write files. Each stroke's
+`callbackArrivalUptimeMs` aligns one-to-one with its existing point array.
+`callbackTiming` reports delivery-delay percentiles from at most the most recent
+8192 valid samples. Invalid or future event timestamps are counted separately.
+Inter-event gaps include pauses between strokes and are not latency estimates.
+
+```bash
+python3 scripts/analyze-probe.py artifacts/probe.json
+./scripts/test.sh
+```
+
+The host tests cover delivery timing versus event sampling, clock mismatch,
+nearest-rank percentiles, reset, snapshot immutability, and bounded storage. The
+observer runs after the widget's internal processing; its reported delay includes
+that processing. Keep rendering unchanged while collecting the first timing trial.
+
 Software logs and screenshots cannot measure physical pen-to-ink latency.
 External high-frame-rate video is needed for quantitative latency claims.
 
@@ -90,6 +109,10 @@ The ordinary APK cannot access that hidden vendor readback API, so its own expor
 labels the manifest value as **declared**, rather than claiming it is effective.
 Firmware mode construction refuses a missing/incorrect manifest declaration.
 Physical testing, rather than successful policy readback, establishes writing quality.
+
+The version 0.2 physical result was **no blinking, but usually delayed ink with
+occasional smooth strokes**. Version 0.3 instruments that remaining problem; it
+does not claim to fix latency.
 
 See [the investigation plan](matepad-handwriting-plan.md) and
 [device test record](docs/device-testing.md).

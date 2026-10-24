@@ -3,6 +3,7 @@ package org.eink.inkprobe;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.os.SystemClock;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -13,9 +14,10 @@ import java.util.List;
 final class Trace {
     static final class Point {
         final float x, y, pressure;
-        final long time;
-        Point(float x, float y, long time, float pressure) {
+        final long time, received;
+        Point(float x, float y, long time, float pressure, long received) {
             this.x = x; this.y = y; this.time = time; this.pressure = pressure;
+            this.received = received;
         }
     }
     static final class Stroke {
@@ -27,6 +29,7 @@ final class Trace {
     private final List<Stroke> strokes = new ArrayList<>();
     private Stroke active;
     private int pointCount, missedDown;
+    private final CallbackTiming timing = new CallbackTiming();
 
     synchronized void point(String source, int action, float x, float y, long time, float pressure) {
         if (action == 0) {
@@ -39,7 +42,9 @@ final class Trace {
             active = new Stroke(source);
             strokes.add(active);
         }
-        active.points.add(new Point(x, y, time, pressure));
+        long received = SystemClock.uptimeMillis();
+        active.points.add(new Point(x, y, time, pressure, received));
+        timing.record(time, received);
         pointCount++;
         if (action == 1 || action == 3) {
             active.cancelled = action == 3;
@@ -50,7 +55,7 @@ final class Trace {
         if (active != null) active.cancelled = true;
         active = null;
     }
-    synchronized void clear() { strokes.clear(); active = null; pointCount = 0; missedDown = 0; }
+    synchronized void clear() { strokes.clear(); active = null; pointCount = 0; missedDown = 0; timing.reset(); }
     synchronized String summary() {
         return strokes.size() + " strokes / " + pointCount + " points"
             + (active != null ? " / pen down" : " / pen up") + " / missing DOWN: " + missedDown;
@@ -60,6 +65,15 @@ final class Trace {
         result.put("coordinateSpace", "writing-surface physical pixels");
         result.put("pointCount", pointCount);
         result.put("missingDown", missedDown);
+        CallbackTiming.Snapshot t = timing.snapshot();
+        JSONObject stats = new JSONObject();
+        stats.put("sampleCount", t.sampleCount); stats.put("validDelayCount", t.validDelayCount);
+        stats.put("negativeDelayCount", t.negativeDelayCount); stats.put("invalidEventTimeCount", t.invalidEventTimeCount);
+        stats.put("windowSampleCount", t.windowSampleCount);
+        stats.put("p50DelayMs", t.p50DelayMs); stats.put("p95DelayMs", t.p95DelayMs); stats.put("maxDelayMs", t.maxDelayMs);
+        stats.put("p50EventGapMs", t.p50EventGapMs); stats.put("p95EventGapMs", t.p95EventGapMs); stats.put("maxEventGapMs", t.maxEventGapMs);
+        stats.put("meaning", "callback delivery after framework processing; not optical latency; gaps include pen pauses");
+        result.put("callbackTiming", stats);
         JSONArray list = new JSONArray();
         for (Stroke stroke : strokes) {
             JSONObject s = new JSONObject();
@@ -67,12 +81,15 @@ final class Trace {
             s.put("cancelled", stroke.cancelled);
             s.put("complete", stroke != active);
             JSONArray points = new JSONArray();
+            JSONArray received = new JSONArray();
             for (Point p : stroke.points) {
                 JSONArray a = new JSONArray();
                 a.put(p.x); a.put(p.y); a.put(p.time); a.put(p.pressure);
                 points.put(a);
+                received.put(p.received);
             }
             s.put("points_x_y_time_pressure", points);
+            s.put("callbackArrivalUptimeMs", received);
             list.put(s);
         }
         result.put("strokes", list);
