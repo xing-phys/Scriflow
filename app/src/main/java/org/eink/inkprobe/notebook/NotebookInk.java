@@ -105,6 +105,74 @@ public final class NotebookInk implements SurfaceHolder.Callback {
         restored = false;
     }
 
+    /**
+     * Pause document editing without removing the native surface or its paper. A clean
+     * completed page stays visible; only partial or unmatched native ink needs restoration.
+     */
+    public void pauseForEdit() {
+        if (!alive || failed) return;
+        boolean needsRestore = activePoints != null || !awaitingCommit.isEmpty()
+            || !nativeCommits.isEmpty();
+        wanted = false;
+        enabled = false;
+        try {
+            if (surface != null) call(surface, "setAutoHandWrite", new Class<?>[]{boolean.class}, false);
+            // The firmware can have received an UP before its internal track handler has run.
+            // Canonical replacement below must also repair that unsettled native track list.
+            needsRestore |= Boolean.TRUE.equals(get(view, "isReceivingTrack"));
+            flushCompletedUps();
+            if (failed) return;
+            activePoints = null;
+            clearEraser();
+            awaitingCommit.clear();
+            nativeCommits.clear();
+            setPenDown(false);
+            if (needsRestore) restored = false;
+        } catch (Exception e) { fail("Cannot pause notebook editing", e); }
+    }
+
+    /**
+     * Apply a completed stroke edit on this paused native surface. The existing background
+     * stays bound, so one native draw publishes paper and replacement ink together. False
+     * requests a fresh widget when native input or surface geometry cannot safely be reused.
+     */
+    public boolean applyEditPage(NotebookPage page) {
+        if (!alive || failed) return false;
+        if (page == null) throw new IllegalArgumentException("Missing page");
+        if (wanted || enabled || penDown) throw new IllegalStateException("Pause before editing the page");
+        if (page.width != this.page.width || page.height != this.page.height
+                || page.template != this.page.template) {
+            return false;
+        }
+        try {
+            if (!prepared || !view.getHolder().getSurface().isValid() || paperBitmap == null
+                    || paperBitmap.getWidth() != surfaceWidth || paperBitmap.getHeight() != surfaceHeight
+                    || Boolean.TRUE.equals(get(view, "isReceivingTrack"))) return false;
+            boolean sameStrokes = sameStrokeReferences(completed, page.strokes);
+            this.page = page;
+            completed.clear();
+            completed.addAll(page.strokes);
+            if (sameStrokes && restored) return true; // No-hit erasing leaves unchanged ink alone.
+            restored = false;
+            restoring = true;
+            try {
+                replaceNativeTracks();
+                restored = true;
+            } finally { restoring = false; }
+            return true;
+        } catch (Exception e) {
+            fail("Cannot update notebook ink", e);
+            return false;
+        }
+    }
+
+    private static boolean sameStrokeReferences(List<NotebookPage.Stroke> left,
+                                                 List<NotebookPage.Stroke> right) {
+        if (left.size() != right.size()) return false;
+        for (int i = 0; i < left.size(); i++) if (left.get(i) != right.get(i)) return false;
+        return true;
+    }
+
     public boolean isPenDown() { return penDown; }
 
     /** Ready to accept the selected tool; eraser readiness does not imply native AHW is on. */
@@ -381,8 +449,8 @@ public final class NotebookInk implements SurfaceHolder.Callback {
                 if (configuredPenType < 0) throw new IllegalStateException("Completed stroke has no pen style");
                 NotebookPage.Stroke stroke = completion.points.toStroke(configuredPenType);
                 completed.add(stroke);
-                // The token is removed before notification. A later stop/release cannot submit it
-                // again; this widget is disabled and discarded before any delayed native commit.
+                // Remove the token before notification so another pause cannot submit it twice.
+                // Input stays disabled until canonical restoration or widget replacement.
                 listener.onStrokeComplete(stroke);
             }
         } catch (Exception e) { fail("Cannot preserve completed pen input", e); }
@@ -391,15 +459,6 @@ public final class NotebookInk implements SurfaceHolder.Callback {
     private void restoreDocument() throws Exception {
         restoring = true;
         try {
-            ArrayList<Object> tracks = new ArrayList<>();
-            Object creator = get(view, "getHWTrackCreator");
-            Method createPoint = creator.getClass().getMethod("createHWPoint",
-                float.class, float.class, long.class, float.class);
-            Method createTrack = creator.getClass().getMethod("createHWTrack",
-                int.class, float.class, int.class, long.class, List.class, RectF.class);
-            for (NotebookPage.Stroke stroke : completed) {
-                tracks.add(createTrack(creator, createPoint, createTrack, stroke));
-            }
             Bitmap background = Bitmap.createBitmap(surfaceWidth, surfaceHeight, Bitmap.Config.ARGB_8888);
             background.setDensity(Bitmap.DENSITY_NONE);
             Canvas canvas = new Canvas(background);
@@ -415,12 +474,27 @@ public final class NotebookInk implements SurfaceHolder.Callback {
             // bindBitmap and setTrackList redraw synchronously on a prepared native surface.
             call(get(view, "getSurfacePicture"), "bindBitmap", new Class<?>[]{Bitmap.class}, background);
             paperBitmap = background;
-            call(view, "setTrackList", new Class<?>[]{List.class}, tracks);
-            if (getNativeTrackCount() != completed.size()) {
-                throw new IllegalStateException("Firmware did not restore the complete page");
-            }
+            replaceNativeTracks();
             restored = true;
         } finally { restoring = false; }
+    }
+
+    private void replaceNativeTracks() throws Exception {
+        ArrayList<Object> tracks = new ArrayList<>();
+        Object creator = get(view, "getHWTrackCreator");
+        Method createPoint = creator.getClass().getMethod("createHWPoint",
+            float.class, float.class, long.class, float.class);
+        Method createTrack = creator.getClass().getMethod("createHWTrack",
+            int.class, float.class, int.class, long.class, List.class, RectF.class);
+        for (NotebookPage.Stroke stroke : completed) {
+            tracks.add(createTrack(creator, createPoint, createTrack, stroke));
+        }
+        // HWEditView draws its bound paper and all replacement tracks before one surface post.
+        // Rebinding paper here would request a separate draw and expose blank intermediate ink.
+        call(view, "setTrackList", new Class<?>[]{List.class}, tracks);
+        if (getNativeTrackCount() != completed.size()) {
+            throw new IllegalStateException("Firmware did not restore the complete page");
+        }
     }
 
     private Object createTrack(Object creator, Method createPoint, Method createTrack,

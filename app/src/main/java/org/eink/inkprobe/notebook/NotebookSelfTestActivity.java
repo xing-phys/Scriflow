@@ -7,6 +7,7 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.MotionEvent;
+import android.view.Surface;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.LinearLayout;
@@ -34,7 +35,10 @@ public final class NotebookSelfTestActivity extends Activity implements Notebook
     private NotebookPage expected;
     private NotebookPage.Template template;
     private TextView status;
-    private boolean completed;
+    private boolean completed, verificationQueued, waitingForEditResume;
+    private JSONObject pendingResult;
+    private Surface editSurface;
+    private Object editPaper;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -104,9 +108,13 @@ public final class NotebookSelfTestActivity extends Activity implements Notebook
     }
 
     @Override public void onReady() {
-        if (completed || expected == null || ink == null) return;
+        if (completed || verificationQueued || expected == null || ink == null) return;
         // Read after the adapter's completed restore callback unwinds.
-        ink.view.post(this::verifyRestore);
+        verificationQueued = true;
+        ink.view.post(() -> {
+            verificationQueued = false;
+            if (waitingForEditResume) verifyEditResume(); else verifyRestore();
+        });
     }
 
     @Override public void onStrokeComplete(NotebookPage.Stroke stroke) {
@@ -123,26 +131,7 @@ public final class NotebookSelfTestActivity extends Activity implements Notebook
     private void verifyRestore() {
         if (completed || ink == null || expected == null) return;
         try {
-            List<NotebookPage.Stroke> actual = ink.snapshotNativeStrokes();
-            require(actual.size() == expected.strokes.size(), "Native stroke count changed");
-            int points = 0;
-            for (int index = 0; index < actual.size(); index++) {
-                NotebookPage.Stroke restored = actual.get(index);
-                NotebookPage.Stroke original = expected.strokes.get(index);
-                require(restored.penType == original.penType, "Pen type changed");
-                require(restored.color == original.color, "Pen color changed");
-                near(restored.width, original.width, "Pen width changed");
-                require(restored.points.size() == original.points.size(), "Point count changed");
-                for (int point = 0; point < restored.points.size(); point++) {
-                    NotebookPage.Point after = restored.points.get(point);
-                    NotebookPage.Point before = original.points.get(point);
-                    near(after.x, before.x, "Point x changed");
-                    near(after.y, before.y, "Point y changed");
-                    near(after.pressure, before.pressure, "Point pressure changed");
-                    require(after.time == before.time, "Point event time changed");
-                    points++;
-                }
-            }
+            int points = verifyNativePage(expected);
             int nativeCount = ink.getNativeTrackCount();
             require(nativeCount == expected.strokes.size(), "Native track count differs from snapshot");
             JSONObject paper = verifyPaper();
@@ -153,15 +142,129 @@ public final class NotebookSelfTestActivity extends Activity implements Notebook
             result.put("coordinatesStylePressureTimeMatch", true);
             result.put("paper", paper);
             result.put("physicalStylusLatencyTested", false);
-            if (getIntent().getBooleanExtra("pauseBoundary", false)) {
-                result.put("pauseBoundary", verifyPauseBoundary());
-                require(!completed, "Adapter failed during the simulated callback check");
+            if (getIntent().getBooleanExtra("inPlaceEdits", false)) {
+                result.put("inPlaceEdits", verifyInPlaceEdits());
+                pendingResult = result;
+                waitingForEditResume = true;
+                ink.start();
+                return;
             }
-            completed = true;
-            writeResult(result, "PASS · " + template.name().toLowerCase() + " · 2 native tracks / " + points + " points");
+            finishVerification(result);
         } catch (Exception error) {
             fail("verify", error);
         }
+    }
+
+    private int verifyNativePage(NotebookPage page) throws Exception {
+        List<NotebookPage.Stroke> actual = ink.snapshotNativeStrokes();
+        require(actual.size() == page.strokes.size(), "Native stroke count changed");
+        int points = 0;
+        for (int index = 0; index < actual.size(); index++) {
+            NotebookPage.Stroke restored = actual.get(index);
+            NotebookPage.Stroke original = page.strokes.get(index);
+            require(restored.penType == original.penType, "Pen type changed");
+            require(restored.color == original.color, "Pen color changed");
+            near(restored.width, original.width, "Pen width changed");
+            require(restored.points.size() == original.points.size(), "Point count changed");
+            for (int point = 0; point < restored.points.size(); point++) {
+                NotebookPage.Point after = restored.points.get(point);
+                NotebookPage.Point before = original.points.get(point);
+                near(after.x, before.x, "Point x changed");
+                near(after.y, before.y, "Point y changed");
+                near(after.pressure, before.pressure, "Point pressure changed");
+                require(after.time == before.time, "Point event time changed");
+                points++;
+            }
+        }
+        require(ink.getNativeTrackCount() == page.strokes.size(), "Native track count differs from snapshot");
+        return points;
+    }
+
+    /** Runs only against the disposable synthetic document and never opens NotebookStore. */
+    private JSONObject verifyInPlaceEdits() throws Exception {
+        require(ink.isReady(), "Initial editor is not ready");
+        require(emittedStrokes.isEmpty(), "Unexpected physical input before the edit check");
+        editSurface = ink.view.getHolder().getSurface();
+        editPaper = call(call(ink.view, "getSurfacePicture"), "getBitmap");
+        NotebookEdits edits = new NotebookEdits(expected);
+        ink.pauseForEdit();
+        require(!ink.isReady(), "Editor accepted input while paused for edits");
+        require(edits.erase(Arrays.asList(expected.strokes.get(0).points.get(0)),
+            NotebookInk.ERASER_RADIUS), "Synthetic erase did not hit the dot");
+        require(edits.current().strokes.size() == 1, "Synthetic erase removed the wrong strokes");
+        applyAndVerifyEdit(edits.current());
+        require(edits.undo(), "Synthetic erase could not be undone");
+        applyAndVerifyEdit(edits.current());
+        require(edits.redo(), "Synthetic erase could not be redone");
+        applyAndVerifyEdit(edits.current());
+        require(edits.undo(), "Second undo failed");
+        applyAndVerifyEdit(edits.current());
+
+        List<?> beforeNoHit = new ArrayList<>((List<?>) call(ink.view, "getTrackList"));
+        require(!edits.erase(Arrays.asList(new NotebookPage.Point(
+            expected.width * 0.96f, expected.height * 0.96f, 9000L, 0.5f)),
+            NotebookInk.ERASER_RADIUS), "Synthetic blank-space eraser hit a stroke");
+        require(edits.canRedo(), "No-hit erase cleared redo");
+        applyAndVerifyEdit(edits.current());
+        List<?> afterNoHit = (List<?>) call(ink.view, "getTrackList");
+        require(beforeNoHit.size() == afterNoHit.size(), "No-hit erase changed native track count");
+        for (int index = 0; index < beforeNoHit.size(); index++) {
+            require(beforeNoHit.get(index) == afterNoHit.get(index), "No-hit erase replaced a native track");
+        }
+
+        require(edits.redo(), "Redo after no-hit erase failed");
+        applyAndVerifyEdit(edits.current());
+        require(edits.undo(), "Final undo failed");
+        applyAndVerifyEdit(edits.current());
+        verifyNativePage(expected);
+        require(emittedStrokes.isEmpty(), "Synthetic edits emitted a new pen stroke");
+        JSONObject result = new JSONObject();
+        result.put("syntheticEraseUndoRedoNoHitRoundTrip", true);
+        result.put("surfaceAndPaperIdentityRetained", true);
+        result.put("noHitNativeTrackIdentityRetained", true);
+        result.put("coordinatesStylePressureTimeMatch", true);
+        result.put("originalDocumentRestored", true);
+        result.put("physicalStylusTest", false);
+        result.put("displayBlinkMeasured", false);
+        return result;
+    }
+
+    private void applyAndVerifyEdit(NotebookPage updated) throws Exception {
+        require(ink.applyEditPage(updated), "Clean synthetic edit required a replacement widget");
+        require(!completed, "Adapter failed during in-place editing");
+        require(!ink.isReady(), "Editor resumed before explicit start");
+        verifyEditIdentities();
+        verifyNativePage(updated);
+    }
+
+    private void verifyEditIdentities() throws Exception {
+        require(ink.view.getHolder().getSurface() == editSurface, "In-place edit replaced the Surface");
+        require(call(call(ink.view, "getSurfacePicture"), "getBitmap") == editPaper,
+            "In-place edit replaced the paper bitmap");
+    }
+
+    private void verifyEditResume() {
+        if (completed || ink == null || pendingResult == null) return;
+        try {
+            require(ink.isReady(), "Editor did not resume after in-place edits");
+            verifyEditIdentities();
+            verifyNativePage(expected);
+            pendingResult.getJSONObject("inPlaceEdits").put("inputReadyAfterResume", true);
+            waitingForEditResume = false;
+            JSONObject result = pendingResult;
+            pendingResult = null;
+            finishVerification(result);
+        } catch (Exception error) { fail("edit-resume", error); }
+    }
+
+    private void finishVerification(JSONObject result) throws Exception {
+        if (getIntent().getBooleanExtra("pauseBoundary", false)) {
+            result.put("pauseBoundary", verifyPauseBoundary());
+            require(!completed, "Adapter failed during the simulated callback check");
+        }
+        completed = true;
+        writeResult(result, "PASS · " + template.name().toLowerCase() + " · 2 native tracks / "
+            + result.getInt("pointCount") + " points");
     }
 
     private JSONObject verifyPauseBoundary() throws Exception {

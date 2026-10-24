@@ -4,7 +4,7 @@ A small notebook app for Huawei MatePad Paper HMW-W09. The first milestone is
 one fixed page with blank or lined paper, native low-latency handwriting,
 automatic saving of completed strokes, and editable restoration after reopening.
 
-The current build is an early development APK, version 0.8, with undo/redo and
+The current build is an early development APK, version 0.8.1, with undo/redo and
 a whole-stroke eraser. Notebook/page navigation, pen selection, and export are
 later milestones. Handwriting currently uses one black ballpoint pen. The
 original diagnostic screen remains available separately for development.
@@ -103,9 +103,13 @@ all 22 pre-restart strokes preserved exactly. Both templates passed native
 restoration checks. This is a device-specific usability result, not a measured
 optical latency claim.
 
-Version 0.8 was developed offline: its build, signature, and host behavior are
-verified, but its new eraser input path still needs physical tablet acceptance.
-See [editing milestone and installation checks](docs/notebook-editing.md).
+Version 0.8 passed user testing for erasing, undo, and redo. The user observed
+occasional disappearance/reappearance of all ink during those edits. Version
+0.8.1 keeps the native surface and background in place and updates tracks in a
+single posted frame; a no-hit erase skips the redraw. This visual fix was
+developed offline and still needs physical tablet confirmation. See
+[editing milestone and installation checks](docs/notebook-editing.md) and
+[the edit refresh fix](docs/notebook-edit-refresh.md).
 
 See [milestone design and acceptance](docs/notebook-milestone.md), the
 [device test record](docs/device-testing.md), and the retained

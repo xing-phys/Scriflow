@@ -36,12 +36,16 @@ collects primitive coordinates and performs no drawing, disk work, or status
 updates on MOVE. A completed UP sends its path to the background document worker.
 CANCEL, pause, and interrupted gestures discard the partial eraser path.
 
-The worker completes hit testing and saving before the Activity restores the
+In version 0.8, the worker completes hit testing and saving before the Activity restores the
 canonical document in a fresh native widget. Native input is paused during the
 edit. Completed pen UPs awaiting a vendor track notification are submitted before
 queued undo/erase operations. Old widget callbacks cannot overwrite new UI state.
 A no-hit eraser gesture currently also reconstructs the canvas, so an unnecessary
 refresh is possible even though it changes neither document nor history.
+
+Version 0.8.1 replaces that edit-time reconstruction with an in-place track
+update and skips clean no-hit redraws. See `notebook-edit-refresh.md` for the
+source investigation, exceptional safety fallback, and validation limits.
 
 Pen strokes retain the append-and-sync journal. Stroke edits use a validated,
 synced replacement snapshot and the existing backup/rename procedure. Format
@@ -98,3 +102,7 @@ automatic handwriting is disabled for Eraser. If it does not erase on lifting,
 return to Pen and report the result. The previously validated low-latency pen
 path remains in use. Background notification redraws can still interfere with
 this firmware; keep Clash's Show Traffic setting off as established earlier.
+
+User feedback after installing 0.8 confirmed that erasing, undo, and redo all
+work. It also identified occasional ink-only blinking during edits, addressed
+by the subsequent 0.8.1 refresh change.

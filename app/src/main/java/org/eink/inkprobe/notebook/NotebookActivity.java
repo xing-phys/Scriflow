@@ -199,7 +199,8 @@ public final class NotebookActivity extends Activity {
     private void changeHistory(boolean redo) {
         if (!canEdit() || !(redo ? session.canRedo() : session.canUndo())) return;
         pauseForEdit();
-        final int request = ++generation;
+        if (shownError != null) return;
+        final int request = generation;
         NotebookSession.Callback completion = (updated, error) -> finishEdit(request, updated, error);
         if (redo) session.redo(completion); else session.undo(completion);
     }
@@ -207,23 +208,42 @@ public final class NotebookActivity extends Activity {
     private void erase(List<NotebookPage.Point> path, float radius) {
         if (!canEdit()) return;
         pauseForEdit();
-        final int request = ++generation;
+        if (shownError != null) return;
+        final int request = generation;
         session.erase(path, radius, (updated, error) -> finishEdit(request, updated, error));
     }
 
     private void pauseForEdit() {
         editing = true;
-        ink.stop();
+        ink.pauseForEdit();
         main.removeCallbacks(updateSaveState);
         updateControls();
-        saveState.setText("Saving…");
+        if (shownError == null) saveState.setText("Saving…");
     }
 
     private void finishEdit(int request, NotebookPage updated, IOException error) {
         if (!active || request != generation) return;
-        // Rebuild from the canonical model after a complete edit, with native input paused.
-        if (updated != null) openCanvas(updated);
+        // Keep the surface and paper visible. The adapter posts the replacement tracks in
+        // one frame, or skips drawing entirely for a no-hit erase.
+        if (updated == null || ink == null) {
+            showError(error == null ? new IOException("The writing surface is unavailable.") : error);
+            return;
+        }
+        page = updated;
+        try {
+            // A rare unfinished vendor track or changed surface size still needs a fresh
+            // widget; ordinary completed edits reuse the visible surface.
+            if (!ink.applyEditPage(updated) && shownError == null) openCanvas(updated);
+        }
+        catch (Exception failure) {
+            showError(new IOException("Could not update the writing surface", failure));
+            return;
+        }
+        editing = false;
         if (error != null) { showError(error); return; }
+        if (shownError != null) return;
+        ink.start();
+        updateControls();
         scheduleSaveState();
     }
 
