@@ -221,3 +221,84 @@ by default, uses app-local invalidation rather than a forced waveform, records
 each request time, and does not paint ink. Build/signature and existing host
 tests pass. It has not yet been installed or physically tested; version 0.4
 remains the current tablet build during the unplugged comparison.
+
+## Plugged-in recovery control
+
+The user reports that native Notes also initially follows the pen and later falls
+behind while USB is connected, although it follows for longer than the probe.
+After more writing, Notes becomes smooth. This means the earlier assumption of
+an always-smooth plugged-in reference was incorrect.
+
+While Notes was left open after recovery, a 10.24-second passive sample found
+zero new timestamp rows on StatusBar, Notes' root and handwriting layers, and
+the floating overlay. USB remained powered and charging, at 86%. Both apps hide
+StatusBar from actual display output. Returning to unchanged Probe 0.4 restored
+20 new StatusBar rows over 10.14 seconds; Probe's root, handwriting layer, and
+floating overlay stayed unchanged.
+
+A subsequent bounded 60-second recording in Probe showed roughly two new
+StatusBar rows per second initially, then no new rows in the final samples.
+USB remained powered. The last new row was at firmware monotonic time
+156351.895 seconds. The user's later writing continued through 156440.392
+seconds, so the periodic activity stopped before pen input ended. The user
+reports Probe eventually became smooth too, after substantially more writing
+than Notes. The exact optical transition time was not recorded.
+
+The saved Probe export retains 284 native tracks and 15,331 observer samples,
+including earlier trials. The new plugged-in trial occupies tracks 148–284,
+spanning approximately 202 seconds. Aggregate callback delay across the export
+was p50 1 ms, p95 5 ms, maximum 262 ms; the bounded last-8192-sample window has
+maximum 221 ms. These are software delivery measurements, not optical latency.
+
+Later reconnection/readback found 100% charge and battery status 4 rather than
+the earlier status 2 at 86%. This later condition must not be substituted for
+the charging conditions in the recovery samples. A fresh passive sample also
+found an unchanged StatusBar history. No battery state was spoofed.
+
+Exact SystemUI inspection did not establish a charging-animation cause: battery
+and stylus icons examined are static vectors/level lists, battery broadcasts
+skip unchanged state, clock seconds are not explicitly enabled, and the network
+speed display is configured off. These checks narrow specific hypotheses;
+they do not identify the recurring invalidation's source.
+
+Known remaining window differences include Notes' system-UI flags `0x2500`
+(layout stable, layout fullscreen, light status bar) versus Probe's zero, and
+Notes lacking Probe's keep-screen-on flag. Both use the fullscreen window flag
+in this comparison. An app-local comparison of those two differences can be
+measured automatically before requesting another long physical trial.
+
+## Version 0.6 window controls
+
+Installed version 0.6 after saving the long version 0.4 trial. It adds separate
+Notes UI (`0x2500` versus zero) and Awake (keep-screen-on) controls, while retaining
+the existing fullscreen control. Requested and actual settings are exported.
+Saved-instance state preserves window options and selected mode. The uninstalled
+version 0.5 DOWN-frame experiment was removed; callbacks again request no app
+redraw at any point in a firmware stroke.
+
+Automatic idle samples used Native edit and fullscreen throughout. Each row is
+an independent approximately 10-second before/after StatusBar history comparison;
+button-triggered setup redraws were allowed to settle before sampling.
+
+| Notes UI flags | Keep screen on | New StatusBar rows |
+| --- | --- | --- |
+| 0 (initial control) | On | 20 |
+| 0x2500 | On | 20 |
+| 0 (restored control) | On | 21 |
+| 0 | Off | 20 |
+| 0x2500 | Off | 20 |
+
+Exports confirmed the actual flag combinations and native Auto-HandWrite true
+throughout; effective app refresh policy remains 3. Neither known window
+difference suppressed the periodic producer in this test. This is a negative
+result, not a confirmed handwriting fix. The final configuration is fullscreen
+on, Notes UI on, Awake off. Physical handwriting with version 0.6 is untested.
+
+Battery was now 100%, USB powered, status 4 rather than actively charging status
+2. The periodic submissions therefore do not require active charging. The next
+bounded recording spans physical USB removal and reconnection, without writing
+or any battery/global-display changes.
+
+Validation: APK build and signature verification passed, effective policy readback
+passed, existing host timing tests passed all 60 assertions, and own-app exports
+verified the control states on the device. No new app permissions were added.

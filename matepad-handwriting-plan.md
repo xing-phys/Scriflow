@@ -1,13 +1,16 @@
 # MatePad Paper handwriting investigation and development plan
 
-Date: 2026-10-23
+Initial review: 2026-10-23. Implementation and device trials began afterward;
+see [the current test record](docs/device-testing.md) and [prototype](README.md).
 
 ## Objective and current scope
 
-Develop an understanding of the device-specific handwriting path and plan a
-minimal experiment before implementing a note-taking application. This
-investigation used read-only ADB commands, a temporary copy of a system framework,
-and public source code. No apps were installed or tablet settings changed.
+Develop an understanding of the device-specific handwriting path and validate a
+minimal experiment before implementing a note-taking application. The initial
+review used read-only ADB commands, a temporary copy of a system framework,
+and public source code. Subsequent authorized work installed the Ink Probe
+diagnostic app. Ordinary-app firmware access and stroke capture now work;
+consistent low latency across startup and USB conditions remains under test.
 
 ## Evidence from this tablet
 

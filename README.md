@@ -120,18 +120,32 @@ only `FLAG_FULLSCREEN`; policy, pen configuration, keep-screen-on behavior,
 and callback timing remain unchanged. Save a trial before switching, since
 resizing the writing surface can affect in-memory widget contents.
 
-Version 0.5 prepares an optional **Start frame** comparison. When enabled it
-requests exactly one ordinary decor frame on each observed pen-down; moves and
-pen-up still do not repaint through the app. It does not render stroke points.
-Exports include the option state and paired event/request uptimes. The option
-defaults off and is an experiment, not a confirmed latency fix.
+Version 0.6 adds independent **Notes UI** and **Awake** comparisons. Notes UI
+changes only system-UI layout/color flags between zero and `0x2500`, the value
+observed in native Notes. Awake changes only `FLAG_KEEP_SCREEN_ON`. With
+Fullscreen on, Notes UI on, and Awake off, these known window settings match
+Notes. This is a controlled comparison, not a confirmed latency fix. Exports
+include requested settings, actual window flags, actual system-UI visibility,
+and actual keep-screen-on state. Window settings and selected mode survive
+activity recreation; captured strokes remain disposable.
 
-The tablet remains on version 0.4 during the current USB comparison. Fullscreen
-sometimes improved stroke beginnings, but writing could later fall behind.
-The user reports consistently smoother writing with USB unplugged. Charging or
-another USB-related effect is under investigation; a hidden StatusBar produces
-periodic buffers while the app's own layers remain idle. Their effect on visible
-ink has not been established. Version 0.5 has been built but not installed.
+Automatic idle comparisons found about 20 new StatusBar timestamp rows per ten
+seconds with either option and with both, including the restored control. These
+window differences did not suppress that producer. Physical writing in 0.6 has
+not yet been tested.
+
+The uninstalled version 0.5 experiment requesting a frame at pen-down was
+removed in 0.6. Further native inspection showed that firmware already takes its
+preframe snapshot during the pen-down command. Our callbacks again request no
+app frames at any point in the stroke.
+
+Fullscreen sometimes improved stroke beginnings, but writing could later fall
+behind. The user reports consistently smoother writing with USB unplugged.
+Plugged-in native Notes and Probe can both become smooth after more writing,
+with Probe taking longer in the reported trial. Periodic hidden StatusBar
+buffers stopped in recovered Notes, restarted on returning to Probe, then also
+stopped during a longer Probe trial while pen input continued. Their causal
+effect and the trigger for this changing activity remain unconfirmed.
 
 For a comparison that survives cable removal, use the bounded device-side
 recorder. Start with the desired app/mode already open; this tool does not launch

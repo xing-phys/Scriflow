@@ -6,7 +6,6 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.SystemClock;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
@@ -27,6 +26,8 @@ import java.util.concurrent.Executors;
 
 public final class MainActivity extends Activity {
     private static final String TAG = "InkProbe";
+    private static final int NOTES_UI_FLAGS = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
     private final Trace trace = new Trace();
     private final List<String> events = new ArrayList<>();
     private final ExecutorService writer = Executors.newSingleThreadExecutor();
@@ -34,20 +35,31 @@ public final class MainActivity extends Activity {
     private TextView status;
     private Button zButton;
     private Button fullscreenButton;
+    private Button notesUiButton;
+    private Button awakeButton;
     private HuaweiInk ink;
     private String mode = "Android";
     private boolean onTop;
     private boolean fullscreen;
-    private boolean startFrame;
-    private final List<long[]> startFrameRequests = new ArrayList<>();
+    private boolean notesUi;
+    private boolean keepAwake = true;
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        if (saved != null) {
+            fullscreen = saved.getBoolean("fullscreen", false);
+            notesUi = saved.getBoolean("notesUi", false);
+            keepAwake = saved.getBoolean("keepAwake", true);
+            onTop = saved.getBoolean("onTop", false);
+            mode = saved.getString("mode", "Android");
+        }
+        if (fullscreen) getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        if (keepAwake) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        getWindow().getDecorView().setSystemUiVisibility(notesUi ? NOTES_UI_FLAGS : 0);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(Color.WHITE);
         TextView title = new TextView(this);
-        title.setText("Ink Probe 0.5 · MatePad Paper"); title.setTextSize(22); title.setTextColor(Color.BLACK);
+        title.setText("Ink Probe 0.6 · MatePad Paper"); title.setTextSize(22); title.setTextColor(Color.BLACK);
         title.setPadding(16, 12, 12, 6); root.addView(title);
         LinearLayout modes = row(root);
         button(modes, "Android", () -> select("Android"));
@@ -61,20 +73,19 @@ public final class MainActivity extends Activity {
         button(actions, "Clear", this::clear);
         button(actions, "Inspect", this::inspect);
         button(actions, "Save log", this::saveLog);
-        button(actions, "Z: default", () -> {
+        button(actions, onTop ? "Z: top" : "Z: default", () -> {
             onTop = !onTop;
             ((Button) actions.getChildAt(3)).setText(onTop ? "Z: top" : "Z: default");
             report("Z order changed to " + onTop); select(mode);
         });
         zButton = (Button) actions.getChildAt(3);
         LinearLayout windowActions = row(root);
-        button(windowActions, "Fullscreen: off", this::toggleFullscreen);
+        button(windowActions, fullscreen ? "Fullscreen: on" : "Fullscreen: off", this::toggleFullscreen);
         fullscreenButton = (Button) windowActions.getChildAt(0);
-        button(windowActions, "Start frame: off", () -> {
-            startFrame = !startFrame;
-            ((Button) windowActions.getChildAt(1)).setText(startFrame ? "Start frame: on" : "Start frame: off");
-            report("Stroke-start frame=" + startFrame + "; one ordinary frame requested per DOWN, no per-move repaint.");
-        });
+        button(windowActions, notesUi ? "Notes UI: on" : "Notes UI: off", this::toggleNotesUi);
+        notesUiButton = (Button) windowActions.getChildAt(1);
+        button(windowActions, keepAwake ? "Awake: on" : "Awake: off", this::toggleAwake);
+        awakeButton = (Button) windowActions.getChildAt(2);
         status = new TextView(this); status.setTextSize(14); status.setTextColor(Color.BLACK);
         status.setPadding(16, 4, 16, 8); status.setMinLines(3); status.setMaxLines(4);
         root.addView(status, new LinearLayout.LayoutParams(-1, (int) (88 * getResources().getDisplayMetrics().density)));
@@ -84,7 +95,7 @@ public final class MainActivity extends Activity {
         report("Device " + Build.MODEL + "; " + Build.DISPLAY + "; API " + Build.VERSION.SDK_INT);
         try { report("Declared display policy: " + DisplayPolicy.json(this)); }
         catch (Exception e) { report("Display policy unavailable: " + e); }
-        select("Android");
+        select(mode);
     }
     private LinearLayout row(LinearLayout root) {
         LinearLayout r = new LinearLayout(this); root.addView(r); return r;
@@ -109,7 +120,7 @@ public final class MainActivity extends Activity {
         zButton.setEnabled("Huawei".equals(mode));
         if ("Huawei".equals(mode) || "Native".equals(mode)) {
             try {
-                ink = new HuaweiInk(this, trace, this::report, onTop, "Native".equals(mode), this::penDown);
+                ink = new HuaweiInk(this, trace, this::report, onTop, "Native".equals(mode));
                 paper.addView(ink.view, new FrameLayout.LayoutParams(-1, -1));
                 ink.start();
                 report("Native".equals(mode) ? "Native editor owns rendering and tracks; Replay is unavailable."
@@ -133,9 +144,21 @@ public final class MainActivity extends Activity {
         fullscreenButton.setText(fullscreen ? "Fullscreen: on" : "Fullscreen: off");
         report("Fullscreen=" + fullscreen + "; only the fullscreen window flag changed. Save log before switching.");
     }
+    private void toggleNotesUi() {
+        notesUi = !notesUi;
+        getWindow().getDecorView().setSystemUiVisibility(notesUi ? NOTES_UI_FLAGS : 0);
+        notesUiButton.setText(notesUi ? "Notes UI: on" : "Notes UI: off");
+        report("Notes UI=" + notesUi + "; system UI flags only. Save log before switching.");
+    }
+    private void toggleAwake() {
+        keepAwake = !keepAwake;
+        if (keepAwake) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        awakeButton.setText(keepAwake ? "Awake: on" : "Awake: off");
+        report("Keep screen on=" + keepAwake + "; only the awake window flag changed.");
+    }
     private void clear() {
         trace.clear();
-        startFrameRequests.clear();
         if (ink != null) {
             try { ink.stop(); ink.clearSurface(); ink.start(); }
             catch (Exception e) { report("ERROR clearing: " + e); return; }
@@ -143,27 +166,20 @@ public final class MainActivity extends Activity {
         for (int i = 0; i < paper.getChildCount(); i++) paper.getChildAt(i).invalidate();
         report("Cleared captured points and writing surface");
     }
-    private void penDown(long eventTimeMs) {
-        if (!startFrame) return;
-        startFrameRequests.add(new long[]{eventTimeMs, SystemClock.uptimeMillis()});
-        getWindow().getDecorView().postInvalidateOnAnimation();
-        // No status, logcat, stroke rendering, or disk I/O from this callback.
-    }
     private void saveLog() {
         // Explicit snapshot only; callbacks never trigger disk I/O.
         try {
             JSONObject snapshot = trace.json();
-            snapshot.put("appVersion", "0.5");
+            snapshot.put("appVersion", "0.6");
             snapshot.put("model", Build.MODEL); snapshot.put("firmware", Build.DISPLAY);
             snapshot.put("mode", mode); snapshot.put("zOnTop", onTop);
             snapshot.put("fullscreen", fullscreen);
-            snapshot.put("windowFlags", getWindow().getAttributes().flags);
-            snapshot.put("strokeStartFrameEnabled", startFrame);
-            JSONArray requests = new JSONArray();
-            for (long[] request : startFrameRequests) {
-                JSONArray pair = new JSONArray(); pair.put(request[0]); pair.put(request[1]); requests.put(pair);
-            }
-            snapshot.put("strokeStartFrameRequests_eventTime_requestUptimeMs", requests);
+            int windowFlags = getWindow().getAttributes().flags;
+            snapshot.put("windowFlags", windowFlags);
+            snapshot.put("notesUiRequested", notesUi);
+            snapshot.put("systemUiVisibility", getWindow().getDecorView().getSystemUiVisibility());
+            snapshot.put("keepScreenOnRequested", keepAwake);
+            snapshot.put("keepScreenOn", (windowFlags & WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) != 0);
             snapshot.put("canvasWidth", paper.getWidth()); snapshot.put("canvasHeight", paper.getHeight());
             try { snapshot.put("displayPolicy", DisplayPolicy.json(this)); }
             catch (Exception e) { snapshot.put("displayPolicyError", e.toString()); }
@@ -180,6 +196,14 @@ public final class MainActivity extends Activity {
                 } catch (Exception e) { report("ERROR saving log: " + e); }
             });
         } catch (Exception e) { report("ERROR taking snapshot: " + e); }
+    }
+    @Override protected void onSaveInstanceState(Bundle out) {
+        out.putBoolean("fullscreen", fullscreen);
+        out.putBoolean("notesUi", notesUi);
+        out.putBoolean("keepAwake", keepAwake);
+        out.putBoolean("onTop", onTop);
+        out.putString("mode", mode);
+        super.onSaveInstanceState(out);
     }
     @Override protected void onPause() { if (ink != null) ink.stop(); trace.cancel(); super.onPause(); }
     @Override protected void onResume() { super.onResume(); if (ink != null) ink.start(); }

@@ -97,7 +97,7 @@ def start(args):
     state['status'] = 'started'
     state_path.write_text(json.dumps(state, indent=2) + '\n')
     print(f'Sampling {serial} for {args.duration}s (every {args.interval}s).')
-    print('Unplug USB now; reconnect after the sampling window.')
+    print('The recorder runs on the tablet and continues if USB is unplugged.')
     print(f'Collect: python3 {shlex.quote(str(pathlib.Path(__file__).resolve()))} '
           f'collect {shlex.quote(str(session))}')
 
