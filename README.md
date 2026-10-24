@@ -126,6 +126,31 @@ pen-up still do not repaint through the app. It does not render stroke points.
 Exports include the option state and paired event/request uptimes. The option
 defaults off and is an experiment, not a confirmed latency fix.
 
+The tablet remains on version 0.4 during the current USB comparison. Fullscreen
+sometimes improved stroke beginnings, but writing could later fall behind.
+The user reports consistently smoother writing with USB unplugged. Charging or
+another USB-related effect is under investigation; a hidden StatusBar produces
+periodic buffers while the app's own layers remain idle. Their effect on visible
+ink has not been established. Version 0.5 has been built but not installed.
+
+For a comparison that survives cable removal, use the bounded device-side
+recorder. Start with the desired app/mode already open; this tool does not launch
+apps or change settings.
+
+```bash
+python3 scripts/offline-layer-cadence.py start artifacts/usb-comparison
+# Unplug USB, write, and reconnect after at least 65 seconds.
+python3 scripts/offline-layer-cadence.py collect artifacts/usb-comparison
+```
+
+The recorder samples battery power state and `StatusBar#0`'s rolling timestamp
+history every five seconds for one minute, then exits. Collection pins the
+original device serial and removes its two temporary device files after saving
+the completed log. Compare new, deduplicated timestamp rows between samples;
+old rows remain in the history even when no frames arrive. `/proc/uptime` and
+SurfaceFlinger timestamps use different clock domains, so do not subtract them.
+These are layer submissions, not optical refresh or handwriting latency.
+
 See [the investigation plan](matepad-handwriting-plan.md) and
 [device test record](docs/device-testing.md).
 

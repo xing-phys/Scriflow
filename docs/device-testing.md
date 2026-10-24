@@ -152,10 +152,12 @@ physical panel latency unmeasured.
 
 The overlapping compositor log contains ordinary refresh pairs roughly once per
 second, including idle periods. After each of the final five pen-down events,
-the first logged framebuffer comparison/copy occurs 258–803 ms later at a periodic
-refresh. This correlation is an investigation lead; it does not prove the copy
-operation gates visible ink, and direct handwriting updates may use another log
-path.
+the first logged periodic framebuffer comparison occurs 258–803 ms later.
+Subsequent native disassembly established that the DOWN-time force-skip command
+already copies the current buffer inside its own invocation. The later logged
+copy is separate bookkeeping, so these intervals do not establish a missing
+preframe handshake or a wait that gates visible ink. UP/CANCEL uses a different
+notification path, despite its misleading native name `notifyDownEvent`.
 
 Version 0.4 adds a single-variable fullscreen on/off comparison. Native Notes
 was observed using FLAG_FULLSCREEN; the prototype did not. Policy, pixel format,
@@ -164,10 +166,9 @@ pen settings, and keep-screen-on behavior remain unchanged. Effective app policy
 Resize reinitialization passed without duplicate listener attachment or errors.
 
 A 35-second passive fullscreen log still contains the roughly one-second refresh
-pairs, so fullscreen did not eliminate that periodic activity. Its effect on
-physical writing is pending user comparison. If ineffective, the next justified
-isolate is requesting one ordinary app frame on pen-down, with no per-move
-repainting, to test the observed wait for ordinary composition.
+pairs, so fullscreen did not eliminate that periodic activity. A single ordinary
+app frame on pen-down remains an optional scheduling experiment, with no
+per-move repainting; the native contract does not establish that it is required.
 
 ## Version 0.4 physical result and unrelated layer cadence
 
@@ -191,10 +192,28 @@ fullscreen. The floating overlay did not update in this sample, so its mere
 presence does not implicate it. These measurements identify the periodic buffer
 producer, not its optical effect or which SystemUI feature drives it.
 
-The next physical isolate is unplugging USB while leaving version 0.4 open,
-writing, then reconnecting. Charging animation is a candidate explanation, not
-an established cause. No battery spoofing, SystemUI stopping, or global display
-setting changes have been applied.
+The physical isolate was unplugging USB while leaving version 0.4 open, writing,
+then reconnecting. The user reports **consistently smoother writing unplugged**.
+This supports a charging/USB-related influence, but does not distinguish charging
+animation, power state, USB traffic, or another cause. The measured StatusBar
+producer is hidden and absent from the visible output-layer list. Its buffer
+submissions alone do not establish optical interference.
+
+After reconnection, battery service reports USB powered, charging (status 2), and
+85% charge; the StatusBar still submits near-one-second pairs. The next controls
+are plugged-in native Notes writing/cadence and a bounded on-device capture
+spanning cable removal. These preserve the existing app and handwriting setup.
+No battery spoofing, SystemUI stopping, or global display changes have been
+applied.
+
+The device-side cadence recorder passed a 10-second connected smoke check:
+two samples contained 10 new StatusBar timestamp tuples over five seconds.
+Completed log retrieval and removal of its two temporary device files passed.
+Host fake-ADB checks also covered serial selection, shell syntax, bounded
+duration, incomplete-log retention, collection, and repeated collection.
+The recorder has not yet captured an unplugged interval. Its `/proc/uptime`
+sample clock includes suspend while SurfaceFlinger's timestamps do not, so
+compare deduplicated rows across samples rather than subtracting those clocks.
 
 Version 0.5 was built locally in parallel as an optional subsequent experiment:
 one ordinary decor-frame request on pen-down, none on move/up. It remains off

@@ -2,6 +2,7 @@
 .tools/
 # Compiled classes, APKs, and probe output
 build/
+__pycache__/
 *.apk
 *.keystore
 *.jks
