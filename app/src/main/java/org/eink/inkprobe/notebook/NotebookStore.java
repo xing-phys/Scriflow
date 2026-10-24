@@ -103,6 +103,15 @@ public final class NotebookStore {
         return publish(page.withSize(width, height));
     }
 
+    /** Publishes a new notebook's unsized blank first page before catalog publication. */
+    public NotebookPage initializeEmpty() throws IOException {
+        requireReady();
+        if (page.isInitialized() || !page.strokes.isEmpty() || page.template != NotebookPage.Template.BLANK) {
+            throw new IOException("Existing page is not an unsized blank page; files were preserved.");
+        }
+        return needsSnapshot ? publish(page) : page;
+    }
+
     /**
      * Creates a fully sized blank page in one atomic publication, including its chosen paper.
      * Used before a new page is indexed, so interruption cannot expose an intermediate template.

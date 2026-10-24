@@ -4,14 +4,20 @@ A small notebook app for Huawei MatePad Paper HMW-W09, with blank/lined pages,
 native low-latency handwriting, automatic saving of completed strokes, and
 editable restoration after reopening.
 
-The current build is an early development APK, version 0.9, with multiple pages,
-undo/redo, and a whole-stroke eraser. A library of separate notebooks, pen
-selection, and export are later milestones. Handwriting uses one black ballpoint pen. The
+The current build is an early development APK, version 0.10, with a notebook
+library, multiple pages, undo/redo, and a whole-stroke eraser. Pen selection and
+export are later milestones. Handwriting uses one black ballpoint pen. The
 original diagnostic screen remains available separately for development.
 
 ## Use
 
-Open **Ink Notebook**, write on Page 1, then pause briefly. **Saved · N strokes**
+Open **Ink Notebook** to see your library. Tap **My Notebook** to open your
+existing pages, or **+ Notebook** to create and open a named notebook. **Rename**
+changes a notebook's title without moving its files. Each notebook remembers its
+own last page; the editor's **Books** button returns to the library. Names may
+contain up to 80 Unicode characters. This milestone supports up to 200 notebooks.
+
+Write on a page, then pause briefly. **Saved · N strokes**
 confirms how many completed strokes have been saved; an empty page shows
 **Autosave on**. There is no manual save button. The **Blank/Lined** button changes
 the current page's paper without clearing writing. Tap it to toggle between
@@ -43,7 +49,7 @@ Completed strokes survive app force-stop once **Saved** is shown. An unfinished
 stroke is discarded when leaving the app. Notes are stored on this tablet in
 the app's private directory; uninstalling the app removes that data. Keep the
 local signing key when installing updates over an existing version.
-Version 0.9 reads the unchanged version-1 page format from earlier releases. Install it as
+Version 0.10 reads the unchanged version-1 page format from earlier releases. Install it as
 an update over the existing app; **do not uninstall** to install the update.
 
 This firmware is sensitive to unrelated background display activity. During
@@ -64,7 +70,7 @@ Android API 29 and Build Tools 30.0.3 into ignored `.tools/`.
 ./scripts/test.sh
 ./scripts/build.sh
 adb -d install --no-incremental -r build/inkprobe-debug.apk
-adb -d shell am start -W -n org.eink.inkprobe/.notebook.NotebookActivity
+adb -d shell am start -W -n org.eink.inkprobe/.notebook.NotebookLibraryActivity
 ./scripts/read-display-policy.sh
 ```
 
@@ -84,6 +90,10 @@ They do not execute Android SDK stubs.
 Index and notebook tests also cover legacy Page 1 byte preservation, per-page
 history and paper isolation, last-page restoration, interrupted page creation,
 and failed navigation without replacing the visible page or overwriting data.
+Library tests cover old notebook files remaining in place, independent notebook
+positions/history, naming, creation, catalog retry, and preservation of missing
+or corrupt data. The checksummed catalog treats names as metadata; paths use
+stable numeric IDs.
 
 The debug build also contains an isolated on-device restoration check. It opens
 only synthetic drawings and writes results under `files/notebook-selftest/`,
@@ -132,6 +142,12 @@ handlers and exposed to accessibility. Ordinary page and paper changes reuse the
 bound bitmap and native surface, posting the new content together. The button
 flash improvement and new page UI still need physical tablet acceptance. See
 [multiple-page milestone](docs/notebook-pages.md).
+
+Version 0.10 adds the library home screen and keeps the original notebook at its
+existing path as **My Notebook**. New notebook creation, selection, and renaming
+run on the same background worker as writing. The app builds offline with the
+same signing key; the new library UI still needs tablet acceptance. See
+[notebook library milestone](docs/notebook-library.md).
 
 See [milestone design and acceptance](docs/notebook-milestone.md), the
 [device test record](docs/device-testing.md), and the retained

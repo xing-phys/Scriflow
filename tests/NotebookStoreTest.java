@@ -19,6 +19,7 @@ public final class NotebookStoreTest {
     public static void main(String[] args) throws Exception {
         try {
             emptyAndFixedSize();
+            durableUnsizedFirstPage();
             immutableModelAndExactReload();
             appendDoesNotRewriteEarlierPoints();
             everyInterruptedAppendBoundary();
@@ -56,6 +57,33 @@ public final class NotebookStoreTest {
         NotebookPage reloaded = new NotebookStore(directory).load();
         equal(1200, reloaded.width, "width survives process recreation");
         equal(1600, reloaded.height, "height survives process recreation");
+    }
+
+    private static void durableUnsizedFirstPage() throws Exception {
+        File directory = directory();
+        NotebookStore store = new NotebookStore(directory);
+        store.load(); store.initializeEmpty(); store.sync();
+        check(new File(directory, "page.nbk").isFile(), "unsized first page exists before catalog publication");
+        NotebookStore reopened = new NotebookStore(directory);
+        NotebookPage page = reopened.load();
+        check(!page.isInitialized() && page.strokes.isEmpty(), "durable unsized page reloads empty");
+        byte[] original = bytes(directory, "page.nbk");
+        reopened.initializeEmpty();
+        check(Arrays.equals(original, bytes(directory, "page.nbk")), "repeat empty initialization preserves bytes");
+        reopened.initializeSize(1200, 1600);
+        original = bytes(directory, "page.nbk");
+        expectIo(() -> reopened.initializeEmpty());
+        check(Arrays.equals(original, bytes(directory, "page.nbk")), "empty initialization cannot reset sized page");
+        reopened.appendStroke(stroke(10));
+        original = bytes(directory, "page.nbk");
+        expectIo(() -> reopened.initializeEmpty());
+        check(Arrays.equals(original, bytes(directory, "page.nbk")), "empty initialization cannot reset writing");
+        File linedDirectory = directory();
+        NotebookStore lined = new NotebookStore(linedDirectory);
+        lined.load(); lined.setTemplate(NotebookPage.Template.LINED);
+        byte[] linedBytes = bytes(linedDirectory, "page.nbk");
+        expectIo(() -> lined.initializeEmpty());
+        check(Arrays.equals(linedBytes, bytes(linedDirectory, "page.nbk")), "empty initialization cannot reset unsized lined page");
     }
 
     private static void immutableModelAndExactReload() throws Exception {

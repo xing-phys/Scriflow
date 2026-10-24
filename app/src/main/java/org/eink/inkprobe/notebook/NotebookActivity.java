@@ -2,11 +2,13 @@ package org.eink.inkprobe.notebook;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
@@ -51,10 +53,12 @@ public final class NotebookActivity extends Activity {
         LinearLayout toolbar = new LinearLayout(this);
         toolbar.setGravity(Gravity.CENTER_VERTICAL);
         toolbar.setPadding(dp(18), dp(8), dp(12), dp(8));
-        TextView title = new TextView(this);
-        title.setText("Ink"); title.setTextColor(Color.BLACK); title.setTextSize(23);
+        NotebookButton title = new NotebookButton(this);
+        title.setText("Books"); title.setTextSize(15);
+        title.setContentDescription("Back to notebook library");
+        title.setOnClickListener(v -> returnToLibrary());
         title.setSingleLine(true);
-        toolbar.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
+        toolbar.addView(title, new LinearLayout.LayoutParams(0, dp(48), 1));
         previousButton = toolButton(toolbar, "‹", 44, () -> switchPage(-1));
         previousButton.setTextSize(26); previousButton.setContentDescription("Previous page");
         nextButton = toolButton(toolbar, "›", 44, () -> switchPage(1));
@@ -77,8 +81,10 @@ public final class NotebookActivity extends Activity {
         subline.setPadding(dp(20), 0, dp(20), dp(9));
         pageLabel = new TextView(this);
         pageLabel.setText("Page 1 of 1"); pageLabel.setTextSize(13); pageLabel.setTextColor(0xff555555);
+        pageLabel.setSingleLine(true); pageLabel.setEllipsize(TextUtils.TruncateAt.END);
         subline.addView(pageLabel, new LinearLayout.LayoutParams(0, -2, 1));
         saveState = new TextView(this);
+        saveState.setSingleLine(true);
         saveState.setText("Opening…"); saveState.setTextSize(13); saveState.setTextColor(0xff555555);
         subline.addView(saveState, new LinearLayout.LayoutParams(-2, -2));
         root.addView(subline, new LinearLayout.LayoutParams(-1, -2));
@@ -263,8 +269,26 @@ public final class NotebookActivity extends Activity {
     }
 
     private void updatePageLabel() {
-        String text = "Page " + session.pageNumber() + " of " + session.pageCount();
+        String name = session.notebookName();
+        String shortName = name.codePointCount(0, name.length()) > 24
+            ? name.substring(0, name.offsetByCodePoints(0, 24)) + "…" : name;
+        String text = shortName + " · Page " + session.pageNumber() + " of " + session.pageCount();
         if (!text.contentEquals(pageLabel.getText())) pageLabel.setText(text);
+    }
+
+    private void returnToLibrary() {
+        if (!canEdit()) return;
+        pauseForEdit();
+        if (shownError != null) return;
+        final int request = generation;
+        session.load((loaded, error) -> {
+            if (!active || request != generation) return;
+            if (error != null) { showError(error); return; }
+            startActivity(new Intent(this, NotebookLibraryActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP));
+            finish();
+            overridePendingTransition(0, 0);
+        });
     }
 
     private void switchPage(int offset) {
@@ -322,6 +346,7 @@ public final class NotebookActivity extends Activity {
             if (!active || request != generation) return;
             if (error != null) { showError(error); return; }
             saveState.setOnClickListener(null);
+            if (restored == null) { loadPage(); return; }
             openCanvas(restored); scheduleSaveState();
         });
     }
@@ -343,7 +368,7 @@ public final class NotebookActivity extends Activity {
         final int request = generation;
         NotebookPage current = session.current();
         String message = current == null ? "Your page is opening." :
-            "Page " + session.pageNumber() + " of " + session.pageCount() + " · "
+            session.notebookName() + "\nPage " + session.pageNumber() + " of " + session.pageCount() + " · "
             + (current.template == NotebookPage.Template.LINED ? "Lined" : "Blank")
             + "\n" + current.strokes.size() + " strokes\n"
             + (session.error() != null ? "Some writing has not been saved."
@@ -390,4 +415,7 @@ public final class NotebookActivity extends Activity {
         if (canvas != null) canvas.removeAllViews();
     }
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
+    @Override public void onBackPressed() {
+        super.onBackPressed(); overridePendingTransition(0, 0);
+    }
 }

@@ -6,6 +6,7 @@ import android.os.Looper;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.Collections;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -22,15 +23,18 @@ final class NotebookSession {
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
-    private final NotebookBook document;
+    private final NotebookLibrary document;
     private final AtomicInteger pending = new AtomicInteger();
     private volatile NotebookPage page;
     private volatile IOException problem;
     private volatile boolean undoAvailable, redoAvailable;
     private volatile int pageNumber = 1, pageCount = 1;
+    private volatile int notebookId = 1;
+    private volatile String notebookName = "My Notebook";
+    private volatile List<NotebookCatalog.Entry> entries = Collections.emptyList();
 
     private NotebookSession(Context context) {
-        document = new NotebookBook(new File(context.getFilesDir(), "notebook"));
+        document = new NotebookLibrary(new File(context.getFilesDir(), "notebook"));
     }
 
     NotebookPage current() { return page; }
@@ -40,8 +44,21 @@ final class NotebookSession {
     boolean canRedo() { return redoAvailable; }
     int pageNumber() { return pageNumber; }
     int pageCount() { return pageCount; }
+    int notebookId() { return notebookId; }
+    String notebookName() { return notebookName; }
+    List<NotebookCatalog.Entry> entries() { return entries; }
 
     void load(Callback callback) { submit(document::load, callback); }
+    void list(Callback callback) { submit(document::loadCatalog, callback); }
+    void openNotebook(int id, Callback callback) {
+        submit(() -> document.openNotebook(id), callback);
+    }
+    void createNotebook(String name, Callback callback) {
+        submit(() -> document.createNotebook(name), callback);
+    }
+    void renameNotebook(int id, String name, Callback callback) {
+        submit(() -> document.renameNotebook(id, name), callback);
+    }
     void initializeSize(int width, int height, Callback callback) {
         submit(() -> document.initializeSize(width, height), callback);
     }
@@ -74,6 +91,9 @@ final class NotebookSession {
             redoAvailable = document.canRedo();
             pageNumber = document.pageNumber();
             pageCount = document.pageCount();
+            notebookId = document.notebookId();
+            notebookName = document.notebookName();
+            entries = document.entries();
             problem = failure == null ? document.error() : failure;
             pending.decrementAndGet();
             final NotebookPage snapshot = page;
