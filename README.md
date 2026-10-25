@@ -4,30 +4,31 @@ A small notebook app for Huawei MatePad Paper HMW-W09, with blank/lined pages,
 native low-latency handwriting, automatic saving of completed strokes, and
 editable restoration after reopening.
 
-The current build is an early development APK, version 0.13, with a notebook
-library, continuously scrolling pages, a page overview with jumps, PDF export,
-undo/redo, and a whole-stroke eraser. Pen selection is a later milestone.
-Handwriting uses one black ballpoint pen. The
-original diagnostic screen remains available separately for development.
+The current build is an early development APK, version 0.14, with draggable icon
+tools, a notebook library, continuously scrolling pages, a page overview with
+jumps, PDF export,
+undo/redo, and a whole-stroke eraser. Additional pen styles are a later milestone.
+Handwriting uses one black ballpoint pen. The original diagnostic screen remains
+available separately for development.
 
 ## Use
 
 Open **Ink Notebook** to see your library. Tap **My Notebook** to open your
 existing pages, or **+ Notebook** to create and open a named notebook. **Rename**
 changes a notebook's title without moving its files. Each notebook remembers its
-own last page; the editor's **Books** button returns to the library. Names may
+own last page; the editor's **books icon** returns to the library. Names may
 contain up to 80 Unicode characters. This milestone supports up to 200 notebooks.
 
 Write on a page, then pause briefly. **Saved · N strokes**
 confirms how many completed strokes have been saved; an empty page shows
-**Autosave on**. There is no manual save button. The **Blank/Lined** button changes
+**Autosave on**. There is no manual save button. The **paper icon** changes
 the current page's paper without clearing writing. Tap it to toggle between
 blank and lined paper. The menu shows the page's save state.
 
 **Drag vertically with one finger** to scroll, then lift it to stop at any
 position, including between pages. **Write with the stylus** on either visible
-page. There is no snapping or inertial fling. **‹ / ›** still jump to page tops,
-and **+ Page** appends an empty page at the end. New pages inherit the active
+page. There is no snapping or inertial fling. The **left/right arrows** jump to page tops,
+and the **page-plus icon** appends an empty page at the end. New pages inherit the active
 page's paper. Each page keeps its own writing and paper choice. The indicator
 shows **Page X of Y** for the most recently written page, or the page nearest
 the viewport center after scrolling. Eraser, Undo/Redo, and paper choice use
@@ -41,7 +42,17 @@ jump to that page's top, or enter a number beside **Go to page** and tap **Go**.
 **Close** or Android Back returns to your exact previous scroll position.
 Thumbnails load as you browse; opening the overview does not edit your pages.
 
-To export the open notebook, tap **⋮ → Export PDF**. All pages are prepared in
+The tools float over the page in a compact two-row palette. Drag its **six-dot
+grip** with a finger or stylus to move it; it stops exactly where you release it
+and remembers the position between sessions. **Pen** uses a pencil symbol;
+**Eraser** uses a tilted eraser. The selected tool has a **thick border**, while
+the other has a thin border. The curved arrows are Undo/Redo, the grid opens
+the overview, and the three-dot menu offers page information, PDF export, and
+**Reset tools**. Reset returns the palette to its initial top-center position.
+Only the grip moves the palette. Touching controls has no ripple or pressed
+inversion; the page remains writable outside the floating tools.
+
+To export the open notebook, tap **three-dot menu → Export PDF**. All pages are prepared in
 order, including their writing and blank/lined backgrounds, then the Android
 save picker lets you choose a filename and location. Wait for **PDF saved**.
 The PDF contains sharp vector strokes, with page proportions preserved and a
@@ -67,7 +78,7 @@ Completed strokes survive app force-stop once **Saved** is shown. An unfinished
 stroke is discarded when leaving the app. Notes are stored on this tablet in
 the app's private directory; uninstalling the app removes that data. Keep the
 local signing key when installing updates over an existing version.
-Version 0.13 reads the unchanged version-1 page format from earlier releases. Install it as
+Version 0.14 reads the unchanged version-1 page format from earlier releases. Install it as
 an update over the existing app; **do not uninstall** to install the update.
 
 This firmware is sensitive to unrelated background display activity. During
@@ -198,6 +209,14 @@ file worker copies the completed PDF to the selected location. Export errors
 remain separate from notebook save errors. All 16,902 host assertions pass;
 the production writer's blank/lined sample pages pass structural and visual
 checks. See [PDF export](docs/pdf-export.md) for behavior and tablet checks.
+
+Version 0.14 replaces the editor's text toolbar with draggable vector-icon
+controls. Native pen clipping excludes the palette, and toolbar contacts pause
+handwriting until all contacts lift. The selected Pen/Eraser border changes
+without animating the other controls. All 16,947 host assertions pass, including
+physical screen-to-surface exclusion checks. Icons and both selected states were
+visually inspected; window movement, pen protection, and refresh behavior still
+need tablet acceptance. See [floating tools](docs/floating-tools.md).
 
 See [milestone design and acceptance](docs/notebook-milestone.md), the
 [device test record](docs/device-testing.md), and the retained

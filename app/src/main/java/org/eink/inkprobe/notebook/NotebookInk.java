@@ -7,6 +7,8 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.Rect;
 import android.graphics.RectF;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
@@ -63,6 +65,7 @@ public final class NotebookInk implements SurfaceHolder.Callback {
     private int eraserPointer = -1;
     private Tool tool = Tool.PEN;
     private float scaleX = 1, scaleY = 1, widthScale = 1;
+    private Rect overlayScreenBounds;
 
     public NotebookInk(Context context, NotebookPage page, Listener listener) throws Exception {
         if (page == null || listener == null) throw new IllegalArgumentException("Missing notebook state");
@@ -238,6 +241,44 @@ public final class NotebookInk implements SurfaceHolder.Callback {
 
     public Tool getTool() { return tool; }
 
+    /**
+     * Excludes a floating control window from native pen-DOWN handling. Bounds use
+     * physical screen pixels, independently of the notebook's logical page scale.
+     * Call before displaying or moving the window; pause handwriting before moving
+     * it during an existing gesture. A stroke begun on paper may pass behind it.
+     */
+    public void setOverlayBounds(Rect screenBounds) {
+        if (!alive || failed) return;
+        overlayScreenBounds = screenBounds == null || screenBounds.isEmpty()
+            ? null : new Rect(screenBounds);
+        // Layout and framebuffer binding can follow creation of the floating window.
+        // tryEnable always installs the latest exclusion before native ink resumes.
+        if (!prepared || surface == null) return;
+        try { applyOverlayClip(); }
+        catch (Exception e) { fail("Cannot protect floating notebook controls", e); }
+    }
+
+    private void applyOverlayClip() throws Exception {
+        Path clip = null;
+        if (overlayScreenBounds != null) {
+            int[] location = new int[2];
+            view.getLocationOnScreen(location);
+            Rect bounds = overlayScreenBounds;
+            NotebookOverlayClip.Hole hole = NotebookOverlayClip.localHole(
+                location[0], location[1], surfaceWidth, surfaceHeight,
+                bounds.left, bounds.top, bounds.right, bounds.bottom);
+            if (hole != null) {
+                clip = new Path();
+                clip.setFillType(Path.FillType.EVEN_ODD);
+                clip.addRect(0, 0, surfaceWidth, surfaceHeight, Path.Direction.CW);
+                clip.addRect(hole.left, hole.top, hole.right, hole.bottom, Path.Direction.CW);
+            }
+        }
+        // setClip replaces the persistent initial native clip; clipRect would stack
+        // records on every drag. Null also clears a retained framebuffer's old clip.
+        call(surface, "setClip", new Class<?>[]{Path.class}, clip);
+    }
+
     public void setTool(Tool tool) {
         if (tool == null) throw new IllegalArgumentException("Missing tool");
         if (!alive || failed || this.tool == tool) return;
@@ -331,6 +372,7 @@ public final class NotebookInk implements SurfaceHolder.Callback {
                 ballpoint, 4f * widthScale, Color.BLACK);
             call(view, "setState", new Class<?>[]{int.class},
                 view.getClass().getField("STATE_HADNWRITE").getInt(null));
+            applyOverlayClip();
             boolean autoInk = tool == Tool.PEN;
             call(surface, "setAutoHandWrite", new Class<?>[]{boolean.class}, autoInk);
             if (Boolean.TRUE.equals(get(surface, "isAutoHandWrite")) != autoInk) {

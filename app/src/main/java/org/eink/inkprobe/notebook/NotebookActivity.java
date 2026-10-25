@@ -9,6 +9,7 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -34,8 +35,13 @@ public final class NotebookActivity extends Activity {
     private NotebookInk ink;
     private FrameLayout canvas;
     private TextView saveState, pageLabel;
-    private NotebookButton paperButton, penButton, eraserButton, undoButton, redoButton;
-    private NotebookButton previousButton, nextButton, addButton;
+    private NotebookIconButton paperButton, penButton, eraserButton, undoButton, redoButton;
+    private NotebookIconButton previousButton, nextButton, addButton;
+    private NotebookFloatingTools floatingTools;
+    private float toolsX = 0.5f, toolsY;
+    private final Rect toolsBounds = new Rect();
+    private boolean toolsContact, toolsMoved;
+    private NotebookFloatingTools.Action pendingToolAction;
     private NotebookPage page;
     private IOException shownError;
     private boolean active, penDown, geometryPending, editing;
@@ -71,33 +77,6 @@ public final class NotebookActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Color.WHITE);
-        LinearLayout toolbar = new LinearLayout(this);
-        toolbar.setGravity(Gravity.CENTER_VERTICAL);
-        toolbar.setPadding(dp(18), dp(8), dp(12), dp(8));
-        NotebookButton title = new NotebookButton(this);
-        title.setText("Books"); title.setTextSize(15);
-        title.setContentDescription("Back to notebook library");
-        title.setOnClickListener(v -> returnToLibrary());
-        title.setSingleLine(true);
-        toolbar.addView(title, new LinearLayout.LayoutParams(0, dp(48), 1));
-        previousButton = toolButton(toolbar, "‹", 44, () -> switchPage(-1));
-        previousButton.setTextSize(26); previousButton.setContentDescription("Previous page");
-        nextButton = toolButton(toolbar, "›", 44, () -> switchPage(1));
-        nextButton.setTextSize(26); nextButton.setContentDescription("Next page");
-        addButton = toolButton(toolbar, "+ Page", 76, this::addPage);
-        penButton = toolButton(toolbar, "Pen", 64, () -> selectTool(NotebookInk.Tool.PEN));
-        eraserButton = toolButton(toolbar, "Eraser", 76, () -> selectTool(NotebookInk.Tool.ERASER));
-        undoButton = toolButton(toolbar, "Undo", 64, () -> changeHistory(false));
-        redoButton = toolButton(toolbar, "Redo", 64, () -> changeHistory(true));
-        paperButton = new NotebookButton(this);
-        paperButton.setText("Blank"); paperButton.setAllCaps(false); paperButton.setTextSize(15);
-        paperButton.setAvailable(false); paperButton.setOnClickListener(v -> choosePaper());
-        toolbar.addView(paperButton, new LinearLayout.LayoutParams(dp(106), dp(48)));
-        NotebookButton info = new NotebookButton(this);
-        info.setText("⋮"); info.setContentDescription("Page information"); info.setTextSize(24);
-        info.setOnClickListener(v -> pageInformation());
-        toolbar.addView(info, new LinearLayout.LayoutParams(dp(44), dp(48)));
-        root.addView(toolbar, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout subline = new LinearLayout(this);
         subline.setGravity(Gravity.CENTER_VERTICAL);
         subline.setPadding(dp(20), 0, dp(20), dp(9));
@@ -120,6 +99,43 @@ public final class NotebookActivity extends Activity {
         canvas = new FrameLayout(this); canvas.setBackgroundColor(Color.WHITE);
         root.addView(canvas, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(root);
+        toolsX = getPreferences(MODE_PRIVATE).getFloat("toolsX", 0.5f);
+        toolsY = getPreferences(MODE_PRIVATE).getFloat("toolsY", 0f);
+        floatingTools = new NotebookFloatingTools(this, new NotebookFloatingTools.Listener() {
+            @Override public void onAction(NotebookFloatingTools.Action action) {
+                if (toolsContact) pendingToolAction = action;
+                else performToolAction(action); // Accessibility actions have no touch stream.
+            }
+            @Override public boolean onContactStart() {
+                if (!canEdit()) return false;
+                toolsContact = true; toolsMoved = false; pendingToolAction = null;
+                pauseForEdit();
+                if (shownError != null) toolsContact = false;
+                return shownError == null;
+            }
+            @Override public void onContactEnd() { finishToolsContact(); }
+            @Override public boolean onMoveStart() { return toolsContact && shownError == null; }
+            @Override public void onMoveEnd() { /* Resume only after all toolbar contacts lift. */ }
+            @Override public void onBoundsChanged(Rect bounds) {
+                if (toolsBounds.equals(bounds)) return;
+                if (toolsContact) toolsMoved = true;
+                toolsBounds.set(bounds);
+                if (ink != null) ink.setOverlayBounds(bounds);
+            }
+            @Override public void onPositionChanged(float x, float y) {
+                toolsX = x; toolsY = y;
+                getPreferences(MODE_PRIVATE).edit().putFloat("toolsX", x).putFloat("toolsY", y).apply();
+            }
+        });
+        previousButton = floatingTools.button(NotebookFloatingTools.Action.PREVIOUS);
+        nextButton = floatingTools.button(NotebookFloatingTools.Action.NEXT);
+        addButton = floatingTools.button(NotebookFloatingTools.Action.ADD_PAGE);
+        penButton = floatingTools.button(NotebookFloatingTools.Action.PEN);
+        eraserButton = floatingTools.button(NotebookFloatingTools.Action.ERASER);
+        undoButton = floatingTools.button(NotebookFloatingTools.Action.UNDO);
+        redoButton = floatingTools.button(NotebookFloatingTools.Action.REDO);
+        paperButton = floatingTools.button(NotebookFloatingTools.Action.PAPER);
+        updateControls();
     }
 
     @Override protected void onResume() {
@@ -151,7 +167,7 @@ public final class NotebookActivity extends Activity {
         fetching = dragging = false; scrolling = true; firstViewport = true;
         settleRead = true; ++viewportRevision;
         activePage = session.pageNumber();
-        paperButton.setText(loaded.template == NotebookPage.Template.LINED ? "Lined" : "Blank");
+        updatePaperIcon(loaded.template);
         updatePageLabel();
         updateControls();
         try {
@@ -181,6 +197,12 @@ public final class NotebookActivity extends Activity {
                     if (!active || request != generation) return;
                     if (session.error() != null) { showError(session.error()); return; }
                     updateControls();
+                    showFloatingTools();
+                    if (pendingToolAction != null && !toolsContact && canEdit()) {
+                        NotebookFloatingTools.Action action = pendingToolAction;
+                        pendingToolAction = null;
+                        performToolAction(action);
+                    }
                     if (verifyOnReady) {
                         verifyOnReady = false;
                         try { NotebookVerification.write(NotebookActivity.this, viewport.compose(pages, scrollY), ink.snapshotNativeStrokes()); }
@@ -200,6 +222,7 @@ public final class NotebookActivity extends Activity {
                 }
             });
             ink.setTool(tool);
+            ink.setOverlayBounds(toolsBounds);
             canvas.addView(ink.view, new FrameLayout.LayoutParams(-1, -1));
             // Restore even a retained unsaved page. onReady stops input synchronously when
             // storage has failed, leaving the full open page visible while Retry is offered.
@@ -295,8 +318,13 @@ public final class NotebookActivity extends Activity {
     private void updatePaperButton() {
         NotebookPage current = pages.get(activePage);
         if (current == null) return;
-        String text = current.template == NotebookPage.Template.LINED ? "Lined" : "Blank";
-        if (!text.contentEquals(paperButton.getText())) paperButton.setText(text);
+        updatePaperIcon(current.template);
+    }
+
+    private void updatePaperIcon(NotebookPage.Template template) {
+        boolean lined = template == NotebookPage.Template.LINED;
+        paperButton.setIcon(lined ? NotebookIconDrawable.Icon.PAPER_LINED : NotebookIconDrawable.Icon.PAPER_BLANK);
+        paperButton.setContentDescription(lined ? "Lined paper; switch to blank paper" : "Blank paper; switch to lined paper");
     }
 
     private void persistPosition() {
@@ -453,13 +481,43 @@ public final class NotebookActivity extends Activity {
         drawing.restore();
     }
 
-    private NotebookButton toolButton(LinearLayout toolbar, String label, int width, Runnable action) {
-        NotebookButton button = new NotebookButton(this);
-        button.setText(label); button.setAllCaps(false); button.setTextSize(14);
-        button.setPadding(dp(2), 0, dp(2), 0);
-        button.setAvailable(false); button.setOnClickListener(v -> action.run());
-        toolbar.addView(button, new LinearLayout.LayoutParams(dp(width), dp(48)));
-        return button;
+    private void showFloatingTools() {
+        if (floatingTools != null && !floatingTools.isShowing() && canEdit() && overview == null)
+            floatingTools.show(canvas, toolsX, toolsY);
+    }
+
+    private void finishToolsContact() {
+        if (!toolsContact) return;
+        toolsContact = false;
+        if (!active || shownError != null || ink == null) { pendingToolAction = null; return; }
+        final int request = generation;
+        final boolean restore = toolsMoved;
+        session.load((loaded, error) -> {
+            if (!active || request != generation) return;
+            mergeWindow();
+            if (error != null) { pendingToolAction = null; showError(error); return; }
+            editing = false;
+            // Moving the native clip can reveal ink previously covered by the palette.
+            // Recompose once at release; an ordinary tap/no-op reuses the paused tracks.
+            if (restore) installViewport(); else ink.start();
+        });
+    }
+
+    private void performToolAction(NotebookFloatingTools.Action action) {
+        if (!canEdit()) return;
+        switch (action) {
+            case LIBRARY: returnToLibrary(); break;
+            case PREVIOUS: switchPage(-1); break;
+            case NEXT: switchPage(1); break;
+            case ADD_PAGE: addPage(); break;
+            case PEN: selectTool(NotebookInk.Tool.PEN); break;
+            case ERASER: selectTool(NotebookInk.Tool.ERASER); break;
+            case UNDO: changeHistory(false); break;
+            case REDO: changeHistory(true); break;
+            case PAPER: choosePaper(); break;
+            case MORE: pageInformation(); break;
+            case OVERVIEW: pageOverview(); break;
+        }
     }
 
     private boolean canEdit() {
@@ -479,10 +537,8 @@ public final class NotebookActivity extends Activity {
         previousButton.setAvailable(ready && activePage > 1);
         nextButton.setAvailable(ready && activePage < session.pageCount());
         addButton.setAvailable(ready && session.pageCount() < NotebookIndex.MAX_PAGES);
-        String pen = tool == NotebookInk.Tool.PEN ? "✓ Pen" : "Pen";
-        String eraser = tool == NotebookInk.Tool.ERASER ? "✓ Eraser" : "Eraser";
-        if (!pen.contentEquals(penButton.getText())) penButton.setText(pen);
-        if (!eraser.contentEquals(eraserButton.getText())) eraserButton.setText(eraser);
+        penButton.setToolSelected(tool == NotebookInk.Tool.PEN);
+        eraserButton.setToolSelected(tool == NotebookInk.Tool.ERASER);
     }
 
     private void selectTool(NotebookInk.Tool selected) {
@@ -572,6 +628,7 @@ public final class NotebookActivity extends Activity {
         if (!canEdit()) return;
         pauseForEdit();
         if (shownError != null) return;
+        floatingTools.hide();
         final int request = generation;
         // pauseForEdit flushes completed UP events synchronously. This writer barrier
         // includes their saved vectors before a preview can read them.
@@ -638,6 +695,7 @@ public final class NotebookActivity extends Activity {
     private void showError(IOException error) {
         shownError = error;
         if (ink != null) ink.stop();
+        if (floatingTools != null) floatingTools.hide();
         updateControls();
         main.removeCallbacks(updateSaveState);
         saveState.setText("Not saved · tap here");
@@ -676,6 +734,7 @@ public final class NotebookActivity extends Activity {
         if (!canEdit()) return;
         pauseForEdit();
         if (shownError != null) return;
+        floatingTools.hide();
         final int request = generation;
         NotebookPage current = pages.get(activePage);
         String message = current == null ? "Your page is opening." :
@@ -684,13 +743,18 @@ public final class NotebookActivity extends Activity {
             + "\n" + current.strokes.size() + " strokes\n"
             + (session.error() != null ? "Some writing has not been saved."
                 : session.isSaving() ? "Saving your latest writing…" : "Your completed strokes are saved on this tablet.")
-            + "\n\nDrag with one finger to scroll and stop anywhere. Write with the stylus. Tap the page indicator for thumbnails and page-number jumps. Use ‹ and › for adjacent pages. + Page adds an empty page at the end. Tap Blank/Lined to change this page’s paper."
+            + "\n\nDrag with one finger to scroll and stop anywhere. Write with the stylus. Tap the page indicator or grid icon for thumbnails and page-number jumps. Use the left/right arrows for adjacent pages. The page-plus icon adds an empty page at the end. The paper icon changes this page’s Blank/Lined background. The books icon returns to your library."
             + "\n\nEraser removes whole strokes after you lift the pen. Each page remembers up to 100 Undo/Redo edits while the app process stays open."
             + "\n\nNew writing or a successful erase clears Redo. Changing paper keeps your stroke history.";
-        message += "\n\nExport PDF saves all pages in this notebook, including their paper backgrounds and handwriting.";
+        message += "\n\nDrag the dotted grip to move the floating tools. The thicker border marks the selected Pen or Eraser. The page icon changes Blank/Lined paper; the grid opens the page overview."
+            + "\n\nExport PDF saves all pages in this notebook, including their paper backgrounds and handwriting.";
         final boolean[] exporting = {false};
         AlertDialog info = new AlertDialog.Builder(this).setTitle("This page")
             .setMessage(message).setPositiveButton("Done", null)
+            .setNegativeButton("Reset tools", (choice, which) -> {
+                toolsX = 0.5f; toolsY = 0f;
+                getPreferences(MODE_PRIVATE).edit().putFloat("toolsX", toolsX).putFloat("toolsY", toolsY).apply();
+            })
             .setNeutralButton("Export PDF", (choice, which) -> {
                 exporting[0] = true;
                 session.load((loaded, error) -> {
@@ -726,6 +790,8 @@ public final class NotebookActivity extends Activity {
 
     @Override protected void onPause() {
         active = false; ++generation;
+        pendingToolAction = null; toolsContact = false;
+        if (floatingTools != null) floatingTools.hide();
         if (overview != null) { overview.dismiss(); overview = null; }
         main.removeCallbacks(updateSaveState);
         disposeCanvas();
@@ -740,10 +806,15 @@ public final class NotebookActivity extends Activity {
         main.removeCallbacks(previewFrame);
         dragging = false;
         penDown = false;
+        if (floatingTools != null) floatingTools.hide();
         if (ink != null) { ink.release(); ink = null; }
         if (canvas != null) canvas.removeAllViews();
     }
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
+    @Override protected void onDestroy() {
+        if (floatingTools != null) floatingTools.dispose();
+        super.onDestroy();
+    }
     @Override public void onBackPressed() {
         super.onBackPressed(); overridePendingTransition(0, 0);
     }
