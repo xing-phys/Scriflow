@@ -1,8 +1,6 @@
 package org.eink.inkprobe.notebook;
 
 import android.content.Context;
-import android.content.pm.ApplicationInfo;
-import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -13,6 +11,7 @@ import android.graphics.RectF;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import org.eink.inkprobe.DisplayPolicy;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -60,11 +59,7 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
 
     public NotebookInk(Context context, NotebookPage page, Listener listener) throws Exception {
         if (page == null || listener == null) throw new IllegalArgumentException("Missing notebook state");
-        ApplicationInfo info = context.getPackageManager().getApplicationInfo(
-            context.getPackageName(), PackageManager.GET_META_DATA);
-        if (info.metaData == null || info.metaData.getInt("hw_eink.app.refresh.mode", -1) != 3) {
-            throw new IllegalStateException("Handwriting display policy 3 is required");
-        }
+        DisplayPolicy.requireHandwritingPolicy(context);
         this.page = page;
         this.listener = listener;
         completed.addAll(page.strokes);

@@ -36,7 +36,8 @@ public final class NotebookSelfTestActivity extends Activity implements Notebook
     private NotebookPage expected;
     private NotebookPage.Template template;
     private TextView status;
-    private boolean completed, verificationQueued, waitingForEditResume;
+    private boolean completed, verificationQueued, waitingForEditResume, waitingForScrollResume;
+    private int scrollRefreshCycles;
     private JSONObject pendingResult;
     private Surface editSurface;
     private Object editPaper;
@@ -129,7 +130,8 @@ public final class NotebookSelfTestActivity extends Activity implements Notebook
         verificationQueued = true;
         ink.view.post(() -> {
             verificationQueued = false;
-            if (waitingForEditResume) verifyEditResume(); else verifyRestore();
+            if (waitingForScrollResume) verifyScrollResume();
+            else if (waitingForEditResume) verifyEditResume(); else verifyRestore();
         });
     }
 
@@ -401,6 +403,10 @@ public final class NotebookSelfTestActivity extends Activity implements Notebook
     }
 
     private void finishVerification(JSONObject result) throws Exception {
+        if (getIntent().getBooleanExtra("scrollRefresh", false) && !result.has("scrollRefresh")) {
+            verifyScrollPreview(result);
+            return;
+        }
         if (getIntent().getBooleanExtra("pauseBoundary", false)) {
             result.put("pauseBoundary", verifyPauseBoundary());
             require(!completed, "Adapter failed during the simulated callback check");
@@ -408,6 +414,58 @@ public final class NotebookSelfTestActivity extends Activity implements Notebook
         completed = true;
         writeResult(result, "PASS · " + template.name().toLowerCase() + " · 2 native tracks / "
             + result.getInt("pointCount") + " points");
+    }
+
+    private void verifyScrollPreview(JSONObject result) throws Exception {
+        ink.pauseForEdit();
+        Object surface = call(ink.view, "getFBSurface");
+        require(!ink.isReady() && !Boolean.TRUE.equals(call(surface, "isAutoHandWrite")),
+            "Scroll preview began with native handwriting enabled");
+        Bitmap preview = Bitmap.createBitmap(ink.view.getWidth(), ink.view.getHeight(), Bitmap.Config.ARGB_8888);
+        try {
+            preview.eraseColor(Color.WHITE);
+            require(ink.showScrollPreview(preview), "Scroll preview was not posted");
+        } finally { preview.recycle(); }
+        requireFirmwarePolicy();
+        require(!Boolean.TRUE.equals(call(surface, "isAutoHandWrite")), "Fast preview enabled handwriting");
+        pendingResult = result;
+        waitingForScrollResume = true;
+        // Allow the preview post to reach the driver before asking the backend to restore ink.
+        ink.view.postDelayed(() -> { if (!completed && ink != null) ink.start(); }, 250);
+    }
+
+    private void verifyScrollResume() {
+        try {
+            require(ink.isReady(), "Native handwriting did not resume after scrolling");
+            requireFirmwarePolicy();
+            require(Boolean.TRUE.equals(call(call(ink.view, "getFBSurface"), "isAutoHandWrite")),
+                "Native AHW stayed disabled after scrolling");
+            verifyNativePage(expected);
+            require(emittedStrokes.isEmpty(), "Scrolling created a saved pen stroke");
+            waitingForScrollResume = false;
+            JSONObject result = pendingResult;
+            pendingResult = null;
+            if (++scrollRefreshCycles < 3) { verifyScrollPreview(result); return; }
+            JSONObject scroll = new JSONObject();
+            scroll.put("cycles", scrollRefreshCycles);
+            scroll.put("firmwareDefaultMode", org.eink.inkprobe.DisplayPolicy.HANDWRITING_MODE);
+            scroll.put("nativeViewPostMode", 0);
+            scroll.put("noManualWaveformOverride", true);
+            scroll.put("nativeTracksPreserved", true);
+            scroll.put("physicalStylusTest", false);
+            result.put("scrollRefresh", scroll);
+            finishVerification(result);
+        } catch (Exception error) { fail("scroll-refresh-resume", error); }
+    }
+
+    private void requireFirmwarePolicy() throws Exception {
+        int defaultMode = (Integer) Class.forName("android.eink.EPDCDevice")
+            .getMethod("getEpdcDefaultMode").invoke(null);
+        require(defaultMode == org.eink.inkprobe.DisplayPolicy.HANDWRITING_MODE,
+            "Firmware did not select the declared display policy: " + defaultMode);
+        int postMode = (Integer) Class.forName("android.eink.api.EinkMode")
+            .getMethod("getPostMode", View.class).invoke(null, ink.view);
+        require(postMode == 0, "Native view retained a manual waveform override");
     }
 
     private JSONObject verifyPauseBoundary() throws Exception {

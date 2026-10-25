@@ -3,9 +3,9 @@
     <uses-sdk android:minSdkVersion="29" android:targetSdkVersion="29" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <application android:label="Ink Notebook" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:allowBackup="false" android:supportsRtl="true">
-        <!-- Match the working Huawei Notes app's display-policy classification.
+        <!-- Match Jnotes' firmware-managed scrolling/handwriting policy on this tablet.
              This is an app policy, not a raw EPDC waveform number. -->
-        <meta-data android:name="hw_eink.app.refresh.mode" android:value="3" />
+        <meta-data android:name="hw_eink.app.refresh.mode" android:value="13" />
         <activity android:name=".MainActivity" android:exported="true" />
         <activity android:name=".notebook.NotebookSelfTestActivity" android:exported="true" android:screenOrientation="portrait" />
         <activity android:name=".notebook.NotebookActivity" android:exported="true" android:screenOrientation="portrait">

@@ -6,7 +6,10 @@ import android.os.Bundle;
 import org.json.JSONObject;
 
 /** App-local declaration checks. Effective vendor policy is verified separately from ADB. */
-final class DisplayPolicy {
+public final class DisplayPolicy {
+    public static final int HANDWRITING_MODE = 13;
+
+    private DisplayPolicy() {}
     private static int declared(Context context) throws Exception {
         Bundle data = context.getPackageManager().getApplicationInfo(context.getPackageName(),
             PackageManager.GET_META_DATA).metaData;
@@ -18,9 +21,10 @@ final class DisplayPolicy {
         result.put("source", "application manifest; effective policy requires host query");
         return result;
     }
-    static void requireHandwritingPolicy(Context context) throws Exception {
+    public static void requireHandwritingPolicy(Context context) throws Exception {
         int actual = declared(context);
-        if (actual != 3)
-            throw new IllegalStateException("Handwriting disabled: expected declared app policy 3, got " + actual);
+        if (actual != HANDWRITING_MODE)
+            throw new IllegalStateException("Handwriting disabled: expected declared app policy "
+                + HANDWRITING_MODE + ", got " + actual);
     }
 }

@@ -4,7 +4,7 @@ A small notebook app for Huawei MatePad Paper HMW-W09, with blank/lined pages,
 native low-latency handwriting, automatic saving of completed strokes, and
 editable restoration after reopening.
 
-The current build is an early development APK, version 0.22, with compact, rotatable icon
+The current build is an early development APK, version 0.26, with compact, rotatable icon
 tools, a notebook library, continuously scrolling pages, a page overview with
 jumps, PDF export, undo/redo, and a whole-stroke eraser.
 Handwriting uses a black ballpoint pen with adjustable thickness and an adjustable
@@ -70,6 +70,16 @@ a battery icon and percentage, and a Wi-Fi icon on the right. Wi-Fi indicates
 connected/disconnected state. Time follows the tablet's 12/24-hour setting and
 updates by the minute. Device-status changes wait until writing has been idle
 for about a second; there are no per-second display updates.
+
+Version 0.26 declares Huawei's application refresh policy 13, matching the
+installed Jnotes app. The firmware manages scrolling and native handwriting
+without manual waveform overrides at finger-down, finger-up, or pen-down.
+The native pen and eraser path is retained. Automated restoration checks pass;
+the user confirms smooth scrolling and immediate writing without transition
+flashes, inversion, or freezing on this tablet.
+Use the tablet's **Refresh now** action to clear residual images when needed.
+No global refresh setting or extra permission is needed. See
+[fast refresh and device verification](docs/fast-refresh.md).
 
 To export the open notebook, tap **three-dot menu → Export PDF**. All pages are prepared in
 order, including their writing and blank/lined backgrounds, then the Android

@@ -3,6 +3,12 @@
 Date: 2026-10-23. Device: HMW-W09, firmware
 `HMW-W09 2.1.0.222(C00E170R1P8)`, Android 10/API 29.
 
+2026-10-25 update: version 0.26 changes the application refresh policy from 3
+to 13 after a successful physical Jnotes comparison. It removes the manual
+waveform overrides that failed in versions 0.23–0.25. The policy-3 observations
+below remain a historical record. See [refresh investigation](fast-refresh.md)
+for the newer evidence and physical acceptance status.
+
 ## Prior physical observation
 
 The user tried the published KOReader MatePad Paper APK and reports no visible

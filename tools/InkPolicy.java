@@ -6,15 +6,15 @@ public final class InkPolicy {
         Class<?> manager = Class.forName("com.huawei.android.hardware.display.HwDisplayManager");
         Method info = manager.getMethod("getHwContentDetectorInfo", String.class);
         boolean verified = false;
-        for (String name : new String[]{"org.eink.inkprobe", "com.huawei.hinote"}) {
+        for (String name : new String[]{"org.eink.inkprobe", "com.jideos.jnotes", "com.huawei.hinote"}) {
             Object bundle = info.invoke(null, name);
             if (bundle == null) throw new IllegalStateException("No policy returned for " + name);
             bundle.getClass().getMethod("size").invoke(bundle);
             Object mode = bundle.getClass().getMethod("get", String.class).invoke(bundle, "mode");
             System.out.println(name + ": " + bundle);
-            if ("org.eink.inkprobe".equals(name)) verified = "3".equals(String.valueOf(mode));
+            if ("org.eink.inkprobe".equals(name)) verified = "13".equals(String.valueOf(mode));
         }
-        if (!verified) throw new IllegalStateException("Ink Probe effective policy is not 3");
-        System.out.println("Verified: Ink Probe effective application policy is 3.");
+        if (!verified) throw new IllegalStateException("Ink Notebook effective policy is not 13");
+        System.out.println("Verified: Ink Notebook effective application policy is 13.");
     }
 }
