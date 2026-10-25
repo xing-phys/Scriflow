@@ -5,9 +5,8 @@ import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Random;
 
-/** Broad eraser selection, exact brush footprint, protected preview damage and durable edits. */
+/** Broad eraser selection, exact brush footprint, durable edits. */
 public final class NotebookEraserTest {
     private static int assertions;
 
@@ -15,9 +14,8 @@ public final class NotebookEraserTest {
         independentWidthsAndRelease();
         gapCentresReachBothPages();
         marginCentresAreNotClamped();
-        previewDamagePreservesControls();
         broadErasePersistsAndUndoes();
-        System.out.println("NotebookEraser: " + assertions + " assertions passed (widths, footprint, damage and files).");
+        System.out.println("NotebookEraser: " + assertions + " assertions passed (widths, footprint and files).");
     }
 
     private static void independentWidthsAndRelease() {
@@ -81,34 +79,6 @@ public final class NotebookEraserTest {
             "fully offscreen brush does not invent an edge erase");
     }
 
-    private static void previewDamagePreservesControls() {
-        NotebookEraserDamage.Box dot = NotebookEraserDamage.sweep(500, 500, 500, 500, 240, 1000, 1000);
-        check(dot.left == 378 && dot.top == 378 && dot.right == 622 && dot.bottom == 622,
-            "damage includes full broad round-cap diameter and antialias fringe");
-        check(NotebookEraserDamage.sweep(-300, -300, -250, -250, 4, 1000, 1000) == null,
-            "fully offscreen preview needs no native post");
-        Random random = new Random(19);
-        for (int i = 0; i < 100; i++) {
-            NotebookEraserDamage.Box dirty = NotebookEraserDamage.sweep(random.nextInt(400), random.nextInt(400),
-                random.nextInt(400), random.nextInt(400), 4 + random.nextInt(237), 400, 400);
-            NotebookEraserDamage.Box hole = new NotebookEraserDamage.Box(120, 100, 300, 160);
-            List<NotebookEraserDamage.Box> regions = NotebookEraserDamage.excluding(dirty, hole);
-            long sum = 0;
-            for (int j = 0; j < regions.size(); j++) {
-                NotebookEraserDamage.Box region = regions.get(j);
-                check(region.left >= 0 && region.top >= 0 && region.right <= 400 && region.bottom <= 400,
-                    "native eraser refresh stays on the surface");
-                check(overlap(region, hole) == 0, "native eraser refresh never covers a floating button");
-                for (int k = 0; k < j; k++) check(overlap(region, regions.get(k)) == 0,
-                    "damage pieces do not redundantly refresh the same pixels");
-                sum += area(region);
-            }
-            check(sum == area(dirty) - overlap(dirty, hole), "only toolbar pixels are excluded from preview damage");
-        }
-        check(NotebookEraserDamage.excluding(dot, new NotebookEraserDamage.Box(0, 0, 1000, 1000)).isEmpty(),
-            "wholly covered damage produces no display update");
-    }
-
     private static void broadErasePersistsAndUndoes() throws Exception {
         File directory = Files.createTempDirectory("notebook-broad-eraser-").toFile();
         try {
@@ -128,13 +98,6 @@ public final class NotebookEraserTest {
         } finally { deleteTree(directory); }
     }
 
-    private static long area(NotebookEraserDamage.Box box) {
-        return (long) (box.right - box.left) * (box.bottom - box.top);
-    }
-    private static long overlap(NotebookEraserDamage.Box a, NotebookEraserDamage.Box b) {
-        return (long) Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left))
-            * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
-    }
     private static NotebookPage.Point point(float x, float y) { return new NotebookPage.Point(x, y, 100, 1); }
     private static NotebookPage.Stroke stroke(float x, float y) {
         return new NotebookPage.Stroke(4, 2, 0xff000000, Collections.singletonList(point(x, y)));

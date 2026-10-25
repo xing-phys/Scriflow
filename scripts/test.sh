@@ -28,7 +28,7 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookDeviceStatusState.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPenConfig.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookWidthRange.java \
-  app/src/main/java/org/eink/inkprobe/notebook/NotebookEraserDamage.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookEraserCommit.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPenSliderLayout.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPenSliderState.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPenSliderClose.java \
@@ -41,7 +41,7 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   tests/NotebookPdfTest.java tests/NotebookOverlayClipTest.java \
   tests/NotebookToolStripTest.java tests/NotebookDeviceStatusStateTest.java \
   tests/NotebookPenConfigTest.java tests/NotebookPenSliderTest.java \
-  tests/NotebookPenSliderCloseTest.java tests/NotebookEraserTest.java
+  tests/NotebookPenSliderCloseTest.java tests/NotebookEraserTest.java tests/NotebookEraserCommitTest.java
 java -ea -cp build/host-tests org.eink.inkprobe.CallbackTimingTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookStoreTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookEditsTest
@@ -62,3 +62,4 @@ java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPenConfigTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPenSliderTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPenSliderCloseTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookEraserTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookEraserCommitTest

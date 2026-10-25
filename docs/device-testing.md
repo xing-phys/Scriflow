@@ -431,3 +431,48 @@ stroke autosave, forced-stop recovery, and continued writing after reopening.
 The source also guards handwriting before restoration is ready and preserves a
 completed UP when pause precedes its native track notification. No further app
 or device changes were made for this final metadata/file comparison.
+
+
+## Version 0.20: native grey eraser preview (2026-10-25)
+
+The user reported severe eraser-preview delay in 0.19. The preview used ordinary
+Android touch input and manual framebuffer updates. It now uses Huawei AHW with
+a grey ballpoint and the chosen eraser diameter. The existing pen path stays
+unchanged. Only a completed model erase is saved; the temporary native grey
+track is removed with the touched ink in one canonical update.
+
+On HMW-W09, configuration checks pass for widths 4, 36 and 240 with AHW enabled
+and color `0xffaaaaaa`. Physical width-36 testing completed six gestures,
+including an actual hit and no-hit cleanup. Native track style, settled native
+accumulator, canonical track restoration, zero pen-stroke emission, and retained
+Surface/paper identities all pass. The user confirms smooth trail tracking and
+that the trail and touched ink disappear on release.
+
+Maximum-width physical testing also passes native style, accumulator and cleanup
+checks. The user reports visible lag when moving the 240-wide brush very fast,
+with smooth behavior at more moderate speeds. They chose not to spend further
+time on that uncommon extreme. The 4–240 range and accurate erase footprint are
+retained; the default is still 36.
+
+A debug-only observer on the disposable canvas measured a continuous
+18.479-second gesture: 1,140 samples, mean delivery delay 6.31 ms, maximum 23 ms,
+and late maximum 21 ms. Another 7.758-second gesture peaked at 24 ms. No growing
+application event backlog appears in those samples. These are software delivery
+timings, not optical measurements. The layer timestamp check found no StatusBar
+frames in the approximate long-stroke windows and no periodic floating-overlay
+frames. The remaining optical limit's cause is not established. No system
+settings or background services were changed.
+
+After the final code change, blank/lined native pen restoration checks pass,
+including coordinate/style/pressure/time round-trip, in-place erase/undo/redo,
+no-hit behavior, paper/page switching and Surface/bitmap retention. Simulated
+pause-boundary checks still preserve a completed UP exactly once while discarding
+partial and cancelled pen input. The native-erasing join is separately tested
+in both observer orders, cancellation, reset, timestamp mismatch and real-file
+undo/redo. The host suite passes 19,035 assertions.
+
+All physical checks used NotebookSelfTestActivity's disposable synthetic page.
+It never opened a user notebook, and only aggregate timing/count results were
+retrieved. The firmware binaries and sampled handwriting are not committed.
+The signed API 29 APK uses the existing local update key; page format and tool
+width preferences remain compatible with earlier versions.

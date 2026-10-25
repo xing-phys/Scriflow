@@ -47,6 +47,8 @@ public final class NotebookInk implements SurfaceHolder.Callback {
     }
 
     public final SurfaceView view;
+    interface SampleObserver { void sample(int action, long eventTime); }
+    private SampleObserver sampleObserver;
     private final Listener listener;
     private NotebookPage page;
     private final ArrayList<NotebookPage.Stroke> completed = new ArrayList<>();
@@ -64,15 +66,12 @@ public final class NotebookInk implements SurfaceHolder.Callback {
     private NotebookPenConfig.Style configuredStyle;
     private PointBuffer activePoints;
     private PointBuffer eraserPoints;
-    private int eraserPointer = -1;
-    private float eraserWidth = NotebookWidthRange.ERASER.defaultWidth, gestureEraserWidth;
-    private final Path eraserPendingPath = new Path();
-    private final Rect eraserDirty = new Rect();
-    private final Paint eraserPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private boolean eraserHasLast, eraserPendingDot, eraserPreviewVisible, eraserFrameQueued;
-    private float eraserLastX, eraserLastY, eraserDotX, eraserDotY;
-    private int eraserUpdateMode;
-    private final Runnable eraserFrame = this::drawEraserFrame;
+    private float eraserWidth = NotebookWidthRange.ERASER.defaultWidth;
+    private final NotebookEraserCommit eraserCommit = new NotebookEraserCommit();
+    private boolean eraserPreviewVisible;
+    private final Runnable eraserTimeout = () -> {
+        if (eraserCommit.isWaiting()) fail("Native eraser did not finish; reopen the notebook", null);
+    };
     private Tool tool = Tool.PEN;
     private float scaleX = 1, scaleY = 1, widthScale = 1;
     private Rect overlayScreenBounds;
@@ -96,8 +95,8 @@ public final class NotebookInk implements SurfaceHolder.Callback {
         call(surface, "setAutoHandWrite", new Class<?>[]{boolean.class}, false);
         // Keep the known-working native RGBA8888 format, Z ordering and internal pen listener.
         call(get(view, "getSurfacePicture"), "bindColor", new Class<?>[]{int.class}, Color.WHITE);
-        // Native firmware handles pen ink. Erasing is a document operation collected through
-        // ordinary touch input with native handwriting off; no vendor pixel eraser is involved.
+        // Both live trails use AHW. The grey native track is temporary; only our model
+        // performs whole-stroke erasure after the native track has finished.
         view.setOnTouchListener((v, event) -> touch(event));
         view.getHolder().addCallback(this);
     }
@@ -135,7 +134,7 @@ public final class NotebookInk implements SurfaceHolder.Callback {
      */
     public void pauseForEdit() {
         if (!alive || failed) return;
-        boolean needsRestore = activePoints != null || !awaitingCommit.isEmpty()
+        boolean needsRestore = activePoints != null || eraserCommit.isActive() || !awaitingCommit.isEmpty()
             || !nativeCommits.isEmpty();
         wanted = false;
         enabled = false;
@@ -246,10 +245,14 @@ public final class NotebookInk implements SurfaceHolder.Callback {
 
     public boolean isPenDown() { return penDown; }
 
-    /** Ready to accept the selected tool; eraser readiness does not imply native AHW is on. */
-    public boolean isReady() { return alive && wanted && enabled && !failed; }
+    public boolean isReady() {
+        return alive && wanted && enabled && !failed && !eraserCommit.isWaiting();
+    }
 
     public Tool getTool() { return tool; }
+
+    /** Disposable diagnostics only. The notebook editor leaves this null. */
+    void setSampleObserver(SampleObserver observer) { sampleObserver = observer; }
 
     /** Width uses this widget's page coordinates; the editor supplies its fitted width. */
     public void setPenWidth(float width) {
@@ -312,7 +315,7 @@ public final class NotebookInk implements SurfaceHolder.Callback {
         if (!alive || failed || this.tool == tool) return;
         // A completed UP remains an edit even if its native commit notification is pending.
         // An unfinished pen stroke or eraser gesture is discarded on a tool change.
-        boolean needsRestore = activePoints != null || !awaitingCommit.isEmpty()
+        boolean needsRestore = activePoints != null || eraserCommit.isActive() || !awaitingCommit.isEmpty()
             || !nativeCommits.isEmpty();
         try {
             if (surface != null) call(surface, "setAutoHandWrite", new Class<?>[]{boolean.class}, false);
@@ -351,6 +354,7 @@ public final class NotebookInk implements SurfaceHolder.Callback {
         if (!alive) return;
         stop();
         alive = false;
+        sampleObserver = null;
         detach();
         surface = null;
         view.getHolder().removeCallback(this);
@@ -390,22 +394,21 @@ public final class NotebookInk implements SurfaceHolder.Callback {
                 replaceNativeTracks();
                 previewVisible = false;
             }
-            call(surface, "setAhwToolTypes", new Class<?>[]{int[].class},
-                new int[]{MotionEvent.TOOL_TYPE_STYLUS});
+            call(surface, "setAhwToolTypes", new Class<?>[]{int[].class}, tool == Tool.ERASER
+                ? new int[]{MotionEvent.TOOL_TYPE_STYLUS, MotionEvent.TOOL_TYPE_ERASER}
+                : new int[]{MotionEvent.TOOL_TYPE_STYLUS});
             call(surface, "setNeedAddDownEvent", new Class<?>[]{boolean.class}, true);
             int ballpoint = Class.forName("android.eink.view.HandPenConfig")
                 .getField("PEN_TYPE_YUANZHUBI").getInt(null);
             call(surface, "setAhwPen", new Class<?>[]{int.class, float.class, int.class},
-                ballpoint, penWidth * widthScale, Color.BLACK);
+                ballpoint, (tool == Tool.PEN ? penWidth : eraserWidth) * widthScale,
+                tool == Tool.PEN ? Color.BLACK : NotebookEraserCommit.COLOR);
             configuredStyle = new NotebookPenConfig.Style(ballpoint, penWidth, Color.BLACK);
             call(view, "setState", new Class<?>[]{int.class},
                 view.getClass().getField("STATE_HADNWRITE").getInt(null));
             applyOverlayClip();
-            boolean autoInk = tool == Tool.PEN;
-            if (!autoInk) eraserUpdateMode = (Integer) Class.forName("android.eink.api.ViewAPI")
-                .getMethod("getUpdateMode", android.view.View.class).invoke(null, view);
-            call(surface, "setAutoHandWrite", new Class<?>[]{boolean.class}, autoInk);
-            if (Boolean.TRUE.equals(get(surface, "isAutoHandWrite")) != autoInk) {
+            call(surface, "setAutoHandWrite", new Class<?>[]{boolean.class}, true);
+            if (!Boolean.TRUE.equals(get(surface, "isAutoHandWrite"))) {
                 throw new IllegalStateException("Firmware refused the selected notebook tool");
             }
             enabled = true;
@@ -419,8 +422,11 @@ public final class NotebookInk implements SurfaceHolder.Callback {
             (proxy, method, args) -> {
                 Object base = objectMethod(proxy, method, args, "NotebookPenListener");
                 if (base != NOT_OBJECT_METHOD) return base;
-                if ("onAhwAddPoint".equals(method.getName()) && enabled && !restoring && tool == Tool.PEN) {
-                    point((Integer) args[0], (Float) args[1], (Float) args[2],
+                if ("onAhwAddPoint".equals(method.getName()) && enabled && !restoring) {
+                    if (sampleObserver != null) sampleObserver.sample((Integer) args[0], (Long) args[3]);
+                    if (tool == Tool.PEN) point((Integer) args[0], (Float) args[1], (Float) args[2],
+                        (Long) args[3], (Float) args[4]);
+                    else eraserPoint((Integer) args[0], (Float) args[1], (Float) args[2],
                         (Long) args[3], (Float) args[4]);
                 }
                 return null;
@@ -433,7 +439,9 @@ public final class NotebookInk implements SurfaceHolder.Callback {
             (proxy, method, args) -> {
                 Object base = objectMethod(proxy, method, args, "NotebookCommitListener");
                 if (base != NOT_OBJECT_METHOD) return base;
-                if ("onEdit".equals(method.getName()) && enabled && !restoring && tool == Tool.PEN) nativeCommit();
+                if ("onEdit".equals(method.getName()) && enabled && !restoring) {
+                    if (tool == Tool.PEN) nativeCommit(); else nativeEraserCommit();
+                }
                 return null;
             });
         call(view, "setOnEditListener", new Class<?>[]{editType}, editListener);
@@ -468,45 +476,8 @@ public final class NotebookInk implements SurfaceHolder.Callback {
             // Prevent a physical eraser tip from silently changing native track history.
             return event.getToolType(event.getActionIndex()) != MotionEvent.TOOL_TYPE_STYLUS;
         }
-        try {
-            int action = event.getActionMasked();
-            if (action == MotionEvent.ACTION_CANCEL) {
-                discardEraserPreview();
-                setPenDown(false);
-                return true;
-            }
-            int changed = event.getActionIndex();
-            if ((action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN)
-                    && eraserPointer == -1 && isEraserInput(event.getToolType(changed))) {
-                eraserPointer = event.getPointerId(changed);
-                eraserPoints = new PointBuffer();
-                gestureEraserWidth = eraserWidth;
-                addEraserPoint(event, changed, -1);
-                setPenDown(true);
-            } else if (eraserPointer != -1) {
-                int index = event.findPointerIndex(eraserPointer);
-                if (index < 0) {
-                    discardEraserPreview();
-                    setPenDown(false);
-                    return true;
-                }
-                if (action == MotionEvent.ACTION_MOVE) {
-                    for (int h = 0; h < event.getHistorySize(); h++) addEraserPoint(event, index, h);
-                    addEraserPoint(event, index, -1);
-                } else if ((action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_POINTER_UP)
-                        && event.getPointerId(changed) == eraserPointer) {
-                    addEraserPoint(event, index, -1);
-                    List<NotebookPage.Point> path = eraserPoints.toPoints();
-                    float radius = gestureEraserWidth / 2f;
-                    // Keep the final grey trail until the single canonical erase result is posted.
-                    renderPendingEraser();
-                    clearEraser();
-                    setPenDown(false);
-                    listener.onEraseGesture(path, radius);
-                }
-            }
-        } catch (Exception e) { fail("Cannot capture eraser input", e); }
-        // Only the temporary grey trail is drawn on MOVE. Document edits wait for UP.
+        // AHW receives stylus samples directly, independently of Android dispatch.
+        // Consume Android eraser-tip events to prevent the widget's destructive pixel eraser.
         return true;
     }
 
@@ -514,91 +485,69 @@ public final class NotebookInk implements SurfaceHolder.Callback {
         return type == MotionEvent.TOOL_TYPE_STYLUS || type == MotionEvent.TOOL_TYPE_ERASER;
     }
 
-    private void addEraserPoint(MotionEvent event, int index, int history) {
-        float x = history < 0 ? event.getX(index) : event.getHistoricalX(index, history);
-        float y = history < 0 ? event.getY(index) : event.getHistoricalY(index, history);
-        float pressure = history < 0 ? event.getPressure(index) : event.getHistoricalPressure(index, history);
-        long time = history < 0 ? event.getEventTime() : event.getHistoricalEventTime(history);
-        if (!NotebookPage.finite(x) || !NotebookPage.finite(y))
-            throw new IllegalArgumentException("Invalid eraser coordinate");
-        // Keep off-page centres: a wide brush can reach a page from its margin or gap.
-        eraserPoints.add(x / scaleX, y / scaleY, time, pressure);
-        NotebookEraserDamage.Box damage = NotebookEraserDamage.sweep(eraserHasLast ? eraserLastX : x,
-            eraserHasLast ? eraserLastY : y, x, y, gestureEraserWidth * widthScale, surfaceWidth, surfaceHeight);
-        if (damage != null) {
-            if (!eraserHasLast) { eraserPendingDot = true; eraserDotX = x; eraserDotY = y; }
-            else { eraserPendingPath.moveTo(eraserLastX, eraserLastY); eraserPendingPath.lineTo(x, y); }
-            eraserDirty.union(damage.left, damage.top, damage.right, damage.bottom);
-            if (!eraserFrameQueued) {
-                eraserFrameQueued = true;
-                view.postDelayed(eraserFrame, 16);
-            }
-        }
-        eraserLastX = x; eraserLastY = y; eraserHasLast = true;
-    }
-
     private void clearEraser() {
-        view.removeCallbacks(eraserFrame);
-        eraserFrameQueued = false;
-        eraserPointer = -1;
+        view.removeCallbacks(eraserTimeout);
         eraserPoints = null;
-        eraserHasLast = eraserPendingDot = false;
-        eraserPendingPath.reset(); eraserDirty.setEmpty();
+        eraserCommit.reset();
     }
 
-    private void drawEraserFrame() {
-        eraserFrameQueued = false;
-        if (!alive || failed || eraserPoints == null) return;
-        try { renderPendingEraser(); }
-        catch (Exception error) { fail("Cannot display eraser preview", error); }
-    }
-
-    private void renderPendingEraser() throws Exception {
-        view.removeCallbacks(eraserFrame);
-        eraserFrameQueued = false;
-        if (eraserDirty.isEmpty()) return;
-        NotebookEraserDamage.Box hole = null;
-        if (overlayScreenBounds != null) {
-            int[] location = new int[2]; view.getLocationOnScreen(location);
-            NotebookOverlayClip.Hole local = NotebookOverlayClip.localHole(location[0], location[1],
-                surfaceWidth, surfaceHeight, overlayScreenBounds.left, overlayScreenBounds.top,
-                overlayScreenBounds.right, overlayScreenBounds.bottom);
-            if (local != null) hole = new NotebookEraserDamage.Box(local.left, local.top, local.right, local.bottom);
-        }
-        List<NotebookEraserDamage.Box> areas = NotebookEraserDamage.excluding(new NotebookEraserDamage.Box(
-            eraserDirty.left, eraserDirty.top, eraserDirty.right, eraserDirty.bottom), hole);
-        if (!areas.isEmpty()) {
-            // Draw into the currently bound native buffer: do not post a new paper-only buffer.
-            Canvas drawing = (Canvas) get(view, "lockActiveCanvas");
-            if (drawing == null) throw new IllegalStateException("Eraser preview buffer is unavailable");
-            int checkpoint = drawing.save();
-            try {
-                drawing.clipRect(eraserDirty);
-                if (hole != null) drawing.clipOutRect(hole.left, hole.top, hole.right, hole.bottom);
-                eraserPaint.setColor(NotebookEraserDamage.COLOR);
-                eraserPaint.setStrokeWidth(gestureEraserWidth * widthScale);
-                eraserPaint.setStrokeCap(Paint.Cap.ROUND); eraserPaint.setStrokeJoin(Paint.Join.ROUND);
-                eraserPaint.setStyle(Paint.Style.STROKE);
-                drawing.drawPath(eraserPendingPath, eraserPaint);
-                if (eraserPendingDot) {
-                    eraserPaint.setStyle(Paint.Style.FILL);
-                    drawing.drawCircle(eraserDotX, eraserDotY, gestureEraserWidth * widthScale / 2f, eraserPaint);
-                }
+    private void eraserPoint(int action, float x, float y, long time, float pressure) {
+        try {
+            if (action == MotionEvent.ACTION_DOWN) {
+                eraserCommit.begin(eraserWidth);
+                eraserPoints = new PointBuffer();
                 eraserPreviewVisible = true;
-            } finally {
-                try { drawing.restoreToCount(checkpoint); }
-                finally { call(view, "unlockActiveCanvas", new Class<?>[0]); }
+                setPenDown(true);
             }
-            for (NotebookEraserDamage.Box area : areas)
-                call(surface, "invalidate", new Class<?>[]{int.class, int.class, int.class, int.class, int.class},
-                    area.left, area.top, area.right, area.bottom, eraserUpdateMode);
-        }
-        eraserPendingDot = false; eraserPendingPath.reset(); eraserDirty.setEmpty();
+            if (eraserPoints != null) {
+                if (!NotebookPage.finite(x) || !NotebookPage.finite(y))
+                    throw new IllegalArgumentException("Invalid eraser coordinate");
+                // Off-page centres must survive: a broad brush can reach ink from a gap.
+                eraserPoints.add(x / scaleX, y / scaleY, time, pressure);
+            }
+            if ((action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL)
+                    && eraserPoints != null) {
+                eraserCommit.up(eraserPoints.toPoints(), time, action == MotionEvent.ACTION_CANCEL);
+                eraserPoints = null;
+                // Observe the already queued track commit, but block another gesture until
+                // its temporary grey track has been removed by the canonical edit.
+                call(surface, "setAutoHandWrite", new Class<?>[]{boolean.class}, false);
+                setPenDown(false);
+                view.postDelayed(eraserTimeout, 1500);
+                finishNativeErase();
+            }
+        } catch (Exception error) { fail("Cannot capture native eraser", error); }
+        // AHW owns live drawing: no Canvas work, invalidate or UI update per MOVE.
     }
 
-    private void discardEraserPreview() throws Exception {
-        clearEraser();
-        if (eraserPreviewVisible) replaceNativeTracks();
+    private void nativeEraserCommit() {
+        try {
+            List<?> tracks = (List<?>) get(view, "getTrackList");
+            if (tracks.size() != completed.size() + 1)
+                throw new IllegalStateException("Unexpected temporary eraser track count");
+            Object track = tracks.get(tracks.size() - 1);
+            List<?> points = (List<?>) get(track, "getPoints");
+            if (points.isEmpty()) throw new IllegalStateException("Empty native eraser track");
+            Object last = points.get(points.size() - 1);
+            eraserCommit.track(last.getClass().getField("eventtime").getLong(last));
+            finishNativeErase();
+        } catch (Exception error) { fail("Cannot finish native eraser", error); }
+    }
+
+    private void finishNativeErase() throws Exception {
+        NotebookEraserCommit.Result result = eraserCommit.takeReady();
+        if (result == null) return;
+        view.removeCallbacks(eraserTimeout);
+        if (result.cancelled) {
+            // Replace paper and original tracks together; no history entry for cancellation.
+            enabled = false;
+            replaceNativeTracks();
+            if (wanted) view.post(this::tryEnable);
+        } else {
+            // The private native track accumulator is settled. Grey never enters completed,
+            // onStrokeComplete, autosave, undo history, or PDF output.
+            listener.onEraseGesture(result.path, result.radius);
+        }
     }
 
     private void point(int action, float x, float y, long time, float pressure) {

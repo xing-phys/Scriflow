@@ -130,7 +130,7 @@ final class NotebookWidthPopup {
             if (hasPreview()) {
                 float previewX = bar.right - dp(25);
                 if (range == NotebookWidthRange.ERASER) {
-                    paint.setColor(NotebookEraserDamage.COLOR);
+                    paint.setColor(NotebookEraserCommit.COLOR);
                     canvas.drawCircle(previewX, y - dp(6), dp(3) + dp(8) * range.fraction(state.width()), paint);
                 } else {
                     paint.setStrokeWidth(Math.max(1f, Math.min(dp(6), state.width() * pageScale)));

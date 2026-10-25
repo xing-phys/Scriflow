@@ -5,6 +5,7 @@ import android.content.pm.ApplicationInfo;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.Surface;
@@ -39,6 +40,12 @@ public final class NotebookSelfTestActivity extends Activity implements Notebook
     private JSONObject pendingResult;
     private Surface editSurface;
     private Object editPaper;
+    private boolean nativeEraserTest;
+    private int eraserGestures;
+    private float testEraserWidth;
+    private JSONObject eraserResult;
+    private long timingStart, timingEnd, timingSamples, timingTotal, timingEarlyMax, timingLateMax,
+        timingLast, timingMax;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -48,6 +55,8 @@ public final class NotebookSelfTestActivity extends Activity implements Notebook
         }
         template = "lined".equalsIgnoreCase(getIntent().getStringExtra("template"))
             ? NotebookPage.Template.LINED : NotebookPage.Template.BLANK;
+        nativeEraserTest = getIntent().getBooleanExtra("nativeEraserTest", false);
+        testEraserWidth = NotebookWidthRange.ERASER.restore(getIntent().getFloatExtra("eraserWidth", 36));
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE
             | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
@@ -57,12 +66,18 @@ public final class NotebookSelfTestActivity extends Activity implements Notebook
         status = new TextView(this);
         status.setText("Disposable notebook self-test · " + template.name().toLowerCase());
         status.setTextColor(Color.BLACK);
-        status.setTextSize(18);
+        status.setTextSize(14);
+        status.setSingleLine(true);
         status.setPadding(16, 12, 16, 12);
         root.addView(status, new LinearLayout.LayoutParams(-1, -2));
         setContentView(root);
         try {
             ink = new NotebookInk(this, NotebookPage.empty().withTemplate(template), this);
+            if (nativeEraserTest) {
+                ink.setTool(NotebookInk.Tool.ERASER);
+                ink.setEraserWidth(testEraserWidth);
+                ink.setSampleObserver(this::recordNativeSample);
+            }
             root.addView(ink.view, new LinearLayout.LayoutParams(-1, 0, 1));
         } catch (Exception error) {
             fail("construct", error);
@@ -109,6 +124,7 @@ public final class NotebookSelfTestActivity extends Activity implements Notebook
 
     @Override public void onReady() {
         if (completed || verificationQueued || expected == null || ink == null) return;
+        if (nativeEraserTest) { verifyNativeEraserReady(); return; }
         // Read after the adapter's completed restore callback unwinds.
         verificationQueued = true;
         ink.view.post(() -> {
@@ -126,6 +142,97 @@ public final class NotebookSelfTestActivity extends Activity implements Notebook
 
     @Override public void onError(String message) {
         fail("adapter", new IllegalStateException(message));
+    }
+
+    private void verifyNativeEraserReady() {
+        try {
+            require(ink.isReady(), "Native eraser not ready");
+            Object surface = call(ink.view, "getFBSurface");
+            require(Boolean.TRUE.equals(call(surface, "isAutoHandWrite")), "Eraser AHW is disabled");
+            float fittedWidth = testEraserWidth * (float) Math.sqrt(
+                (double) ink.view.getWidth() / expected.width * ink.view.getHeight() / expected.height);
+            near((Float) call(surface, "getAhwPenWidth"), fittedWidth, "Native eraser width differs");
+            require((Integer) call(surface, "getAhwPenColor") == NotebookEraserCommit.COLOR,
+                "Native eraser color differs");
+            require(emittedStrokes.isEmpty(), "Grey preview emitted a saved pen stroke");
+            verifyNativePage(expected);
+            if (editSurface == null) {
+                editSurface = ink.view.getHolder().getSurface();
+                editPaper = call(call(ink.view, "getSurfacePicture"), "getBitmap");
+            }
+            verifyEditIdentities();
+            JSONObject result = eraserResult == null ? baseResult() : eraserResult;
+            result.put("passed", true);
+            result.put("nativeEraserTest", true);
+            result.put("autoHandWrite", true);
+            result.put("logicalWidth", testEraserWidth);
+            result.put("nativeWidth", fittedWidth);
+            result.put("nativeColor", Integer.toHexString(NotebookEraserCommit.COLOR));
+            result.put("gestures", eraserGestures);
+            result.put("canonicalTracks", expected.strokes.size());
+            result.put("previewEmittedAsInk", false);
+            result.put("surfaceAndPaperIdentityRetained", true);
+            if (timingSamples > 0) result.put("inputTiming", nativeTiming());
+            writeResult(result, "Native eraser · width " + (int) testEraserWidth
+                + " · gestures " + eraserGestures + " · draw across the curve or on blank paper");
+        } catch (Exception error) { fail("native-eraser-ready", error); }
+    }
+
+    private void recordNativeSample(int action, long time) {
+        if (action == MotionEvent.ACTION_DOWN) {
+            timingStart = time;
+            timingSamples = timingTotal = timingEarlyMax = timingLateMax = timingMax = 0;
+        }
+        long delay = Math.max(0, SystemClock.uptimeMillis() - time);
+        timingEnd = time;
+        timingSamples++;
+        timingTotal += delay;
+        timingLast = delay;
+        timingMax = Math.max(timingMax, delay);
+        if (time - timingStart < 3000) timingEarlyMax = Math.max(timingEarlyMax, delay);
+        else timingLateMax = Math.max(timingLateMax, delay);
+    }
+
+    private JSONObject nativeTiming() throws Exception {
+        JSONObject result = new JSONObject();
+        result.put("samples", timingSamples);
+        result.put("durationMs", timingEnd - timingStart);
+        result.put("meanDeliveryDelayMs", (double) timingTotal / timingSamples);
+        result.put("maxDeliveryDelayMs", timingMax);
+        result.put("firstThreeSecondsMaxMs", timingEarlyMax);
+        result.put("laterMaxMs", timingLateMax);
+        result.put("upDeliveryDelayMs", timingLast);
+        result.put("opticalLatencyMeasured", false);
+        return result;
+    }
+
+    @Override public void onEraseGesture(List<NotebookPage.Point> path, float radius) {
+        if (!nativeEraserTest || completed) return;
+        try {
+            require(ink.isReady() && !ink.isPenDown(), "Eraser callback arrived before readiness");
+            require(!Boolean.TRUE.equals(call(ink.view, "isReceivingTrack")), "Native track still receiving");
+            List<NotebookPage.Stroke> tracks = ink.snapshotNativeStrokes();
+            require(tracks.size() == expected.strokes.size() + 1, "Temporary native track missing");
+            NotebookPage.Stroke preview = tracks.get(tracks.size() - 1);
+            near(preview.width, testEraserWidth, "Temporary native track width differs");
+            require(preview.color == NotebookEraserCommit.COLOR, "Temporary native track is not grey");
+            near(radius * 2, testEraserWidth, "Erase footprint differs from native width");
+            NotebookEdits edits = new NotebookEdits(expected);
+            boolean hit = edits.erase(path, radius);
+            expected = edits.current();
+            ink.pauseForEdit();
+            require(ink.applyEditPage(expected), "Native eraser required widget replacement");
+            verifyEditIdentities();
+            verifyNativePage(expected);
+            require(emittedStrokes.isEmpty(), "Temporary grey became document ink");
+            eraserGestures++;
+            eraserResult = baseResult();
+            eraserResult.put("lastGestureHit", hit);
+            eraserResult.put("lastGesturePoints", path.size());
+            eraserResult.put("nativeAccumulatorSettledBeforeEdit", true);
+            eraserResult.put("temporaryTrackRemovedInPlace", true);
+            ink.start();
+        } catch (Exception error) { fail("native-eraser-gesture", error); }
     }
 
     private void verifyRestore() {
@@ -450,6 +557,7 @@ public final class NotebookSelfTestActivity extends Activity implements Notebook
     }
 
     private static void near(float actual, float expected, String message) {
-        require(NotebookPage.finite(actual) && Math.abs(actual - expected) <= TOLERANCE, message);
+        require(NotebookPage.finite(actual) && Math.abs(actual - expected) <= TOLERANCE,
+            message + " (actual=" + actual + ", expected=" + expected + ")");
     }
 }
