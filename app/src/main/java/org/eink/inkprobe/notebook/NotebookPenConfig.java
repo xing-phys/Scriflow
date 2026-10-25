@@ -4,23 +4,22 @@ import java.util.List;
 
 /** Adjustable widths in stored page units, plus immutable style captured at pen-DOWN. */
 final class NotebookPenConfig {
-    static final float MIN_WIDTH = 1f, MAX_WIDTH = 10f, DEFAULT_WIDTH = 4f;
+    static final float MIN_WIDTH = NotebookWidthRange.PEN.minimum;
+    static final float MAX_WIDTH = NotebookWidthRange.PEN.maximum;
+    static final float DEFAULT_WIDTH = NotebookWidthRange.PEN.defaultWidth;
 
     private NotebookPenConfig() { }
     static float restore(float width) {
-        return !NotebookPage.finite(width) || width < MIN_WIDTH || width > MAX_WIDTH
-            ? DEFAULT_WIDTH : Math.round(width * 10f) / 10f;
+        return NotebookWidthRange.PEN.restore(width);
     }
     static float atFraction(float position) {
-        if (!NotebookPage.finite(position)) return DEFAULT_WIDTH;
-        return restore(MIN_WIDTH + Math.max(0, Math.min(1, position)) * (MAX_WIDTH - MIN_WIDTH));
+        return NotebookWidthRange.PEN.atFraction(position);
     }
     static float fraction(float width) {
-        return (restore(width) - MIN_WIDTH) / (MAX_WIDTH - MIN_WIDTH);
+        return NotebookWidthRange.PEN.fraction(width);
     }
     static String label(float width) {
-        int tenths = Math.round(restore(width) * 10f);
-        return (tenths / 10) + "." + (tenths % 10);
+        return NotebookWidthRange.PEN.label(width);
     }
 
     /** One style object belongs to a stroke even if the next stroke uses another width. */

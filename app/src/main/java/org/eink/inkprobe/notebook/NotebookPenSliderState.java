@@ -3,11 +3,15 @@ package org.eink.inkprobe.notebook;
 /** Own one slider pointer, applying a choice only after every contact has lifted. */
 final class NotebookPenSliderState {
     private final float original;
+    private final NotebookWidthRange range;
     private float width;
     private int pointer = -1;
     private boolean active, accepted;
 
-    NotebookPenSliderState(float original) { this.original = width = NotebookPenConfig.restore(original); }
+    NotebookPenSliderState(float original) { this(NotebookWidthRange.PEN, original); }
+    NotebookPenSliderState(NotebookWidthRange range, float original) {
+        this.range = range; this.original = width = range.restore(original);
+    }
     float width() { return width; }
     int pointer() { return pointer; }
     boolean active() { return active; }
@@ -19,7 +23,7 @@ final class NotebookPenSliderState {
     }
     void move(int id, float fraction) {
         if (active && accepted && id == pointer && pointer >= 0)
-            width = NotebookPenConfig.atFraction(fraction);
+            width = range.atFraction(fraction);
     }
     void lift(int id, float fraction) {
         move(id, fraction);

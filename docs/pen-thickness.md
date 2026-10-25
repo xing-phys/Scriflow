@@ -1,5 +1,8 @@
 # Pen thickness — 0.18
 
+Version 0.19 extends this same compact slider to Eraser with an independent,
+larger width range. See [eraser width and grey trail](eraser-width-preview.md).
+
 Tap the selected Pen icon to open a **224 × 48 dp width bar** beside the button.
 If Eraser is selected, first select Pen, then tap it again to open the slider.
 The toolbar stays visible in its current position and orientation. The slider

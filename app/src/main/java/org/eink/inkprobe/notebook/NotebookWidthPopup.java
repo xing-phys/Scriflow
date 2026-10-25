@@ -17,16 +17,17 @@ import android.widget.PopupWindow;
 import android.widget.SeekBar;
 
 /** Only the small bar is painted; a transparent input shield protects paused native ink. */
-final class NotebookPenWidthPopup {
+final class NotebookWidthPopup {
     interface Listener { void onClosed(Float chosenWidth); }
 
     private final Activity activity;
     private final SliderView content;
     private final PopupWindow popup;
     private final NotebookPenSliderClose closing;
+    private final NotebookWidthRange range;
 
-    NotebookPenWidthPopup(Activity activity, float width, float pageScale, Listener listener) {
-        this.activity = activity;
+    NotebookWidthPopup(Activity activity, NotebookWidthRange range, float width, float pageScale, Listener listener) {
+        this.activity = activity; this.range = range;
         content = new SliderView(width, pageScale);
         // Keep the editor's fullscreen/focus state. Back is handled by its Activity.
         popup = new PopupWindow(content, 0, 0, false);
@@ -90,7 +91,7 @@ final class NotebookPenWidthPopup {
 
         SliderView(float width, float pageScale) {
             super(activity, null, 0);
-            state = new NotebookPenSliderState(width); this.pageScale = pageScale;
+            state = new NotebookPenSliderState(range, width); this.pageScale = pageScale;
             setFocusable(true); setClickable(true);
             setBackground(null); setForeground(null); setStateListAnimator(null);
             setDefaultFocusHighlightEnabled(false);
@@ -105,7 +106,7 @@ final class NotebookPenWidthPopup {
         }
         private float fraction(float x) { return (x - railLeft()) / Math.max(1f, railRight() - railLeft()); }
         private void describe() {
-            setContentDescription("Pen thickness " + NotebookPenConfig.label(state.width())
+            setContentDescription(range.name + " " + range.label(state.width())
                 + "; slide to adjust, release to apply");
         }
 
@@ -116,7 +117,7 @@ final class NotebookPenWidthPopup {
             canvas.drawRoundRect(bar, dp(10), dp(10), paint);
             canvas.save(); canvas.clipRect(bar);
             float left = railLeft(), right = railRight(), y = bar.centerY();
-            float x = left + NotebookPenConfig.fraction(state.width()) * (right - left);
+            float x = left + range.fraction(state.width()) * (right - left);
             paint.setStrokeCap(Paint.Cap.ROUND); paint.setColor(0xff888888); paint.setStrokeWidth(dp(1));
             canvas.drawLine(left, y, right, y, paint);
             paint.setColor(Color.BLACK); paint.setStrokeWidth(dp(2));
@@ -128,10 +129,16 @@ final class NotebookPenWidthPopup {
             paint.setStyle(Paint.Style.FILL); canvas.drawCircle(x, y, dp(2), paint);
             if (hasPreview()) {
                 float previewX = bar.right - dp(25);
-                paint.setStrokeWidth(Math.max(1f, Math.min(dp(6), state.width() * pageScale)));
-                canvas.drawLine(previewX - dp(11), y - dp(5), previewX + dp(11), y - dp(5), paint);
+                if (range == NotebookWidthRange.ERASER) {
+                    paint.setColor(NotebookEraserDamage.COLOR);
+                    canvas.drawCircle(previewX, y - dp(6), dp(3) + dp(8) * range.fraction(state.width()), paint);
+                } else {
+                    paint.setStrokeWidth(Math.max(1f, Math.min(dp(6), state.width() * pageScale)));
+                    canvas.drawLine(previewX - dp(11), y - dp(5), previewX + dp(11), y - dp(5), paint);
+                }
+                paint.setColor(Color.BLACK);
                 paint.setTextAlign(Paint.Align.CENTER); paint.setTextSize(dp(11));
-                canvas.drawText(NotebookPenConfig.label(state.width()), previewX, bar.bottom - dp(7), paint);
+                canvas.drawText(range.label(state.width()), previewX, bar.bottom - dp(7), paint);
             }
             canvas.restore();
         }
@@ -163,7 +170,7 @@ final class NotebookPenWidthPopup {
         @Override public void onInitializeAccessibilityNodeInfo(AccessibilityNodeInfo info) {
             super.onInitializeAccessibilityNodeInfo(info);
             info.setRangeInfo(AccessibilityNodeInfo.RangeInfo.obtain(AccessibilityNodeInfo.RangeInfo.RANGE_TYPE_FLOAT,
-                NotebookPenConfig.MIN_WIDTH, NotebookPenConfig.MAX_WIDTH, state.width()));
+                range.minimum, range.maximum, state.width()));
             info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS);
             info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_FORWARD);
             info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_BACKWARD);
@@ -175,12 +182,11 @@ final class NotebookPenWidthPopup {
             float width;
             if (action == AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS.getId() && args != null) {
                 width = args.getFloat(AccessibilityNodeInfo.ACTION_ARGUMENT_PROGRESS_VALUE, state.width());
-            } else if (action == AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) width = state.width() + .1f;
-            else if (action == AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) width = state.width() - .1f;
+            } else if (action == AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) width = state.width() + range.step;
+            else if (action == AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) width = state.width() - range.step;
             else return super.performAccessibilityAction(action, args);
             if (!state.active() && NotebookPage.finite(width))
-                finish(NotebookPenConfig.atFraction((width - NotebookPenConfig.MIN_WIDTH)
-                    / (NotebookPenConfig.MAX_WIDTH - NotebookPenConfig.MIN_WIDTH)));
+                finish(range.atFraction((width - range.minimum) / (range.maximum - range.minimum)));
             return true;
         }
     }

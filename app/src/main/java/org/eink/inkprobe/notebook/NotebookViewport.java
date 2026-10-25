@@ -169,19 +169,20 @@ public final class NotebookViewport {
         return Collections.unmodifiableMap(result);
     }
 
-    /** Maps erasing without connecting separate visits to a page across the inter-page gap. */
+    /** Map the whole brush footprint, including centres just outside a page's visible edge. */
     public List<EraseGesture> splitErase(List<NotebookPage.Point> path, float radius, float scroll) {
         checkPath(path);
         if (!NotebookPage.finite(radius) || radius < 0) throw new IllegalArgumentException("Invalid eraser radius");
         List<EraseGesture> result = new ArrayList<>();
         for (int id : visiblePages(scroll)) {
             float top = pageTop(id, scroll), scale = scale(id);
-            List<List<NotebookPage.Point>> pieces = clip(path, 0, Math.max(0, top), width,
-                    Math.min(height, top + heights[index(id)]));
+            List<List<NotebookPage.Point>> pieces = clip(path, -radius, Math.max(0, top) - radius, width + radius,
+                    Math.min(height, top + heights[index(id)]) + radius);
             if (pieces.isEmpty()) continue;
             List<List<NotebookPage.Point>> local = new ArrayList<>();
-            for (List<NotebookPage.Point> piece : pieces) local.add(transformClipped(piece, 1 / scale, 0,
-                    -top / scale, pageWidth(id), pageHeight(id)));
+            // Eraser paths are transient and may lie outside page bounds. Clamping the centres
+            // would distort the grey footprint and turn a near miss into a deletion.
+            for (List<NotebookPage.Point> piece : pieces) local.add(transform(piece, 1 / scale, 0, -top / scale));
             result.add(new EraseGesture(id, local, radius / scale));
         }
         return Collections.unmodifiableList(result);

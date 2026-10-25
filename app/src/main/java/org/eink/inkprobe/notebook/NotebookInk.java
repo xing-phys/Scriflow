@@ -27,8 +27,8 @@ import java.util.List;
 public final class NotebookInk implements SurfaceHolder.Callback {
     public enum Tool { PEN, ERASER }
 
-    /** Fixed radius in the page's logical pixels, independent of the displayed surface size. */
-    public static final float ERASER_RADIUS = 18f;
+    /** Default radius retained for the disposable native restoration self-test. */
+    public static final float ERASER_RADIUS = NotebookWidthRange.ERASER.defaultWidth / 2f;
 
     /** Paints only the opaque paper/background of the current physical viewport. */
     public interface PaperRenderer {
@@ -65,6 +65,14 @@ public final class NotebookInk implements SurfaceHolder.Callback {
     private PointBuffer activePoints;
     private PointBuffer eraserPoints;
     private int eraserPointer = -1;
+    private float eraserWidth = NotebookWidthRange.ERASER.defaultWidth, gestureEraserWidth;
+    private final Path eraserPendingPath = new Path();
+    private final Rect eraserDirty = new Rect();
+    private final Paint eraserPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private boolean eraserHasLast, eraserPendingDot, eraserPreviewVisible, eraserFrameQueued;
+    private float eraserLastX, eraserLastY, eraserDotX, eraserDotY;
+    private int eraserUpdateMode;
+    private final Runnable eraserFrame = this::drawEraserFrame;
     private Tool tool = Tool.PEN;
     private float scaleX = 1, scaleY = 1, widthScale = 1;
     private Rect overlayScreenBounds;
@@ -168,7 +176,7 @@ public final class NotebookInk implements SurfaceHolder.Callback {
             this.page = page;
             completed.clear();
             completed.addAll(page.strokes);
-            if (sameStrokes && samePaper && restored && !previewVisible) return true;
+            if (sameStrokes && samePaper && restored && !previewVisible && !eraserPreviewVisible) return true;
             restored = false;
             restoring = true;
             try {
@@ -250,6 +258,15 @@ public final class NotebookInk implements SurfaceHolder.Callback {
         if (!alive || failed || penWidth == width) return;
         requirePaused();
         penWidth = width;
+    }
+
+    /** Diameter in widget/page coordinates, captured once at eraser-DOWN. */
+    public void setEraserWidth(float width) {
+        if (!NotebookPage.finite(width) || width <= 0 || width > NotebookStore.MAX_DIMENSION)
+            throw new IllegalArgumentException("Invalid eraser width");
+        if (!alive || failed || eraserWidth == width) return;
+        requirePaused();
+        eraserWidth = width;
     }
 
     /**
@@ -368,7 +385,7 @@ public final class NotebookInk implements SurfaceHolder.Callback {
             scaleY = (float) surfaceHeight / page.height;
             widthScale = (float) Math.sqrt((double) scaleX * scaleY);
             if (!restored) restoreDocument();
-            else if (previewVisible || paperDirty) {
+            else if (previewVisible || paperDirty || eraserPreviewVisible) {
                 if (paperDirty) paintPaper(paperBitmap);
                 replaceNativeTracks();
                 previewVisible = false;
@@ -385,6 +402,8 @@ public final class NotebookInk implements SurfaceHolder.Callback {
                 view.getClass().getField("STATE_HADNWRITE").getInt(null));
             applyOverlayClip();
             boolean autoInk = tool == Tool.PEN;
+            if (!autoInk) eraserUpdateMode = (Integer) Class.forName("android.eink.api.ViewAPI")
+                .getMethod("getUpdateMode", android.view.View.class).invoke(null, view);
             call(surface, "setAutoHandWrite", new Class<?>[]{boolean.class}, autoInk);
             if (Boolean.TRUE.equals(get(surface, "isAutoHandWrite")) != autoInk) {
                 throw new IllegalStateException("Firmware refused the selected notebook tool");
@@ -452,7 +471,7 @@ public final class NotebookInk implements SurfaceHolder.Callback {
         try {
             int action = event.getActionMasked();
             if (action == MotionEvent.ACTION_CANCEL) {
-                clearEraser();
+                discardEraserPreview();
                 setPenDown(false);
                 return true;
             }
@@ -461,12 +480,13 @@ public final class NotebookInk implements SurfaceHolder.Callback {
                     && eraserPointer == -1 && isEraserInput(event.getToolType(changed))) {
                 eraserPointer = event.getPointerId(changed);
                 eraserPoints = new PointBuffer();
+                gestureEraserWidth = eraserWidth;
                 addEraserPoint(event, changed, -1);
                 setPenDown(true);
             } else if (eraserPointer != -1) {
                 int index = event.findPointerIndex(eraserPointer);
                 if (index < 0) {
-                    clearEraser();
+                    discardEraserPreview();
                     setPenDown(false);
                     return true;
                 }
@@ -477,13 +497,16 @@ public final class NotebookInk implements SurfaceHolder.Callback {
                         && event.getPointerId(changed) == eraserPointer) {
                     addEraserPoint(event, index, -1);
                     List<NotebookPage.Point> path = eraserPoints.toPoints();
+                    float radius = gestureEraserWidth / 2f;
+                    // Keep the final grey trail until the single canonical erase result is posted.
+                    renderPendingEraser();
                     clearEraser();
                     setPenDown(false);
-                    listener.onEraseGesture(path, ERASER_RADIUS);
+                    listener.onEraseGesture(path, radius);
                 }
             }
         } catch (Exception e) { fail("Cannot capture eraser input", e); }
-        // Consume all eraser-mode touch, including fingers. No redraw or document edit on MOVE.
+        // Only the temporary grey trail is drawn on MOVE. Document edits wait for UP.
         return true;
     }
 
@@ -496,12 +519,86 @@ public final class NotebookInk implements SurfaceHolder.Callback {
         float y = history < 0 ? event.getY(index) : event.getHistoricalY(index, history);
         float pressure = history < 0 ? event.getPressure(index) : event.getHistoricalPressure(index, history);
         long time = history < 0 ? event.getEventTime() : event.getHistoricalEventTime(history);
-        eraserPoints.add(clamp(x / scaleX, page.width), clamp(y / scaleY, page.height), time, pressure);
+        if (!NotebookPage.finite(x) || !NotebookPage.finite(y))
+            throw new IllegalArgumentException("Invalid eraser coordinate");
+        // Keep off-page centres: a wide brush can reach a page from its margin or gap.
+        eraserPoints.add(x / scaleX, y / scaleY, time, pressure);
+        NotebookEraserDamage.Box damage = NotebookEraserDamage.sweep(eraserHasLast ? eraserLastX : x,
+            eraserHasLast ? eraserLastY : y, x, y, gestureEraserWidth * widthScale, surfaceWidth, surfaceHeight);
+        if (damage != null) {
+            if (!eraserHasLast) { eraserPendingDot = true; eraserDotX = x; eraserDotY = y; }
+            else { eraserPendingPath.moveTo(eraserLastX, eraserLastY); eraserPendingPath.lineTo(x, y); }
+            eraserDirty.union(damage.left, damage.top, damage.right, damage.bottom);
+            if (!eraserFrameQueued) {
+                eraserFrameQueued = true;
+                view.postDelayed(eraserFrame, 16);
+            }
+        }
+        eraserLastX = x; eraserLastY = y; eraserHasLast = true;
     }
 
     private void clearEraser() {
+        view.removeCallbacks(eraserFrame);
+        eraserFrameQueued = false;
         eraserPointer = -1;
         eraserPoints = null;
+        eraserHasLast = eraserPendingDot = false;
+        eraserPendingPath.reset(); eraserDirty.setEmpty();
+    }
+
+    private void drawEraserFrame() {
+        eraserFrameQueued = false;
+        if (!alive || failed || eraserPoints == null) return;
+        try { renderPendingEraser(); }
+        catch (Exception error) { fail("Cannot display eraser preview", error); }
+    }
+
+    private void renderPendingEraser() throws Exception {
+        view.removeCallbacks(eraserFrame);
+        eraserFrameQueued = false;
+        if (eraserDirty.isEmpty()) return;
+        NotebookEraserDamage.Box hole = null;
+        if (overlayScreenBounds != null) {
+            int[] location = new int[2]; view.getLocationOnScreen(location);
+            NotebookOverlayClip.Hole local = NotebookOverlayClip.localHole(location[0], location[1],
+                surfaceWidth, surfaceHeight, overlayScreenBounds.left, overlayScreenBounds.top,
+                overlayScreenBounds.right, overlayScreenBounds.bottom);
+            if (local != null) hole = new NotebookEraserDamage.Box(local.left, local.top, local.right, local.bottom);
+        }
+        List<NotebookEraserDamage.Box> areas = NotebookEraserDamage.excluding(new NotebookEraserDamage.Box(
+            eraserDirty.left, eraserDirty.top, eraserDirty.right, eraserDirty.bottom), hole);
+        if (!areas.isEmpty()) {
+            // Draw into the currently bound native buffer: do not post a new paper-only buffer.
+            Canvas drawing = (Canvas) get(view, "lockActiveCanvas");
+            if (drawing == null) throw new IllegalStateException("Eraser preview buffer is unavailable");
+            int checkpoint = drawing.save();
+            try {
+                drawing.clipRect(eraserDirty);
+                if (hole != null) drawing.clipOutRect(hole.left, hole.top, hole.right, hole.bottom);
+                eraserPaint.setColor(NotebookEraserDamage.COLOR);
+                eraserPaint.setStrokeWidth(gestureEraserWidth * widthScale);
+                eraserPaint.setStrokeCap(Paint.Cap.ROUND); eraserPaint.setStrokeJoin(Paint.Join.ROUND);
+                eraserPaint.setStyle(Paint.Style.STROKE);
+                drawing.drawPath(eraserPendingPath, eraserPaint);
+                if (eraserPendingDot) {
+                    eraserPaint.setStyle(Paint.Style.FILL);
+                    drawing.drawCircle(eraserDotX, eraserDotY, gestureEraserWidth * widthScale / 2f, eraserPaint);
+                }
+                eraserPreviewVisible = true;
+            } finally {
+                try { drawing.restoreToCount(checkpoint); }
+                finally { call(view, "unlockActiveCanvas", new Class<?>[0]); }
+            }
+            for (NotebookEraserDamage.Box area : areas)
+                call(surface, "invalidate", new Class<?>[]{int.class, int.class, int.class, int.class, int.class},
+                    area.left, area.top, area.right, area.bottom, eraserUpdateMode);
+        }
+        eraserPendingDot = false; eraserPendingPath.reset(); eraserDirty.setEmpty();
+    }
+
+    private void discardEraserPreview() throws Exception {
+        clearEraser();
+        if (eraserPreviewVisible) replaceNativeTracks();
     }
 
     private void point(int action, float x, float y, long time, float pressure) {
@@ -647,6 +744,7 @@ public final class NotebookInk implements SurfaceHolder.Callback {
         if (getNativeTrackCount() != completed.size()) {
             throw new IllegalStateException("Firmware did not restore the complete page");
         }
+        eraserPreviewVisible = false;
     }
 
     private Object createTrack(Object creator, Method createPoint, Method createTrack,

@@ -4,10 +4,11 @@ A small notebook app for Huawei MatePad Paper HMW-W09, with blank/lined pages,
 native low-latency handwriting, automatic saving of completed strokes, and
 editable restoration after reopening.
 
-The current build is an early development APK, version 0.18, with compact, rotatable icon
+The current build is an early development APK, version 0.19, with compact, rotatable icon
 tools, a notebook library, continuously scrolling pages, a page overview with
 jumps, PDF export, undo/redo, and a whole-stroke eraser.
-Handwriting uses a black ballpoint pen with adjustable thickness. The original diagnostic screen remains
+Handwriting uses a black ballpoint pen with adjustable thickness and an adjustable
+eraser with a temporary grey trail. The original diagnostic screen remains
 available separately for development.
 
 ## Use
@@ -78,8 +79,15 @@ standard A4-width scale. Export leaves the notebook editable in the app.
 Cancelling the location picker lets you choose again without preparing it again.
 
 Choose **Eraser**, move the stylus across writing, then lift it to remove every
-touched stroke. There is no live eraser preview; a gesture removes entire strokes,
-not small pieces of a stroke. Choose **Pen** to resume smooth native writing.
+touched stroke. A **grey trail shows the erasing path while the pen is down**.
+On release, the touched ink strokes and grey trail disappear together after
+the erase completes. A gesture removes entire strokes, rather than small pieces
+of a stroke. Tap the **already-selected Eraser icon** for its compact width
+slider: **4–240** in steps of 1, with **36** as the default diameter. This is
+independent of the pen's width and remembered between sessions. Wide erasers
+can reach the edges of both visible pages from the gap between them. A no-hit
+gesture just clears the grey trail; canceling a gesture leaves the ink intact.
+Choose **Pen** to resume smooth native writing.
 **Undo/Redo** remember up to 100 writing or erase actions **per page** within the current app
 process. They survive leaving and returning while that process remains alive;
 restarting the process begins a new history. Erasing, undo, and redo autosave.
@@ -97,7 +105,7 @@ let the background writer finish before force-stopping the app; the menu reports
 its save state. An unfinished stroke is discarded when leaving the app. Notes are stored on this tablet in
 the app's private directory; uninstalling the app removes that data. Keep the
 local signing key when installing updates over an existing version.
-Version 0.18 reads the unchanged version-1 page format from earlier releases. Install it as
+Version 0.19 reads the unchanged version-1 page format from earlier releases. Install it as
 an update over the existing app; **do not uninstall** to install the update.
 
 This firmware is sensitive to unrelated background display activity. During
@@ -269,6 +277,15 @@ cannot overwrite it. A regression reproduces the reported 6.0-to-1.0 failure
 with the old logic and passes after the fix. All 18,517 host assertions pass,
 including 43 popup-completion checks. The signed APK builds offline with the
 existing key; applying widths still needs verification on the tablet.
+
+Version 0.19 adds a separate 4–240 eraser-width slider and a temporary grey trail.
+Preview segments draw directly into the bound native buffer with bounded damage
+updates that exclude the floating controls. A single canonical post removes the
+trail and touched strokes after the erase finishes; no preview enters the saved
+note or PDF. Radius-aware mapping preserves wide-brush hits near page edges and
+gaps. All 19,730 host assertions pass; the signed APK builds offline with the
+existing key. The grey trail's optical appearance, latency, and cleanup still
+need tablet acceptance. See [eraser widths and preview](docs/eraser-width-preview.md).
 
 See [milestone design and acceptance](docs/notebook-milestone.md), the
 [device test record](docs/device-testing.md), and the retained

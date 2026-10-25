@@ -148,7 +148,7 @@ public final class NotebookViewportTest {
         check(gestures.size() == 2, "eraser maps both visible pages");
         check(gestures.get(1).pageId == 2, "eraser IDs explicit and ordered");
         near(24, gestures.get(1).radius, "eraser radius converted into logical pixels");
-        near(0, gestures.get(1).paths.get(0).get(0).y, "eraser clipped at page top");
+        near(-24, gestures.get(1).paths.get(0).get(0).y, "eraser centre retained one radius above page top");
         near(252, gestures.get(1).paths.get(0).get(1).y, "eraser logical endpoint");
         List<NotebookViewport.EraseGesture> separated = layout.splitErase(Arrays.asList(point(10, 20), point(-10, 20), point(-10, 10), point(10, 10)), 3, 0);
         check(separated.get(0).paths.size() == 2, "erase does not bridge separate visits");
@@ -224,7 +224,10 @@ public final class NotebookViewportTest {
             for (NotebookPage.Stroke part : layout.compose(pages, scroll).strokes)
                 checkBounds(part.points, viewportWidth, viewportHeight);
             for (NotebookViewport.EraseGesture gesture : layout.splitErase(source.points, 12, scroll))
-                for (List<NotebookPage.Point> path : gesture.paths) checkBounds(path, width, height);
+                for (List<NotebookPage.Point> path : gesture.paths) for (NotebookPage.Point point : path)
+                    check(point.x >= -gesture.radius - .001 && point.x <= width + gesture.radius + .001
+                        && point.y >= -gesture.radius - .001 && point.y <= height + gesture.radius + .001,
+                        "eraser centres remain within radius-expanded page bounds");
         }
     }
 

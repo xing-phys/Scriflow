@@ -50,7 +50,8 @@ public final class NotebookActivity extends Activity {
     private boolean active, penDown, geometryPending, editing;
     private NotebookInk.Tool tool = NotebookInk.Tool.PEN;
     private float penWidth = NotebookPenConfig.DEFAULT_WIDTH;
-    private NotebookPenWidthPopup penWidthPopup;
+    private float eraserWidth = NotebookWidthRange.ERASER.defaultWidth;
+    private NotebookWidthPopup widthPopup;
     private boolean verifyOnReady;
     private int generation;
     private NotebookViewport viewport;
@@ -73,6 +74,8 @@ public final class NotebookActivity extends Activity {
         session = NotebookSession.get(this);
         penWidth = NotebookPenConfig.restore(getPreferences(MODE_PRIVATE)
             .getFloat("penWidth", NotebookPenConfig.DEFAULT_WIDTH));
+        eraserWidth = NotebookWidthRange.ERASER.restore(getPreferences(MODE_PRIVATE)
+            .getFloat("eraserWidth", NotebookWidthRange.ERASER.defaultWidth));
         if (saved != null && saved.getBoolean("eraser", false)) tool = NotebookInk.Tool.ERASER;
         verifyOnReady = (getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0
             && getIntent().getBooleanExtra("verifyRestore", false);
@@ -240,6 +243,7 @@ public final class NotebookActivity extends Activity {
             });
             ink.setTool(tool);
             ink.setPenWidth(penWidth);
+            ink.setEraserWidth(eraserWidth);
             ink.setOverlayBounds(toolsBounds);
             canvas.addView(ink.view, new FrameLayout.LayoutParams(-1, -1));
             // Restore even a retained unsaved page. onReady stops input synchronously when
@@ -313,6 +317,7 @@ public final class NotebookActivity extends Activity {
             ink.pauseForEdit();
             if (shownError != null) return;
             ink.setPenWidth(fittedPenWidth());
+            ink.setEraserWidth(fittedEraserWidth());
             NotebookPage composed = viewport.compose(pages, scrollY);
             if (firstViewport) {
                 ink.setPage(composed); ink.setPaperRenderer(this::drawPaper);
@@ -574,12 +579,14 @@ public final class NotebookActivity extends Activity {
         penButton.setPenWidthPreview(fittedPenWidth());
         penButton.setContentDescription("Pen, thickness " + NotebookPenConfig.label(penWidth)
             + (tool == NotebookInk.Tool.PEN ? "; tap for width slider" : "; select pen"));
+        eraserButton.setContentDescription("Eraser, width " + NotebookWidthRange.ERASER.label(eraserWidth)
+            + (tool == NotebookInk.Tool.ERASER ? "; tap for width slider" : "; select eraser"));
     }
 
     private void selectTool(NotebookInk.Tool selected) {
         if (!canEdit()) return;
         if (tool == selected) {
-            if (selected == NotebookInk.Tool.PEN) choosePenWidth();
+            chooseWidth(selected);
             return;
         }
         tool = selected;
@@ -591,23 +598,35 @@ public final class NotebookActivity extends Activity {
         return penWidth * (viewport == null ? 1f : viewport.scale(activePage));
     }
 
-    private void choosePenWidth() {
+    private float fittedEraserWidth() {
+        return eraserWidth * (viewport == null ? 1f : viewport.scale(activePage));
+    }
+
+    private void chooseWidth(NotebookInk.Tool selected) {
         if (!canEdit()) return;
         pauseForEdit();
         if (shownError != null) return;
         final int request = generation;
+        final boolean erasing = selected == NotebookInk.Tool.ERASER;
+        final NotebookWidthRange range = erasing ? NotebookWidthRange.ERASER : NotebookWidthRange.PEN;
         // Completed UPs keep their old style even if the native commit arrives late.
         session.load((loaded, error) -> {
             if (!active || request != generation) return;
             mergeWindow();
             if (error != null) { showError(error); return; }
-            penWidthPopup = new NotebookPenWidthPopup(this, penWidth, viewport.scale(activePage), chosen -> {
-                penWidthPopup = null;
+            widthPopup = new NotebookWidthPopup(this, range, erasing ? eraserWidth : penWidth,
+                viewport.scale(activePage), chosen -> {
+                widthPopup = null;
                 if (!active || request != generation) return;
-                if (chosen != null && chosen != penWidth) {
-                    penWidth = chosen;
-                    ink.setPenWidth(fittedPenWidth());
-                    getPreferences(MODE_PRIVATE).edit().putFloat("penWidth", penWidth).apply();
+                if (chosen != null) {
+                    if (erasing) {
+                        eraserWidth = chosen;
+                        ink.setEraserWidth(fittedEraserWidth());
+                    } else {
+                        penWidth = chosen;
+                        ink.setPenWidth(fittedPenWidth());
+                    }
+                    getPreferences(MODE_PRIVATE).edit().putFloat(erasing ? "eraserWidth" : "penWidth", chosen).apply();
                 }
                 // The slider waits until all contacts lift; the paused tracks can be reused.
                 editing = false;
@@ -615,7 +634,7 @@ public final class NotebookActivity extends Activity {
                 updateControls();
                 scheduleSaveState();
             });
-            penWidthPopup.show(canvas, penButton, floatingTools.bounds(), floatingTools.isVertical());
+            widthPopup.show(canvas, erasing ? eraserButton : penButton, floatingTools.bounds(), floatingTools.isVertical());
         });
     }
 
@@ -809,7 +828,7 @@ public final class NotebookActivity extends Activity {
             + (session.error() != null ? "Some writing has not been saved."
                 : session.isSaving() ? "Saving your latest writing…" : "Your completed strokes are saved on this tablet.")
             + "\n\nDrag with one finger to scroll and stop anywhere. Write with the stylus. Tap the grid icon for thumbnails and page-number jumps. Use the left/right arrows for adjacent pages. The page-plus icon adds an empty page at the end. The paper icon changes this page’s Blank/Lined background. The books icon returns to your library."
-            + "\n\nEraser removes whole strokes after you lift the pen. Each page remembers up to 100 Undo/Redo edits while the app process stays open."
+            + "\n\nEraser draws a temporary grey trail. Lift the pen to remove whole ink strokes touched by it, together with the trail. Tap the selected Eraser icon to adjust its width (4–240). Current eraser: " + NotebookWidthRange.ERASER.label(eraserWidth) + ". Each page remembers up to 100 Undo/Redo edits while the app process stays open."
             + "\n\nNew writing or a successful erase clears Redo. Changing paper keeps your stroke history.";
         message += "\n\nDrag the dotted grip to move the floating tools. The direction icon beside it switches between one row and one column. The thicker border marks the selected Pen or Eraser. The page icon changes Blank/Lined paper; the grid opens the page overview."
             + "\n\nTap the selected Pen icon to open a small width slider. Slide the point and release to apply; tap outside or press Back to cancel. Current thickness: " + NotebookPenConfig.label(penWidth) + ". The small line below the pencil previews its width. New strokes use that width; existing writing keeps its original thickness."
@@ -862,7 +881,7 @@ public final class NotebookActivity extends Activity {
         pendingToolAction = null; toolsContact = false;
         if (floatingTools != null) floatingTools.hide();
         if (overview != null) { overview.dismiss(); overview = null; }
-        if (penWidthPopup != null) { penWidthPopup.dismiss(); penWidthPopup = null; }
+        if (widthPopup != null) { widthPopup.dismiss(); widthPopup = null; }
         main.removeCallbacks(updateSaveState);
         disposeCanvas();
         persistPosition();
@@ -886,7 +905,7 @@ public final class NotebookActivity extends Activity {
         super.onDestroy();
     }
     @Override public void onBackPressed() {
-        if (penWidthPopup != null) { penWidthPopup.cancel(); return; }
+        if (widthPopup != null) { widthPopup.cancel(); return; }
         super.onBackPressed(); overridePendingTransition(0, 0);
     }
 }
