@@ -72,7 +72,7 @@ public final class NotebookDocumentTest {
             }
             if (variant == 1) {
                 // Simulate the second piece completing but its acknowledgement being lost.
-                NotebookStore external = new NotebookStore(directory); external.load(); external.appendStroke(stroke(40));
+                NotebookStore external = new NotebookStore(directory); external.load(); external.appendStroke(document.current().strokes.get(2));
             }
             expectIo(() -> document.appendAll(Arrays.asList(stroke(80), stroke(90))));
             equal(6, document.current().strokes.size(), "later queued pen group retained after earlier failure");
@@ -186,7 +186,7 @@ public final class NotebookDocumentTest {
         // Simulate the write completing but its acknowledgement being lost.
         NotebookStore external = new NotebookStore(directory);
         external.load();
-        external.replaceStrokes(Collections.singletonList(stroke(40)));
+        external.replaceStrokes(Collections.singletonList(document.current().strokes.get(0)));
         expectIo(() -> document.append(stroke(70)));
         document.retry();
         NotebookPage page = saved(directory);

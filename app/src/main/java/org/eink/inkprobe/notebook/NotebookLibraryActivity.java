@@ -41,6 +41,8 @@ public final class NotebookLibraryActivity extends Activity {
         NotebookButton create = button("+ Notebook", this::createNotebook);
         header.addView(create, new LinearLayout.LayoutParams(dp(142), dp(56)));
         root.addView(header);
+        NotebookButton restore = button("Restore backup", () -> transfer(true, 0));
+        root.addView(restore, new LinearLayout.LayoutParams(-1, dp(48)));
         status = label("Opening library…", 14);
         status.setPadding(0, dp(8), 0, dp(16));
         root.addView(status);
@@ -87,6 +89,8 @@ public final class NotebookLibraryActivity extends Activity {
             NotebookButton rename = button("Rename", () -> renameNotebook(entry));
             rename.setContentDescription("Rename notebook " + entry.name);
             row.addView(rename, new LinearLayout.LayoutParams(dp(96), dp(64)));
+            NotebookButton backup = button("Backup", () -> transfer(false, entry.id));
+            row.addView(backup, new LinearLayout.LayoutParams(dp(88), dp(64)));
             rows.addView(row, new LinearLayout.LayoutParams(-1, -2));
             View line = new View(this); line.setBackgroundColor(0xffdddddd);
             rows.addView(line, new LinearLayout.LayoutParams(-1, dp(1)));
@@ -107,6 +111,13 @@ public final class NotebookLibraryActivity extends Activity {
             if (error != null) { render(); showProblem(error); return; }
             showEditor();
         });
+    }
+
+    private void transfer(boolean restore, int id) {
+        if (!canAct()) return;
+        startActivity(new Intent(this, NotebookTransferActivity.class)
+            .putExtra("restore", restore).putExtra("notebookId", id));
+        overridePendingTransition(0, 0);
     }
 
     private void showEditor() {

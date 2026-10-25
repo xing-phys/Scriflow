@@ -67,11 +67,13 @@ public final class NotebookRenderingCheck {
         result.put("pdfLightWidth", band(pdfBitmap, 600, 120));
         result.put("pdfHeavyWidth", band(pdfBitmap, 600, 210));
         result.put("outlineLifetimeAndCancellation", reuseAndCancellation(page));
+        result.put("parallelReplay", parallelReplay(page));
         boolean passed = result.getJSONObject("nativeVsCanvas").getInt("outsideOnePixel") == 0
             && result.getJSONObject("nativeVsPdf").getInt("outsideOnePixel") == 0
             && Math.abs(result.getInt("nativeLightWidth") - result.getInt("pdfLightWidth")) <= 1
             && Math.abs(result.getInt("nativeHeavyWidth") - result.getInt("pdfHeavyWidth")) <= 1
-            && result.getInt("pdfHeavyWidth") > result.getInt("pdfLightWidth");
+            && result.getInt("pdfHeavyWidth") > result.getInt("pdfLightWidth")
+            && result.getBoolean("parallelReplay");
         result.put("passed", passed);
         try (FileOutputStream output = new FileOutputStream(new File(directory, "result.json"))) {
             output.write(result.toString(2).getBytes(StandardCharsets.UTF_8));
@@ -127,6 +129,27 @@ public final class NotebookRenderingCheck {
         Path after = NotebookStrokeRenderer.path(page.strokes.get(0), () -> false);
         if (!Arrays.equals(before,after.approximate(.05f))) throw new IllegalStateException("Cancelled replay contaminated next stroke");
         return true;
+    }
+
+    private static boolean parallelReplay(NotebookPage page) throws Exception {
+        List<float[]> expected = new ArrayList<>();
+        for (NotebookPage.Stroke stroke : page.strokes)
+            expected.add(NotebookStrokeRenderer.path(stroke, () -> false).approximate(.05f));
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        java.util.concurrent.CountDownLatch gate = new java.util.concurrent.CountDownLatch(1);
+        try {
+            List<java.util.concurrent.Future<Boolean>> jobs = new ArrayList<>();
+            for (int worker = 0; worker < 2; worker++) jobs.add(pool.submit(() -> {
+                gate.await();
+                for (int pass = 0; pass < 10; pass++) for (int i = 0; i < page.strokes.size(); i++)
+                    if (!Arrays.equals(expected.get(i), NotebookStrokeRenderer.path(page.strokes.get(i), () -> false).approximate(.05f)))
+                        return false;
+                return true;
+            }));
+            gate.countDown();
+            for (java.util.concurrent.Future<Boolean> job : jobs) if (!job.get(30, java.util.concurrent.TimeUnit.SECONDS)) return false;
+            return true;
+        } finally { pool.shutdownNow(); }
     }
 
     private static Bitmap paper(NotebookPage page) {

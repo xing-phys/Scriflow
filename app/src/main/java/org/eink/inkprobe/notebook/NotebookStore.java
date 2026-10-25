@@ -10,13 +10,16 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
+import java.util.HashSet;
+import java.nio.charset.StandardCharsets;
 import java.util.zip.CRC32;
 
 /**
  * Single-writer page store. Call only from a serialized background worker, never pen callbacks.
  * A synced, checksummed record commits each completed stroke without rewriting previous points.
  * Size/template changes and stroke edits publish an atomic snapshot and retain the previous file
- * as a backup. Editing uses the same version-1 format as the initial notebook release.
+ * as a backup. Version 1 reads are non-mutating; the first edit atomically migrates to version 2 with IDs.
  */
 public final class NotebookStore {
     public static final int MAX_POINTS_PER_STROKE = 200000;
@@ -25,7 +28,7 @@ public final class NotebookStore {
     public static final int MAX_DIMENSION = 32768;
 
     private static final int MAGIC = 0x4e424b31; // NBK1
-    private static final int VERSION = 1;
+    private static final int VERSION = 2;
     private static final int SNAPSHOT = 1, APPEND_STROKE = 2;
     private static final int MAX_RECORD_BYTES = 32 * 1024 * 1024;
     private static final long MAX_FILE_BYTES = 64L * 1024 * 1024;
@@ -57,17 +60,18 @@ public final class NotebookStore {
         needsSnapshot = false;
         File source = document.exists() ? document : backup.exists() ? backup : temporary.exists() ? temporary : null;
         if (source == null) {
-            page = NotebookPage.empty();
+            page = NotebookPage.restored(legacyId(directory), 0, 0, NotebookPage.Template.BLANK,
+                java.util.Collections.emptyList(), 0);
             validLength = 0;
             needsSnapshot = true;
             return page;
         }
         try {
-            ReadResult result = read(source);
+            ReadResult result = read(source, legacyId(directory));
             page = result.page;
             validLength = result.validLength;
             recoveredTail = result.incompleteTail;
-            needsSnapshot = !source.equals(document);
+            needsSnapshot = !source.equals(document) || result.version < VERSION;
             return page;
         } catch (IOException error) {
             failed = true;
@@ -145,6 +149,8 @@ public final class NotebookStore {
         if (page.strokes.size() >= MAX_STROKES || page.pointCount + stroke.points.size() > MAX_TOTAL_POINTS) {
             throw new IOException("Notebook page has reached its stroke/point limit");
         }
+        for (NotebookPage.Stroke existing : page.strokes)
+            if (existing.id.equals(stroke.id)) throw new IOException("Duplicate stroke ID");
         NotebookPage updated = page.withStroke(stroke);
         if (needsSnapshot) return publish(updated);
         byte[] payload = encodeStrokeRecord(stroke);
@@ -176,12 +182,39 @@ public final class NotebookStore {
         if (strokes.size() > MAX_STROKES) throw new IOException("Notebook page has reached its stroke limit");
         ArrayList<NotebookPage.Stroke> copy = new ArrayList<>(strokes);
         int pointCount = 0;
+        HashSet<UUID> ids = new HashSet<>();
         for (NotebookPage.Stroke stroke : copy) {
             validateStroke(page, stroke);
+            if (!ids.add(stroke.id)) throw new IOException("Duplicate stroke ID");
             pointCount += stroke.points.size();
             if (pointCount > MAX_TOTAL_POINTS) throw new IOException("Notebook page has reached its point limit");
         }
-        return publish(NotebookPage.restored(page.width, page.height, page.template, copy, pointCount));
+        return publish(NotebookPage.restored(page.id, page.width, page.height, page.template, copy, pointCount));
+    }
+
+    /** Write a canonical transport snapshot; ownership of output stays with the caller. */
+    public static void writeSnapshot(java.io.OutputStream output, NotebookPage page) throws IOException {
+        validateDimensions(page.width, page.height, true);
+        if (page.strokes.size() > MAX_STROKES || page.pointCount > MAX_TOTAL_POINTS)
+            throw new IOException("Page exceeds storage limits");
+        HashSet<UUID> ids = new HashSet<>();
+        for (NotebookPage.Stroke stroke : page.strokes) {
+            validateStroke(page, stroke);
+            if (!ids.add(stroke.id)) throw new IOException("Duplicate stroke ID");
+        }
+        DataOutputStream data = new DataOutputStream(output);
+        data.writeInt(MAGIC); data.writeInt(VERSION); writeRecord(data, encodeSnapshot(page)); data.flush();
+    }
+
+    private static UUID legacyId(File directory) throws IOException {
+        return UUID.nameUUIDFromBytes(("ink-notebook:page:" + directory.getCanonicalPath())
+            .getBytes(StandardCharsets.UTF_8));
+    }
+    private static UUID readId(DataInputStream input) throws IOException {
+        return new UUID(input.readLong(), input.readLong());
+    }
+    private static void writeId(DataOutputStream output, UUID id) throws IOException {
+        output.writeLong(id.getMostSignificantBits()); output.writeLong(id.getLeastSignificantBits());
     }
 
     private void requireReady() throws IOException {
@@ -220,12 +253,15 @@ public final class NotebookStore {
         }
     }
 
-    private static ReadResult read(File source) throws IOException {
+    private static ReadResult read(File source, UUID legacyId) throws IOException {
         try (RandomAccessFile input = new RandomAccessFile(source, "r")) {
             long length = input.length();
             if (length < 8 || length > MAX_FILE_BYTES) throw corrupt("Invalid notebook file size");
-            if (input.readInt() != MAGIC || input.readInt() != VERSION) throw corrupt("Unsupported notebook file header");
+            if (input.readInt() != MAGIC) throw corrupt("Unsupported notebook file header");
+            int version = input.readInt();
+            if (version < 1 || version > VERSION) throw corrupt("Unsupported notebook version " + version);
             ReadState state = new ReadState();
+            state.id = legacyId; state.version = version;
             long valid = input.getFilePointer();
             boolean incomplete = false;
             while (input.getFilePointer() < length) {
@@ -243,9 +279,9 @@ public final class NotebookStore {
                 valid = input.getFilePointer();
             }
             if (!state.hasSnapshot) throw corrupt("Notebook has no complete initial snapshot");
-            NotebookPage loaded = NotebookPage.restored(state.width, state.height, state.template,
+            NotebookPage loaded = NotebookPage.restored(state.id, state.width, state.height, state.template,
                                                        state.strokes, state.pointCount);
-            return new ReadResult(loaded, valid, incomplete);
+            return new ReadResult(loaded, valid, incomplete, version);
         } catch (IllegalArgumentException error) {
             throw new CorruptDocumentException("Invalid notebook data", error);
         }
@@ -256,6 +292,7 @@ public final class NotebookStore {
         int type = input.readUnsignedByte();
         if (type == SNAPSHOT) {
             if (state.hasSnapshot) throw corrupt("Unexpected second notebook snapshot");
+            if (state.version >= 2) state.id = readId(input);
             int width = input.readInt(), height = input.readInt();
             validateDimensions(width, height, true);
             int template = input.readUnsignedByte();
@@ -268,21 +305,23 @@ public final class NotebookStore {
             state.height = height;
             state.template = NotebookPage.Template.values()[template];
             for (int i = 0; i < count; i++) {
-                NotebookPage.Stroke stroke = readStroke(input);
+                NotebookPage.Stroke stroke = readStroke(input, state);
                 validateStroke(width, height, stroke);
                 state.pointCount += stroke.points.size();
                 if (state.pointCount > MAX_TOTAL_POINTS) throw corrupt("Notebook point limit exceeded");
+                if (!state.ids.add(stroke.id)) throw corrupt("Duplicate stroke ID");
                 state.strokes.add(stroke);
             }
             state.hasSnapshot = true;
         } else if (type == APPEND_STROKE) {
             if (!state.hasSnapshot || state.width == 0) throw corrupt("Stroke appears before initialized snapshot");
-            NotebookPage.Stroke stroke = readStroke(input);
+            NotebookPage.Stroke stroke = readStroke(input, state);
             validateStroke(state.width, state.height, stroke);
             if (state.strokes.size() >= MAX_STROKES || state.pointCount + stroke.points.size() > MAX_TOTAL_POINTS) {
                 throw corrupt("Notebook point/stroke limit exceeded");
             }
-            state.strokes.add(stroke);
+            if (!state.ids.add(stroke.id)) throw corrupt("Duplicate stroke ID");
+                state.strokes.add(stroke);
             state.pointCount += stroke.points.size();
         } else {
             throw corrupt("Unknown notebook record type");
@@ -290,7 +329,9 @@ public final class NotebookStore {
         if (input.available() != 0) throw corrupt("Unexpected bytes in notebook record");
     }
 
-    private static NotebookPage.Stroke readStroke(DataInputStream input) throws IOException {
+    private static NotebookPage.Stroke readStroke(DataInputStream input, ReadState state) throws IOException {
+        UUID id = state.version >= 2 ? readId(input) : UUID.nameUUIDFromBytes(
+            (state.id.toString() + ":stroke:" + state.strokes.size()).getBytes(StandardCharsets.UTF_8));
         int penType = input.readInt();
         float width = input.readFloat();
         int color = input.readInt();
@@ -302,7 +343,7 @@ public final class NotebookStore {
         for (int i = 0; i < count; i++) {
             points.add(new NotebookPage.Point(input.readFloat(), input.readFloat(), input.readLong(), input.readFloat()));
         }
-        return new NotebookPage.Stroke(penType, width, color, points);
+        return new NotebookPage.Stroke(id, penType, width, color, points);
     }
 
     private static void validateDimensions(int width, int height, boolean allowEmpty) throws IOException {
@@ -330,6 +371,7 @@ public final class NotebookStore {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         DataOutputStream output = new DataOutputStream(bytes);
         output.writeByte(SNAPSHOT);
+        writeId(output, page.id);
         output.writeInt(page.width);
         output.writeInt(page.height);
         output.writeByte(page.template.ordinal());
@@ -349,6 +391,7 @@ public final class NotebookStore {
     }
 
     private static void writeStroke(DataOutputStream output, NotebookPage.Stroke stroke) throws IOException {
+        writeId(output, stroke.id);
         output.writeInt(stroke.penType);
         output.writeFloat(stroke.width);
         output.writeInt(stroke.color);
@@ -384,7 +427,9 @@ public final class NotebookStore {
     private static CorruptDocumentException corrupt(String message) { return new CorruptDocumentException(message); }
 
     private static final class ReadState {
-        int width, height, pointCount;
+        UUID id;
+        int version, width, height, pointCount;
+        final HashSet<UUID> ids = new HashSet<>();
         boolean hasSnapshot;
         NotebookPage.Template template;
         final List<NotebookPage.Stroke> strokes = new ArrayList<>();
@@ -394,8 +439,9 @@ public final class NotebookStore {
         final NotebookPage page;
         final long validLength;
         final boolean incompleteTail;
-        ReadResult(NotebookPage page, long validLength, boolean incompleteTail) {
-            this.page = page;
+        final int version;
+        ReadResult(NotebookPage page, long validLength, boolean incompleteTail, int version) {
+            this.page = page; this.version = version;
             this.validLength = validLength;
             this.incompleteTail = incompleteTail;
         }

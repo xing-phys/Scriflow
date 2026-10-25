@@ -1,0 +1,7 @@
+plugins {
+    id 'com.android.application' version '8.9.2' apply false
+}
+tasks.register('hostTest', Exec) {
+    workingDir rootDir
+    commandLine './scripts/test.sh'
+}

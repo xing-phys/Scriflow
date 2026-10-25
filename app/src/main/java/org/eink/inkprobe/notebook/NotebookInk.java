@@ -24,27 +24,9 @@ import java.util.Collections;
 import java.util.List;
 
 /** MatePad Paper editor bridge. The firmware owns live ink; our model owns completed strokes. */
-public final class NotebookInk implements SurfaceHolder.Callback {
-    public enum Tool { PEN, ERASER }
-
+public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Callback {
     /** Default radius retained for the disposable native restoration self-test. */
     public static final float ERASER_RADIUS = NotebookWidthRange.ERASER.defaultWidth / 2f;
-
-    /** Paints only the opaque paper/background of the current physical viewport. */
-    public interface PaperRenderer {
-        void draw(Canvas canvas, int width, int height);
-    }
-
-    public interface Listener {
-        void onGeometryReady(int width, int height);
-        void onStrokeComplete(NotebookPage.Stroke stroke);
-        void onPenStateChanged(boolean down);
-        void onReady();
-        void onError(String message);
-        default void onEraseGesture(List<NotebookPage.Point> path, float radius) { }
-        /** Synchronous borrowed event; callers must not retain it after this callback. */
-        default void onFingerEvent(MotionEvent event) { }
-    }
 
     public final SurfaceView view;
     interface SampleObserver { void sample(int action, long eventTime); }
@@ -100,6 +82,8 @@ public final class NotebookInk implements SurfaceHolder.Callback {
         view.setOnTouchListener((v, event) -> touch(event));
         view.getHolder().addCallback(this);
     }
+
+    @Override public android.view.View view() { return view; }
 
     public void start() {
         if (!alive || failed) return;

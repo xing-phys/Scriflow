@@ -51,9 +51,12 @@ public final class NotebookEdits {
             throw new IllegalArgumentException("Notebook stroke/point limit reached");
         }
         ArrayList<NotebookPage.Stroke> combined = new ArrayList<>(page.strokes);
+        java.util.HashSet<java.util.UUID> ids = new java.util.HashSet<>();
+        for (NotebookPage.Stroke existing : page.strokes) ids.add(existing.id);
         long points = page.pointCount;
         for (NotebookPage.Stroke stroke : strokes) {
             if (stroke == null) throw new IllegalArgumentException("Missing stroke");
+            if (!ids.add(stroke.id)) throw new IllegalArgumentException("Duplicate stroke ID");
             points += stroke.points.size();
             if (points > NotebookStore.MAX_TOTAL_POINTS) {
                 throw new IllegalArgumentException("Notebook stroke/point limit reached");

@@ -178,13 +178,17 @@ public final class NotebookEditsTest {
     private static void boundedHistorySharesImmutableStrokes() {
         NotebookEdits edits = new NotebookEdits(page());
         NotebookPage.Stroke shared = stroke(10, 10, 20, 20);
-        for (int i = 0; i < NotebookEdits.HISTORY_LIMIT + 5; i++) edits.append(shared);
+        java.util.List<NotebookPage.Stroke> originals = new java.util.ArrayList<>();
+        for (int i = 0; i < NotebookEdits.HISTORY_LIMIT + 5; i++) {
+            NotebookPage.Stroke unique = new NotebookPage.Stroke(shared.penType, shared.width, shared.color, shared.points);
+            originals.add(unique); edits.append(unique);
+        }
         int undos = 0;
         while (edits.undo()) undos++;
         equal(NotebookEdits.HISTORY_LIMIT, undos, "history limited to recent commands");
         equal(5, edits.current().strokes.size(), "oldest changes remain after history exhausted");
         for (NotebookPage.Stroke stroke : edits.current().strokes) {
-            check(stroke == shared, "history shares immutable stroke objects");
+            check(stroke == originals.get(edits.current().strokes.indexOf(stroke)), "history shares original immutable stroke objects");
         }
         int redos = 0;
         while (edits.redo()) redos++;

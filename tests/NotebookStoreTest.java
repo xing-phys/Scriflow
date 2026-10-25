@@ -169,11 +169,11 @@ public final class NotebookStoreTest {
         byte[] payload = Arrays.copyOfRange(good, 16, 16 + payloadSize);
         // Valid checksum must not legitimize impossible dimensions, template or list counts.
         byte[] invalidWidth = payload.clone();
-        putInt(invalidWidth, 1, Integer.MAX_VALUE);
+        putInt(invalidWidth, 17, Integer.MAX_VALUE);
         byte[] invalidTemplate = payload.clone();
-        invalidTemplate[9] = 100;
+        invalidTemplate[25] = 100;
         byte[] invalidCount = payload.clone();
-        putInt(invalidCount, 10, Integer.MAX_VALUE);
+        putInt(invalidCount, 26, Integer.MAX_VALUE);
         byte[] invalidType = payload.clone();
         invalidType[0] = 99;
         for (byte[] malformed : new byte[][] {invalidWidth, invalidTemplate, invalidCount, invalidType}) {
@@ -192,9 +192,9 @@ public final class NotebookStoreTest {
         int recordSize = intAt(full, recordStart);
         byte[] strokePayload = Arrays.copyOfRange(full, recordStart + 8, recordStart + 8 + recordSize);
         byte[] nan = strokePayload.clone();
-        putInt(nan, 17, Float.floatToIntBits(Float.NaN));
+        putInt(nan, 33, Float.floatToIntBits(Float.NaN));
         byte[] negativePressure = strokePayload.clone();
-        putInt(negativePressure, 33, Float.floatToIntBits(-1));
+        putInt(negativePressure, 49, Float.floatToIntBits(-1));
         for (byte[] malformed : new byte[][] {nan, negativePressure}) {
             ByteArrayOutputStream combined = new ByteArrayOutputStream();
             combined.write(good);
@@ -312,7 +312,7 @@ public final class NotebookStoreTest {
         equal(2, reopened.strokes.size(), "release fixture supports edit then append");
         sameStroke(stroke(20), reopened.strokes.get(0));
         sameStroke(stroke(30), reopened.strokes.get(1));
-        equal(1, intAt(bytes(directory, "page.nbk"), 4), "editing keeps version 1 on disk");
+        equal(2, intAt(bytes(directory, "page.nbk"), 4), "editing atomically migrates to version 2");
     }
 
     private static void editSnapshotAndContinuedWriting() throws Exception {
@@ -470,7 +470,7 @@ public final class NotebookStoreTest {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         DataOutputStream output = new DataOutputStream(bytes);
         output.writeInt(0x4e424b31);
-        output.writeInt(1);
+        output.writeInt(2);
         output.write(record(payload));
         return bytes.toByteArray();
     }

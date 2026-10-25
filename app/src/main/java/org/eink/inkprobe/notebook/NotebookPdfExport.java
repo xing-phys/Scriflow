@@ -49,7 +49,7 @@ final class NotebookPdfExport {
     void observe(Listener observer) { listener = observer; observer.changed(); }
     void detach(Listener observer) { if (listener == observer) listener = null; }
 
-    /** Called once on the notebook's serialized writer, with input paused by the editor. */
+    /** Called on the export worker; immutable source pages cross a short writer barrier. */
     void prepare(NotebookPdf.PageSource source) {
         File staging = null;
         try {

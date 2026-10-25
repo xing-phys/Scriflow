@@ -8,3 +8,8 @@ __pycache__/
 *.jks
 # Local device captures and logs
 artifacts/
+
+# Gradle local state and outputs
+.gradle/
+app/build/
+local.properties

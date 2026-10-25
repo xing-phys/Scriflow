@@ -10,6 +10,10 @@ rm -rf build/host-tests
 mkdir -p build/host-tests
 javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   app/src/main/java/org/eink/inkprobe/CallbackTiming.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookBackup.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookRestore.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookTasks.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookTransform.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPage.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookStore.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookEdits.java \
@@ -42,7 +46,7 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   tests/NotebookPdfTest.java tests/NotebookOutlineFixture.java tests/NotebookStrokeOutlineTest.java tests/NotebookOverlayClipTest.java \
   tests/NotebookToolStripTest.java tests/NotebookDeviceStatusStateTest.java \
   tests/NotebookPenConfigTest.java tests/NotebookPenSliderTest.java \
-  tests/NotebookPenSliderCloseTest.java tests/NotebookEraserTest.java tests/NotebookEraserCommitTest.java
+  tests/NotebookPenSliderCloseTest.java tests/NotebookEraserTest.java tests/NotebookEraserCommitTest.java tests/NotebookFoundationTest.java
 java -ea -cp build/host-tests org.eink.inkprobe.CallbackTimingTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookStoreTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookEditsTest
@@ -65,3 +69,5 @@ java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPenSliderTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPenSliderCloseTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookEraserTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookEraserCommitTest
+
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookFoundationTest

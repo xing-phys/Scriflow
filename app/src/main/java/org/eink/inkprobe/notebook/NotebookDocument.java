@@ -200,7 +200,7 @@ public final class NotebookDocument {
 
     private static boolean samePage(NotebookPage a, NotebookPage b) {
         return a != null && b != null && a.width == b.width && a.height == b.height
-            && a.template == b.template && sameStrokes(a.strokes, b.strokes);
+            && a.id.equals(b.id) && a.template == b.template && sameStrokes(a.strokes, b.strokes);
     }
 
     private static boolean sameStrokes(List<NotebookPage.Stroke> a, List<NotebookPage.Stroke> b) {
@@ -210,7 +210,7 @@ public final class NotebookDocument {
     }
 
     private static boolean sameStroke(NotebookPage.Stroke a, NotebookPage.Stroke b) {
-        if (a.penType != b.penType || a.color != b.color || !same(a.width, b.width)
+        if (!a.id.equals(b.id) || a.penType != b.penType || a.color != b.color || !same(a.width, b.width)
                 || a.points.size() != b.points.size()) return false;
         for (int i = 0; i < a.points.size(); i++) {
             NotebookPage.Point p = a.points.get(i), q = b.points.get(i);

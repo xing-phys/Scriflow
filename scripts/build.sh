@@ -17,6 +17,19 @@ if not files:
     raise SystemExit('No Java sources found')
 Path('build/java-sources.txt').write_text('\n'.join('"' + str(p) + '"' for p in files) + '\n')
 PY
+# The Android plugin owns the application ID/debug flag; the offline packager supplies them here.
+python3 - <<'MANIFEST'
+import xml.etree.ElementTree as E
+E.register_namespace('android', 'http://schemas.android.com/apk/res/android')
+tree = E.parse('app/src/main/AndroidManifest.xml')
+tree.getroot().set('package', 'org.eink.inkprobe')
+from pathlib import Path
+version = dict(line.split('=', 1) for line in Path('app/version.properties').read_text().splitlines() if '=' in line)
+for key in ('versionCode', 'versionName'):
+    tree.getroot().set('{http://schemas.android.com/apk/res/android}' + key, version[key])
+tree.getroot().find('application').set('{http://schemas.android.com/apk/res/android}debuggable', 'true')
+tree.write('build/AndroidManifest.xml', encoding='utf-8', xml_declaration=True)
+MANIFEST
 # Keep the JDK bootstrap classes: Android SDK stubs intentionally omit the
 # LambdaMetafactory methods javac needs. D8 below desugars Java 8 lambdas
 # and validates against the Android API library for the device runtime.
@@ -25,7 +38,7 @@ javac -encoding UTF-8 -source 8 -target 8 -classpath "$SDK" \
 # d8 supports response files, avoiding command line limits as sources grow.
 find "$ROOT/build/classes" -name '*.class' -print | sort > build/dex-sources.txt
 "$BT/d8" --min-api 23 --lib "$SDK" --output build/dex @build/dex-sources.txt
-"$BT/aapt" package -f -M app/src/main/AndroidManifest.xml -I "$SDK" -F build/unsigned.apk
+"$BT/aapt" package -f -M build/AndroidManifest.xml -I "$SDK" -F build/unsigned.apk
 python3 - <<'PY'
 from pathlib import Path
 from zipfile import ZipFile, ZIP_DEFLATED

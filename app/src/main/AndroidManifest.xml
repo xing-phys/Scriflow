@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="org.eink.inkprobe" android:versionCode="22" android:versionName="0.21">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-sdk android:minSdkVersion="29" android:targetSdkVersion="29" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <application android:label="Ink Notebook" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:allowBackup="false" android:debuggable="true" android:supportsRtl="true">
+    <application android:label="Ink Notebook" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:allowBackup="false" android:supportsRtl="true">
         <!-- Match the working Huawei Notes app's display-policy classification.
              This is an app policy, not a raw EPDC waveform number. -->
         <meta-data android:name="hw_eink.app.refresh.mode" android:value="3" />
@@ -10,6 +10,7 @@
         <activity android:name=".notebook.NotebookSelfTestActivity" android:exported="true" android:screenOrientation="portrait" />
         <activity android:name=".notebook.NotebookActivity" android:exported="true" android:screenOrientation="portrait">
         </activity>
+        <activity android:name=".notebook.NotebookTransferActivity" android:exported="false" android:screenOrientation="portrait" />
         <activity android:name=".notebook.NotebookPdfExportActivity" android:exported="false" android:screenOrientation="portrait" />
         <activity android:name=".notebook.NotebookLibraryActivity" android:exported="true" android:screenOrientation="portrait">
             <intent-filter>

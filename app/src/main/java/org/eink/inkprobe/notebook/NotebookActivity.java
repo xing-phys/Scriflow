@@ -32,7 +32,7 @@ import java.util.LinkedHashMap;
 public final class NotebookActivity extends Activity {
     private final Handler main = new Handler(Looper.getMainLooper());
     private NotebookSession session;
-    private NotebookInk ink;
+    private NotebookInkBackend ink;
     private FrameLayout canvas;
     private TextView saveState, pageLabel;
     private NotebookDeviceStatus deviceStatus;
@@ -244,7 +244,7 @@ public final class NotebookActivity extends Activity {
             ink.setPenWidth(penWidth);
             ink.setEraserWidth(eraserWidth);
             ink.setOverlayBounds(toolsBounds);
-            canvas.addView(ink.view, new FrameLayout.LayoutParams(-1, -1));
+            canvas.addView(ink.view(), new FrameLayout.LayoutParams(-1, -1));
             // Restore even a retained unsaved page. onReady stops input synchronously when
             // storage has failed, leaving the full open page visible while Retry is offered.
             ink.start();

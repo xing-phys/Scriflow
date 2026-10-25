@@ -203,8 +203,8 @@ public final class NotebookViewport {
 
     private static List<NotebookPage.Point> transform(List<NotebookPage.Point> points, float scale, float x, float y) {
         List<NotebookPage.Point> result = new ArrayList<>();
-        for (NotebookPage.Point point : points) result.add(new NotebookPage.Point(point.x * scale + x,
-                point.y * scale + y, point.time, point.pressure));
+        NotebookTransform transform = NotebookTransform.fit(scale, x, y);
+        for (NotebookPage.Point point : points) result.add(transform.map(point));
         return result;
     }
 
@@ -212,8 +212,8 @@ public final class NotebookViewport {
     private static List<NotebookPage.Point> transformClipped(List<NotebookPage.Point> points, float scale,
                                                              float x, float y, float width, float height) {
         List<NotebookPage.Point> result = new ArrayList<>();
-        for (NotebookPage.Point point : points) result.add(clamp(new NotebookPage.Point(point.x * scale + x,
-                point.y * scale + y, point.time, point.pressure), 0, 0, width, height));
+        NotebookTransform transform = NotebookTransform.fit(scale, x, y);
+        for (NotebookPage.Point point : points) result.add(clamp(transform.map(point), 0, 0, width, height));
         return result;
     }
 

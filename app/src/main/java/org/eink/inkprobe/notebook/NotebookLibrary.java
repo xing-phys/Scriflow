@@ -53,8 +53,11 @@ public final class NotebookLibrary {
 
     /** Metadata-only barrier: an open book's error remains available without hiding the catalog. */
     public void loadCatalog() throws IOException {
-        if (state != null) return;
-        execute(this::loadCatalogInitial);
+        if (state != null && !new File(directory, "restore.pending").exists()) return;
+        if (book != null) book.retry();
+        execute(() -> {
+            loadCatalogInitial(); book = null; bookId = 0;
+        });
     }
 
     public void load() throws IOException {
@@ -86,6 +89,15 @@ public final class NotebookLibrary {
             pending = new Pending(CREATE, entries, id);
             finishPending();
         });
+    }
+
+    /** Restores as a new notebook; errors are local to the transfer, never an ink save error. */
+    public void importNotebook(NotebookBackup.Restored restored) throws IOException {
+        requireCatalog(); requireWritable();
+        if (book != null) book.retry();
+        NotebookRestore.publish(directory, restored);
+        book = null; bookId = 0;
+        loadCatalogInitial();
     }
 
     public void renameNotebook(int id, String name) throws IOException {
@@ -169,6 +181,7 @@ public final class NotebookLibrary {
     }
 
     private void loadCatalogInitial() throws IOException {
+        NotebookRestore.recover(directory);
         state = durable = catalog.load();
         attemptedEntries = null; attemptedSelection = 0;
         problem = null;

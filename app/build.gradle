@@ -1,0 +1,41 @@
+plugins { id 'com.android.application' }
+
+def appVersion = new Properties()
+file('version.properties').withInputStream { appVersion.load(it) }
+android {
+    namespace 'org.eink.inkprobe'
+    compileSdk 29
+    buildToolsVersion '35.0.0'
+    defaultConfig {
+        applicationId 'org.eink.inkprobe'
+        minSdk 29
+        targetSdk 29
+        versionCode appVersion.getProperty('versionCode').toInteger()
+        versionName appVersion.getProperty('versionName')
+    }
+    signingConfigs {
+        localDevelopment {
+            storeFile rootProject.file('.tools/debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+    buildTypes {
+        debug { signingConfig signingConfigs.localDevelopment }
+        release {
+            // Development APK only. Reflection-based firmware access is intentionally not shrunk.
+            minifyEnabled false
+            signingConfig signingConfigs.localDevelopment
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    lint {
+        // This firmware-specific, sideloaded app intentionally retains its tested API-29 behavior.
+        disable 'ExpiredTargetSdkVersion'
+    }
+    buildFeatures { buildConfig false }
+}

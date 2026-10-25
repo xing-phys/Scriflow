@@ -4,7 +4,7 @@ A small notebook app for Huawei MatePad Paper HMW-W09, with blank/lined pages,
 native low-latency handwriting, automatic saving of completed strokes, and
 editable restoration after reopening.
 
-The current build is an early development APK, version 0.21, with compact, rotatable icon
+The current build is an early development APK, version 0.22, with compact, rotatable icon
 tools, a notebook library, continuously scrolling pages, a page overview with
 jumps, PDF export, undo/redo, and a whole-stroke eraser.
 Handwriting uses a black ballpoint pen with adjustable thickness and an adjustable
@@ -109,8 +109,18 @@ let the background writer finish before force-stopping the app; the menu reports
 its save state. An unfinished stroke is discarded when leaving the app. Notes are stored on this tablet in
 the app's private directory; uninstalling the app removes that data. Keep the
 local signing key when installing updates over an existing version.
-Version 0.21 reads the unchanged version-1 page format from earlier releases. Install it as
+Version 0.22 reads legacy version-1 pages without changing them on open. The first edit
+atomically upgrades that page to version 2 with persistent page/stroke IDs, retaining
+its predecessor as a backup. Older APKs cannot read upgraded pages. Install it as
 an update over the existing app; **do not uninstall** to install the update.
+
+The library now offers **Backup** beside each notebook and **Restore backup** above the list.
+Backup produces an editable `.inkbook` archive through the system save picker. Restore
+validates an archive and adds a **new notebook**, preserving existing notebooks. Writing,
+pressure, pen styles, IDs, names, and page order survive; the restored book starts at Page 1.
+Undo history and device settings are excluded. Backups are unencrypted. The current limit
+is 512 MiB uncompressed per archive. Keep backups outside the app's private storage.
+If a provider write fails, an incomplete external file may remain; retry at a new location.
 
 This firmware is sensitive to unrelated background display activity. During
 testing, Clash Meta's **Show Traffic** notification generated one-second updates
@@ -140,6 +150,20 @@ ignored local key and requests only the normal `ACCESS_NETWORK_STATE` permission
 for the Wi-Fi indicator. It makes no network requests. No proprietary
 Huawei code is bundled. Reflection calls use classes already on this firmware;
 failures pause writing explicitly.
+
+The optional standard Gradle build supports IDE import and future dependencies:
+
+```bash
+./scripts/bootstrap-gradle.sh
+JAVA_HOME="$PWD/.tools/jdk-17.0.21+9" ./gradlew :app:assembleDebug :app:assembleRelease hostTest
+```
+
+The wrapper and downloads are pinned and checksum-verified. The first Gradle build needs
+network access; subsequent cached builds can use `--offline`. JDK 17 stays local to `.tools/`.
+Both routes use the same `app/version.properties`, API-29 target, and signing identity.
+Gradle outputs are in `app/build/outputs/apk/`. Both debug and release are local development
+APKs; release disables debugging but still uses the local development signing key.
+See [architecture and extension boundaries](docs/architecture.md).
 
 ## Verification
 
@@ -314,3 +338,11 @@ canvas. See [consistent ink rendering](docs/consistent-ink-rendering.md).
 See [milestone design and acceptance](docs/notebook-milestone.md), the
 [device test record](docs/device-testing.md), and the retained
 [Ink Probe guide](docs/ink-probe.md).
+
+Version 0.22 adds the foundation for future document types: persistent page/stroke IDs,
+a read-compatible v1-to-v2 migration, editable backup/restore, a resumable restore transaction,
+an editor/device interface, explicit coordinate transforms, independent render/export workers,
+and standard Gradle tooling. It preserves the live Huawei pen and eraser path. The remaining
+PDF/Markdown/AI model and engine choices are documented rather than represented by unsupported
+placeholder objects. See [architecture](docs/architecture.md) for ownership, format, limits,
+and the next extension steps.

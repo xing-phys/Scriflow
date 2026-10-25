@@ -12,7 +12,8 @@ import java.util.ArrayList;
 import java.util.Map;
 import java.util.LinkedHashMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /** One process-wide writer and editing history survive Activity recreation. */
@@ -30,7 +31,10 @@ final class NotebookSession {
         return instance;
     }
 
-    private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final NotebookTasks tasks = new NotebookTasks();
+    private final ExecutorService worker = tasks.writer;
+    // Writer-owned generation invalidates an export if its source changes between page reads.
+    private long revision;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final NotebookLibrary document;
     private final AtomicInteger pending = new AtomicInteger();
@@ -138,48 +142,91 @@ final class NotebookSession {
     /** Read-only whole-book export; failures never enter the notebook save-error state. */
     NotebookPdfExport exportPdf(Context context, int expectedNotebook, String name, int count) {
         NotebookPdfExport job = new NotebookPdfExport(context, expectedNotebook, name, count);
-        worker.execute(() -> job.prepare(number -> {
-            // A restarted process may restore this screen before any editor has opened.
-            // Load the persisted current book, then validate identity without switching it.
-            if (number == 1) document.load();
-            if (document.notebookId() != expectedNotebook || document.pageCount() != count)
-                throw new IOException("The notebook has changed. Reopen it and export again.");
-            if (document.error() != null) throw new IOException("Save the notebook before exporting", document.error());
-            try { return document.previewPage(number); }
-            catch (IOException error) {
-                throw new IOException("Couldn’t read page " + number + ". " + error.getMessage(), error);
-            }
-        }));
+        worker.execute(() -> {
+            final long expectedRevision = revision;
+            tasks.exports.execute(() -> job.prepare(number -> readExportPage(
+                expectedNotebook, count, expectedRevision, number)));
+        });
         return job;
     }
 
-    /** Read-only, cancellable work on the writer queue, without changing editor snapshots. */
+    interface TransferCallback { void complete(IOException error); }
+
+    void writeBackup(File destination, java.util.function.BooleanSupplier cancelled, TransferCallback callback) {
+        worker.execute(() -> {
+            final long version = revision;
+            final int id = document.notebookId(), count = document.pageCount();
+            final String name = document.notebookName();
+            tasks.exports.execute(() -> {
+                IOException failure = null;
+                try (java.io.FileOutputStream output = new java.io.FileOutputStream(destination)) {
+                    NotebookBackup.write(output, name, count,
+                        number -> readExportPage(id, count, version, number), cancelled);
+                    output.getFD().sync();
+                } catch (IOException | RuntimeException error) { failure = new IOException("Could not back up notebook", error); }
+                final IOException result = failure;
+                main.post(() -> callback.complete(result));
+            });
+        });
+    }
+
+    void importBackup(NotebookBackup.Restored restored, TransferCallback callback) {
+        worker.execute(() -> {
+            IOException failure = null;
+            try { ++revision; document.importNotebook(restored); windowIds = Collections.emptyList(); }
+            catch (IOException | RuntimeException error) { failure = new IOException("Could not restore notebook. " + error.getMessage(), error); }
+            final IOException result = failure;
+            main.post(() -> callback.complete(result));
+        });
+    }
+
+    /** Immutable source handoff; neither native replay nor PDF compression holds the writer. */
+    private NotebookPage readExportPage(int expectedNotebook, int count, long expectedRevision,
+                                        int number) throws IOException {
+        try {
+            return worker.submit(() -> {
+                if (number == 1) document.load();
+                if (revision != expectedRevision || document.notebookId() != expectedNotebook
+                        || document.pageCount() != count)
+                    throw new IOException("The notebook changed. Export again when editing has finished.");
+                if (document.error() != null) throw new IOException("Save the notebook before exporting", document.error());
+                return document.previewPage(number);
+            }).get();
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt(); throw new IOException("Export interrupted", error);
+        } catch (ExecutionException error) {
+            if (error.getCause() instanceof IOException) throw (IOException) error.getCause();
+            throw new IOException("Could not read export source", error.getCause());
+        }
+    }
+
+    /** Load immutable samples on the writer, then replay on a bounded render queue. */
     PreviewRequest previewPage(int expectedNotebook, int number, PreviewCallback callback) {
         PreviewRequest request = new PreviewRequest();
         worker.execute(() -> {
             if (request.cancelled) return;
-            Bitmap bitmap = null;
-            IOException failure = null;
             try {
-                if (document.notebookId() != expectedNotebook)
-                    throw new IOException("The notebook has changed");
+                if (document.notebookId() != expectedNotebook) throw new IOException("The notebook has changed");
                 NotebookPage preview = document.previewPage(number);
-                if (request.cancelled) return;
-                bitmap = NotebookPageThumbnail.render(preview, 320, 384, () -> request.cancelled);
-            } catch (IOException error) { failure = error; }
-            catch (RuntimeException error) { failure = new IOException("Could not preview this page", error); }
-            final Bitmap result = bitmap;
-            final IOException error = failure;
-            main.post(() -> {
-                if (request.cancelled) {
-                    // Never delivered or bound to a View, so this allocation is ours to release.
-                    if (result != null) result.recycle();
-                    return;
-                }
-                callback.complete(result, error);
-            });
+                tasks.render.execute(() -> {
+                    if (request.cancelled) return;
+                    Bitmap bitmap = null; IOException failure = null;
+                    try { bitmap = NotebookPageThumbnail.render(preview, 320, 384, () -> request.cancelled); }
+                    catch (RuntimeException error) { failure = new IOException("Could not preview this page", error); }
+                    deliverPreview(request, callback, bitmap, failure);
+                });
+            } catch (IOException | RejectedExecutionException error) {
+                deliverPreview(request, callback, null, new IOException("Could not load preview. Try again.", error));
+            }
         });
         return request;
+    }
+
+    private void deliverPreview(PreviewRequest request, PreviewCallback callback, Bitmap result, IOException error) {
+        main.post(() -> {
+            if (request.cancelled) { if (result != null) result.recycle(); return; }
+            callback.complete(result, error);
+        });
     }
 
     private void publishWindow() {
@@ -199,7 +246,7 @@ final class NotebookSession {
         pending.incrementAndGet();
         worker.execute(() -> {
             IOException failure = null;
-            try { operation.run(); }
+            try { ++revision; operation.run(); }
             catch (IOException error) { failure = error; }
             catch (RuntimeException error) { failure = new IOException("Could not save the page", error); }
             page = document.current();
