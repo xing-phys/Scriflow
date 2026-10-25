@@ -4,8 +4,8 @@ A small notebook app for Huawei MatePad Paper HMW-W09, with blank/lined pages,
 native low-latency handwriting, automatic saving of completed strokes, and
 editable restoration after reopening.
 
-The current build is an early development APK, version 0.11, with a notebook
-library, continuously scrolling pages, undo/redo, and a whole-stroke eraser. Pen selection and
+The current build is an early development APK, version 0.12, with a notebook
+library, continuously scrolling pages, a page overview with jumps, undo/redo, and a whole-stroke eraser. Pen selection and
 export are later milestones. Handwriting uses one black ballpoint pen. The
 original diagnostic screen remains available separately for development.
 
@@ -34,6 +34,12 @@ that page context. The fractional scroll position is saved per notebook.
 Your existing single-page notebook becomes Page 1 without moving its file.
 There is a limit of 1,000 pages; deletion and reordering are not yet included.
 
+Tap the **Page X of Y · Overview** indicator to browse whole-page thumbnails.
+The current page has a black border and a **Current** label. Tap a thumbnail to
+jump to that page's top, or enter a number beside **Go to page** and tap **Go**.
+**Close** or Android Back returns to your exact previous scroll position.
+Thumbnails load as you browse; opening the overview does not edit your pages.
+
 Choose **Eraser**, move the stylus across writing, then lift it to remove every
 touched stroke. There is no live eraser preview; a gesture removes entire strokes,
 not small pieces of a stroke. Choose **Pen** to resume smooth native writing.
@@ -53,7 +59,7 @@ Completed strokes survive app force-stop once **Saved** is shown. An unfinished
 stroke is discarded when leaving the app. Notes are stored on this tablet in
 the app's private directory; uninstalling the app removes that data. Keep the
 local signing key when installing updates over an existing version.
-Version 0.11 reads the unchanged version-1 page format from earlier releases. Install it as
+Version 0.12 reads the unchanged version-1 page format from earlier releases. Install it as
 an update over the existing app; **do not uninstall** to install the update.
 
 This firmware is sensitive to unrelated background display activity. During
@@ -102,6 +108,9 @@ Scrolling tests additionally cover clipping and strict page bounds, strokes
 crossing page boundaries, per-page gesture undo, mixed finger/pen ownership,
 pending preview acknowledgements, and saved fractional positions. These tests
 cannot establish native scrolling speed or physical pen latency.
+Overview tests cover read-only page previews, accepted unsaved in-memory ink,
+unchanged page/index/position files, and isolated corrupt or missing preview
+pages. Reading an uncached thumbnail does not retain its document in the editor.
 
 The debug build also contains an isolated on-device restoration check. It opens
 only synthetic drawings and writes results under `files/notebook-selftest/`,
@@ -163,6 +172,13 @@ native editable tracks again. Pen input waits until all visible content has
 loaded. Completed strokes are saved to explicit page IDs, including strokes
 that cross a page gap. The new hardware path still needs tablet acceptance.
 See [continuous pages](docs/continuous-pages.md).
+
+Version 0.12 adds a thumbnail overview and direct page-number jumps. Preview
+reads and rendering share the serialized worker, with one request in flight and
+a 12-bitmap cache. Closing the overview resumes the existing native surface;
+choosing a page uses the same validated window read as page navigation. The
+13,347 host assertions pass and the signed APK builds offline; the new overview
+still needs tablet acceptance. See [page overview and jumps](docs/page-overview.md).
 
 See [milestone design and acceptance](docs/notebook-milestone.md), the
 [device test record](docs/device-testing.md), and the retained

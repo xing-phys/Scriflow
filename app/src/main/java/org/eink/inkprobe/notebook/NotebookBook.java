@@ -64,6 +64,22 @@ public final class NotebookBook {
         return target.current();
     }
 
+    /**
+     * Read-only overview source. Accepted in-memory ink takes precedence over disk, including
+     * completed gestures whose save failed. Other pages are read without opening a Document,
+     * changing selection/history, or retaining all notebook pages in the editing cache.
+     * A thumbnail failure is local to its caller and must not pause the writable notebook.
+     */
+    public NotebookPage previewPage(int number) throws IOException {
+        requireLoaded(); requirePageNumber(number);
+        NotebookDocument cached = documents.get(number);
+        if (cached != null && cached.current() != null) return cached.current();
+        requirePageFiles(number);
+        NotebookPage result = new NotebookStore(pageDirectory(number)).load();
+        if (count > 1 && !result.isInitialized()) throw new IOException("Saved page has no dimensions");
+        return result;
+    }
+
     public void appendToPage(int number, NotebookPage.Stroke stroke) throws IOException {
         execute(() -> targetDocument(number, false).append(stroke));
     }

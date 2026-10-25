@@ -53,6 +53,7 @@ public final class NotebookActivity extends Activity {
     private boolean settleRead;
     private long viewportRevision;
     private NotebookScrollStore.State reopenPosition;
+    private NotebookPageOverview overview;
     private final Runnable previewFrame = this::drawPreview;
     private final Runnable updateSaveState = this::showSaveState;
 
@@ -98,10 +99,16 @@ public final class NotebookActivity extends Activity {
         toolbar.addView(info, new LinearLayout.LayoutParams(dp(44), dp(48)));
         root.addView(toolbar, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout subline = new LinearLayout(this);
+        subline.setGravity(Gravity.CENTER_VERTICAL);
         subline.setPadding(dp(20), 0, dp(20), dp(9));
         pageLabel = new TextView(this);
         pageLabel.setText("Page 1 of 1"); pageLabel.setTextSize(13); pageLabel.setTextColor(0xff555555);
         pageLabel.setSingleLine(true); pageLabel.setEllipsize(TextUtils.TruncateAt.END);
+        pageLabel.setPadding(0, dp(8), 0, dp(8));
+        pageLabel.setBackgroundColor(Color.WHITE);
+        pageLabel.setStateListAnimator(null);
+        pageLabel.setDefaultFocusHighlightEnabled(false);
+        pageLabel.setOnClickListener(v -> pageOverview());
         subline.addView(pageLabel, new LinearLayout.LayoutParams(0, -2, 1));
         saveState = new TextView(this);
         saveState.setSingleLine(true);
@@ -524,8 +531,10 @@ public final class NotebookActivity extends Activity {
         String name = session.notebookName();
         String shortName = name.codePointCount(0, name.length()) > 24
             ? name.substring(0, name.offsetByCodePoints(0, 24)) + "…" : name;
-        String text = shortName + " · Page " + activePage + " of " + session.pageCount();
+        String text = shortName + " · Page " + activePage + " of " + session.pageCount() + " · Overview";
         if (!text.contentEquals(pageLabel.getText())) pageLabel.setText(text);
+        pageLabel.setContentDescription(session.notebookName() + ", page " + activePage
+            + " of " + session.pageCount() + ", open page overview");
     }
 
     private void returnToLibrary() {
@@ -548,10 +557,45 @@ public final class NotebookActivity extends Activity {
         if (!canEdit() || target < 1 || target > session.pageCount()) return;
         pauseForEdit();
         if (shownError != null) return;
+        jumpToPage(target);
+    }
+
+    /** Input has already been paused; the window read precedes native restoration. */
+    private void jumpToPage(int target) {
         editing = false; scrolling = true; savePosition = true;
         scrollY = viewport.pageScroll(target); activePage = target;
         settleRead = true; ++viewportRevision;
         requestWindow();
+    }
+
+    private void pageOverview() {
+        if (!canEdit()) return;
+        pauseForEdit();
+        if (shownError != null) return;
+        final int request = generation;
+        // pauseForEdit flushes completed UP events synchronously. This writer barrier
+        // includes their saved vectors before a preview can read them.
+        session.load((loaded, error) -> {
+            if (!active || request != generation) return;
+            mergeWindow();
+            if (error != null) { showError(error); return; }
+            NotebookPageOverview dialog = new NotebookPageOverview(this, session, activePage);
+            overview = dialog;
+            dialog.setOnDismissListener(closed -> {
+                if (overview == dialog) overview = null;
+                if (!active || request != generation) return;
+                if (dialog.chosenPage() > 0) jumpToPage(dialog.chosenPage());
+                else {
+                    // Browsing changed no document or viewport state. Reuse the paused
+                    // native tracks rather than repainting all ink on Close/Back.
+                    editing = false;
+                    ink.start();
+                    updateControls();
+                    scheduleSaveState();
+                }
+            });
+            dialog.show();
+        });
     }
 
     private void addPage() {
@@ -640,7 +684,7 @@ public final class NotebookActivity extends Activity {
             + "\n" + current.strokes.size() + " strokes\n"
             + (session.error() != null ? "Some writing has not been saved."
                 : session.isSaving() ? "Saving your latest writing…" : "Your completed strokes are saved on this tablet.")
-            + "\n\nDrag with one finger to scroll and stop anywhere. Write with the stylus. Use ‹ and › to jump to a page. + Page adds an empty page at the end. Tap Blank/Lined to change this page’s paper."
+            + "\n\nDrag with one finger to scroll and stop anywhere. Write with the stylus. Tap the page indicator for thumbnails and page-number jumps. Use ‹ and › for adjacent pages. + Page adds an empty page at the end. Tap Blank/Lined to change this page’s paper."
             + "\n\nEraser removes whole strokes after you lift the pen. Each page remembers up to 100 Undo/Redo edits while the app process stays open."
             + "\n\nNew writing or a successful erase clears Redo. Changing paper keeps your stroke history.";
         AlertDialog info = new AlertDialog.Builder(this).setTitle("This page")
@@ -668,6 +712,7 @@ public final class NotebookActivity extends Activity {
 
     @Override protected void onPause() {
         active = false; ++generation;
+        if (overview != null) { overview.dismiss(); overview = null; }
         main.removeCallbacks(updateSaveState);
         disposeCanvas();
         persistPosition();

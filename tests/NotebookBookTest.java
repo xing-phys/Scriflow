@@ -38,6 +38,11 @@ public final class NotebookBookTest {
             corruptScrollNeverResetsPosition();
             oneCrossPageGestureUsesOneHistoryStepPerPage();
             failedGroupedSplitRetainsHealthyPages();
+            overviewPreviewsAreReadOnlyAndUncached();
+            overviewFailuresDoNotPauseTheEditor();
+            overviewRetainsDirtyAcceptedInk();
+            overviewIgnoresIncompleteTailWithoutRepairingIt();
+            overviewRequiresLoadedBookAndValidPage();
             System.out.println("NotebookBook: " + assertions + " assertions passed (host JVM, real files).");
         } finally { for (File directory : directories) deleteTree(directory); }
     }
@@ -384,6 +389,106 @@ public final class NotebookBookTest {
         NotebookScrollStore invalidPage = new NotebookScrollStore(root); invalidPage.load(1); invalidPage.save(2, 0);
         NotebookBook missing = new NotebookBook(root); expectIo(missing::load);
         check(new NotebookScrollStore(root).load(1).page == 2, "out-of-range scroll page never reset silently");
+    }
+
+    private static void overviewPreviewsAreReadOnlyAndUncached() throws Exception {
+        File root = directory(); NotebookBook original = ready(root); original.append(stroke(10));
+        original.addPage(); original.setTemplate(NotebookPage.Template.LINED); original.append(stroke(20));
+        original.addPage(); original.append(stroke(30)); original.selectPage(2);
+        original.saveScrollPosition(1, 0.375);
+        NotebookBook book = reopen(root); book.append(stroke(40)); book.undo();
+        NotebookPage selected = book.current();
+        Map<String, byte[]> before = treeBytes(root);
+        for (int round = 0; round < 3; round++) for (int number = 1; number <= 3; number++) {
+            NotebookPage preview = book.previewPage(number);
+            firstX(number * 10, preview);
+            equal(100, preview.width, "preview retains logical width");
+            check(preview.template == (number == 1 ? NotebookPage.Template.BLANK : NotebookPage.Template.LINED),
+                    "preview uses each page's paper");
+        }
+        check(book.previewPage(2) == selected, "cached preview shares the accepted immutable page");
+        equal(2, book.pageNumber(), "overview does not select any previewed page");
+        equal(3, book.pageCount(), "overview does not add pages");
+        check(book.scrollPosition().page == 1 && book.scrollPosition().fraction == 0.375,
+                "overview does not move the saved scroll anchor");
+        check(book.canRedo(), "overview preserves selected-page redo history");
+        expectIo(() -> book.cachedPage(1)); expectIo(() -> book.cachedPage(3));
+        check(book.error() == null, "preview does not cache unrelated editing documents");
+        sameTree(before, treeBytes(root), "overview preserves every notebook byte and path");
+        book.redo(); equal(2, book.current().strokes.size(), "history still works after previewing all pages");
+    }
+
+    private static void overviewFailuresDoNotPauseTheEditor() throws Exception {
+        File root = directory(); NotebookBook original = ready(root); original.append(stroke(10));
+        original.addPage(); original.append(stroke(20)); original.addPage(); original.append(stroke(30));
+        original.selectPage(1); NotebookBook book = reopen(root);
+        byte[] bad = bytes(root, "pages/2/page.nbk"); bad[0] ^= 1;
+        Files.write(new File(root, "pages/2/page.nbk").toPath(), bad);
+        deleteTree(new File(root, "pages/3"));
+        Map<String, byte[]> before = treeBytes(root);
+        expectIo(() -> book.previewPage(2)); expectIo(() -> book.previewPage(3));
+        check(book.error() == null, "bad overview pages do not become notebook save errors");
+        equal(1, book.pageNumber(), "failed preview keeps selected page"); firstX(10, book.current());
+        sameTree(before, treeBytes(root), "failed preview neither repairs corruption nor invents missing pages");
+        book.append(stroke(50)); equal(2, book.current().strokes.size(), "current editor remains writable after failed previews");
+        new NotebookStore(new File(root, "pages/3")).load();
+        check(!new File(root, "pages/3").exists(), "read-only missing page load creates no directory");
+        NotebookStore invalid = new NotebookStore(new File(root, "pages/3")); invalid.load(); invalid.initializeEmpty();
+        before = treeBytes(root); expectIo(() -> book.previewPage(3));
+        check(book.error() == null, "unsized indexed thumbnail fails without pausing editor");
+        sameTree(before, treeBytes(root), "unsized thumbnail is not silently initialized");
+    }
+
+    private static void overviewRetainsDirtyAcceptedInk() throws Exception {
+        File root = directory(); NotebookBook book = ready(root); book.append(stroke(10)); book.append(stroke(20));
+        block(root, "page.nbk.tmp"); expectIo(book::undo); expectIo(() -> book.append(stroke(30)));
+        NotebookPage accepted = book.current(); IOException failure = book.error();
+        Map<String, byte[]> before = treeBytes(root);
+        check(book.previewPage(1) == accepted, "dirty overview uses accepted model instead of stale durable strokes");
+        equal(2, accepted.strokes.size(), "dirty overview includes completed queued ink");
+        check(accepted.strokes.get(1).points.get(0).x == 30, "dirty preview retains latest failed-save stroke");
+        check(book.error() == failure, "dirty preview neither clears nor replaces original save failure");
+        sameTree(before, treeBytes(root), "dirty preview does not retry or rewrite a failed edit");
+        unblock(root, "page.nbk.tmp"); book.retry();
+        check(book.error() == null, "normal retry still works after dirty preview");
+        check(new NotebookStore(root).load().strokes.get(1).points.get(0).x == 30,
+                "retry saves exactly the ink shown by dirty overview");
+    }
+
+    private static void overviewIgnoresIncompleteTailWithoutRepairingIt() throws Exception {
+        File root = directory(); NotebookBook original = ready(root); original.addPage(); original.append(stroke(20));
+        original.selectPage(1); NotebookBook book = reopen(root);
+        File journal = new File(root, "pages/2/page.nbk");
+        Files.write(journal.toPath(), new byte[] {0, 0, 0}, java.nio.file.StandardOpenOption.APPEND);
+        byte[] interrupted = Files.readAllBytes(journal.toPath());
+        firstX(20, book.previewPage(2));
+        check(Arrays.equals(interrupted, Files.readAllBytes(journal.toPath())), "preview does not truncate an incomplete journal tail");
+        check(book.error() == null, "recoverable preview tail does not pause editor");
+    }
+
+    private static void overviewRequiresLoadedBookAndValidPage() throws Exception {
+        File root = directory(); NotebookBook book = new NotebookBook(root);
+        expectIo(() -> book.previewPage(1)); check(book.error() == null, "unloaded preview guard has no global error side effect");
+        check(!new File(root, "page.nbk").exists(), "unloaded preview does not create a page");
+        book.load(); expectIo(() -> book.previewPage(0)); expectIo(() -> book.previewPage(2));
+        check(book.error() == null, "invalid preview numbers do not pause notebook");
+        check(book.previewPage(1) == book.current(), "new unsized first page can be shown from accepted memory");
+        book.initializeSize(100, 100); book.append(stroke(10));
+    }
+
+    private static Map<String, byte[]> treeBytes(File root) throws IOException {
+        Map<String, byte[]> result = new java.util.TreeMap<>(); treeBytes(root, root, result); return result;
+    }
+    private static void treeBytes(File root, File file, Map<String, byte[]> result) throws IOException {
+        if (!file.exists()) return;
+        String path = root.toPath().relativize(file.toPath()).toString();
+        result.put(path, file.isDirectory() ? null : Files.readAllBytes(file.toPath()));
+        File[] children = file.listFiles();
+        if (children != null) for (File child : children) treeBytes(root, child, result);
+    }
+    private static void sameTree(Map<String, byte[]> expected, Map<String, byte[]> actual, String message) {
+        check(expected.keySet().equals(actual.keySet()), message + " (paths)");
+        for (String path : expected.keySet()) check(Arrays.equals(expected.get(path), actual.get(path)), message + " (" + path + ")");
     }
 
     private static NotebookBook ready(File root) throws Exception {

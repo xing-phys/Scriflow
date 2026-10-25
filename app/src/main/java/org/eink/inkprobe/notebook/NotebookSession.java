@@ -1,6 +1,7 @@
 package org.eink.inkprobe.notebook;
 
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.os.Handler;
 import android.os.Looper;
 import java.io.File;
@@ -17,6 +18,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 /** One process-wide writer and editing history survive Activity recreation. */
 final class NotebookSession {
     interface Callback { void complete(NotebookPage page, IOException error); }
+    interface PreviewCallback { void complete(Bitmap bitmap, IOException error); }
+    static final class PreviewRequest {
+        private volatile boolean cancelled;
+        void cancel() { cancelled = true; }
+    }
     private interface Operation { void run() throws IOException; }
     private static NotebookSession instance;
     static synchronized NotebookSession get(Context context) {
@@ -127,6 +133,35 @@ final class NotebookSession {
     }
     void saveScroll(int id, double fraction, Callback callback) {
         submit(() -> document.saveScrollPosition(id, fraction), callback);
+    }
+
+    /** Read-only, cancellable work on the writer queue, without changing editor snapshots. */
+    PreviewRequest previewPage(int expectedNotebook, int number, PreviewCallback callback) {
+        PreviewRequest request = new PreviewRequest();
+        worker.execute(() -> {
+            if (request.cancelled) return;
+            Bitmap bitmap = null;
+            IOException failure = null;
+            try {
+                if (document.notebookId() != expectedNotebook)
+                    throw new IOException("The notebook has changed");
+                NotebookPage preview = document.previewPage(number);
+                if (request.cancelled) return;
+                bitmap = NotebookPageThumbnail.render(preview, 320, 384, () -> request.cancelled);
+            } catch (IOException error) { failure = error; }
+            catch (RuntimeException error) { failure = new IOException("Could not preview this page", error); }
+            final Bitmap result = bitmap;
+            final IOException error = failure;
+            main.post(() -> {
+                if (request.cancelled) {
+                    // Never delivered or bound to a View, so this allocation is ours to release.
+                    if (result != null) result.recycle();
+                    return;
+                }
+                callback.complete(result, error);
+            });
+        });
+        return request;
     }
 
     private void publishWindow() {

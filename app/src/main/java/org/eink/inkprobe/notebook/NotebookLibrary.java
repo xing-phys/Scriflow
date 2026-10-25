@@ -110,6 +110,12 @@ public final class NotebookLibrary {
         if (book == null) throw new IOException("No notebook is open");
         return book.cachedPage(number);
     }
+    /** A failed overview thumbnail never becomes a library/editor save error. */
+    public NotebookPage previewPage(int number) throws IOException {
+        requireCatalog();
+        if (book == null) throw new IOException("No notebook is open");
+        return book.previewPage(number);
+    }
     public void appendToPage(int number, NotebookPage.Stroke stroke) throws IOException { edit(() -> book.appendToPage(number, stroke)); }
     public void appendStrokesToPage(int number, List<NotebookPage.Stroke> strokes) throws IOException {
         edit(() -> book.appendStrokesToPage(number, strokes));

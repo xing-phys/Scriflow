@@ -32,6 +32,8 @@ public final class NotebookLibraryTest {
             invalidNamesCannotChangeFiles();
             viewportEditsAndPositionsStayWithTheirNotebook();
             groupedViewportInkStaysWithItsNotebook();
+            overviewIsReadOnlyAndErrorsStayLocal();
+            overviewRetainsAcceptedInkAfterSaveFailure();
             System.out.println("NotebookLibrary: " + assertions + " assertions passed (host JVM, real files).");
         } finally { for (File directory : directories) deleteTree(directory); }
     }
@@ -302,6 +304,54 @@ public final class NotebookLibraryTest {
         check(library.scrollPosition().page == 2 && library.scrollPosition().fraction == 0.75, "second notebook has its own anchor");
         NotebookLibrary reopened = reopen(root);
         check(reopened.scrollPosition().page == 2 && reopened.scrollPosition().fraction == 0.75, "restart restores selected notebook anchor");
+    }
+
+    private static void overviewIsReadOnlyAndErrorsStayLocal() throws Exception {
+        File root = directory(); NotebookLibrary unloaded = new NotebookLibrary(root);
+        expectIo(() -> unloaded.previewPage(1));
+        check(unloaded.error() == null, "preview requires loaded catalog without latching library error");
+        unloaded.loadCatalog(); expectIo(() -> unloaded.previewPage(1));
+        check(unloaded.error() == null, "preview requires open notebook without latching library error");
+        check(!new File(root, "page.nbk").exists(), "preview does not initialize unopened notebook");
+        unloaded.load(); unloaded.initializeSize(100, 120); unloaded.append(stroke(10));
+        unloaded.addPage(); unloaded.setTemplate(NotebookPage.Template.LINED); unloaded.append(stroke(20));
+        unloaded.saveScrollPosition(1, 0.375);
+        unloaded.createNotebook("Other"); unloaded.initializeSize(100, 120); unloaded.append(stroke(70));
+        unloaded.openNotebook(1); unloaded.selectPage(1);
+        NotebookLibrary library = reopen(root);
+        byte[] catalog = bytes(root, "library.nbl"), index = bytes(root, "book.nbi"), scroll = bytes(root, "scroll.nbs");
+        byte[] first = bytes(root, "page.nbk"), second = bytes(root, "pages/2/page.nbk");
+        firstX(20, library.previewPage(2)); firstX(10, library.previewPage(1));
+        equal(1, library.notebookId(), "overview keeps current notebook"); equal(1, library.pageNumber(), "overview keeps current page");
+        check(library.previewPage(2).template == NotebookPage.Template.LINED, "library preview uses target page's paper");
+        check(Arrays.equals(catalog, bytes(root, "library.nbl")), "preview leaves catalog bytes untouched");
+        check(Arrays.equals(index, bytes(root, "book.nbi")), "preview leaves page index bytes untouched");
+        check(Arrays.equals(scroll, bytes(root, "scroll.nbs")), "preview leaves scroll bytes untouched");
+        check(Arrays.equals(first, bytes(root, "page.nbk")) && Arrays.equals(second, bytes(root, "pages/2/page.nbk")),
+                "preview leaves both page journals untouched");
+        expectIo(() -> library.cachedPage(2));
+        byte[] bad = second.clone(); bad[0] ^= 1; Files.write(new File(root, "pages/2/page.nbk").toPath(), bad);
+        expectIo(() -> library.previewPage(2)); expectIo(() -> library.previewPage(0));
+        check(library.error() == null, "bad thumbnail and range guard never become library save errors");
+        library.append(stroke(30)); equal(2, library.current().strokes.size(), "library editor remains writable after failed thumbnail");
+        check(Arrays.equals(bad, bytes(root, "pages/2/page.nbk")), "failed library preview leaves corruption untouched");
+        Files.write(new File(root, "pages/2/page.nbk").toPath(), second);
+        library.openNotebook(2); firstX(70, library.previewPage(1));
+        library.openNotebook(1); firstX(20, library.previewPage(2));
+        equal(1, library.notebookId(), "overview source follows each explicitly open notebook");
+    }
+
+    private static void overviewRetainsAcceptedInkAfterSaveFailure() throws Exception {
+        File root = directory(); NotebookLibrary library = ready(root); library.append(stroke(10)); library.append(stroke(20));
+        block(root, "page.nbk.tmp"); expectIo(library::undo); expectIo(() -> library.append(stroke(30)));
+        NotebookPage accepted = library.current(); IOException failure = library.error();
+        byte[] durable = bytes(root, "page.nbk");
+        check(library.previewPage(1) == accepted, "library preview preserves accepted unsaved model");
+        check(accepted.strokes.get(1).points.get(0).x == 30, "library dirty preview includes queued completed stroke");
+        check(library.error() == failure, "dirty preview preserves original library error");
+        check(Arrays.equals(durable, bytes(root, "page.nbk")), "dirty library preview does not retry writes");
+        unblock(root, "page.nbk.tmp"); library.retry();
+        equal(2, library.current().strokes.size(), "normal retry remains available after dirty library preview");
     }
 
     private static NotebookLibrary ready(File root) throws Exception {
