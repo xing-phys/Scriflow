@@ -4,10 +4,10 @@ A small notebook app for Huawei MatePad Paper HMW-W09, with blank/lined pages,
 native low-latency handwriting, automatic saving of completed strokes, and
 editable restoration after reopening.
 
-The current build is an early development APK, version 0.15, with compact, rotatable icon
+The current build is an early development APK, version 0.16, with compact, rotatable icon
 tools, a notebook library, continuously scrolling pages, a page overview with
-jumps, PDF export, undo/redo, and a whole-stroke eraser. Additional pen styles are a later milestone.
-Handwriting uses one black ballpoint pen. The original diagnostic screen remains
+jumps, PDF export, undo/redo, and a whole-stroke eraser.
+Handwriting uses a black ballpoint pen with five thickness choices. The original diagnostic screen remains
 available separately for development.
 
 ## Use
@@ -54,6 +54,14 @@ the overview, and the three-dot menu offers page information, PDF export, and
 Only the grip moves the palette. Touching controls has no ripple or pressed
 inversion; the page remains writable outside the floating tools.
 
+Tap the **already-selected Pen icon** to choose **Extra fine, Fine, Medium,
+Broad, or Extra broad**. Each choice shows a line sample; a thick border marks
+the current choice. Tap a choice to apply it, or Cancel/Back to keep the current
+width. The small line beneath the pencil previews the selected thickness.
+The choice is remembered between sessions and across notebooks. **Medium** is
+the previous default. Changing the pen affects only new strokes; saved writing,
+undo/redo, and exported PDFs retain each stroke's own width.
+
 The slim top bar shows the notebook name and page number on the left, with time,
 a battery icon and percentage, and a Wi-Fi icon on the right. Wi-Fi indicates
 connected/disconnected state. Time follows the tablet's 12/24-hour setting and
@@ -87,7 +95,7 @@ let the background writer finish before force-stopping the app; the menu reports
 its save state. An unfinished stroke is discarded when leaving the app. Notes are stored on this tablet in
 the app's private directory; uninstalling the app removes that data. Keep the
 local signing key when installing updates over an existing version.
-Version 0.15 reads the unchanged version-1 page format from earlier releases. Install it as
+Version 0.16 reads the unchanged version-1 page format from earlier releases. Install it as
 an update over the existing app; **do not uninstall** to install the update.
 
 This firmware is sensitive to unrelated background display activity. During
@@ -235,6 +243,14 @@ Wi-Fi is observed passively even when a VPN is active. All 17,392 host assertion
 pass, including 445 new strip-layout and status-coalescing checks. Both
 orientations were visually inspected; live status and pen behavior still need
 tablet acceptance. See [compact tools and status](docs/compact-tools-status.md).
+
+Version 0.16 adds five pen thicknesses through the selected Pen icon, with a
+remembered choice and line samples. Widths use logical page units, preserving
+their proportions when scrolling, reopening, or exporting. Completed-UP fallback
+capture now retains the style from that stroke's DOWN. All 17,749 host assertions
+pass, including 357 mixed-width, durable editing, fitting, and export checks.
+The signed APK builds offline; live native widths still need tablet acceptance.
+See [pen thickness](docs/pen-thickness.md).
 
 See [milestone design and acceptance](docs/notebook-milestone.md), the
 [device test record](docs/device-testing.md), and the retained

@@ -26,6 +26,7 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookOverlayClip.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookToolStrip.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookDeviceStatusState.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookPenConfig.java \
   tests/CallbackTimingTest.java tests/NotebookStoreTest.java \
   tests/NotebookEditsTest.java tests/NotebookDocumentTest.java \
   tests/NotebookIndexTest.java tests/NotebookBookTest.java \
@@ -33,7 +34,8 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   tests/NotebookViewportTest.java tests/NotebookScrollStoreTest.java \
   tests/NotebookFingerStreamTest.java tests/NotebookViewportBufferTest.java \
   tests/NotebookPdfTest.java tests/NotebookOverlayClipTest.java \
-  tests/NotebookToolStripTest.java tests/NotebookDeviceStatusStateTest.java
+  tests/NotebookToolStripTest.java tests/NotebookDeviceStatusStateTest.java \
+  tests/NotebookPenConfigTest.java
 java -ea -cp build/host-tests org.eink.inkprobe.CallbackTimingTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookStoreTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookEditsTest
@@ -50,3 +52,4 @@ java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPdfTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookOverlayClipTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookToolStripTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookDeviceStatusStateTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPenConfigTest

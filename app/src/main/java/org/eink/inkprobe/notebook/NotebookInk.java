@@ -59,7 +59,9 @@ public final class NotebookInk implements SurfaceHolder.Callback {
     private boolean paperDirty, previewVisible;
     private boolean alive = true, wanted, prepared, enabled, restored, attached;
     private boolean penDown, failed, geometryReported, restoring;
-    private int surfaceWidth, surfaceHeight, retries, configuredPenType = -1;
+    private int surfaceWidth, surfaceHeight, retries;
+    private float penWidth = NotebookPenConfig.defaultPreset().width;
+    private NotebookPenConfig.Style configuredStyle;
     private PointBuffer activePoints;
     private PointBuffer eraserPoints;
     private int eraserPointer = -1;
@@ -241,6 +243,15 @@ public final class NotebookInk implements SurfaceHolder.Callback {
 
     public Tool getTool() { return tool; }
 
+    /** Width uses this widget's page coordinates; the editor supplies its fitted width. */
+    public void setPenWidth(float width) {
+        if (!NotebookPage.finite(width) || width <= 0 || width > 1024)
+            throw new IllegalArgumentException("Invalid pen width");
+        if (!alive || failed || penWidth == width) return;
+        requirePaused();
+        penWidth = width;
+    }
+
     /**
      * Excludes a floating control window from native pen-DOWN handling. Bounds use
      * physical screen pixels, independently of the notebook's logical page scale.
@@ -367,9 +378,9 @@ public final class NotebookInk implements SurfaceHolder.Callback {
             call(surface, "setNeedAddDownEvent", new Class<?>[]{boolean.class}, true);
             int ballpoint = Class.forName("android.eink.view.HandPenConfig")
                 .getField("PEN_TYPE_YUANZHUBI").getInt(null);
-            configuredPenType = ballpoint;
             call(surface, "setAhwPen", new Class<?>[]{int.class, float.class, int.class},
-                ballpoint, 4f * widthScale, Color.BLACK);
+                ballpoint, penWidth * widthScale, Color.BLACK);
+            configuredStyle = new NotebookPenConfig.Style(ballpoint, penWidth, Color.BLACK);
             call(view, "setState", new Class<?>[]{int.class},
                 view.getClass().getField("STATE_HADNWRITE").getInt(null));
             applyOverlayClip();
@@ -496,7 +507,8 @@ public final class NotebookInk implements SurfaceHolder.Callback {
     private void point(int action, float x, float y, long time, float pressure) {
         try {
             if (action == MotionEvent.ACTION_DOWN) {
-                activePoints = new PointBuffer();
+                if (configuredStyle == null) throw new IllegalStateException("Pen style has not been configured");
+                activePoints = new PointBuffer(configuredStyle);
                 setPenDown(true);
             }
             if (activePoints != null) {
@@ -575,8 +587,7 @@ public final class NotebookInk implements SurfaceHolder.Callback {
             while (!awaitingCommit.isEmpty()) {
                 Completion completion = awaitingCommit.removeFirst();
                 if (completion.cancelled) continue;
-                if (configuredPenType < 0) throw new IllegalStateException("Completed stroke has no pen style");
-                NotebookPage.Stroke stroke = completion.points.toStroke(configuredPenType);
+                NotebookPage.Stroke stroke = completion.points.toStroke();
                 completed.add(stroke);
                 // Remove the token before notification so another pause cannot submit it twice.
                 // Input stays disabled until canonical restoration or widget replacement.
@@ -796,9 +807,13 @@ public final class NotebookInk implements SurfaceHolder.Callback {
 
     /** Primitive capture avoids allocating a second Point object for every live MOVE. */
     private static final class PointBuffer {
+        private final NotebookPenConfig.Style style;
         private float[] coordinates = new float[128 * 3];
         private long[] times = new long[128];
         private int size;
+
+        PointBuffer() { this(null); } // Eraser capture only needs its point path.
+        PointBuffer(NotebookPenConfig.Style style) { this.style = style; }
 
         void add(float x, float y, long time, float pressure) {
             if (!NotebookPage.finite(pressure) || pressure < 0 || time < 0) {
@@ -819,8 +834,9 @@ public final class NotebookInk implements SurfaceHolder.Callback {
             times[size++] = time;
         }
 
-        NotebookPage.Stroke toStroke(int penType) {
-            return new NotebookPage.Stroke(penType, 4f, Color.BLACK, toPoints());
+        NotebookPage.Stroke toStroke() {
+            if (style == null) throw new IllegalStateException("Completed stroke has no captured pen style");
+            return style.stroke(toPoints());
         }
 
         List<NotebookPage.Point> toPoints() {

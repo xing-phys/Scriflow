@@ -10,6 +10,7 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.Rect;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -49,6 +50,8 @@ public final class NotebookActivity extends Activity {
     private IOException shownError;
     private boolean active, penDown, geometryPending, editing;
     private NotebookInk.Tool tool = NotebookInk.Tool.PEN;
+    private NotebookPenConfig.Preset penPreset = NotebookPenConfig.defaultPreset();
+    private AlertDialog penWidthDialog;
     private boolean verifyOnReady;
     private int generation;
     private NotebookViewport viewport;
@@ -69,6 +72,8 @@ public final class NotebookActivity extends Activity {
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
         session = NotebookSession.get(this);
+        penPreset = NotebookPenConfig.restore(getPreferences(MODE_PRIVATE)
+            .getFloat("penWidth", NotebookPenConfig.defaultPreset().width));
         if (saved != null && saved.getBoolean("eraser", false)) tool = NotebookInk.Tool.ERASER;
         verifyOnReady = (getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0
             && getIntent().getBooleanExtra("verifyRestore", false);
@@ -235,6 +240,7 @@ public final class NotebookActivity extends Activity {
                 }
             });
             ink.setTool(tool);
+            ink.setPenWidth(penPreset.width);
             ink.setOverlayBounds(toolsBounds);
             canvas.addView(ink.view, new FrameLayout.LayoutParams(-1, -1));
             // Restore even a retained unsaved page. onReady stops input synchronously when
@@ -307,6 +313,7 @@ public final class NotebookActivity extends Activity {
         try {
             ink.pauseForEdit();
             if (shownError != null) return;
+            ink.setPenWidth(fittedPenWidth());
             NotebookPage composed = viewport.compose(pages, scrollY);
             if (firstViewport) {
                 ink.setPage(composed); ink.setPaperRenderer(this::drawPaper);
@@ -565,13 +572,81 @@ public final class NotebookActivity extends Activity {
         addButton.setAvailable(ready && session.pageCount() < NotebookIndex.MAX_PAGES);
         penButton.setToolSelected(tool == NotebookInk.Tool.PEN);
         eraserButton.setToolSelected(tool == NotebookInk.Tool.ERASER);
+        penButton.setPenWidthPreview(fittedPenWidth());
+        penButton.setContentDescription("Pen, " + penPreset.name + " thickness"
+            + (tool == NotebookInk.Tool.PEN ? "; tap to change thickness" : "; select pen"));
     }
 
     private void selectTool(NotebookInk.Tool selected) {
-        if (!canEdit() || tool == selected) return;
+        if (!canEdit()) return;
+        if (tool == selected) {
+            if (selected == NotebookInk.Tool.PEN) choosePenWidth();
+            return;
+        }
         tool = selected;
         ink.setTool(selected);
         updateControls();
+    }
+
+    private float fittedPenWidth() {
+        return penPreset.width * (viewport == null ? 1f : viewport.scale(activePage));
+    }
+
+    private void choosePenWidth() {
+        if (!canEdit()) return;
+        pauseForEdit();
+        if (shownError != null) return;
+        floatingTools.hide();
+        final int request = generation;
+        // Completed UPs keep their old style even if the native commit arrives late.
+        session.load((loaded, error) -> {
+            if (!active || request != generation) return;
+            mergeWindow();
+            if (error != null) { showError(error); return; }
+            LinearLayout choices = new LinearLayout(this);
+            choices.setOrientation(LinearLayout.VERTICAL);
+            choices.setPadding(dp(16), dp(4), dp(16), dp(8));
+            AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Pen thickness")
+                .setView(choices).setNegativeButton("Cancel", null).create();
+            for (int index = 0; index < NotebookPenConfig.count(); index++) {
+                final NotebookPenConfig.Preset preset = NotebookPenConfig.preset(index);
+                boolean selected = preset == penPreset;
+                NotebookButton row = new NotebookButton(this);
+                row.setText(preset.name); row.setTextSize(15);
+                row.setGravity(Gravity.CENTER_VERTICAL | Gravity.LEFT);
+                row.setPadding(dp(12), 0, dp(12), 0);
+                row.setCompoundDrawablePadding(dp(12));
+                row.setCompoundDrawablesRelativeWithIntrinsicBounds(null, null,
+                    new NotebookPenWidthSample(preset.width * viewport.scale(activePage), dp(112), dp(24)), null);
+                GradientDrawable border = new GradientDrawable();
+                border.setColor(Color.WHITE); border.setCornerRadius(dp(8));
+                border.setStroke(dp(selected ? 3 : 1), Color.BLACK);
+                row.setBackground(border);
+                row.setSelected(selected);
+                row.setContentDescription(preset.name + (selected ? ", selected" : ""));
+                row.setOnClickListener(choice -> {
+                    penPreset = preset;
+                    ink.setPenWidth(fittedPenWidth());
+                    getPreferences(MODE_PRIVATE).edit().putFloat("penWidth", preset.width).apply();
+                    updateControls();
+                    dialog.dismiss();
+                });
+                LinearLayout.LayoutParams position = new LinearLayout.LayoutParams(-1, dp(48));
+                if (index != 0) position.topMargin = dp(8);
+                choices.addView(row, position);
+            }
+            penWidthDialog = dialog;
+            dialog.setOnDismissListener(closed -> {
+                if (penWidthDialog == dialog) penWidthDialog = null;
+                if (!active || request != generation) return;
+                // Change only the live pen; existing native tracks retain their own widths.
+                editing = false;
+                ink.start();
+                updateControls();
+                scheduleSaveState();
+            });
+            showStaticDialog(dialog);
+        });
     }
 
     private void changeHistory(boolean redo) {
@@ -767,6 +842,7 @@ public final class NotebookActivity extends Activity {
             + "\n\nEraser removes whole strokes after you lift the pen. Each page remembers up to 100 Undo/Redo edits while the app process stays open."
             + "\n\nNew writing or a successful erase clears Redo. Changing paper keeps your stroke history.";
         message += "\n\nDrag the dotted grip to move the floating tools. The direction icon beside it switches between one row and one column. The thicker border marks the selected Pen or Eraser. The page icon changes Blank/Lined paper; the grid opens the page overview."
+            + "\n\nTap the selected Pen icon to choose thickness. Current pen: " + penPreset.name + ". The small line below the pencil previews its width. New strokes use that width; existing writing keeps its original thickness."
             + "\n\nExport PDF saves all pages in this notebook, including their paper backgrounds and handwriting.";
         final boolean[] exporting = {false};
         AlertDialog info = new AlertDialog.Builder(this).setTitle("This page")
@@ -816,6 +892,7 @@ public final class NotebookActivity extends Activity {
         pendingToolAction = null; toolsContact = false;
         if (floatingTools != null) floatingTools.hide();
         if (overview != null) { overview.dismiss(); overview = null; }
+        if (penWidthDialog != null) { penWidthDialog.dismiss(); penWidthDialog = null; }
         main.removeCallbacks(updateSaveState);
         disposeCanvas();
         persistPosition();

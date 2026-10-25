@@ -21,6 +21,7 @@ public final class NotebookIconButton extends View {
     private boolean available = true;
     private boolean toolSelected;
     private boolean selectable;
+    private float penWidthPreview;
     private CharSequence accessibleName;
     private final int touchSlop;
     private int touchPointer = -1;
@@ -48,6 +49,12 @@ public final class NotebookIconButton extends View {
 
     public void setIcon(NotebookIconDrawable.Icon icon) {
         symbol.setIcon(icon);
+    }
+
+    public void setPenWidthPreview(float width) {
+        if (penWidthPreview == width) return;
+        penWidthPreview = width;
+        invalidate();
     }
 
     /** Availability gates clicks without changing the pixels during saves or loading. */
@@ -99,9 +106,15 @@ public final class NotebookIconButton extends View {
         canvas.drawRoundRect(border, dpFloat(8), dpFloat(8), paint);
         int size = Math.max(1, Math.min(dp(20), Math.min(getWidth(), getHeight()) - dp(12)));
         int left = (getWidth() - size) / 2;
-        int top = (getHeight() - size) / 2;
+        int top = (getHeight() - size) / 2 - (penWidthPreview > 0 ? dp(2) : 0);
         symbol.setBounds(left, top, left + size, top + size);
         symbol.draw(canvas);
+        if (penWidthPreview > 0) {
+            paint.setStrokeCap(Paint.Cap.ROUND);
+            paint.setStrokeWidth(Math.max(1f, Math.min(dp(5), penWidthPreview)));
+            canvas.drawLine(getWidth() / 2f - dp(7), getHeight() - dp(7),
+                getWidth() / 2f + dp(7), getHeight() - dp(7), paint);
+        }
     }
 
     @Override protected boolean verifyDrawable(Drawable drawable) {
