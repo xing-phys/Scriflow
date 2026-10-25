@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="org.eink.inkprobe" android:versionCode="13" android:versionName="0.12">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="org.eink.inkprobe" android:versionCode="14" android:versionName="0.13">
     <uses-sdk android:minSdkVersion="29" android:targetSdkVersion="29" />
     <application android:label="Ink Notebook" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:allowBackup="false" android:debuggable="true" android:supportsRtl="true">
         <!-- Match the working Huawei Notes app's display-policy classification.
@@ -9,6 +9,7 @@
         <activity android:name=".notebook.NotebookSelfTestActivity" android:exported="true" android:screenOrientation="portrait" />
         <activity android:name=".notebook.NotebookActivity" android:exported="true" android:screenOrientation="portrait">
         </activity>
+        <activity android:name=".notebook.NotebookPdfExportActivity" android:exported="false" android:screenOrientation="portrait" />
         <activity android:name=".notebook.NotebookLibraryActivity" android:exported="true" android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

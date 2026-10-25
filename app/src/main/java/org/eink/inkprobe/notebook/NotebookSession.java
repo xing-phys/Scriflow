@@ -135,6 +135,24 @@ final class NotebookSession {
         submit(() -> document.saveScrollPosition(id, fraction), callback);
     }
 
+    /** Read-only whole-book export; failures never enter the notebook save-error state. */
+    NotebookPdfExport exportPdf(Context context, int expectedNotebook, String name, int count) {
+        NotebookPdfExport job = new NotebookPdfExport(context, expectedNotebook, name, count);
+        worker.execute(() -> job.prepare(number -> {
+            // A restarted process may restore this screen before any editor has opened.
+            // Load the persisted current book, then validate identity without switching it.
+            if (number == 1) document.load();
+            if (document.notebookId() != expectedNotebook || document.pageCount() != count)
+                throw new IOException("The notebook has changed. Reopen it and export again.");
+            if (document.error() != null) throw new IOException("Save the notebook before exporting", document.error());
+            try { return document.previewPage(number); }
+            catch (IOException error) {
+                throw new IOException("Couldn’t read page " + number + ". " + error.getMessage(), error);
+            }
+        }));
+        return job;
+    }
+
     /** Read-only, cancellable work on the writer queue, without changing editor snapshots. */
     PreviewRequest previewPage(int expectedNotebook, int number, PreviewCallback callback) {
         PreviewRequest request = new PreviewRequest();

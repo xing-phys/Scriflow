@@ -687,10 +687,24 @@ public final class NotebookActivity extends Activity {
             + "\n\nDrag with one finger to scroll and stop anywhere. Write with the stylus. Tap the page indicator for thumbnails and page-number jumps. Use ‹ and › for adjacent pages. + Page adds an empty page at the end. Tap Blank/Lined to change this page’s paper."
             + "\n\nEraser removes whole strokes after you lift the pen. Each page remembers up to 100 Undo/Redo edits while the app process stays open."
             + "\n\nNew writing or a successful erase clears Redo. Changing paper keeps your stroke history.";
+        message += "\n\nExport PDF saves all pages in this notebook, including their paper backgrounds and handwriting.";
+        final boolean[] exporting = {false};
         AlertDialog info = new AlertDialog.Builder(this).setTitle("This page")
-            .setMessage(message).setPositiveButton("Done", null).create();
+            .setMessage(message).setPositiveButton("Done", null)
+            .setNeutralButton("Export PDF", (choice, which) -> {
+                exporting[0] = true;
+                session.load((loaded, error) -> {
+                    if (!active || request != generation) return;
+                    if (error != null) { showError(error); return; }
+                    startActivity(new Intent(this, NotebookPdfExportActivity.class)
+                        .putExtra("notebookId", session.notebookId())
+                        .putExtra("notebookName", session.notebookName())
+                        .putExtra("pageCount", session.pageCount()));
+                    overridePendingTransition(0, 0);
+                });
+            }).create();
         info.setOnDismissListener(dialog -> {
-            if (active && request == generation)
+            if (!exporting[0] && active && request == generation)
                 session.load((loaded, error) -> finishEdit(request, loaded, error));
         });
         showStaticDialog(info);

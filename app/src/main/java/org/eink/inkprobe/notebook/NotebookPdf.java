@@ -1,0 +1,199 @@
+package org.eink.inkprobe.notebook;
+
+import java.io.BufferedOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
+
+/** A streaming vector PDF writer. It retains no page after its export completes. */
+public final class NotebookPdf {
+    public interface PageSource { NotebookPage page(int number) throws IOException; }
+    public interface Progress { void pageExported(int completed, int total) throws IOException; }
+
+    private static final double PAGE_WIDTH = 595.2756;
+    /** PDF 1.4's maximum page extent in default user-space units. */
+    private static final double MAX_PAGE_HEIGHT = 14400;
+    private static final double CIRCLE = 0.5522847498307936;
+    private static final long MAX_XREF_OFFSET = 9999999999L;
+
+    private NotebookPdf() {}
+
+    /**
+     * Export pages in one-based order without closing the caller's stream.
+     * The caller must discard a partially written destination after any failure.
+     * Progress runs between pages and may throw IOException to cancel the export.
+     */
+    public static void write(OutputStream output, String notebookName, int pageCount,
+                             PageSource source, Progress progress) throws IOException {
+        if (output == null || notebookName == null || source == null || pageCount < 1 ||
+                pageCount > NotebookIndex.MAX_PAGES) {
+            throw new IOException("Invalid PDF export request");
+        }
+        new Writer(output, pageCount).write(notebookName, source, progress);
+    }
+
+    private static final class Writer {
+        private final OutputStream output;
+        private final int pageCount, lastPageObject;
+        private final long[] offsets;
+        private final int[] alphaObjects = new int[256];
+        private int lastObject;
+        private long position;
+
+        Writer(OutputStream output, int count) {
+            this.output = new BufferedOutputStream(output, 32768);
+            pageCount = count;
+            lastPageObject = 4 + count * 3;
+            lastObject = lastPageObject;
+            offsets = new long[lastPageObject + 257];
+        }
+
+        void write(String name, PageSource source, Progress progress) throws IOException {
+            ascii("%PDF-1.4\n%Ink Notebook vector export\n");
+            object(1); ascii("<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+            object(2); ascii("<< /Type /Pages /Count " + pageCount + " /Kids [");
+            for (int page = 1; page <= pageCount; page++) ascii(pageObject(page) + " 0 R ");
+            ascii("] >>\nendobj\n");
+            object(3); ascii("<< /Title <FEFF");
+            // Write UTF-16 code units, including surrogate pairs, directly as hex.
+            for (int i = 0; i < name.length(); i++) {
+                int c = name.charAt(i);
+                ascii(hex(c >> 12) + hex(c >> 8) + hex(c >> 4) + hex(c));
+            }
+            ascii("> /Creator (Ink Notebook) >>\nendobj\n");
+            for (int number = 1; number <= pageCount; number++) {
+                NotebookPage page;
+                try { page = source.page(number); }
+                catch (RuntimeException error) { throw new IOException("Cannot read PDF page " + number, error); }
+                validate(page, number);
+                writePage(number, page);
+                if (progress != null) progress.pageExported(number, pageCount);
+            }
+            object(4); ascii("<< /ExtGState << ");
+            for (int alpha = 0; alpha < alphaObjects.length; alpha++) {
+                if (alphaObjects[alpha] != 0) ascii("/A" + alpha + " " + alphaObjects[alpha] + " 0 R ");
+            }
+            ascii(">> >>\nendobj\n");
+            for (int alpha = 0; alpha < alphaObjects.length; alpha++) {
+                if (alphaObjects[alpha] == 0) continue;
+                object(alphaObjects[alpha]);
+                String opacity = number(alpha / 255.0);
+                ascii("<< /Type /ExtGState /CA " + opacity + " /ca " + opacity + " >>\nendobj\n");
+            }
+            long xref = position;
+            ascii("xref\n0 " + (lastObject + 1) + "\n0000000000 65535 f \n");
+            for (int id = 1; id <= lastObject; id++) {
+                String offset = Long.toString(offsets[id]);
+                for (int zero = offset.length(); zero < 10; zero++) ascii("0");
+                ascii(offset + " 00000 n \n");
+            }
+            ascii("trailer\n<< /Size " + (lastObject + 1) + " /Root 1 0 R /Info 3 0 R >>\n" +
+                "startxref\n" + xref + "\n%%EOF\n");
+            output.flush();
+        }
+
+        private void writePage(int index, NotebookPage page) throws IOException {
+            int id = pageObject(index), content = id + 1, length = id + 2;
+            double scale = Math.min(PAGE_WIDTH / page.width, MAX_PAGE_HEIGHT / page.height);
+            double width = page.width * scale;
+            double height = page.height * scale;
+            object(id);
+            ascii("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 " + number(width) + " " +
+                number(height) + "] /Resources 4 0 R /Contents " + content + " 0 R >>\nendobj\n");
+            object(content); ascii("<< /Length " + length + " 0 R >>\nstream\n");
+            long contentStart = position;
+            ascii("q\n" + number(scale) + " 0 0 " + number(-scale) + " 0 " + number(height) + " cm\n");
+            ascii("0 0 " + page.width + " " + page.height + " re W n\n");
+            ascii("1 1 1 rg\n0 0 " + page.width + " " + page.height + " re f\n");
+            if (page.template == NotebookPage.Template.LINED) {
+                ascii("0.823529 0.823529 0.823529 RG\n1 w\n");
+                for (int y = 72; y < page.height; y += 72) {
+                    ascii("0 " + y + " m " + page.width + " " + y + " l S\n");
+                }
+            }
+            ascii("1 J\n1 j\n");
+            for (NotebookPage.Stroke stroke : page.strokes) writeStroke(stroke);
+            ascii("Q\n");
+            long contentLength = position - contentStart;
+            ascii("endstream\nendobj\n");
+            object(length); ascii(contentLength + "\nendobj\n");
+        }
+
+        private void writeStroke(NotebookPage.Stroke stroke) throws IOException {
+            int alpha = (stroke.color >>> 24) & 255;
+            if (alphaObjects[alpha] == 0) alphaObjects[alpha] = ++lastObject;
+            String rgb = number(((stroke.color >>> 16) & 255) / 255.0) + " " +
+                number(((stroke.color >>> 8) & 255) / 255.0) + " " + number((stroke.color & 255) / 255.0);
+            ascii("/A" + alpha + " gs\n" + rgb + " RG\n" + rgb + " rg\n" +
+                coordinate(stroke.width) + " w\n");
+            NotebookPage.Point first = stroke.points.get(0);
+            ascii(coordinate(first.x) + " " + coordinate(first.y) + " m\n");
+            boolean moved = false;
+            // Stream the original path; never copy its points or buffer its commands.
+            // Keeping one path also avoids opacity seams at artificial chunk joins.
+            for (int i = 1; i < stroke.points.size(); i++) {
+                NotebookPage.Point point = stroke.points.get(i);
+                if (point.x != first.x || point.y != first.y) moved = true;
+                ascii(coordinate(point.x) + " " + coordinate(point.y) + " l\n");
+            }
+            if (moved) ascii("S\n");
+            else {
+                ascii("n\n");
+                circle(first.x, first.y, stroke.width / 2.0);
+            }
+        }
+
+        private void circle(double x, double y, double radius) throws IOException {
+            double k = CIRCLE * radius;
+            ascii(number(x + radius) + " " + number(y) + " m\n");
+            curve(x + radius, y + k, x + k, y + radius, x, y + radius);
+            curve(x - k, y + radius, x - radius, y + k, x - radius, y);
+            curve(x - radius, y - k, x - k, y - radius, x, y - radius);
+            curve(x + k, y - radius, x + radius, y - k, x + radius, y);
+            ascii("f\n");
+        }
+
+        private void curve(double a, double b, double c, double d, double e, double f) throws IOException {
+            ascii(number(a) + " " + number(b) + " " + number(c) + " " + number(d) + " " +
+                number(e) + " " + number(f) + " c\n");
+        }
+
+        private void object(int id) throws IOException {
+            if (position > MAX_XREF_OFFSET) throw new IOException("PDF exceeds cross-reference size limit");
+            offsets[id] = position;
+            ascii(id + " 0 obj\n");
+        }
+
+        private void ascii(String value) throws IOException {
+            byte[] bytes = value.getBytes(StandardCharsets.US_ASCII);
+            output.write(bytes);
+            position += bytes.length;
+        }
+    }
+
+    private static int pageObject(int number) { return 5 + (number - 1) * 3; }
+
+    private static void validate(NotebookPage page, int number) throws IOException {
+        if (page == null || !page.isInitialized() || page.width > NotebookStore.MAX_DIMENSION ||
+                page.height > NotebookStore.MAX_DIMENSION || page.template == null) {
+            throw new IOException("PDF page " + number + " has no valid paper size");
+        }
+    }
+
+    private static String coordinate(float value) throws IOException {
+        if (!NotebookPage.finite(value)) throw new IOException("Non-finite PDF coordinate");
+        String text = Float.toString(value);
+        return text.indexOf('E') >= 0 || text.indexOf('e') >= 0 ?
+            new BigDecimal(text).stripTrailingZeros().toPlainString() :
+            text.endsWith(".0") ? text.substring(0, text.length() - 2) : text;
+    }
+
+    private static String number(double value) throws IOException {
+        if (Double.isNaN(value) || Double.isInfinite(value)) throw new IOException("Non-finite PDF number");
+        return BigDecimal.valueOf(value).setScale(6, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString();
+    }
+
+    private static String hex(int digit) { return "0123456789ABCDEF".substring(digit & 15, (digit & 15) + 1); }
+}
