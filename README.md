@@ -4,7 +4,7 @@ A small notebook app for Huawei MatePad Paper HMW-W09, with blank/lined pages,
 native low-latency handwriting, automatic saving of completed strokes, and
 editable restoration after reopening.
 
-The current build is an early development APK, version 0.17, with compact, rotatable icon
+The current build is an early development APK, version 0.18, with compact, rotatable icon
 tools, a notebook library, continuously scrolling pages, a page overview with
 jumps, PDF export, undo/redo, and a whole-stroke eraser.
 Handwriting uses a black ballpoint pen with adjustable thickness. The original diagnostic screen remains
@@ -97,7 +97,7 @@ let the background writer finish before force-stopping the app; the menu reports
 its save state. An unfinished stroke is discarded when leaving the app. Notes are stored on this tablet in
 the app's private directory; uninstalling the app removes that data. Keep the
 local signing key when installing updates over an existing version.
-Version 0.17 reads the unchanged version-1 page format from earlier releases. Install it as
+Version 0.18 reads the unchanged version-1 page format from earlier releases. Install it as
 an update over the existing app; **do not uninstall** to install the update.
 
 This firmware is sensitive to unrelated background display activity. During
@@ -262,6 +262,13 @@ and outside taps cancel without drawing on the page. All 18,474 host assertions
 pass; the signed APK builds offline. Slider placement is visually checked in a
 rendered illustration; native touch, refresh, and writing still need tablet
 acceptance. See [pen thickness](docs/pen-thickness.md).
+
+Version 0.18 fixes slider releases being discarded during popup removal. The
+selected width is now final before closing starts, so a synchronous cancellation
+cannot overwrite it. A regression reproduces the reported 6.0-to-1.0 failure
+with the old logic and passes after the fix. All 18,517 host assertions pass,
+including 43 popup-completion checks. The signed APK builds offline with the
+existing key; applying widths still needs verification on the tablet.
 
 See [milestone design and acceptance](docs/notebook-milestone.md), the
 [device test record](docs/device-testing.md), and the retained

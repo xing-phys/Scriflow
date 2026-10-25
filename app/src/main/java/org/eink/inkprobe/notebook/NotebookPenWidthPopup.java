@@ -21,14 +21,12 @@ final class NotebookPenWidthPopup {
     interface Listener { void onClosed(Float chosenWidth); }
 
     private final Activity activity;
-    private final Listener listener;
     private final SliderView content;
     private final PopupWindow popup;
-    private Float chosenWidth;
-    private boolean delivered;
+    private final NotebookPenSliderClose closing;
 
     NotebookPenWidthPopup(Activity activity, float width, float pageScale, Listener listener) {
-        this.activity = activity; this.listener = listener;
+        this.activity = activity;
         content = new SliderView(width, pageScale);
         // Keep the editor's fullscreen/focus state. Back is handled by its Activity.
         popup = new PopupWindow(content, 0, 0, false);
@@ -42,7 +40,8 @@ final class NotebookPenWidthPopup {
         popup.setAnimationStyle(0);
         popup.setEnterTransition(null); popup.setExitTransition(null);
         popup.setElevation(0f);
-        popup.setOnDismissListener(this::deliver);
+        closing = new NotebookPenSliderClose(this::dismissWindow, listener::onClosed);
+        popup.setOnDismissListener(closing::dismissed);
     }
 
     void show(View canvas, View pen, Rect tools, boolean vertical) {
@@ -77,15 +76,9 @@ final class NotebookPenWidthPopup {
     /** Lifecycle shutdown already disables input, so it can dismiss immediately. */
     void dismiss() { finish(null); }
 
-    private void finish(Float width) {
-        if (delivered) return;
-        chosenWidth = width;
-        if (popup.isShowing()) popup.dismiss(); else deliver();
-    }
-    private void deliver() {
-        if (delivered) return;
-        delivered = true;
-        listener.onClosed(chosenWidth);
+    private void finish(Float width) { closing.finish(width); }
+    private void dismissWindow() {
+        if (popup.isShowing()) popup.dismiss(); else closing.dismissed();
     }
     private int dp(float value) { return Math.round(value * activity.getResources().getDisplayMetrics().density); }
 
