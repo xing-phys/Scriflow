@@ -1,68 +1,69 @@
-# Pen thickness — 0.16
+# Pen thickness — 0.17
 
-Tap the selected Pen icon to open **Pen thickness**. If Eraser is selected,
-the first tap selects Pen; tapping Pen again opens its choices. The compact
-strip keeps its existing size, orientation, position, and action count.
+Tap the selected Pen icon to open a **224 × 48 dp width bar** beside the button.
+If Eraser is selected, first select Pen, then tap it again to open the slider.
+The toolbar stays visible in its current position and orientation. The slider
+opens below a horizontal toolbar or beside a vertical one, using the opposite
+side when necessary near the screen edge.
 
-| Choice | Width in stored page pixels |
-| --- | ---: |
-| Extra fine | 1 |
-| Fine | 2 |
-| Medium | 4 |
-| Broad | 6 |
-| Extra broad | 10 |
+Slide the point left/right to adjust the width. Its small stroke sample and
+number update while dragging. **Release to apply and close** the bar; tapping
+the track selects directly. An outside tap or Back cancels without changing
+the saved width. No additional confirmation button is needed.
 
-Medium preserves the former default. These are logical page units rather than
-millimetres. The dialog shows line samples at the page's fitted scale, with a
-thicker border around the current choice. Selecting a row applies and closes
-the dialog. Cancel/Back keeps the existing choice. A small line below the pencil
-icon previews the selected width, capped to fit the compact button.
+The range is **1.0 to 10.0** in **0.1 steps**, measured in stored page units
+rather than millimetres. **4.0** preserves the original default. All five choices
+from 0.16 (1, 2, 4, 6, 10) restore unchanged, and intermediate widths now persist
+too. The existing `penWidth` preference is retained across notebooks and process
+restarts; invalid/out-of-range values fall back to 4.0. Selecting a width affects
+new writing only. It does not edit old strokes, create an Undo command, or clear
+Redo. Each stroke keeps its width in storage, undo/redo, scrolling, reopening,
+thumbnails, and PDF export. No file format change is required.
 
-The chosen width is saved in Activity preferences and applies across notebooks
-and process restarts. Unknown or invalid saved values fall back to Medium.
-Selecting a width does not edit existing strokes, clear Redo, or create an
-Undo command. Each stroke retains its own width through saving, erasing,
-undo/redo, scrolling, reopening, thumbnails, and vector PDF export.
+## Native integration
 
-## Native integration and preservation
+Opening the bar pauses handwriting and waits behind completed-stroke saves.
+A transparent popup above the native surface paints only the compact bar. Its
+input shield covers the writing area, consuming outside contacts until their
+final UP. The slider tracks one pointer; other fingers cannot change its width.
+If that pointer lifts first, its value freezes until the remaining contacts
+lift. Back during contact also waits before dismissing. An Activity pause closes
+the popup immediately with native input already disabled.
 
-The chooser pauses native input and waits behind completed-stroke saves before
-opening. It uses static white controls with no ripple, dimming, or window
-animation. The paused surface is reused when closing the chooser; thickness
-selection alone does not request a canonical page repaint.
+Only the bar is invalidated while adjusting. There is no page, toolbar, or
+preference update per MOVE, and the controls have no ripple, pressed inversion,
+shadow, dimming, or window animation. Applying changes the selected live pen and
+reuses the paused native tracks; changing thickness alone does not repaint the
+document. The popup preserves the editor's window focus/fullscreen state.
 
-Before enabling input, the bridge calls the same firmware
-`FBHandSurface.setAhwPen` API as before, supplying the selected width instead of
-the former constant. The editor first fits the logical width to its composed
-viewport. The bridge applies its widget scale, and the viewport splitter
-converts completed strokes back into page coordinates. Existing restored tracks
-continue to use their own stored style.
-
-The UP fallback previously reconstructed every completed stroke at width 4.
-Each new pen-DOWN now captures an immutable style, so a delayed native commit
-or subsequent pause cannot assign the next pen's width to the preceding stroke.
-The ordinary native-commit path continues to read the firmware track's style.
-No per-MOVE UI updates, native refresh flags, permissions, storage format, or
-proprietary code were added. Version-1 notebook files remain compatible.
+As in 0.16, the editor fits logical width to its composed viewport, and the
+native bridge calls `FBHandSurface.setAhwPen` with the corresponding width.
+Completed native tracks retain their recorded style. The completed-UP fallback
+captures immutable style at DOWN, so a later width selection cannot change the
+preceding stroke. No refresh flags, permissions, or proprietary code were added.
 
 ## Verification
 
-`./scripts/test.sh` passes 17,749 assertions. The 357 new assertions cover
-preference fallback, delayed-completion style capture, real-file mixed-width
-save/reopen, undo/redo, erasing the edge of a broad stroke, viewport fitting
-at half/normal/double scale, and vector PDF width output. Existing storage,
-scrolling, export, clipping, toolbar-layout, and idle-status tests also pass.
-The chooser and pen previews are checked in a rendered layout illustration,
-not an Android screenshot. The APK is built offline for API 29 and signed with
-the existing local key.
+`./scripts/test.sh` passes **18,474 assertions**, including 607 slider checks
+for endpoint clamping, all 91 width positions, remembered intermediate widths,
+outside cancellation, multi-contact ownership, and placement at screen edges
+and in small windows. The 475 pen-style checks exercise fractional widths through
+real-file saving/reopening, undo/redo, broad-stroke erasing, half/normal/double
+viewport fitting, and vector PDF export. All existing notebook, scrolling,
+export, toolbar, and status checks also pass.
 
-Tablet acceptance remains necessary for native appearance and latency:
+The slider is visually inspected in a rendered layout illustration using the
+production placement code and vector symbols. This is not an Android screenshot.
+The APK builds offline for API 29 with the existing signing key.
 
-1. Install `build/ink-notebook-0.16.apk` over the existing app; do not uninstall.
-2. Tap the selected Pen icon. Write a dot, curve, and word at each thickness.
-   Confirm visible differences during writing and after lifting the pen.
-3. Change width immediately after a stroke. Confirm its original width remains.
-4. Check Eraser, Undo/Redo, scrolling between pages, reopening, and PDF export
-   with mixed widths. The chosen pen should remain selected after reopening.
-5. Cancel the chooser and switch strip orientation; confirm the current width
-   remains and ordinary controls retain their static touch appearance.
+Tablet acceptance remains necessary:
+
+1. Install `build/ink-notebook-0.17.apk` over the existing app; do not uninstall.
+2. Open the slider, drag the point, and release. Write dots and curves at thin,
+   fractional, and broad settings. Check the live stroke and pen-up appearance.
+3. Tap outside or press Back while open. Confirm the previous width remains and
+   no extra stroke appears. Try two fingers and confirm input resumes only once
+   both lift, using the original controlling finger's final value.
+4. Move the toolbar near each screen edge and switch its orientation. The bar
+   should remain visible and reachable, with static toolbar buttons during drag.
+5. Check reopening, scrolling, Eraser, Undo/Redo, and PDF export with mixed widths.

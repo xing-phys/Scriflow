@@ -2,26 +2,25 @@ package org.eink.inkprobe.notebook;
 
 import java.util.List;
 
-/** Width presets in stored page units, plus immutable style captured at pen-DOWN. */
+/** Adjustable widths in stored page units, plus immutable style captured at pen-DOWN. */
 final class NotebookPenConfig {
-    static final class Preset {
-        final String name;
-        final float width;
-        private Preset(String name, float width) { this.name = name; this.width = width; }
-    }
-
-    private static final Preset[] PRESETS = {
-        new Preset("Extra fine", 1f), new Preset("Fine", 2f), new Preset("Medium", 4f),
-        new Preset("Broad", 6f), new Preset("Extra broad", 10f)
-    };
+    static final float MIN_WIDTH = 1f, MAX_WIDTH = 10f, DEFAULT_WIDTH = 4f;
 
     private NotebookPenConfig() { }
-    static int count() { return PRESETS.length; }
-    static Preset preset(int index) { return PRESETS[index]; }
-    static Preset defaultPreset() { return PRESETS[2]; }
-    static Preset restore(float width) {
-        for (Preset preset : PRESETS) if (preset.width == width) return preset;
-        return defaultPreset();
+    static float restore(float width) {
+        return !NotebookPage.finite(width) || width < MIN_WIDTH || width > MAX_WIDTH
+            ? DEFAULT_WIDTH : Math.round(width * 10f) / 10f;
+    }
+    static float atFraction(float position) {
+        if (!NotebookPage.finite(position)) return DEFAULT_WIDTH;
+        return restore(MIN_WIDTH + Math.max(0, Math.min(1, position)) * (MAX_WIDTH - MIN_WIDTH));
+    }
+    static float fraction(float width) {
+        return (restore(width) - MIN_WIDTH) / (MAX_WIDTH - MIN_WIDTH);
+    }
+    static String label(float width) {
+        int tenths = Math.round(restore(width) * 10f);
+        return (tenths / 10) + "." + (tenths % 10);
     }
 
     /** One style object belongs to a stroke even if the next stroke uses another width. */

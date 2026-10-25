@@ -14,6 +14,7 @@ import java.util.Map;
 public final class NotebookPenConfigTest {
     private static int assertions;
     private static final int BLACK = 0xff000000;
+    private static final float[] WIDTHS = {1, 2, 3.7f, 4, 6, 8.9f, 10};
 
     public static void main(String[] args) throws Exception {
         selectionCompatibility();
@@ -23,13 +24,11 @@ public final class NotebookPenConfigTest {
     }
 
     private static void selectionCompatibility() {
-        near(4, NotebookPenConfig.defaultPreset().width, "updating preserves the former default width");
-        for (int i = 0; i < NotebookPenConfig.count(); i++) {
-            NotebookPenConfig.Preset preset = NotebookPenConfig.preset(i);
-            check(NotebookPenConfig.restore(preset.width) == preset, "saved choice restores without changing width");
-        }
-        for (float invalid : new float[]{0, -1, Float.NaN, Float.POSITIVE_INFINITY, 3, 1025})
-            check(NotebookPenConfig.restore(invalid) == NotebookPenConfig.defaultPreset(),
+        near(4, NotebookPenConfig.DEFAULT_WIDTH, "updating preserves the former default width");
+        for (float width : WIDTHS)
+            near(width, NotebookPenConfig.restore(width), "legacy and intermediate saved widths restore unchanged");
+        for (float invalid : new float[]{0, -1, Float.NaN, Float.POSITIVE_INFINITY, .9f, 10.1f})
+            check(NotebookPenConfig.restore(invalid) == NotebookPenConfig.DEFAULT_WIDTH,
                 "unknown or invalid saved preference safely restores the old default");
     }
 
@@ -43,25 +42,25 @@ public final class NotebookPenConfigTest {
             expected.add(new NotebookPage.Stroke(4, 4, BLACK, points(10, 100)));
             document.append(expected.get(0));
             NotebookPenConfig.Style next = new NotebookPenConfig.Style(4, 1, BLACK);
-            for (int i = 0; i < NotebookPenConfig.count(); i++) {
-                next = new NotebookPenConfig.Style(4, NotebookPenConfig.preset(i).width, BLACK);
+            for (int i = 0; i < WIDTHS.length; i++) {
+                next = new NotebookPenConfig.Style(4, WIDTHS[i], BLACK);
                 // Capture at DOWN; the selection changes before this UP is materialized.
                 NotebookPenConfig.Style down = next;
                 next = new NotebookPenConfig.Style(4,
-                    NotebookPenConfig.preset((i + 1) % NotebookPenConfig.count()).width, BLACK);
+                    WIDTHS[(i + 1) % WIDTHS.length], BLACK);
                 NotebookPage.Stroke finished = down.stroke(points(40 + i * 30, 200 + i * 10));
-                near(NotebookPenConfig.preset(i).width, finished.width,
+                near(WIDTHS[i], finished.width,
                     "delayed completed stroke keeps the style from its own DOWN");
                 expected.add(finished); document.append(finished);
             }
             assertStrokes(expected, new NotebookStore(directory).load());
             check(document.undo(), "undo accepts a stroke written at a different width");
             // Choosing another pen is separate from document history and must keep Redo.
-            next = new NotebookPenConfig.Style(4, NotebookPenConfig.defaultPreset().width, BLACK);
+            next = new NotebookPenConfig.Style(4, NotebookPenConfig.DEFAULT_WIDTH, BLACK);
             check(document.canRedo(), "a subsequent pen choice retains redo");
             check(document.redo(), "redo restores the original broad stroke");
             assertStrokes(expected, new NotebookStore(directory).load());
-            check(document.erase(Collections.singletonList(new NotebookPage.Point(50, 164.9f, 400, 1)), 0),
+            check(document.erase(Collections.singletonList(new NotebookPage.Point(50, 224.9f, 400, 1)), 0),
                 "eraser hits the edge of an extra-broad stroke using its own stored width");
             check(document.current().strokes.size() == expected.size() - 1, "erase removes only the broad stroke");
             check(document.undo(), "undo restores the erased broad stroke");
@@ -73,8 +72,8 @@ public final class NotebookPenConfigTest {
 
     private static void fittedCaptureAndPdf() throws Exception {
         List<NotebookPage.Stroke> logical = new ArrayList<>();
-        for (int i = 0; i < NotebookPenConfig.count(); i++) {
-            float width = NotebookPenConfig.preset(i).width;
+        for (int i = 0; i < WIDTHS.length; i++) {
+            float width = WIDTHS[i];
             for (int viewportWidth : new int[]{70, 140, 280}) {
                 NotebookViewport viewport = new NotebookViewport(2, 140, 300, viewportWidth, 240, 12);
                 float scale = viewport.scale(2), scroll = viewport.pageScroll(2);
@@ -100,8 +99,9 @@ public final class NotebookPenConfigTest {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         NotebookPdf.write(output, "Mixed thickness", 1, number -> page, null);
         String pdf = new String(output.toByteArray(), StandardCharsets.US_ASCII);
-        for (int i = 0; i < NotebookPenConfig.count(); i++) {
-            String width = Integer.toString((int) NotebookPenConfig.preset(i).width);
+        for (float value : WIDTHS) {
+            String width = java.math.BigDecimal.valueOf((double) value).setScale(1, java.math.RoundingMode.HALF_UP)
+                .stripTrailingZeros().toPlainString();
             check(pdf.contains("\n" + width + " w\n"), "PDF line uses original " + width + "-unit width");
         }
         check(page.strokes.size() == logical.size(), "PDF export leaves mixed-width page editable");

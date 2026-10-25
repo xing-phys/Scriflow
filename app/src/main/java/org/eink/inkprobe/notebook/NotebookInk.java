@@ -60,7 +60,7 @@ public final class NotebookInk implements SurfaceHolder.Callback {
     private boolean alive = true, wanted, prepared, enabled, restored, attached;
     private boolean penDown, failed, geometryReported, restoring;
     private int surfaceWidth, surfaceHeight, retries;
-    private float penWidth = NotebookPenConfig.defaultPreset().width;
+    private float penWidth = NotebookPenConfig.DEFAULT_WIDTH;
     private NotebookPenConfig.Style configuredStyle;
     private PointBuffer activePoints;
     private PointBuffer eraserPoints;

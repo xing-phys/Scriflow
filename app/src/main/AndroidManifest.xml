@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="org.eink.inkprobe" android:versionCode="17" android:versionName="0.16">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="org.eink.inkprobe" android:versionCode="18" android:versionName="0.17">
     <uses-sdk android:minSdkVersion="29" android:targetSdkVersion="29" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <application android:label="Ink Notebook" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:allowBackup="false" android:debuggable="true" android:supportsRtl="true">

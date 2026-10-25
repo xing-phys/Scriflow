@@ -4,10 +4,10 @@ A small notebook app for Huawei MatePad Paper HMW-W09, with blank/lined pages,
 native low-latency handwriting, automatic saving of completed strokes, and
 editable restoration after reopening.
 
-The current build is an early development APK, version 0.16, with compact, rotatable icon
+The current build is an early development APK, version 0.17, with compact, rotatable icon
 tools, a notebook library, continuously scrolling pages, a page overview with
 jumps, PDF export, undo/redo, and a whole-stroke eraser.
-Handwriting uses a black ballpoint pen with five thickness choices. The original diagnostic screen remains
+Handwriting uses a black ballpoint pen with adjustable thickness. The original diagnostic screen remains
 available separately for development.
 
 ## Use
@@ -54,13 +54,15 @@ the overview, and the three-dot menu offers page information, PDF export, and
 Only the grip moves the palette. Touching controls has no ripple or pressed
 inversion; the page remains writable outside the floating tools.
 
-Tap the **already-selected Pen icon** to choose **Extra fine, Fine, Medium,
-Broad, or Extra broad**. Each choice shows a line sample; a thick border marks
-the current choice. Tap a choice to apply it, or Cancel/Back to keep the current
-width. The small line beneath the pencil previews the selected thickness.
-The choice is remembered between sessions and across notebooks. **Medium** is
-the previous default. Changing the pen affects only new strokes; saved writing,
-undo/redo, and exported PDFs retain each stroke's own width.
+Tap the **already-selected Pen icon** to open a **small width slider beside it**.
+Drag its point left for thinner strokes or right for thicker strokes; a sample
+line and number preview the width. **Release to apply and close** the bar, or
+tap outside/press Back to cancel. Tap anywhere on its track to select directly.
+Widths range from **1.0 to 10.0**, in 0.1 steps, with **4.0** as the original
+default. The choice is remembered between sessions and across notebooks.
+The small line beneath the pencil previews the selected thickness. Changing
+the pen affects only new strokes; saved writing, undo/redo, and exported PDFs
+retain each stroke's own width.
 
 The slim top bar shows the notebook name and page number on the left, with time,
 a battery icon and percentage, and a Wi-Fi icon on the right. Wi-Fi indicates
@@ -95,7 +97,7 @@ let the background writer finish before force-stopping the app; the menu reports
 its save state. An unfinished stroke is discarded when leaving the app. Notes are stored on this tablet in
 the app's private directory; uninstalling the app removes that data. Keep the
 local signing key when installing updates over an existing version.
-Version 0.16 reads the unchanged version-1 page format from earlier releases. Install it as
+Version 0.17 reads the unchanged version-1 page format from earlier releases. Install it as
 an update over the existing app; **do not uninstall** to install the update.
 
 This firmware is sensitive to unrelated background display activity. During
@@ -251,6 +253,15 @@ capture now retains the style from that stroke's DOWN. All 17,749 host assertion
 pass, including 357 mixed-width, durable editing, fitting, and export checks.
 The signed APK builds offline; live native widths still need tablet acceptance.
 See [pen thickness](docs/pen-thickness.md).
+
+Version 0.17 replaces the thickness dialog with a compact slider anchored to the
+Pen button. The toolbar remains visible; the bar fits beside either orientation
+and stays within the writing area near screen edges. Widths between the former
+presets are now supported. Input stays paused until all slider contacts lift,
+and outside taps cancel without drawing on the page. All 18,474 host assertions
+pass; the signed APK builds offline. Slider placement is visually checked in a
+rendered illustration; native touch, refresh, and writing still need tablet
+acceptance. See [pen thickness](docs/pen-thickness.md).
 
 See [milestone design and acceptance](docs/notebook-milestone.md), the
 [device test record](docs/device-testing.md), and the retained
