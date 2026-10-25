@@ -113,6 +113,29 @@ public final class NotebookSymbols {
                     circle(out, 16, y, 1.2f);
                 }
                 break;
+            case "LAYOUT_HORIZONTAL":
+                for (float x : new float[]{2, 9.5f, 17})
+                    polygon(out, false, x, 9, x + 5, 9, x + 5, 15, x, 15);
+                break;
+            case "LAYOUT_VERTICAL":
+                for (float y : new float[]{2, 9.5f, 17})
+                    polygon(out, false, 9, y, 15, y, 15, y + 5, 9, y + 5);
+                break;
+            case "BATTERY":
+                polygon(out, false, 2, 7, 20, 7, 20, 17, 2, 17);
+                polygon(out, true, 20, 10, 22, 10, 22, 14, 20, 14);
+                break;
+            case "WIFI":
+            case "WIFI_OFF":
+                out.begin(); out.moveTo(3, 9);
+                out.cubicTo(8, 4, 16, 4, 21, 9); out.end(false);
+                out.begin(); out.moveTo(6, 12);
+                out.cubicTo(9.5f, 8.5f, 14.5f, 8.5f, 18, 12); out.end(false);
+                out.begin(); out.moveTo(9, 15);
+                out.cubicTo(10.5f, 13.5f, 13.5f, 13.5f, 15, 15); out.end(false);
+                circle(out, 12, 18, 1.1f);
+                if ("WIFI_OFF".equals(icon)) line(out, 3, 3, 21, 21);
+                break;
             default:
                 throw new IllegalArgumentException("Unknown notebook icon: " + icon);
         }

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="org.eink.inkprobe" android:versionCode="15" android:versionName="0.14">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="org.eink.inkprobe" android:versionCode="16" android:versionName="0.15">
     <uses-sdk android:minSdkVersion="29" android:targetSdkVersion="29" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <application android:label="Ink Notebook" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:allowBackup="false" android:debuggable="true" android:supportsRtl="true">
         <!-- Match the working Huawei Notes app's display-policy classification.
              This is an app policy, not a raw EPDC waveform number. -->

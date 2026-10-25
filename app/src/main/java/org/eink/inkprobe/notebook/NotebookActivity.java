@@ -13,6 +13,7 @@ import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -35,12 +36,14 @@ public final class NotebookActivity extends Activity {
     private NotebookInk ink;
     private FrameLayout canvas;
     private TextView saveState, pageLabel;
+    private NotebookDeviceStatus deviceStatus;
     private NotebookIconButton paperButton, penButton, eraserButton, undoButton, redoButton;
     private NotebookIconButton previousButton, nextButton, addButton;
     private NotebookFloatingTools floatingTools;
     private float toolsX = 0.5f, toolsY;
     private final Rect toolsBounds = new Rect();
     private boolean toolsContact, toolsMoved;
+    private long lastInputAt;
     private NotebookFloatingTools.Action pendingToolAction;
     private NotebookPage page;
     private IOException shownError;
@@ -79,20 +82,24 @@ public final class NotebookActivity extends Activity {
         root.setBackgroundColor(Color.WHITE);
         LinearLayout subline = new LinearLayout(this);
         subline.setGravity(Gravity.CENTER_VERTICAL);
-        subline.setPadding(dp(20), 0, dp(20), dp(9));
+        subline.setPadding(dp(10), 0, dp(10), 0);
+        subline.setMinimumHeight(dp(24));
         pageLabel = new TextView(this);
-        pageLabel.setText("Page 1 of 1"); pageLabel.setTextSize(13); pageLabel.setTextColor(0xff555555);
-        pageLabel.setSingleLine(true); pageLabel.setEllipsize(TextUtils.TruncateAt.END);
-        pageLabel.setPadding(0, dp(8), 0, dp(8));
-        pageLabel.setBackgroundColor(Color.WHITE);
-        pageLabel.setStateListAnimator(null);
-        pageLabel.setDefaultFocusHighlightEnabled(false);
-        pageLabel.setOnClickListener(v -> pageOverview());
+        pageLabel.setText(session.notebookName() + " · 1 / 1");
+        pageLabel.setTextSize(12); pageLabel.setTextColor(Color.BLACK);
+        pageLabel.setSingleLine(true); pageLabel.setIncludeFontPadding(false);
+        pageLabel.setEllipsize(TextUtils.TruncateAt.MIDDLE);
+        pageLabel.setPadding(0, 0, dp(12), 0);
         subline.addView(pageLabel, new LinearLayout.LayoutParams(0, -2, 1));
         saveState = new TextView(this);
-        saveState.setSingleLine(true);
-        saveState.setText("Opening…"); saveState.setTextSize(13); saveState.setTextColor(0xff555555);
+        saveState.setSingleLine(true); saveState.setIncludeFontPadding(false);
+        saveState.setText("Not saved · Retry"); saveState.setTextSize(12); saveState.setTextColor(Color.BLACK);
+        saveState.setPadding(0, 0, dp(10), 0);
+        saveState.setVisibility(View.GONE);
         subline.addView(saveState, new LinearLayout.LayoutParams(-2, -2));
+        deviceStatus = new NotebookDeviceStatus(this,
+            () -> canEdit() && SystemClock.uptimeMillis() - lastInputAt >= 1000);
+        subline.addView(deviceStatus, new LinearLayout.LayoutParams(-2, -2));
         root.addView(subline, new LinearLayout.LayoutParams(-1, -2));
         View divider = new View(this); divider.setBackgroundColor(0xffbbbbbb);
         root.addView(divider, new LinearLayout.LayoutParams(-1, dp(1)));
@@ -108,6 +115,7 @@ public final class NotebookActivity extends Activity {
             }
             @Override public boolean onContactStart() {
                 if (!canEdit()) return false;
+                lastInputAt = SystemClock.uptimeMillis();
                 toolsContact = true; toolsMoved = false; pendingToolAction = null;
                 pauseForEdit();
                 if (shownError != null) toolsContact = false;
@@ -127,6 +135,7 @@ public final class NotebookActivity extends Activity {
                 getPreferences(MODE_PRIVATE).edit().putFloat("toolsX", x).putFloat("toolsY", y).apply();
             }
         });
+        floatingTools.setVertical(getPreferences(MODE_PRIVATE).getBoolean("toolsVertical", false));
         previousButton = floatingTools.button(NotebookFloatingTools.Action.PREVIOUS);
         nextButton = floatingTools.button(NotebookFloatingTools.Action.NEXT);
         addButton = floatingTools.button(NotebookFloatingTools.Action.ADD_PAGE);
@@ -140,6 +149,7 @@ public final class NotebookActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume(); active = true;
+        deviceStatus.start();
         loadPage();
     }
 
@@ -161,6 +171,7 @@ public final class NotebookActivity extends Activity {
         disposeCanvas();
         shownError = null;
         saveState.setOnClickListener(null);
+        saveState.setVisibility(View.GONE);
         editing = false;
         page = loaded; geometryPending = false;
         viewport = null; pages.clear(); viewportBuffer.clear(); tiles.clear(); preview = null;
@@ -190,6 +201,7 @@ public final class NotebookActivity extends Activity {
                 @Override public void onPenStateChanged(boolean down) {
                     if (!active || request != generation) return;
                     penDown = down;
+                    lastInputAt = SystemClock.uptimeMillis();
                     main.removeCallbacks(updateSaveState);
                     if (!down) scheduleSaveState();
                 }
@@ -218,6 +230,7 @@ public final class NotebookActivity extends Activity {
                     if (active && request == generation) erase(path, radius);
                 }
                 @Override public void onFingerEvent(MotionEvent event) {
+                    lastInputAt = SystemClock.uptimeMillis();
                     if (active && request == generation) finger(event);
                 }
             });
@@ -488,6 +501,7 @@ public final class NotebookActivity extends Activity {
 
     private void finishToolsContact() {
         if (!toolsContact) return;
+        lastInputAt = SystemClock.uptimeMillis();
         toolsContact = false;
         if (!active || shownError != null || ink == null) { pendingToolAction = null; return; }
         final int request = generation;
@@ -517,7 +531,19 @@ public final class NotebookActivity extends Activity {
             case PAPER: choosePaper(); break;
             case MORE: pageInformation(); break;
             case OVERVIEW: pageOverview(); break;
+            case ORIENTATION: toggleToolsOrientation(); break;
         }
+    }
+
+    private void toggleToolsOrientation() {
+        if (!canEdit()) return;
+        pauseForEdit();
+        if (shownError != null) return;
+        floatingTools.setVertical(!floatingTools.isVertical());
+        getPreferences(MODE_PRIVATE).edit().putBoolean("toolsVertical", floatingTools.isVertical()).apply();
+        final int request = generation;
+        // Resizing the exclusion can reveal previously covered ink; restore it once.
+        session.load((loaded, error) -> finishEdit(request, loaded, error));
     }
 
     private boolean canEdit() {
@@ -585,12 +611,10 @@ public final class NotebookActivity extends Activity {
 
     private void updatePageLabel() {
         String name = session.notebookName();
-        String shortName = name.codePointCount(0, name.length()) > 24
-            ? name.substring(0, name.offsetByCodePoints(0, 24)) + "…" : name;
-        String text = shortName + " · Page " + activePage + " of " + session.pageCount() + " · Overview";
+        String text = name + " · " + activePage + " / " + session.pageCount();
         if (!text.contentEquals(pageLabel.getText())) pageLabel.setText(text);
         pageLabel.setContentDescription(session.notebookName() + ", page " + activePage
-            + " of " + session.pageCount() + ", open page overview");
+            + " of " + session.pageCount());
     }
 
     private void returnToLibrary() {
@@ -681,15 +705,10 @@ public final class NotebookActivity extends Activity {
         if (cleanupInk && canEdit()) {
             pauseForEdit(); editing = false; installViewport(); return;
         }
-        NotebookPage current = pages.get(activePage);
-        int strokes = current == null ? 0 : current.strokes.size();
-        String text = shownError != null || session.error() != null ? "Not saved · tap here"
-            : session.isSaving() ? "Saving…"
-            : strokes == 0 ? "Autosave on"
-            : "Saved · " + strokes + (strokes == 1 ? " stroke" : " strokes");
-        if (!text.contentEquals(saveState.getText())) saveState.setText(text);
+        // Saving stays automatic; routine save counts no longer occupy the status bar.
         updatePageLabel(); updatePaperButton();
         updateControls();
+        deviceStatus.refresh();
         if (session.isSaving()) main.postDelayed(updateSaveState, 1000);
     }
     private void showError(IOException error) {
@@ -698,7 +717,7 @@ public final class NotebookActivity extends Activity {
         if (floatingTools != null) floatingTools.hide();
         updateControls();
         main.removeCallbacks(updateSaveState);
-        saveState.setText("Not saved · tap here");
+        saveState.setVisibility(View.VISIBLE);
         saveState.setOnClickListener(v -> {
             AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("Couldn’t save the notebook")
@@ -715,6 +734,7 @@ public final class NotebookActivity extends Activity {
             if (!active || request != generation) return;
             if (error != null) { showError(error); return; }
             saveState.setOnClickListener(null);
+            saveState.setVisibility(View.GONE);
             if (restored == null) { loadPage(); return; }
             openCanvas(restored); scheduleSaveState();
         });
@@ -743,17 +763,19 @@ public final class NotebookActivity extends Activity {
             + "\n" + current.strokes.size() + " strokes\n"
             + (session.error() != null ? "Some writing has not been saved."
                 : session.isSaving() ? "Saving your latest writing…" : "Your completed strokes are saved on this tablet.")
-            + "\n\nDrag with one finger to scroll and stop anywhere. Write with the stylus. Tap the page indicator or grid icon for thumbnails and page-number jumps. Use the left/right arrows for adjacent pages. The page-plus icon adds an empty page at the end. The paper icon changes this page’s Blank/Lined background. The books icon returns to your library."
+            + "\n\nDrag with one finger to scroll and stop anywhere. Write with the stylus. Tap the grid icon for thumbnails and page-number jumps. Use the left/right arrows for adjacent pages. The page-plus icon adds an empty page at the end. The paper icon changes this page’s Blank/Lined background. The books icon returns to your library."
             + "\n\nEraser removes whole strokes after you lift the pen. Each page remembers up to 100 Undo/Redo edits while the app process stays open."
             + "\n\nNew writing or a successful erase clears Redo. Changing paper keeps your stroke history.";
-        message += "\n\nDrag the dotted grip to move the floating tools. The thicker border marks the selected Pen or Eraser. The page icon changes Blank/Lined paper; the grid opens the page overview."
+        message += "\n\nDrag the dotted grip to move the floating tools. The direction icon beside it switches between one row and one column. The thicker border marks the selected Pen or Eraser. The page icon changes Blank/Lined paper; the grid opens the page overview."
             + "\n\nExport PDF saves all pages in this notebook, including their paper backgrounds and handwriting.";
         final boolean[] exporting = {false};
         AlertDialog info = new AlertDialog.Builder(this).setTitle("This page")
             .setMessage(message).setPositiveButton("Done", null)
             .setNegativeButton("Reset tools", (choice, which) -> {
                 toolsX = 0.5f; toolsY = 0f;
-                getPreferences(MODE_PRIVATE).edit().putFloat("toolsX", toolsX).putFloat("toolsY", toolsY).apply();
+                floatingTools.setVertical(false);
+                getPreferences(MODE_PRIVATE).edit().putFloat("toolsX", toolsX).putFloat("toolsY", toolsY)
+                    .putBoolean("toolsVertical", false).apply();
             })
             .setNeutralButton("Export PDF", (choice, which) -> {
                 exporting[0] = true;
@@ -790,6 +812,7 @@ public final class NotebookActivity extends Activity {
 
     @Override protected void onPause() {
         active = false; ++generation;
+        deviceStatus.stop();
         pendingToolAction = null; toolsContact = false;
         if (floatingTools != null) floatingTools.hide();
         if (overview != null) { overview.dismiss(); overview = null; }

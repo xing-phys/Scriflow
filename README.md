@@ -4,10 +4,9 @@ A small notebook app for Huawei MatePad Paper HMW-W09, with blank/lined pages,
 native low-latency handwriting, automatic saving of completed strokes, and
 editable restoration after reopening.
 
-The current build is an early development APK, version 0.14, with draggable icon
+The current build is an early development APK, version 0.15, with compact, rotatable icon
 tools, a notebook library, continuously scrolling pages, a page overview with
-jumps, PDF export,
-undo/redo, and a whole-stroke eraser. Additional pen styles are a later milestone.
+jumps, PDF export, undo/redo, and a whole-stroke eraser. Additional pen styles are a later milestone.
 Handwriting uses one black ballpoint pen. The original diagnostic screen remains
 available separately for development.
 
@@ -19,9 +18,10 @@ changes a notebook's title without moving its files. Each notebook remembers its
 own last page; the editor's **books icon** returns to the library. Names may
 contain up to 80 Unicode characters. This milestone supports up to 200 notebooks.
 
-Write on a page, then pause briefly. **Saved · N strokes**
-confirms how many completed strokes have been saved; an empty page shows
-**Autosave on**. There is no manual save button. The **paper icon** changes
+Write on a page; completed strokes save automatically in the background.
+There is no manual save button or routine saved-stroke counter. The menu shows
+the page's save state, and a save failure pauses writing and exposes **Not saved · Retry**.
+The **paper icon** changes
 the current page's paper without clearing writing. Tap it to toggle between
 blank and lined paper. The menu shows the page's save state.
 
@@ -30,27 +30,35 @@ position, including between pages. **Write with the stylus** on either visible
 page. There is no snapping or inertial fling. The **left/right arrows** jump to page tops,
 and the **page-plus icon** appends an empty page at the end. New pages inherit the active
 page's paper. Each page keeps its own writing and paper choice. The indicator
-shows **Page X of Y** for the most recently written page, or the page nearest
+shows **Notebook name · X / Y** for the most recently written page, or the page nearest
 the viewport center after scrolling. Eraser, Undo/Redo, and paper choice use
 that page context. The fractional scroll position is saved per notebook.
 Your existing single-page notebook becomes Page 1 without moving its file.
 There is a limit of 1,000 pages; deletion and reordering are not yet included.
 
-Tap the **Page X of Y · Overview** indicator to browse whole-page thumbnails.
+Tap the **grid icon** to browse whole-page thumbnails.
 The current page has a black border and a **Current** label. Tap a thumbnail to
 jump to that page's top, or enter a number beside **Go to page** and tap **Go**.
 **Close** or Android Back returns to your exact previous scroll position.
 Thumbnails load as you browse; opening the overview does not edit your pages.
 
-The tools float over the page in a compact two-row palette. Drag its **six-dot
-grip** with a finger or stylus to move it; it stops exactly where you release it
-and remembers the position between sessions. **Pen** uses a pencil symbol;
+The tools float over the page as a **single row or single column**, with smaller
+36 dp buttons. Tap the **direction icon beside the grip** to switch orientation.
+Drag the **six-dot grip** with a finger or stylus to move the strip; it stops
+where you release it and remembers its position and orientation between sessions.
+**Pen** uses a pencil symbol;
 **Eraser** uses a tilted eraser. The selected tool has a **thick border**, while
 the other has a thin border. The curved arrows are Undo/Redo, the grid opens
 the overview, and the three-dot menu offers page information, PDF export, and
-**Reset tools**. Reset returns the palette to its initial top-center position.
+**Reset tools**. Reset returns to the initial horizontal, top-center position.
 Only the grip moves the palette. Touching controls has no ripple or pressed
 inversion; the page remains writable outside the floating tools.
+
+The slim top bar shows the notebook name and page number on the left, with time,
+a battery icon and percentage, and a Wi-Fi icon on the right. Wi-Fi indicates
+connected/disconnected state. Time follows the tablet's 12/24-hour setting and
+updates by the minute. Device-status changes wait until writing has been idle
+for about a second; there are no per-second display updates.
 
 To export the open notebook, tap **three-dot menu → Export PDF**. All pages are prepared in
 order, including their writing and blank/lined backgrounds, then the Android
@@ -71,14 +79,15 @@ Changing paper leaves the stroke history available.
 Saving runs on a background worker after the firmware commits a complete stroke.
 The page retains vector points, pressure, timestamps, and pen style, so reopening
 restores editable native tracks rather than a screenshot. The paper background
-is static. Save-status changes wait until the pen is idle; there is no live
-counter or periodic toolbar refresh during handwriting.
+is static. Idle UI and system-status changes wait until the pen is idle; there
+is no live counter or periodic toolbar refresh during handwriting.
 
-Completed strokes survive app force-stop once **Saved** is shown. An unfinished
-stroke is discarded when leaving the app. Notes are stored on this tablet in
+Completed strokes are queued for durable saving when lifted. Pause briefly to
+let the background writer finish before force-stopping the app; the menu reports
+its save state. An unfinished stroke is discarded when leaving the app. Notes are stored on this tablet in
 the app's private directory; uninstalling the app removes that data. Keep the
 local signing key when installing updates over an existing version.
-Version 0.14 reads the unchanged version-1 page format from earlier releases. Install it as
+Version 0.15 reads the unchanged version-1 page format from earlier releases. Install it as
 an update over the existing app; **do not uninstall** to install the update.
 
 This firmware is sensitive to unrelated background display activity. During
@@ -105,7 +114,8 @@ adb -d shell am start -W -n org.eink.inkprobe/.notebook.NotebookLibraryActivity
 
 The package remains `org.eink.inkprobe` so updates retain this workspace's app
 identity. Its launcher label is **Ink Notebook**. It is debug signed with an
-ignored local key and requests no permissions or network access. No proprietary
+ignored local key and requests only the normal `ACCESS_NETWORK_STATE` permission
+for the Wi-Fi indicator. It makes no network requests. No proprietary
 Huawei code is bundled. Reflection calls use classes already on this firmware;
 failures pause writing explicitly.
 
@@ -217,6 +227,14 @@ without animating the other controls. All 16,947 host assertions pass, including
 physical screen-to-surface exclusion checks. Icons and both selected states were
 visually inspected; window movement, pen protection, and refresh behavior still
 need tablet acceptance. See [floating tools](docs/floating-tools.md).
+
+Version 0.15 shrinks the controls to a single rotatable strip and replaces the
+large status row with a 24 dp header. Routine save counts and the redundant
+Overview label are removed. Device-status events coalesce until pen idle, and
+Wi-Fi is observed passively even when a VPN is active. All 17,392 host assertions
+pass, including 445 new strip-layout and status-coalescing checks. Both
+orientations were visually inspected; live status and pen behavior still need
+tablet acceptance. See [compact tools and status](docs/compact-tools-status.md).
 
 See [milestone design and acceptance](docs/notebook-milestone.md), the
 [device test record](docs/device-testing.md), and the retained

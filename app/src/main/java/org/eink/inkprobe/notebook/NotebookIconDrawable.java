@@ -13,7 +13,8 @@ import android.graphics.drawable.Drawable;
 public final class NotebookIconDrawable extends Drawable {
     public enum Icon {
         LIBRARY, PREVIOUS, NEXT, ADD_PAGE, PEN, ERASER, UNDO, REDO,
-        PAPER_BLANK, PAPER_LINED, MORE, OVERVIEW, MOVE
+        PAPER_BLANK, PAPER_LINED, MORE, OVERVIEW, MOVE, LAYOUT_HORIZONTAL, LAYOUT_VERTICAL,
+        BATTERY, WIFI, WIFI_OFF
     }
 
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);

@@ -41,8 +41,8 @@ public final class NotebookIconButton extends View {
         setFocusable(true);
         setSoundEffectsEnabled(false);
         setHapticFeedbackEnabled(false);
-        setMinimumWidth(dp(48));
-        setMinimumHeight(dp(48));
+        setMinimumWidth(dp(28));
+        setMinimumHeight(dp(28));
         setContentDescription(name);
     }
 
@@ -81,7 +81,7 @@ public final class NotebookIconButton extends View {
     }
 
     @Override protected void onMeasure(int widthSpec, int heightSpec) {
-        setMeasuredDimension(resolveSize(dp(48), widthSpec), resolveSize(dp(48), heightSpec));
+        setMeasuredDimension(resolveSize(dp(36), widthSpec), resolveSize(dp(36), heightSpec));
     }
 
     @Override protected void onDraw(Canvas canvas) {
@@ -92,12 +92,12 @@ public final class NotebookIconButton extends View {
         border.set(inset, inset, getWidth() - inset, getHeight() - inset);
         paint.setColor(Color.WHITE);
         paint.setStyle(Paint.Style.FILL);
-        canvas.drawRoundRect(border, dpFloat(12), dpFloat(12), paint);
+        canvas.drawRoundRect(border, dpFloat(8), dpFloat(8), paint);
         paint.setColor(Color.BLACK);
         paint.setStrokeWidth(stroke);
         paint.setStyle(Paint.Style.STROKE);
-        canvas.drawRoundRect(border, dpFloat(12), dpFloat(12), paint);
-        int size = Math.min(dp(26), Math.min(getWidth(), getHeight()));
+        canvas.drawRoundRect(border, dpFloat(8), dpFloat(8), paint);
+        int size = Math.max(1, Math.min(dp(20), Math.min(getWidth(), getHeight()) - dp(12)));
         int left = (getWidth() - size) / 2;
         int top = (getHeight() - size) / 2;
         symbol.setBounds(left, top, left + size, top + size);

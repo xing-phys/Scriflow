@@ -13,12 +13,15 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
+import android.widget.HorizontalScrollView;
+import android.widget.ScrollView;
+import android.widget.FrameLayout;
 import java.util.EnumMap;
 
 /** A separate, static window above the native ink surface, moved only by its grip. */
 public final class NotebookFloatingTools {
     public enum Action {
-        LIBRARY, PREVIOUS, NEXT, ADD_PAGE, PEN, ERASER, UNDO, REDO, PAPER, MORE, OVERVIEW
+        LIBRARY, PREVIOUS, NEXT, ADD_PAGE, PEN, ERASER, UNDO, REDO, PAPER, MORE, OVERVIEW, ORIENTATION
     }
 
     public interface Listener {
@@ -43,7 +46,7 @@ public final class NotebookFloatingTools {
     private final Rect screenBounds = new Rect();
     private final Rect allowedBounds = new Rect();
     private View anchor;
-    private int columns;
+    private boolean vertical;
     private int width, height;
     private int movingPointer = -1;
     private boolean gripGesture, moveAccepted, disposed;
@@ -64,16 +67,25 @@ public final class NotebookFloatingTools {
         this.listener = listener;
         content = new ContactLayout(activity);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(8), dp(8), dp(8), dp(8));
+        content.setPadding(dp(6), dp(6), dp(6), dp(6));
         content.setStateListAnimator(null);
         content.setElevation(0f);
         GradientDrawable background = new GradientDrawable();
         background.setColor(Color.WHITE);
-        background.setCornerRadius(dp(16));
+        background.setCornerRadius(dp(12));
         background.setStroke(dp(1), Color.BLACK);
         content.setBackground(background);
         grip = new NotebookIconButton(activity, NotebookIconDrawable.Icon.MOVE, "Move tools");
-        grip.setOnTouchListener((view, event) -> drag(event));
+        grip.setOnTouchListener((view, event) -> {
+            // A narrow-window strip can scroll, but its grip always moves the window.
+            if (event.getActionMasked() == MotionEvent.ACTION_DOWN)
+                view.getParent().requestDisallowInterceptTouchEvent(true);
+            boolean consumed = drag(event);
+            if (event.getActionMasked() == MotionEvent.ACTION_UP
+                    || event.getActionMasked() == MotionEvent.ACTION_CANCEL)
+                view.getParent().requestDisallowInterceptTouchEvent(false);
+            return consumed;
+        });
         add(Action.LIBRARY, NotebookIconDrawable.Icon.LIBRARY, "Notebook library");
         add(Action.PREVIOUS, NotebookIconDrawable.Icon.PREVIOUS, "Previous page");
         add(Action.NEXT, NotebookIconDrawable.Icon.NEXT, "Next page");
@@ -85,8 +97,8 @@ public final class NotebookFloatingTools {
         add(Action.PAPER, NotebookIconDrawable.Icon.PAPER_BLANK, "Change paper");
         add(Action.MORE, NotebookIconDrawable.Icon.MORE, "Notebook menu");
         add(Action.OVERVIEW, NotebookIconDrawable.Icon.OVERVIEW, "Page overview and jumps");
-        // Writing tools stay together; navigation and paper occupy the second row.
-        order = new View[] {grip, button(Action.PEN), button(Action.ERASER), button(Action.UNDO),
+        add(Action.ORIENTATION, NotebookIconDrawable.Icon.LAYOUT_VERTICAL, "Switch to vertical tools");
+        order = new View[] {grip, button(Action.ORIENTATION), button(Action.PEN), button(Action.ERASER), button(Action.UNDO),
             button(Action.REDO), button(Action.MORE), button(Action.LIBRARY),
             button(Action.PREVIOUS), button(Action.NEXT), button(Action.ADD_PAGE),
             button(Action.OVERVIEW), button(Action.PAPER)};
@@ -135,6 +147,19 @@ public final class NotebookFloatingTools {
     }
 
     public NotebookIconButton button(Action action) { return buttons.get(action); }
+
+    public boolean isVertical() { return vertical; }
+
+    /** Caller pauses native ink before changing the window's exclusion rectangle. */
+    public void setVertical(boolean value) {
+        if (vertical == value) return;
+        vertical = value;
+        button(Action.ORIENTATION).setIcon(value ? NotebookIconDrawable.Icon.LAYOUT_HORIZONTAL
+            : NotebookIconDrawable.Icon.LAYOUT_VERTICAL);
+        button(Action.ORIENTATION).setContentDescription(value
+            ? "Switch to horizontal tools" : "Switch to vertical tools");
+        if (isShowing()) position(horizontalFraction, verticalFraction);
+    }
 
     /** Fractions describe the available travel, rather than screen pixels. */
     public void show(View anchor, float horizontalFraction, float verticalFraction) {
@@ -186,12 +211,11 @@ public final class NotebookFloatingTools {
         horizontalFraction = fraction(horizontal);
         verticalFraction = fraction(vertical);
         updateAllowedBounds();
-        int newColumns = Math.max(1, Math.min(6,
-                (allowedBounds.width() - dp(16) + dp(6)) / (dp(48) + dp(6))));
-        if (columns != newColumns) buildRows(newColumns);
-        width = dp(16) + columns * dp(48) + (columns - 1) * dp(6);
-        int rows = (order.length + columns - 1) / columns;
-        height = dp(16) + rows * dp(48) + (rows - 1) * dp(6);
+        NotebookToolStrip.Layout layout = NotebookToolStrip.measure(this.vertical, order.length,
+                Math.max(1, allowedBounds.width()), Math.max(1, allowedBounds.height()),
+                dp(36), dp(28), dp(4), dp(6));
+        width = layout.width; height = layout.height;
+        buildStrip(layout);
         content.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
                 View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
         int left = allowedBounds.left + Math.round(horizontalFraction
@@ -223,26 +247,40 @@ public final class NotebookFloatingTools {
             allowedBounds.inset(margin, margin);
     }
 
-    private void buildRows(int count) {
+    private void buildStrip(NotebookToolStrip.Layout layout) {
         content.removeAllViews();
-        // Each view still belongs to its old detached row until explicitly removed.
         for (View view : order) {
             if (view.getParent() instanceof LinearLayout)
                 ((LinearLayout) view.getParent()).removeView(view);
         }
-        for (int first = 0; first < order.length; first += count) {
-            LinearLayout row = new LinearLayout(activity);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            for (int index = first; index < Math.min(order.length, first + count); index++) {
-                LinearLayout.LayoutParams item = new LinearLayout.LayoutParams(dp(48), dp(48));
-                if (index != first) item.leftMargin = dp(6);
-                row.addView(order[index], item);
+        LinearLayout strip = new LinearLayout(activity);
+        strip.setOrientation(vertical ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
+        for (int index = 0; index < order.length; index++) {
+            LinearLayout.LayoutParams item = new LinearLayout.LayoutParams(layout.button, layout.button);
+            if (index != 0) {
+                if (vertical) item.topMargin = dp(4); else item.leftMargin = dp(4);
             }
-            LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(-1, dp(48));
-            if (first != 0) rowParams.topMargin = dp(6);
-            content.addView(row, rowParams);
+            strip.addView(order[index], item);
         }
-        columns = count;
+        if (vertical) {
+            ScrollView scroll = new ScrollView(activity);
+            scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
+            scroll.setVerticalScrollBarEnabled(false);
+            scroll.setVerticalFadingEdgeEnabled(false);
+            scroll.setSmoothScrollingEnabled(false);
+            scroll.addView(strip, new FrameLayout.LayoutParams(layout.stripWidth, layout.stripHeight));
+            content.addView(scroll, new LinearLayout.LayoutParams(
+                Math.max(1, width - dp(12)), Math.max(1, height - dp(12))));
+        } else {
+            HorizontalScrollView scroll = new HorizontalScrollView(activity);
+            scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
+            scroll.setHorizontalScrollBarEnabled(false);
+            scroll.setHorizontalFadingEdgeEnabled(false);
+            scroll.setSmoothScrollingEnabled(false);
+            scroll.addView(strip, new FrameLayout.LayoutParams(layout.stripWidth, layout.stripHeight));
+            content.addView(scroll, new LinearLayout.LayoutParams(
+                Math.max(1, width - dp(12)), Math.max(1, height - dp(12))));
+        }
     }
 
     private boolean drag(MotionEvent event) {
