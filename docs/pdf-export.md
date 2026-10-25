@@ -1,4 +1,4 @@
-# PDF export - 0.13
+# PDF export - 0.21
 
 ## Use
 
@@ -17,8 +17,11 @@ cancellation, or preparation failure. They may be evicted by Android; **Retry**
 then prepares a new PDF. Abandoned cache files after process termination are
 subject to normal Android cache cleanup.
 
-The saved PDF contains vector handwriting, the original stroke widths/colors,
-round joins/caps, dots, and each page's blank/lined background. It preserves each
+The saved PDF contains filled vector outlines from Huawei's native pressure
+brush, retaining per-stroke style, pressure-shaped width, dots, color/opacity,
+and each page's blank/lined background. Before 0.21, export drew fixed-width
+centre lines and ignored the saved pressure samples. Existing notes now render
+correctly without migration; older PDFs need to be exported again. It preserves each
 page's proportions, with a 595.2756-point (210 mm) page width and proportional
 height. The source stores logical pixels rather than physical paper sizes, so
 this is a printing scale, not the tablet's physical size. An extreme page is
@@ -48,9 +51,12 @@ blank replacements. Notebook/page/catalog formats are unchanged.
 
 `NotebookPdf` writes PDF 1.4 directly to a stream with a bounded buffer, one
 source page at a time, plus a small object-offset table. There is no whole-book
-bitmap or PDF byte-array allocation. Streams have indirect lengths and exact
-byte-offset cross references. Ink uses vector paths, repeated-point dots use
-filled circles, and shared graphics states retain ARGB opacity. UTF-16BE title
+bitmap or PDF byte-array allocation. Each stroke obtains its native filled
+outline; curves are flattened to 0.05 source-page units for portable vector
+output. All contours of a stroke are filled once with their native winding rule,
+including dots and holes. Shared graphics states retain ARGB opacity. Content
+streams use lossless Flate compression, indirect compressed lengths, and exact
+byte-offset cross references. UTF-16BE title
 metadata supports Unicode notebook names. Numbers use locale-independent PDF
 syntax. A page or output error leaves no successful prepared result. Cancellation
 is checked between pages and on buffered output writes within long strokes.
@@ -73,7 +79,31 @@ The export screen and menu controls use the existing static-button styling and
 zero window/activity animations. Export progress updates occur while writing
 is paused, with coalesced notifications rather than a spinning indicator.
 
-## Verification and tablet acceptance
+## Version 0.21 verification
+
+All **19,820 host assertions** pass, including **4,308 PDF checks** and 25 outline
+transport checks. Structural tests decode the compressed streams and verify
+geometry, fill rules, alpha, numeric precision, caller ownership, streaming,
+cancellation, failures, exact lengths/xref offsets, and unchanged notebook files,
+history and scroll position. No fallback to nominal-width lines is allowed when
+native outline extraction fails.
+
+The synthetic on-device comparison covers 14 light, heavy, pressure-ramped,
+curved, dotted, thin and self-crossing strokes. Huawei replay, scrolling geometry,
+and the PDF measure the light/heavy lines at 5/10 pixels for the nominal width-10
+brush. Thresholded ink boundaries agree within one source pixel; rasterizer
+antialiasing differs. Independent Poppler rendering and the tablet's PdfRenderer
+both read the final two-page blank/lined export, and PNG details are visually
+inspected. Compression reduces this fixture from 1,434,878 to 292,887 bytes
+without changing geometry. Native outline extraction also passes from the
+ordinary APK UID, and blank/lined restoration/edit/pause checks pass.
+
+The user physically confirms that scrolling and fresh PDF exports both match
+the writing canvas. Existing note files and the page format remain unchanged.
+See [consistent ink rendering](consistent-ink-rendering.md) for implementation
+and the reproducible device comparison.
+
+## Original 0.13 verification and acceptance procedure
 
 All **16,902 host assertions** pass, including **3,555 PDF assertions**. They
 cover ordered source reads, page aspect ratios, vectors and dots, ruling,

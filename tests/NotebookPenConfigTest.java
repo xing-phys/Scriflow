@@ -2,7 +2,6 @@ package org.eink.inkprobe.notebook;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -97,13 +96,13 @@ public final class NotebookPenConfigTest {
         }
         NotebookPage page = NotebookPage.empty().withSize(140, 300).withStrokes(logical);
         ByteArrayOutputStream output = new ByteArrayOutputStream();
-        NotebookPdf.write(output, "Mixed thickness", 1, number -> page, null);
-        String pdf = new String(output.toByteArray(), StandardCharsets.US_ASCII);
-        for (float value : WIDTHS) {
-            String width = java.math.BigDecimal.valueOf((double) value).setScale(1, java.math.RoundingMode.HALF_UP)
-                .stripTrailingZeros().toPlainString();
-            check(pdf.contains("\n" + width + " w\n"), "PDF line uses original " + width + "-unit width");
-        }
+        List<NotebookPage.Stroke> rendered = new ArrayList<>();
+        NotebookPdf.write(output, "Mixed thickness", 1, number -> page, null, stroke -> {
+            rendered.add(stroke);
+            return NotebookOutlineFixture.outline(stroke);
+        });
+        for (int i = 0; i < logical.size(); i++)
+            check(rendered.get(i) == logical.get(i), "outline provider receives original per-stroke width, pressure and timing");
         check(page.strokes.size() == logical.size(), "PDF export leaves mixed-width page editable");
     }
 

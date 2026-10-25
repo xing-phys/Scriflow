@@ -5,7 +5,6 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
-import android.graphics.Path;
 import android.graphics.RectF;
 import android.view.View;
 import java.util.concurrent.CancellationException;
@@ -17,7 +16,6 @@ import java.util.function.BooleanSupplier;
  */
 public final class NotebookPageThumbnail extends View {
     private static final int LOADING = 0, READY = 1, ERROR = 2;
-    private static final int PATH_CHUNK = 4096;
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final RectF imageBounds = new RectF();
     private final RectF bitmapBounds = new RectF();
@@ -132,8 +130,8 @@ public final class NotebookPageThumbnail extends View {
 
     /**
      * Render the entire immutable page into a bounded RGB_565 thumbnail. No page or
-     * point list is retained by the returned bitmap. Paths are streamed in chunks
-     * so a large page does not allocate another complete vector representation.
+     * point list is retained by the returned bitmap. Native pressure-shaped outlines
+     * are replayed one stroke at a time without an artificial minimum ink width.
      */
     public static Bitmap render(NotebookPage page, int width, int height) {
         return render(page, width, height, () -> false);
@@ -166,34 +164,9 @@ public final class NotebookPageThumbnail extends View {
                     canvas.drawLine(0, y, pageWidth, y, ink);
                 }
             }
-            ink.setStyle(Paint.Style.STROKE);
-            ink.setStrokeCap(Paint.Cap.ROUND);
-            ink.setStrokeJoin(Paint.Join.ROUND);
-            Path path = new Path();
             for (NotebookPage.Stroke stroke : page.strokes) {
                 checkCancelled(cancelled);
-                ink.setColor(stroke.color);
-                ink.setStrokeWidth(Math.max(stroke.width, 0.9f / scale));
-                NotebookPage.Point first = stroke.points.get(0);
-                path.rewind();
-                path.moveTo(first.x, first.y);
-                boolean moved = false;
-                int chunkPoints = 1;
-                for (int i = 1; i < stroke.points.size(); i++) {
-                    NotebookPage.Point point = stroke.points.get(i);
-                    if (point.x != first.x || point.y != first.y) moved = true;
-                    path.lineTo(point.x, point.y);
-                    if (++chunkPoints >= PATH_CHUNK) {
-                        checkCancelled(cancelled);
-                        canvas.drawPath(path, ink);
-                        path.rewind();
-                        path.moveTo(point.x, point.y);
-                        chunkPoints = 1;
-                    }
-                }
-                if (moved) canvas.drawPath(path, ink);
-                // Native dots can contain multiple identical points, not just one.
-                else canvas.drawPoint(first.x, first.y, ink);
+                NotebookStrokeRenderer.draw(canvas, stroke, ink, cancelled);
             }
             return result;
         } catch (RuntimeException | Error error) {

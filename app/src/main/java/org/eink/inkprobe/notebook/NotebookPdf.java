@@ -6,16 +6,18 @@ import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
+import java.util.zip.Deflater;
+import java.util.zip.DeflaterOutputStream;
 
 /** A streaming vector PDF writer. It retains no page after its export completes. */
 public final class NotebookPdf {
     public interface PageSource { NotebookPage page(int number) throws IOException; }
     public interface Progress { void pageExported(int completed, int total) throws IOException; }
+    public interface OutlineSource { NotebookStrokeOutline outline(NotebookPage.Stroke stroke) throws IOException; }
 
     private static final double PAGE_WIDTH = 595.2756;
     /** PDF 1.4's maximum page extent in default user-space units. */
     private static final double MAX_PAGE_HEIGHT = 14400;
-    private static final double CIRCLE = 0.5522847498307936;
     private static final long MAX_XREF_OFFSET = 9999999999L;
 
     private NotebookPdf() {}
@@ -26,24 +28,27 @@ public final class NotebookPdf {
      * Progress runs between pages and may throw IOException to cancel the export.
      */
     public static void write(OutputStream output, String notebookName, int pageCount,
-                             PageSource source, Progress progress) throws IOException {
-        if (output == null || notebookName == null || source == null || pageCount < 1 ||
+                             PageSource source, Progress progress, OutlineSource outlines) throws IOException {
+        if (output == null || notebookName == null || source == null || outlines == null || pageCount < 1 ||
                 pageCount > NotebookIndex.MAX_PAGES) {
             throw new IOException("Invalid PDF export request");
         }
-        new Writer(output, pageCount).write(notebookName, source, progress);
+        new Writer(output, pageCount, outlines).write(notebookName, source, progress);
     }
 
     private static final class Writer {
         private final OutputStream output;
+        private final OutlineSource outlines;
+        private OutputStream pageOutput;
         private final int pageCount, lastPageObject;
         private final long[] offsets;
         private final int[] alphaObjects = new int[256];
         private int lastObject;
         private long position;
 
-        Writer(OutputStream output, int count) {
+        Writer(OutputStream output, int count, OutlineSource outlines) {
             this.output = new BufferedOutputStream(output, 32768);
+            this.outlines = outlines;
             pageCount = count;
             lastPageObject = 4 + count * 3;
             lastObject = lastPageObject;
@@ -102,62 +107,60 @@ public final class NotebookPdf {
             object(id);
             ascii("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 " + number(width) + " " +
                 number(height) + "] /Resources 4 0 R /Contents " + content + " 0 R >>\nendobj\n");
-            object(content); ascii("<< /Length " + length + " 0 R >>\nstream\n");
+            object(content); ascii("<< /Length " + length + " 0 R /Filter /FlateDecode >>\nstream\n");
             long contentStart = position;
-            ascii("q\n" + number(scale) + " 0 0 " + number(-scale) + " 0 " + number(height) + " cm\n");
-            ascii("0 0 " + page.width + " " + page.height + " re W n\n");
-            ascii("1 1 1 rg\n0 0 " + page.width + " " + page.height + " re f\n");
-            if (page.template == NotebookPage.Template.LINED) {
-                ascii("0.823529 0.823529 0.823529 RG\n1 w\n");
-                for (int y = 72; y < page.height; y += 72) {
-                    ascii("0 " + y + " m " + page.width + " " + y + " l S\n");
+            Deflater deflater = new Deflater();
+            DeflaterOutputStream compressed = new DeflaterOutputStream(new OutputStream() {
+                @Override public void write(int value) throws IOException { output.write(value); position++; }
+                @Override public void write(byte[] bytes, int offset, int count) throws IOException {
+                    output.write(bytes, offset, count); position += count;
                 }
+            }, deflater, 32768);
+            pageOutput = compressed;
+            try {
+                ascii("q\n" + number(scale) + " 0 0 " + number(-scale) + " 0 " + number(height) + " cm\n");
+                ascii("0 0 " + page.width + " " + page.height + " re W n\n");
+                ascii("1 1 1 rg\n0 0 " + page.width + " " + page.height + " re f\n");
+                if (page.template == NotebookPage.Template.LINED) {
+                    ascii("0.823529 0.823529 0.823529 RG\n1 w\n");
+                    for (int y = 72; y < page.height; y += 72) {
+                        ascii("0 " + y + " m " + page.width + " " + y + " l S\n");
+                    }
+                }
+                for (NotebookPage.Stroke stroke : page.strokes) writeStroke(stroke);
+                ascii("Q\n");
+                compressed.finish();
+            } finally {
+                pageOutput = null;
+                deflater.end();
             }
-            ascii("1 J\n1 j\n");
-            for (NotebookPage.Stroke stroke : page.strokes) writeStroke(stroke);
-            ascii("Q\n");
             long contentLength = position - contentStart;
-            ascii("endstream\nendobj\n");
+            ascii("\nendstream\nendobj\n");
             object(length); ascii(contentLength + "\nendobj\n");
         }
 
         private void writeStroke(NotebookPage.Stroke stroke) throws IOException {
+            NotebookStrokeOutline outline;
+            try { outline = outlines.outline(stroke); }
+            catch (RuntimeException error) { throw new IOException("Could not render PDF handwriting", error); }
+            if (outline == null) throw new IOException("Missing PDF handwriting outline");
             int alpha = (stroke.color >>> 24) & 255;
             if (alphaObjects[alpha] == 0) alphaObjects[alpha] = ++lastObject;
             String rgb = number(((stroke.color >>> 16) & 255) / 255.0) + " " +
                 number(((stroke.color >>> 8) & 255) / 255.0) + " " + number((stroke.color & 255) / 255.0);
-            ascii("/A" + alpha + " gs\n" + rgb + " RG\n" + rgb + " rg\n" +
-                coordinate(stroke.width) + " w\n");
-            NotebookPage.Point first = stroke.points.get(0);
-            ascii(coordinate(first.x) + " " + coordinate(first.y) + " m\n");
-            boolean moved = false;
-            // Stream the original path; never copy its points or buffer its commands.
-            // Keeping one path also avoids opacity seams at artificial chunk joins.
-            for (int i = 1; i < stroke.points.size(); i++) {
-                NotebookPage.Point point = stroke.points.get(i);
-                if (point.x != first.x || point.y != first.y) moved = true;
-                ascii(coordinate(point.x) + " " + coordinate(point.y) + " l\n");
-            }
-            if (moved) ascii("S\n");
-            else {
-                ascii("n\n");
-                circle(first.x, first.y, stroke.width / 2.0);
-            }
-        }
-
-        private void circle(double x, double y, double radius) throws IOException {
-            double k = CIRCLE * radius;
-            ascii(number(x + radius) + " " + number(y) + " m\n");
-            curve(x + radius, y + k, x + k, y + radius, x, y + radius);
-            curve(x - k, y + radius, x - radius, y + k, x - radius, y);
-            curve(x - radius, y - k, x - k, y - radius, x, y - radius);
-            curve(x + k, y - radius, x + radius, y - k, x + radius, y);
-            ascii("f\n");
-        }
-
-        private void curve(double a, double b, double c, double d, double e, double f) throws IOException {
-            ascii(number(a) + " " + number(b) + " " + number(c) + " " + number(d) + " " +
-                number(e) + " " + number(f) + " c\n");
+            ascii("/A" + alpha + " gs\n" + rgb + " rg\n");
+            // Fill the complete native outline once, retaining pressure, contours and opacity.
+            // A PDF line width cannot describe this brush and made old exports too thick.
+            outline.writeTo(new NotebookStrokeOutline.Sink() {
+                @Override public void moveTo(float x, float y) throws IOException {
+                    ascii(coordinate(x) + " " + coordinate(y) + " m\n");
+                }
+                @Override public void lineTo(float x, float y) throws IOException {
+                    ascii(coordinate(x) + " " + coordinate(y) + " l\n");
+                }
+                @Override public void close() throws IOException { ascii("h\n"); }
+            });
+            ascii(outline.evenOdd ? "f*\n" : "f\n");
         }
 
         private void object(int id) throws IOException {
@@ -168,8 +171,8 @@ public final class NotebookPdf {
 
         private void ascii(String value) throws IOException {
             byte[] bytes = value.getBytes(StandardCharsets.US_ASCII);
-            output.write(bytes);
-            position += bytes.length;
+            if (pageOutput != null) pageOutput.write(bytes);
+            else { output.write(bytes); position += bytes.length; }
         }
     }
 

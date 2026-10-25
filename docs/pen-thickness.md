@@ -1,4 +1,9 @@
-# Pen thickness — 0.18
+# Pen thickness and pressure
+
+Version 0.21 uses the native pressure brush for scrolling, thumbnails, and PDF
+export, correcting the previous fixed-width rendering. A stored width is the
+brush setting; pressure can make visible ink thinner. Existing strokes already
+contain the required pressure/time samples. See [consistent ink rendering](consistent-ink-rendering.md).
 
 Version 0.19 extends this same compact slider to Eraser with an independent,
 larger width range. See [eraser width and grey trail](eraser-width-preview.md).

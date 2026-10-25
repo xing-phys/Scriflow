@@ -8,7 +8,6 @@ import android.graphics.Color;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
-import android.graphics.Path;
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.Handler;
@@ -488,19 +487,8 @@ public final class NotebookActivity extends Activity {
             for (int y = 72; y < current.height; y += 72) drawing.drawLine(0, y, current.width, y, paint);
         }
         if (includeInk) {
-            paint.setStyle(Paint.Style.STROKE); paint.setStrokeCap(Paint.Cap.ROUND); paint.setStrokeJoin(Paint.Join.ROUND);
-            for (NotebookPage.Stroke stroke : current.strokes) {
-                paint.setColor(stroke.color); paint.setStrokeWidth(stroke.width);
-                NotebookPage.Point start = stroke.points.get(0);
-                if (stroke.points.size() == 1) drawing.drawPoint(start.x, start.y, paint);
-                else {
-                    Path path = new Path(); path.moveTo(start.x, start.y);
-                    for (int i = 1; i < stroke.points.size(); i++) {
-                        NotebookPage.Point point = stroke.points.get(i); path.lineTo(point.x, point.y);
-                    }
-                    drawing.drawPath(path, paint);
-                }
-            }
+            for (NotebookPage.Stroke stroke : current.strokes)
+                NotebookStrokeRenderer.draw(drawing, stroke, paint);
         }
         drawing.restore();
     }

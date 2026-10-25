@@ -249,6 +249,22 @@ public final class NotebookSelfTestActivity extends Activity implements Notebook
             result.put("coordinatesStylePressureTimeMatch", true);
             result.put("paper", paper);
             result.put("physicalStylusLatencyTested", false);
+            if (getIntent().getBooleanExtra("outlines", false)) {
+                // Exercise the same native APIs from an ordinary APK UID, not just app_process.
+                Bitmap bitmap = Bitmap.createBitmap(expected.width, expected.height, Bitmap.Config.ARGB_8888);
+                try {
+                    android.graphics.Canvas canvas = new android.graphics.Canvas(bitmap);
+                    android.graphics.Paint paint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+                    int vertices = 0;
+                    for (NotebookPage.Stroke stroke : expected.strokes) {
+                        NotebookStrokeRenderer.draw(canvas, stroke, paint);
+                        vertices += NotebookStrokeRenderer.outline(stroke).vertexCount();
+                    }
+                    require(vertices > 0, "Native pressure outlines empty");
+                    result.put("nativeOutlinesFromApkUid", true);
+                    result.put("outlineVertices", vertices);
+                } finally { bitmap.recycle(); }
+            }
             if (getIntent().getBooleanExtra("inPlaceEdits", false)) {
                 result.put("inPlaceEdits", verifyInPlaceEdits());
                 pendingResult = result;

@@ -1,8 +1,9 @@
 package org.eink.inkprobe.notebook;
 
 import java.io.ByteArrayOutputStream;
+import java.io.ByteArrayInputStream;
+import java.util.zip.InflaterInputStream;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -29,7 +30,6 @@ public final class NotebookPdfTest {
         extremeGeometryFitsPdfLimits();
         libraryExportIsReadOnlyAndKeepsHistory();
         corruptLaterPageDoesNotPoisonEditor();
-        writeVisualFixture();
         System.out.println("NotebookPdf: " + assertions + " assertions passed (streaming vector PDF).");
     }
 
@@ -60,13 +60,13 @@ public final class NotebookPdfTest {
         contains(first, "0 144 m 100 144 l S", "ruling repeats every72");
         check(!first.contains("0 216 m"), "rules stop at page bottom");
         check(!second.contains("0.823529"), "blank template has no rules");
-        contains(first, "1 J\n1 j", "round line caps and joins");
-        contains(first, "1 0 0 RG\n1 0 0 rg\n2.5 w", "recorded RGB and stroke width retained");
-        contains(first, "10 20 m\n80 90 l\nS", "original vectors retained without rasterization");
-        contains(second, "-10 25 m\n220 75 l\nS", "off-page source vectors use explicit page clip");
-        equal(8, occurrences(first, " c\n"), "single-point and repeated-point dots use filled circles");
-        contains(first, "34 40 m", "dot radius equals half recorded width");
-        contains(first, "53 60 m", "repeated identical points retain visible dot");
+        check(!first.contains("1 J\n1 j"), "filled native outline needs no synthetic caps/joins");
+        contains(first, "1 0 0 rg", "recorded RGB retained for outline fill");
+        contains(first, "10 20 m\n80 90 l\n", "outline source vectors retained without rasterization");
+        contains(second, "-10 25 m\n220 75 l\n", "off-page outline uses explicit page clip");
+        equal(4, occurrences(first, "f\n"), "paper plus one filled outline for each of three strokes");
+        contains(first, "30 40 m", "single-point stroke reaches the outline provider");
+        contains(first, "50 60 m", "repeated-point stroke reaches the outline provider");
         contains(pdf, "/CA 0.501961 /ca 0.501961", "ARGB stroke opacity retained");
         equal(1, occurrences(pdf, "/Type /ExtGState /CA 1 /ca 1"), "opaque alpha resource reused");
         check(!pdf.contains("/Subtype /Image"), "ink is exported as vectors");
@@ -77,7 +77,7 @@ public final class NotebookPdfTest {
         final List<Integer> reads = new ArrayList<>(), progress = new ArrayList<>();
         final TrackingOutput output = new TrackingOutput();
         final int total = 250;
-        NotebookPdf.write(output, "Many pages", total, number -> {
+        write(output, "Many pages", total, number -> {
             check(number == reads.size() + 1, "source reads strictly sequentially once");
             check(progress.size() == number - 1, "previous page completes before next source read");
             reads.add(number);
@@ -98,23 +98,23 @@ public final class NotebookPdfTest {
 
     private static void failuresAndCancellation() throws Exception {
         NotebookPage valid = page(100, 200, NotebookPage.Template.BLANK);
-        expectIo(() -> NotebookPdf.write(null, "title", 1, n -> valid, null), "missing output rejected");
-        expectIo(() -> NotebookPdf.write(new ByteArrayOutputStream(), null, 1, n -> valid, null), "missing title rejected");
-        expectIo(() -> NotebookPdf.write(new ByteArrayOutputStream(), "title", 0, n -> valid, null), "zero pages rejected");
-        expectIo(() -> NotebookPdf.write(new ByteArrayOutputStream(), "title", -1, n -> valid, null), "negative pages rejected");
-        expectIo(() -> NotebookPdf.write(new ByteArrayOutputStream(), "title", Integer.MAX_VALUE, n -> valid, null),
+        expectIo(() -> write(null, "title", 1, n -> valid, null), "missing output rejected");
+        expectIo(() -> write(new ByteArrayOutputStream(), null, 1, n -> valid, null), "missing title rejected");
+        expectIo(() -> write(new ByteArrayOutputStream(), "title", 0, n -> valid, null), "zero pages rejected");
+        expectIo(() -> write(new ByteArrayOutputStream(), "title", -1, n -> valid, null), "negative pages rejected");
+        expectIo(() -> write(new ByteArrayOutputStream(), "title", Integer.MAX_VALUE, n -> valid, null),
             "oversized export rejected without allocating huge xref");
-        expectIo(() -> NotebookPdf.write(new ByteArrayOutputStream(), "title", 1, null, null), "missing source rejected");
-        expectIo(() -> NotebookPdf.write(new ByteArrayOutputStream(), "title", 1, n -> null, null), "missing page rejected");
-        expectIo(() -> NotebookPdf.write(new ByteArrayOutputStream(), "title", 1, n -> NotebookPage.empty(), null),
+        expectIo(() -> write(new ByteArrayOutputStream(), "title", 1, null, null), "missing source rejected");
+        expectIo(() -> write(new ByteArrayOutputStream(), "title", 1, n -> null, null), "missing page rejected");
+        expectIo(() -> write(new ByteArrayOutputStream(), "title", 1, n -> NotebookPage.empty(), null),
             "uninitialized page rejected");
-        expectIo(() -> NotebookPdf.write(new ByteArrayOutputStream(), "title", 1,
+        expectIo(() -> write(new ByteArrayOutputStream(), "title", 1,
             n -> page(40000, 10, NotebookPage.Template.BLANK), null), "invalid geometry rejected");
-        expectIo(() -> NotebookPdf.write(new ByteArrayOutputStream(), "title", 1,
+        expectIo(() -> write(new ByteArrayOutputStream(), "title", 1,
             n -> page(100, 100, null), null), "invalid template rejected");
         final int[] reads = {0}, completed = {0};
         TrackingOutput sourceFailure = new TrackingOutput();
-        expectIo(() -> NotebookPdf.write(sourceFailure, "title", 3, n -> {
+        expectIo(() -> write(sourceFailure, "title", 3, n -> {
             reads[0]++;
             if (n == 2) throw new IOException("source failed");
             return valid;
@@ -122,11 +122,11 @@ public final class NotebookPdfTest {
         equal(2, reads[0], "source failure prevents reading later pages");
         equal(1, completed[0], "only completed page acknowledged before source failure");
         check(!sourceFailure.closed, "source failure does not close caller stream");
-        expectIo(() -> NotebookPdf.write(new ByteArrayOutputStream(), "title", 1,
+        expectIo(() -> write(new ByteArrayOutputStream(), "title", 1,
             n -> { throw new IllegalStateException("source bug"); }, null), "runtime source error becomes IOException");
         reads[0] = 0;
         TrackingOutput cancelled = new TrackingOutput();
-        expectIo(() -> NotebookPdf.write(cancelled, "cancel", 10, n -> { reads[0]++; return valid; },
+        expectIo(() -> write(cancelled, "cancel", 10, n -> { reads[0]++; return valid; },
             (done, total) -> { if (done == 2) throw new IOException("cancelled"); }), "progress cancellation propagates");
         equal(2, reads[0], "cancellation prevents further source reads");
         check(!cancelled.closed, "cancellation does not close output");
@@ -136,12 +136,12 @@ public final class NotebookPdfTest {
                 super.write(data, start, length);
             }
         };
-        expectIo(() -> NotebookPdf.write(failedWrite, "write", 1, n -> valid, null), "destination write error propagates");
+        expectIo(() -> write(failedWrite, "write", 1, n -> valid, null), "destination write error propagates");
         check(!failedWrite.closed, "write failure preserves caller ownership");
         TrackingOutput failedFlush = new TrackingOutput() {
             @Override public void flush() throws IOException { throw new IOException("flush failed"); }
         };
-        expectIo(() -> NotebookPdf.write(failedFlush, "flush", 1, n -> valid, null), "destination flush error propagates");
+        expectIo(() -> write(failedFlush, "flush", 1, n -> valid, null), "destination flush error propagates");
         check(!failedFlush.closed, "flush failure preserves caller ownership");
     }
 
@@ -156,12 +156,12 @@ public final class NotebookPdfTest {
                 stroke(0.00001f, 0xff000000, point(0.0000001f, 0.000001f)));
             byte[] bytes = export("Precision", Collections.singletonList(page));
             String pdf = ascii(bytes), content = content(pdf, 6);
-            contains(content, "1.25 w", "width uses locale independent decimal separator");
-            contains(content, "0.00001 w", "tiny width avoids PDF-invalid exponent notation");
+            check(!content.contains("1.25 w"), "PDF does not replace a pressure outline with nominal line width");
+            contains(content, "0.0000101", "tiny outline geometry avoids exponent notation");
             contains(content, "0.0000001 0.000001 m", "tiny coordinates avoid exponent notation");
-            equal(points.size() - 1, occurrences(content, " l\n"), "long stroke streamed without omitted segments");
-            equal(1, occurrences(content, "S\n"), "translucent long stroke has no chunk overlap seams");
-            check(!pdf.contains("NaN") && !pdf.contains("Infinity"), "all PDF numeric output finite");
+            equal(points.size() + 3, occurrences(content, " l\n"), "all long and tiny outline vertices streamed without omitted segments");
+            equal(3, occurrences(content, "f\n"), "one fill per outline avoids translucent chunk overlap seams");
+            check(!content.contains("NaN") && !content.contains("Infinity"), "all PDF numeric output finite");
             check(!content.contains(","), "non-English host locale cannot corrupt PDF numbers");
             verifyStructure(bytes, 1);
         } finally { Locale.setDefault(previous); }
@@ -173,7 +173,7 @@ public final class NotebookPdfTest {
             page(NotebookStore.MAX_DIMENSION, 1, NotebookPage.Template.BLANK)));
         String pdf = ascii(bytes);
         contains(pdf, "/MediaBox [0 0 0.439453 14400]", "extreme tall page stays within PDF 1.4 extent");
-        contains(pdf, "0.439453 0 0 -0.439453 0 14400 cm", "height cap preserves source aspect by uniform scaling");
+        contains(content(pdf, 6), "0.439453 0 0 -0.439453 0 14400 cm", "height cap preserves source aspect by uniform scaling");
         contains(pdf, "/MediaBox [0 0 595.2756 0.018166]", "extreme wide page retains A4-width normalization");
         verifyStructure(bytes, 2);
     }
@@ -195,7 +195,7 @@ public final class NotebookPdfTest {
             int selected = library.pageNumber(), notebook = library.notebookId();
             Map<String, byte[]> before = treeBytes(root);
             ByteArrayOutputStream output = new ByteArrayOutputStream();
-            NotebookPdf.write(output, library.notebookName(), library.pageCount(), library::previewPage, null);
+            write(output, library.notebookName(), library.pageCount(), library::previewPage, null);
             verifyStructure(output.toByteArray(), 3);
             contains(content(ascii(output.toByteArray()), 6), "55 70 m", "export includes accepted current page edits");
             check(library.current() == accepted, "PDF export retains exact current immutable model");
@@ -231,7 +231,7 @@ public final class NotebookPdfTest {
             NotebookScrollStore.State position = library.scrollPosition();
             Map<String, byte[]> before = treeBytes(root);
             final List<Integer> reads = new ArrayList<>(), completed = new ArrayList<>();
-            expectIo(() -> NotebookPdf.write(new ByteArrayOutputStream(), library.notebookName(), library.pageCount(),
+            expectIo(() -> write(new ByteArrayOutputStream(), library.notebookName(), library.pageCount(),
                 n -> { reads.add(n); return library.previewPage(n); }, (done, total) -> completed.add(done)),
                 "whole-book PDF export aborts at corrupt later page");
             check(reads.equals(Arrays.asList(1, 2, 3)), "failed export visits original pages in order");
@@ -290,32 +290,6 @@ public final class NotebookPdfTest {
         if (!file.delete()) throw new AssertionError("Cannot remove PDF test fixture " + file);
     }
 
-    private static void writeVisualFixture() throws Exception {
-        List<NotebookPage.Stroke> ink = new ArrayList<>();
-        // Curves sampled as pen data, several styles, dots, edges, and layered alpha.
-        List<NotebookPage.Point> wave = new ArrayList<>();
-        for (int x = 80; x <= 1320; x += 4) wave.add(point(x, (float) (280 + 70 * Math.sin(x / 70.0))));
-        ink.add(new NotebookPage.Stroke(0, 8, 0xff000000, wave));
-        ink.add(stroke(20, 0xff000000, point(100, 450)));
-        ink.add(stroke(20, 0xff000000, point(150, 450), point(150, 450)));
-        ink.add(stroke(10, 0xffff0000, point(100, 550), point(600, 650), point(1000, 550)));
-        ink.add(stroke(80, 0x800000ff, point(200, 850), point(1100, 850)));
-        ink.add(stroke(80, 0x80ff0000, point(650, 750), point(650, 950)));
-        ink.add(stroke(12, 0xff000000, point(-100, 1100), point(1504, 1100)));
-        NotebookPage lined = NotebookPage.empty().withSize(1404, 1688).withTemplate(NotebookPage.Template.LINED).withStrokes(ink);
-        NotebookPage blank = page(1200, 800, NotebookPage.Template.BLANK,
-            stroke(10, 0xff000000, point(100, 100), point(1100, 100), point(1100, 700), point(100, 700), point(100, 100)),
-            stroke(16, 0xff008040, point(250, 500), point(450, 250), point(650, 500), point(850, 250)));
-        File directory = new File("build/pdf-test");
-        Files.createDirectories(directory.toPath());
-        File fixture = new File(directory, "notebook-export.pdf");
-        try (OutputStream output = new FileOutputStream(fixture)) {
-            NotebookPdf.write(output, "Ink Notebook · 实验笔记 🖊", 2, n -> n == 1 ? lined : blank, null);
-        }
-        verifyStructure(Files.readAllBytes(fixture.toPath()), 2);
-        check(fixture.length() > 2000, "representative production-writer fixture generated");
-    }
-
     private static void verifyStructure(byte[] bytes, int pageCount) throws Exception {
         String pdf = ascii(bytes);
         int start = pdf.lastIndexOf("startxref\n");
@@ -334,25 +308,42 @@ public final class NotebookPdfTest {
         equal(pageCount, occurrences(pdf, "/Type /Page /Parent"), "page object count matches export");
         for (int page = 1; page <= pageCount; page++) {
             int contentId = 6 + (page - 1) * 3;
-            String stream = content(pdf, contentId);
+            String stream = rawContent(pdf, contentId);
             String declared = find(pdf, "(?:^|\\n)" + (contentId + 1) + " 0 obj\\n([0-9]+)\\nendobj", 1);
-            equal(stream.getBytes(StandardCharsets.US_ASCII).length, Long.parseLong(declared), "indirect content length exact " + page);
+            equal(stream.getBytes(StandardCharsets.ISO_8859_1).length, Long.parseLong(declared), "indirect content length exact " + page);
         }
+    }
+
+    private static void write(OutputStream output, String name, int count,
+                              NotebookPdf.PageSource pages, NotebookPdf.Progress progress) throws IOException {
+        NotebookPdf.write(output, name, count, pages, progress, NotebookOutlineFixture::outline);
     }
 
     private static byte[] export(String title, List<NotebookPage> pages) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        NotebookPdf.write(out, title, pages.size(), n -> pages.get(n - 1), null);
+        write(out, title, pages.size(), n -> pages.get(n - 1), null);
         return out.toByteArray();
     }
 
-    private static String content(String pdf, int id) {
+    static String content(String pdf, int id) throws IOException {
+        byte[] raw = rawContent(pdf, id).getBytes(StandardCharsets.ISO_8859_1);
+        ByteArrayOutputStream decoded = new ByteArrayOutputStream();
+        try (InflaterInputStream input = new InflaterInputStream(new ByteArrayInputStream(raw))) {
+            byte[] buffer = new byte[4096];
+            for (int count; (count = input.read(buffer)) >= 0;) decoded.write(buffer, 0, count);
+        }
+        return new String(decoded.toByteArray(), StandardCharsets.US_ASCII);
+    }
+
+    private static String rawContent(String pdf, int id) {
         String object = id + " 0 obj\n";
         int objectStart = pdf.indexOf("\n" + object) + 1;
         int start = pdf.indexOf("stream\n", objectStart) + 7;
-        int end = pdf.indexOf("endstream\n", start);
-        check(objectStart > 0 && start >= 7 && end >= start, "content stream exists " + id);
-        return pdf.substring(start, end);
+        int length = Integer.parseInt(find(pdf, "(?:^|\\n)" + (id + 1) + " 0 obj\\n([0-9]+)\\nendobj", 1));
+        check(objectStart > 0 && start >= 7 && start + length <= pdf.length(), "content stream exists " + id);
+        check(pdf.substring(objectStart, start).contains("/Filter /FlateDecode"), "native geometry is compressed losslessly");
+        check(pdf.startsWith("\nendstream", start + length), "stream separator is outside exact compressed length");
+        return pdf.substring(start, start + length);
     }
 
     private static String find(String text, String regex, int group) {
@@ -361,7 +352,7 @@ public final class NotebookPdfTest {
         return matcher.group(group);
     }
 
-    private static String ascii(byte[] bytes) { return new String(bytes, StandardCharsets.US_ASCII); }
+    private static String ascii(byte[] bytes) { return new String(bytes, StandardCharsets.ISO_8859_1); }
     private static String hex(byte[] bytes) {
         StringBuilder out = new StringBuilder();
         for (byte b : bytes) out.append(String.format(Locale.ROOT, "%02X", b & 255));

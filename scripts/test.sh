@@ -23,6 +23,7 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookFingerStream.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookViewportBuffer.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPdf.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookStrokeOutline.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookOverlayClip.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookToolStrip.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookDeviceStatusState.java \
@@ -38,7 +39,7 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   tests/NotebookCatalogTest.java tests/NotebookLibraryTest.java \
   tests/NotebookViewportTest.java tests/NotebookScrollStoreTest.java \
   tests/NotebookFingerStreamTest.java tests/NotebookViewportBufferTest.java \
-  tests/NotebookPdfTest.java tests/NotebookOverlayClipTest.java \
+  tests/NotebookPdfTest.java tests/NotebookOutlineFixture.java tests/NotebookStrokeOutlineTest.java tests/NotebookOverlayClipTest.java \
   tests/NotebookToolStripTest.java tests/NotebookDeviceStatusStateTest.java \
   tests/NotebookPenConfigTest.java tests/NotebookPenSliderTest.java \
   tests/NotebookPenSliderCloseTest.java tests/NotebookEraserTest.java tests/NotebookEraserCommitTest.java
@@ -55,6 +56,7 @@ java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookScrollStoreTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookFingerStreamTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookViewportBufferTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPdfTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookStrokeOutlineTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookOverlayClipTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookToolStripTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookDeviceStatusStateTest

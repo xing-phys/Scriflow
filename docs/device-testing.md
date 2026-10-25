@@ -476,3 +476,43 @@ It never opened a user notebook, and only aggregate timing/count results were
 retrieved. The firmware binaries and sampled handwriting are not committed.
 The signed API 29 APK uses the existing local update key; page format and tool
 width preferences remain compatible with earlier versions.
+
+
+## Version 0.21: pressure-consistent scrolling and PDF (2026-10-25)
+
+The user observed thicker, constant-width strokes in scrolling and exported PDF,
+while the native canvas retained pressure variation. Stored strokes already had
+style, coordinates, pressure and event timestamps. The Android preview and PDF
+renderers used only the nominal width and point centre line.
+
+Both now obtain the native brush's filled outline via an offscreen HandPen
+replay. Overview thumbnails use the same geometry without their old minimum
+stroke-width inflation. No data migration or change to live AHW is needed.
+PDF output fills the complete native outline once; it does not simulate pressure
+with separate overlapping line segments. Native curves are flattened to 0.05
+source-page units, and output streams are compressed losslessly.
+
+A headless on-device check generates only synthetic data and never opens the
+notebook store. It compares 14 strokes against HWTrackHelper's own replay,
+including light/heavy/variable pressure, widths 1/3/4/6/10, dots, tight curves,
+and a self-crossing loop. At nominal width 10, native replay, the new Canvas
+renderer and the exported PDF all measure the light/heavy strokes at 5/10 pixels.
+No thresholded ink boundary differs by more than one source pixel; antialiasing
+accounts for non-identical raster pixels. Reused native pens do not mutate
+previous paths, and cancelling replay does not contaminate the next stroke.
+The generated two-page PDF passes PdfRenderer, pdfinfo and Poppler rendering;
+blank/lined PNGs and pressure details are inspected. Lossless compression reduces
+the synthetic PDF from 1,434,878 to 292,887 bytes with unchanged geometry.
+
+Disposable APK-UID tests confirm access to the native outline API from the
+installed app. Blank/lined native restore, in-place edit, page/paper switching,
+Surface/bitmap retention and simulated UP-before-commit checks pass. The host
+suite passes 19,820 assertions, including decoded PDF stream geometry, fill
+rules, opacity, compressed lengths, xref offsets, cancellation, errors and real
+file/history/scroll-position preservation.
+
+Physical acceptance: the user confirms scrolling and fresh PDF export both
+match the writing canvas. No user note contents or handwritten samples were
+retrieved for the synthetic comparison. The existing signing key and page format
+are retained. Old PDF files are not rewritten automatically; re-export uses the
+correct pressure-shaped outlines from the already saved points.

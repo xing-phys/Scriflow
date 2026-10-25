@@ -4,7 +4,7 @@ A small notebook app for Huawei MatePad Paper HMW-W09, with blank/lined pages,
 native low-latency handwriting, automatic saving of completed strokes, and
 editable restoration after reopening.
 
-The current build is an early development APK, version 0.20, with compact, rotatable icon
+The current build is an early development APK, version 0.21, with compact, rotatable icon
 tools, a notebook library, continuously scrolling pages, a page overview with
 jumps, PDF export, undo/redo, and a whole-stroke eraser.
 Handwriting uses a black ballpoint pen with adjustable thickness and an adjustable
@@ -63,7 +63,7 @@ Widths range from **1.0 to 10.0**, in 0.1 steps, with **4.0** as the original
 default. The choice is remembered between sessions and across notebooks.
 The small line beneath the pencil previews the selected thickness. Changing
 the pen affects only new strokes; saved writing, undo/redo, and exported PDFs
-retain each stroke's own width.
+retain each stroke's own width and recorded pressure shape.
 
 The slim top bar shows the notebook name and page number on the left, with time,
 a battery icon and percentage, and a Wi-Fi icon on the right. Wi-Fi indicates
@@ -74,8 +74,11 @@ for about a second; there are no per-second display updates.
 To export the open notebook, tap **three-dot menu → Export PDF**. All pages are prepared in
 order, including their writing and blank/lined backgrounds, then the Android
 save picker lets you choose a filename and location. Wait for **PDF saved**.
-The PDF contains sharp vector strokes, with page proportions preserved and a
-standard A4-width scale. Export leaves the notebook editable in the app.
+The PDF contains sharp vector outlines from the native pressure brush, with
+page proportions preserved and a standard A4-width scale. Scrolling previews
+and thumbnails use the same native brush geometry. Already saved writing
+benefits immediately; export again to replace an older PDF made with fixed-width
+lines. Export leaves the notebook editable in the app.
 Cancelling the location picker lets you choose again without preparing it again.
 
 Choose **Eraser**, move the stylus across writing, then lift it to remove every
@@ -106,7 +109,7 @@ let the background writer finish before force-stopping the app; the menu reports
 its save state. An unfinished stroke is discarded when leaving the app. Notes are stored on this tablet in
 the app's private directory; uninstalling the app removes that data. Keep the
 local signing key when installing updates over an existing version.
-Version 0.20 reads the unchanged version-1 page format from earlier releases. Install it as
+Version 0.21 reads the unchanged version-1 page format from earlier releases. Install it as
 an update over the existing app; **do not uninstall** to install the update.
 
 This firmware is sensitive to unrelated background display activity. During
@@ -299,6 +302,14 @@ pass; the user confirms the width-36 grey trail is smooth and clears correctly.
 Very fast passes at the maximum width 240 can still show visible lag; normal
 width-36 erasing is confirmed smooth. See [native eraser preview](docs/eraser-width-preview.md)
 for device verification and the accepted wide-brush limitation.
+
+Version 0.21 fixes scrolling previews and PDF exports looking thicker and losing
+pressure variation. Pressure and event timing were already saved; the old
+renderers ignored them. Both now reuse Huawei's native brush outlines, also used
+for overview thumbnails. PDF outlines stay vector-based and use lossless stream
+compression. All 19,820 host assertions and native geometry/restoration checks
+pass. The user confirms scrolling and newly exported PDFs both match the writing
+canvas. See [consistent ink rendering](docs/consistent-ink-rendering.md).
 
 See [milestone design and acceptance](docs/notebook-milestone.md), the
 [device test record](docs/device-testing.md), and the retained

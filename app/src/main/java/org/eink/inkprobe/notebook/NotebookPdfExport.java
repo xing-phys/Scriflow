@@ -69,7 +69,7 @@ final class NotebookPdfExport {
                     checkCancelled(); return source.page(number);
                 }, (count, total) -> {
                     checkCancelled(); completed = count; changed();
-                });
+                }, stroke -> NotebookStrokeRenderer.outline(stroke, () -> cancelled));
                 checked.flush();
                 raw.getFD().sync();
             }
