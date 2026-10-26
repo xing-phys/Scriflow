@@ -3,8 +3,8 @@
 The local build workflow prepares artifacts without publishing or installing
 them. The first public beta, [0.28.0-beta.1](https://github.com/xing-phys/Scriflow/releases/tag/v0.28.0-beta.1),
 was published as **Scribblow** on 2026-10-26 after the owner's tablet acceptance.
-The current **Scriflow 0.28.0-beta.2** candidate is not public and still needs
-its own tablet acceptance. Publishing is a separate step described below.
+**Scriflow 0.28.0-beta.2** was published on 2026-10-26 with the owner’s explicit
+authorization. Publishing is a separate step described below.
 
 ## Before publishing
 
@@ -83,10 +83,9 @@ build unsigned release APKs without possessing the permanent key.
 ## Version numbers
 
 The current source version is **0.28.0-beta.2**, with Android `versionCode`
-**30**. It is the first Scriflow candidate and needs physical acceptance before
-publication. The latest public beta remains **Scribblow 0.28.0-beta.1**, with
-`versionCode` **29**, accepted on 2026-10-26. Its published APK filename and
-checksum remain unchanged. The notebook features are implemented, while broader
+**30**. It is the first public Scriflow beta, published with the owner’s
+authorization on 2026-10-26. The earlier **Scribblow 0.28.0-beta.1**, with
+`versionCode` **29**, remains available with its original APK and checksum. The notebook features are implemented, while broader
 usage and sustained performance still need testing. Beta expresses that status
 without claiming the feature freeze and confidence of a release candidate or a
 stable 1.0 release.

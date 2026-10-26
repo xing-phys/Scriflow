@@ -6,7 +6,7 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
-## 0.28.0-beta.2 — Scriflow identity (unreleased)
+## [0.28.0-beta.2](https://github.com/xing-phys/Scriflow/releases/tag/v0.28.0-beta.2) — Scriflow identity (2026-10-26)
 
 - Rename the app to **Scriflow**, bringing together scribe, script, and scribble
   with flow. Retain the flowing-S monochrome symbol and the tagline
@@ -19,7 +19,7 @@ records describe their original milestone, not the current acceptance status.
   environment only when no new variables are set, so existing private backups
   remain usable without mixing credentials.
 - Keep the published Scribblow 0.28.0-beta.1 artifact and its checksum unchanged.
-  The renamed candidate needs its own physical tablet acceptance before release.
+  Publish the renamed beta with the owner’s authorization.
 
 ## [0.28.0-beta.1](https://github.com/xing-phys/Scriflow/releases/tag/v0.28.0-beta.1) — First public beta (2026-10-26)
 

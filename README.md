@@ -16,15 +16,13 @@ Development and physical testing target **MatePad Paper HMW-W09**, Android
 rendering use Huawei APIs already present on that firmware; no proprietary
 Huawei code is bundled. Other tablets and firmware versions are unverified.
 
-The current source version is **0.28.0-beta.2**, the first **Scriflow** candidate.
-It is not publicly released and still needs tablet acceptance. The latest
-public APK is **[0.28.0-beta.1](https://github.com/xing-phys/Scriflow/releases/tag/v0.28.0-beta.1)**,
-released as **Scribblow** on 2026-10-26 after the owner tested and accepted that
-signed APK. Its filename and contents remain unchanged. The core notebook
-features are implemented; broader use and long-session performance still need
-feedback. The [changelog](CHANGELOG.md) summarizes changes;
-[device records](docs/device-testing.md) distinguish automated checks from
-physical testing. Every new release APK needs its own tablet acceptance.
+The latest public beta is **[Scriflow 0.28.0-beta.2](https://github.com/xing-phys/Scriflow/releases/tag/v0.28.0-beta.2)**,
+released on 2026-10-26 with the owner's authorization. It introduces the
+Scriflow name and updates the earlier Scribblow beta in place using the same
+application ID and public signing certificate. The core notebook features are
+implemented; broader use and long-session performance still need feedback.
+The [changelog](CHANGELOG.md) summarizes changes; [device records](docs/device-testing.md)
+distinguish automated checks, publication authorization, and physical testing.
 
 ## Features
 
@@ -41,14 +39,13 @@ makes no network requests. See [privacy and local storage](docs/privacy.md).
 
 ## Install and update
 
-Download the latest public **[Scribblow 0.28.0-beta.1 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.28.0-beta.1/scribblow-0.28.0-beta.1.apk)**
-from [GitHub Releases](https://github.com/xing-phys/Scriflow/releases/tag/v0.28.0-beta.1),
+Download the latest public **[Scriflow 0.28.0-beta.2 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.28.0-beta.2/scriflow-0.28.0-beta.2.apk)**
+from [GitHub Releases](https://github.com/xing-phys/Scriflow/releases/tag/v0.28.0-beta.2),
 where its file checksum and signing certificate fingerprint are recorded.
 Copy it to the supported tablet, open it with the tablet's file manager, and
 allow installation from that source when prompted.
-That published APK opens as **Scribblow**; the new candidate opens as
-**Scriflow**. Review the app version and signing certificate supplied with a
-release before installing it.
+Open **Scriflow** from the launcher. Review the app version and signing
+certificate supplied with a release before installing it.
 
 **Back up your notes before an update or a change of signing identity.** In the
 library, choose **Backup** beside each notebook and save its `.inkbook` file

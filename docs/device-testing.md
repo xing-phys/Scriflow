@@ -4,15 +4,24 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
-## Scriflow 0.28.0-beta.2 candidate (tablet acceptance pending)
+## Scriflow 0.28.0-beta.2 release (2026-10-26)
 
-Version 0.28.0-beta.2 (Android `versionCode` 30) introduces the Scriflow name.
-It keeps the permanent application ID, public signing certificate, notebook
-storage, and formats. This candidate is not publicly released; earlier
-acceptance of Scribblow does not establish acceptance of these new APK bytes.
-Run the [tablet acceptance checks](releasing.md#tablet-acceptance) on the exact
-signed candidate before publishing it, including the launcher name and an
-in-place update from Scribblow with the existing library preserved.
+The owner explicitly authorized publication of the staged signed beta.2 APK.
+This release introduces the Scriflow name, retaining application ID, public
+signing certificate, notebook storage, and formats. No new item-by-item tablet
+results were supplied with that authorization; beta.1 physical acceptance is
+not presented as a test of beta.2. In-place update and existing-library
+preservation remain useful checks for users of the renamed beta.
+
+- Artifact: `scriflow-0.28.0-beta.2.apk`, Android `versionCode` 30.
+- APK SHA-256: `5a1eb45895d2eaae3dbec118bac65015f559a8806934045c0052b3236be908fc`.
+- Signer certificate SHA-256: `2cc5db316df82fecc6085ff53e67cbd64f29b412f01e9a5c19bf4b34e3821709`.
+- Source/tag: `a0b92163487e932eb69ef4156ecccb3f8c4a4042` / `v0.28.0-beta.2`.
+- Automated checks: 20,160 host assertions; debug/release builds and lint;
+  standalone debug build; manifest, license, and signature verification;
+  legacy signing configuration checks. [GitHub CI passed](https://github.com/xing-phys/Scriflow/actions/runs/40260876032).
+
+The published file is the staged candidate, without a rebuild.
 
 ## Scribblow public beta 0.28.0-beta.1 acceptance (2026-10-26)
 
