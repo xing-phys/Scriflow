@@ -20,6 +20,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 final class NotebookSession {
     interface Callback { void complete(NotebookPage page, IOException error); }
     interface PreviewCallback { void complete(Bitmap bitmap, IOException error); }
+    interface LassoCallback { void complete(NotebookLasso.Selection selection, IOException error); }
     static final class PreviewRequest {
         private volatile boolean cancelled;
         void cancel() { cancelled = true; }
@@ -35,12 +36,14 @@ final class NotebookSession {
     private final ExecutorService worker = tasks.writer;
     // Writer-owned generation invalidates an export if its source changes between page reads.
     private long revision;
+    private NotebookLasso.Clipboard clipboard;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final NotebookLibrary document;
     private final AtomicInteger pending = new AtomicInteger();
     private volatile NotebookPage page;
     private volatile IOException problem;
     private volatile boolean undoAvailable, redoAvailable;
+    private volatile boolean pageUndoAvailable, pageRedoAvailable;
     private volatile int pageNumber = 1, pageCount = 1;
     private volatile int notebookId = 1;
     private volatile String notebookName = "My Notebook";
@@ -62,6 +65,8 @@ final class NotebookSession {
     boolean canRedo() { return redoAvailable; }
     int pageNumber() { return pageNumber; }
     int pageCount() { return pageCount; }
+    boolean canUndoPageChange() { return pageUndoAvailable; }
+    boolean canRedoPageChange() { return pageRedoAvailable; }
     int notebookId() { return notebookId; }
     String notebookName() { return notebookName; }
     List<NotebookCatalog.Entry> entries() { return entries; }
@@ -71,6 +76,27 @@ final class NotebookSession {
     NotebookScrollStore.State scrollPosition() { return position; }
 
     void load(Callback callback) { submit(document::load, callback); }
+    NotebookLasso.Clipboard clipboard() { return clipboard; }
+    void copy(NotebookLasso.Selection selection) { clipboard = new NotebookLasso.Clipboard(selection); }
+
+    void selectLasso(int id, List<NotebookPage.Point> path, LassoCallback callback) {
+        final List<NotebookPage.Point> outline = new ArrayList<>(path);
+        final NotebookLasso.Selection[] selected = {null};
+        submit(() -> selected[0] = NotebookLasso.select(document.page(id), outline),
+            (page, error) -> callback.complete(selected[0], error));
+    }
+    void editSelection(int id, NotebookLasso.Selection selection, NotebookLasso.Action action,
+            float dx, float dy, LassoCallback callback) {
+        final NotebookLasso.Selection[] selected = {null};
+        submit(() -> selected[0] = document.editSelectionOnPage(id, selection, action, dx, dy),
+            (page, error) -> callback.complete(selected[0], error));
+    }
+    void paste(int id, float x, float y, LassoCallback callback) {
+        final NotebookLasso.Clipboard source = clipboard;
+        final NotebookLasso.Selection[] selected = {null};
+        submit(() -> selected[0] = document.pasteOnPage(id, source, x, y),
+            (page, error) -> callback.complete(selected[0], error));
+    }
     void list(Callback callback) { submit(document::loadCatalog, callback); }
     void openNotebook(int id, Callback callback) {
         submit(() -> { document.openNotebook(id); windowIds = Collections.emptyList(); }, callback);
@@ -100,6 +126,15 @@ final class NotebookSession {
         submit(() -> document.selectPage(number), callback);
     }
     void addPage(Callback callback) { submit(document::addPage, callback); }
+    void managePages(NotebookBook.PageAction action, int source, int destination, Callback callback) {
+        submit(() -> { document.managePages(action, source, destination); windowIds = Collections.emptyList(); }, callback);
+    }
+    void undoPageChange(Callback callback) {
+        submit(() -> { document.undoPageChange(); windowIds = Collections.emptyList(); }, callback);
+    }
+    void redoPageChange(Callback callback) {
+        submit(() -> { document.redoPageChange(); windowIds = Collections.emptyList(); }, callback);
+    }
     void addPage(int sourcePage, Callback callback) {
         submit(() -> { document.selectPage(sourcePage); document.addPage(); }, callback);
     }
@@ -254,6 +289,8 @@ final class NotebookSession {
             redoAvailable = document.canRedo();
             pageNumber = document.pageNumber();
             pageCount = document.pageCount();
+            pageUndoAvailable = document.canUndoPageChange();
+            pageRedoAvailable = document.canRedoPageChange();
             notebookId = document.notebookId();
             notebookName = document.notebookName();
             entries = document.entries();

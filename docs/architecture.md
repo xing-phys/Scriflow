@@ -34,8 +34,10 @@ Android-independent so future device support does not require a new document for
 Version-2 `page.nbk` retains version-1 framing, checksums and journal semantics. A snapshot now
 starts with a 128-bit page ID before dimensions; every stroke starts with its 128-bit object ID
 before style and samples. IDs are UUIDs; within a page stroke IDs must be unique. Page IDs must
-be unique within a backup/document. Numeric catalog/page positions still locate files; they are
-not suitable as permanent object references if reorder/delete is introduced later.
+be unique within a backup/document. Display page numbers are positions rather than permanent
+object references. Development version 0.29.0-dev.1 adds a version-2 book index mapping those
+positions to stable storage slots; slot 1 retains the legacy root directory. See
+[page management](page-management.md) for publication, undo and recovery behavior.
 
 Reading v1 is non-mutating. Legacy page IDs are deterministically derived from the canonical
 page directory, and stroke IDs from that page ID plus original record order. The first successful

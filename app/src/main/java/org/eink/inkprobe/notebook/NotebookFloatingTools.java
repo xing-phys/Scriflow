@@ -21,7 +21,7 @@ import java.util.EnumMap;
 /** A separate, static window above the native ink surface, moved only by its grip. */
 public final class NotebookFloatingTools {
     public enum Action {
-        LIBRARY, PREVIOUS, NEXT, ADD_PAGE, PEN, ERASER, UNDO, REDO, PAPER, MORE, OVERVIEW, ORIENTATION
+        LIBRARY, PREVIOUS, NEXT, ADD_PAGE, PEN, ERASER, LASSO, UNDO, REDO, PAPER, MORE, OVERVIEW, ORIENTATION
     }
 
     public interface Listener {
@@ -92,13 +92,14 @@ public final class NotebookFloatingTools {
         add(Action.ADD_PAGE, NotebookIconDrawable.Icon.ADD_PAGE, "Add page");
         add(Action.PEN, NotebookIconDrawable.Icon.PEN, "Pen");
         add(Action.ERASER, NotebookIconDrawable.Icon.ERASER, "Eraser");
+        add(Action.LASSO, NotebookIconDrawable.Icon.LASSO, "Lasso: select and move ink");
         add(Action.UNDO, NotebookIconDrawable.Icon.UNDO, "Undo");
         add(Action.REDO, NotebookIconDrawable.Icon.REDO, "Redo");
         add(Action.PAPER, NotebookIconDrawable.Icon.PAPER_BLANK, "Change paper");
         add(Action.MORE, NotebookIconDrawable.Icon.MORE, "Notebook menu");
         add(Action.OVERVIEW, NotebookIconDrawable.Icon.OVERVIEW, "Page overview and jumps");
         add(Action.ORIENTATION, NotebookIconDrawable.Icon.LAYOUT_VERTICAL, "Switch to vertical tools");
-        order = new View[] {grip, button(Action.ORIENTATION), button(Action.PEN), button(Action.ERASER), button(Action.UNDO),
+        order = new View[] {grip, button(Action.ORIENTATION), button(Action.PEN), button(Action.ERASER), button(Action.LASSO), button(Action.UNDO),
             button(Action.REDO), button(Action.MORE), button(Action.LIBRARY),
             button(Action.PREVIOUS), button(Action.NEXT), button(Action.ADD_PAGE),
             button(Action.OVERVIEW), button(Action.PAPER)};

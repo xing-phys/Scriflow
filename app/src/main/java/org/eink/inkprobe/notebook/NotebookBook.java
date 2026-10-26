@@ -2,17 +2,23 @@ package org.eink.inkprobe.notebook;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.FileOutputStream;
+import java.util.ArrayList;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-/** Worker-owned ordered pages. Page 1 stays at its original path, without migration or rewriting. */
+/** Worker-owned pages. Display order maps to stable storage; ink files never move. */
 public final class NotebookBook {
+    public enum PageAction { MOVE, DUPLICATE, INSERT_BEFORE, INSERT_AFTER, DELETE }
+    private static final int PAGE_HISTORY_LIMIT = 50;
     private interface Operation { void run() throws IOException; }
     private final File directory;
     private final NotebookIndex index;
-    private final NotebookScrollStore scroll;
+    private NotebookScrollStore scroll;
     private final Map<Integer, NotebookDocument> documents = new HashMap<>();
     private NotebookIndex.State durableIndex;
     private int attemptedCount, attemptedSelection;
@@ -21,6 +27,9 @@ public final class NotebookBook {
     private IOException problem;
     private boolean loadAttempted, loaded;
     private Navigation navigation;
+    private PageChange pageChange;
+    private final Deque<NotebookIndex.State> pageUndo = new ArrayDeque<>();
+    private final Deque<NotebookIndex.State> pageRedo = new ArrayDeque<>();
     private NotebookScrollStore.State position, durablePosition, attemptedPosition, targetPosition;
 
     private static final class Navigation {
@@ -29,8 +38,23 @@ public final class NotebookBook {
         final NotebookPage source;
         NotebookDocument document;
         boolean ownsNewDirectory;
-        Navigation(int target, int count, boolean adding, NotebookPage source) {
+        final NotebookIndex.State before;
+        Navigation(int target, int count, boolean adding, NotebookPage source, NotebookIndex.State before) {
             this.target = target; this.count = count; this.adding = adding; this.source = source;
+            this.before = before;
+        }
+    }
+
+    private static final class PageChange {
+        final NotebookIndex.State before, after;
+        final NotebookPage created;
+        final int newSlot;
+        final int historyStep;
+        boolean ownsDirectory;
+        PageChange(NotebookIndex.State before, NotebookIndex.State after,
+                   NotebookPage created, int newSlot, int historyStep) {
+            this.before = before; this.after = after; this.created = created;
+            this.newSlot = newSlot; this.historyStep = historyStep;
         }
     }
 
@@ -48,6 +72,8 @@ public final class NotebookBook {
     public int pageNumber() { return selected; }
     public int pageCount() { return count; }
     public NotebookScrollStore.State scrollPosition() { return position; }
+    public boolean canUndoPageChange() { return !pageUndo.isEmpty(); }
+    public boolean canRedoPageChange() { return !pageRedo.isEmpty(); }
 
     /** Fetch a page for a settled viewport without changing the selected page or page index. */
     public NotebookPage page(int number) throws IOException {
@@ -59,7 +85,7 @@ public final class NotebookBook {
     /** No I/O: use after completed edits to publish already loaded viewport pages. */
     public NotebookPage cachedPage(int number) throws IOException {
         requireLoaded(); requirePageNumber(number);
-        NotebookDocument target = documents.get(number);
+        NotebookDocument target = documents.get(storageSlot(number));
         if (target == null || target.current() == null) throw new IOException("Page has not been loaded");
         return target.current();
     }
@@ -72,11 +98,11 @@ public final class NotebookBook {
      */
     public NotebookPage previewPage(int number) throws IOException {
         requireLoaded(); requirePageNumber(number);
-        NotebookDocument cached = documents.get(number);
+        NotebookDocument cached = documents.get(storageSlot(number));
         if (cached != null && cached.current() != null) return cached.current();
         requirePageFiles(number);
         NotebookPage result = new NotebookStore(pageDirectory(number)).load();
-        if (count > 1 && !result.isInitialized()) throw new IOException("Saved page has no dimensions");
+        if ((count > 1 || durableIndex.managed()) && !result.isInitialized()) throw new IOException("Saved page has no dimensions");
         return result;
     }
 
@@ -96,6 +122,18 @@ public final class NotebookBook {
     }
     public boolean undoOnPage(int number) throws IOException {
         final boolean[] result = {false}; execute(() -> result[0] = targetDocument(number, false).undo()); return result[0];
+    }
+    public NotebookLasso.Selection editSelectionOnPage(int number, NotebookLasso.Selection selection,
+            NotebookLasso.Action action, float dx, float dy) throws IOException {
+        final NotebookLasso.Selection[] result = {null};
+        execute(() -> result[0] = targetDocument(number, false).editSelection(selection, action, dx, dy));
+        return result[0];
+    }
+    public NotebookLasso.Selection pasteOnPage(int number, NotebookLasso.Clipboard clipboard,
+            float x, float y) throws IOException {
+        final NotebookLasso.Selection[] result = {null};
+        execute(() -> result[0] = targetDocument(number, false).paste(clipboard, x, y));
+        return result[0];
     }
     public boolean redoOnPage(int number) throws IOException {
         final boolean[] result = {false}; execute(() -> result[0] = targetDocument(number, false).redo()); return result[0];
@@ -168,7 +206,7 @@ public final class NotebookBook {
             requireWritable(); requireLoaded();
             if (pageNumber < 1 || pageNumber > count) throw new IOException("Page is out of range");
             if (pageNumber == selected) return;
-            navigation = new Navigation(pageNumber, count, false, current());
+            navigation = new Navigation(pageNumber, count, false, current(), durableIndex);
             finishNavigation();
         });
     }
@@ -179,8 +217,73 @@ public final class NotebookBook {
             requireWritable(); requireLoaded();
             if (count >= NotebookIndex.MAX_PAGES) throw new IOException("Notebook has reached its page limit");
             if (!current().isInitialized()) throw new IOException("The writing surface is not ready yet");
-            navigation = new Navigation(count + 1, count + 1, true, current());
+            if (durableIndex.managed() || new File(slotDirectory(count + 1), "page.created").isFile()) {
+                // A first management edit can leave an unindexed staged slot after process
+                // death. Skip it without adopting its contents or blocking the legacy Add tool.
+                managePages(PageAction.INSERT_AFTER, selected, count); return;
+            }
+            navigation = new Navigation(count + 1, count + 1, true, current(), durableIndex);
             finishNavigation();
+        });
+    }
+
+    /** A management command publishes just a new order and, for copies/inserts, one new slot. */
+    public void managePages(PageAction action, int source, int destination) throws IOException {
+        execute(() -> {
+            requireLoaded(); requireWritable(); requirePageNumber(source);
+            if (action == null) throw new IOException("Missing page action");
+            if (action == PageAction.MOVE) {
+                requirePageNumber(destination);
+                if (source == destination) return;
+            }
+            if (action == PageAction.DELETE && count == 1) throw new IOException("Keep at least one page in the notebook");
+            boolean creates = action == PageAction.DUPLICATE || action == PageAction.INSERT_BEFORE || action == PageAction.INSERT_AFTER;
+            if (creates && count == NotebookIndex.MAX_PAGES) throw new IOException("Notebook has reached its page limit");
+            retryDocuments(); retryScroll();
+            NotebookPage original = targetDocument(source, true).current();
+            if (!original.isInitialized()) throw new IOException("The writing surface is not ready yet");
+            List<Integer> order = new ArrayList<>(durableIndex.slots);
+            int target, slot = 0, nextSlot = durableIndex.nextSlot;
+            NotebookPage created = null;
+            if (action == PageAction.MOVE) {
+                int moved = order.remove(source - 1); order.add(destination - 1, moved); target = destination;
+            } else if (action == PageAction.DELETE) {
+                order.remove(source - 1); target = Math.min(source, order.size());
+            } else {
+                slot = availableSlot(nextSlot); nextSlot = slot + 1;
+                List<NotebookPage.Stroke> strokes = new ArrayList<>();
+                if (action == PageAction.DUPLICATE) for (NotebookPage.Stroke stroke : original.strokes)
+                    strokes.add(new NotebookPage.Stroke(stroke.penType, stroke.width, stroke.color, stroke.points));
+                created = NotebookPage.empty().withSize(original.width, original.height)
+                    .withTemplate(original.template).withStrokes(strokes);
+                int after = action == PageAction.INSERT_AFTER && destination > 0 ? destination : source;
+                target = action == PageAction.INSERT_BEFORE ? source : after + 1;
+                if (target < 1 || target > count + 1) throw new IOException("Page insertion position is out of range");
+                order.add(target - 1, slot);
+            }
+            pageChange = new PageChange(durableIndex, durableIndex.reordered(order, target, nextSlot), created, slot, 0);
+            finishPageChange();
+        });
+    }
+
+    /** Page-order undo is separate from per-page ink undo, and lasts for this process. */
+    public void undoPageChange() throws IOException {
+        changePageHistory(false);
+    }
+
+    public void redoPageChange() throws IOException {
+        changePageHistory(true);
+    }
+
+    private void changePageHistory(boolean redo) throws IOException {
+        execute(() -> {
+            requireLoaded(); requireWritable();
+            Deque<NotebookIndex.State> history = redo ? pageRedo : pageUndo;
+            if (history.isEmpty()) return;
+            NotebookIndex.State previous = history.peekLast();
+            pageChange = new PageChange(durableIndex,
+                durableIndex.reordered(previous.slots, previous.selectedPage, durableIndex.nextSlot), null, 0, redo ? 1 : -1);
+            finishPageChange();
         });
     }
 
@@ -193,6 +296,11 @@ public final class NotebookBook {
                 return;
             }
             NotebookIndex.State disk = index.load();
+            if (pageChange != null) {
+                if (!disk.equals(pageChange.before) && !disk.equals(pageChange.after))
+                    throw new IOException("Saved page order differs from the pending change; files were preserved.");
+                finishPageChange(); problem = null; return;
+            }
             if (!disk.equals(durableIndex) && !matchesAttempt(disk)) {
                 throw new IOException("Saved page order differs from the open notebook; files were preserved.");
             }
@@ -211,15 +319,16 @@ public final class NotebookBook {
         durableIndex = state;
         selected = state.selectedPage;
         count = state.pageCount;
+        scroll = new NotebookScrollStore(directory, state.generation);
         // The initial selected page is known even when its data cannot be loaded; retry loads it
         // explicitly. Once loaded, navigation instead keeps the previously visible page on failure.
         // No edit can have been accepted until initial load completes, so discard a failed initial
         // candidate and validate repaired files afresh (including an invalid empty snapshot).
         documents.clear();
         document = documentFor(selected);
-        if (count > 1) requirePageFiles(selected);
+        if (count > 1 || state.managed()) requirePageFiles(selected);
         if (document.error() == null) document.load(); else document.retry();
-        if (count > 1 && !current().isInitialized()) throw new IOException("Saved page has no dimensions");
+        if ((count > 1 || state.managed()) && !current().isInitialized()) throw new IOException("Saved page has no dimensions");
         position = durablePosition = scroll.load(selected);
         if (position.page > count) throw new IOException("Saved scroll position refers to a missing page");
         attemptedPosition = targetPosition = null;
@@ -242,6 +351,74 @@ public final class NotebookBook {
         selected = next.target;
         count = next.count;
         navigation = null;
+        if (next.adding) rememberPageChange(next.before);
+    }
+
+    private void finishPageChange() throws IOException {
+        PageChange change = pageChange;
+        NotebookIndex.State disk = index.load();
+        if (!disk.equals(change.before) && !disk.equals(change.after))
+            throw new IOException("Saved page order differs from the pending change; files were preserved.");
+        retryDocuments(); retryScroll();
+        if (change.created != null) prepareManagedPage(change);
+        // Every referenced slot must exist before committing the new order, including undo.
+        for (int slot : change.after.slots) requireSlotFiles(slot);
+        int targetSlot = change.after.slot(change.after.selectedPage);
+        NotebookDocument target = documentForSlot(targetSlot);
+        if (target.error() == null) target.load(); else target.retry();
+        target.validateDisk();
+        if (!target.current().isInitialized()) throw new IOException("Saved page has no dimensions");
+        NotebookIndex.State saved = index.saveOrder(change.after); index.sync();
+        NotebookScrollStore nextScroll = new NotebookScrollStore(directory, saved.generation);
+        NotebookScrollStore.State nextPosition = nextScroll.load(saved.selectedPage);
+        durableIndex = saved; selected = saved.selectedPage; count = saved.pageCount; document = target;
+        scroll = nextScroll; position = durablePosition = nextPosition;
+        attemptedPosition = targetPosition = null;
+        if (change.historyStep < 0) { pageUndo.removeLast(); pageRedo.addLast(change.before); }
+        else if (change.historyStep > 0) { pageRedo.removeLast(); pushPageUndo(change.before); }
+        else rememberPageChange(change.before);
+        pageChange = null;
+    }
+
+    private void prepareManagedPage(PageChange change) throws IOException {
+        File target = slotDirectory(change.newSlot);
+        if (!change.ownsDirectory) {
+            File parent = target.getParentFile();
+            if (!parent.isDirectory() && !parent.mkdirs()) throw new IOException("Cannot create pages directory");
+            if (!target.mkdir()) throw new IOException("An unexpected page directory exists; files were preserved.");
+            change.ownsDirectory = true;
+        }
+        // This is only a hint to skip an orphan, never permission to adopt or overwrite it.
+        try (FileOutputStream marker = new FileOutputStream(new File(target, "page.created"))) {
+            marker.write(change.created.id.toString().getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+            marker.getFD().sync();
+        }
+        File published = new File(target, "page.nbk");
+        if (published.exists()) {
+            if (!NotebookDocument.samePage(new NotebookStore(target).load(), change.created))
+                throw new IOException("The prepared page changed; files were preserved.");
+            return;
+        }
+        File temporary = new File(target, "page.nbk.tmp");
+        try (FileOutputStream output = new FileOutputStream(temporary)) {
+            NotebookStore.writeSnapshot(output, change.created); output.getFD().sync();
+        }
+        if (!temporary.renameTo(published)) throw new IOException("Cannot publish the new page");
+    }
+
+    private int availableSlot(int candidate) throws IOException {
+        while (candidate < Integer.MAX_VALUE && slotDirectory(candidate).exists()) candidate++;
+        if (candidate == Integer.MAX_VALUE) throw new IOException("Notebook page storage limit reached");
+        return candidate;
+    }
+
+    private void rememberPageChange(NotebookIndex.State previous) {
+        pageRedo.clear(); pushPageUndo(previous);
+    }
+
+    private void pushPageUndo(NotebookIndex.State previous) {
+        pageUndo.addLast(previous);
+        if (pageUndo.size() > PAGE_HISTORY_LIMIT) pageUndo.removeFirst();
     }
 
     private void prepareExistingPage(Navigation next) throws IOException {
@@ -288,30 +465,34 @@ public final class NotebookBook {
     }
 
     private NotebookDocument documentFor(int number) {
-        NotebookDocument result = documents.get(number);
+        return documentForSlot(storageSlot(number));
+    }
+
+    private NotebookDocument documentForSlot(int slot) {
+        NotebookDocument result = documents.get(slot);
         if (result == null) {
-            result = new NotebookDocument(pageDirectory(number));
-            documents.put(number, result);
+            result = new NotebookDocument(slotDirectory(slot));
+            documents.put(slot, result);
         }
         return result;
     }
 
     private NotebookDocument targetDocument(int number, boolean validate) throws IOException {
         requireLoaded(); requirePageNumber(number);
-        NotebookDocument target = documents.get(number);
+        NotebookDocument target = documents.get(storageSlot(number));
         if (target != null && target.current() != null) {
             // Already accepted ink must remain visible even when another part of the same
             // split stroke failed to save. Do not reload or discard it during repaint.
             if (validate && problem == null && target.error() == null) {
-                if (count > 1) requirePageFiles(number);
+                if (count > 1 || durableIndex.managed()) requirePageFiles(number);
                 target.validateDisk();
             }
             return target;
         }
-        if (count > 1) requirePageFiles(number);
+        if (count > 1 || durableIndex.managed()) requirePageFiles(number);
         if (target == null) target = documentFor(number);
         target.load();
-        if (count > 1 && !target.current().isInitialized()) throw new IOException("Saved page has no dimensions");
+        if ((count > 1 || durableIndex.managed()) && !target.current().isInitialized()) throw new IOException("Saved page has no dimensions");
         return target;
     }
 
@@ -327,7 +508,7 @@ public final class NotebookBook {
         // Deterministic order, including dirty pages that are no longer selected.
         for (Map.Entry<Integer, NotebookDocument> entry : new TreeMap<>(documents).entrySet()) {
             if (dirtyOnly && entry.getValue().error() == null) continue;
-            if (count > 1) requirePageFiles(entry.getKey());
+            if (count > 1 || durableIndex.managed()) requireSlotFiles(entry.getKey());
             entry.getValue().retry();
         }
     }
@@ -350,20 +531,35 @@ public final class NotebookBook {
     }
 
     private File pageDirectory(int number) {
-        return number == 1 ? directory : new File(new File(directory, "pages"), Integer.toString(number));
+        return slotDirectory(storageSlot(number));
+    }
+
+    private int storageSlot(int number) {
+        // Only the legacy append path addresses the not-yet-indexed count+1 slot.
+        return durableIndex != null && number <= durableIndex.pageCount ? durableIndex.slot(number) : number;
+    }
+
+    private File slotDirectory(int slot) {
+        return slot == 1 ? directory : new File(new File(directory, "pages"), Integer.toString(slot));
     }
 
     private void requirePageFiles(int number) throws IOException {
-        File target = pageDirectory(number);
+        requireSlotFiles(storageSlot(number));
+    }
+
+    private void requireSlotFiles(int slot) throws IOException {
+        File target = slotDirectory(slot);
         if (!new File(target, "page.nbk").exists() && !new File(target, "page.nbk.bak").exists()
                 && !new File(target, "page.nbk.tmp").exists()) {
-            throw new IOException("Saved page " + number + " is missing; no blank replacement was created.");
+            throw new IOException("A saved page is missing; no blank replacement was created.");
         }
     }
 
     private boolean matchesAttempt(NotebookIndex.State state) {
         return attemptedCount != 0 && state.pageCount == attemptedCount
-            && state.selectedPage == attemptedSelection;
+            && state.selectedPage == attemptedSelection
+            && (!durableIndex.managed() || state.generation == durableIndex.generation
+                && state.nextSlot == durableIndex.nextSlot && state.slots.equals(durableIndex.slots));
     }
 
     private void edit(Operation operation) throws IOException {

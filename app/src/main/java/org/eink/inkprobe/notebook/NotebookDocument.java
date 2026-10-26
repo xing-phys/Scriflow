@@ -108,6 +108,24 @@ public final class NotebookDocument {
         return changed[0];
     }
 
+    public NotebookLasso.Selection editSelection(NotebookLasso.Selection selection,
+            NotebookLasso.Action action, float dx, float dy) throws IOException {
+        final NotebookLasso.Selection[] result = {null};
+        execute(() -> {
+            requireEditor();
+            NotebookPage before = current();
+            result[0] = editor.editSelection(selection, action, dx, dy);
+            if (current() != before) publishEdit();
+        });
+        return result[0];
+    }
+
+    public NotebookLasso.Selection paste(NotebookLasso.Clipboard clipboard, float x, float y) throws IOException {
+        final NotebookLasso.Selection[] result = {null};
+        execute(() -> { requireEditor(); result[0] = editor.paste(clipboard, x, y); publishEdit(); });
+        return result[0];
+    }
+
     public boolean redo() throws IOException {
         final boolean[] changed = {false};
         execute(() -> {
@@ -198,7 +216,7 @@ public final class NotebookDocument {
         }
     }
 
-    private static boolean samePage(NotebookPage a, NotebookPage b) {
+    static boolean samePage(NotebookPage a, NotebookPage b) {
         return a != null && b != null && a.width == b.width && a.height == b.height
             && a.id.equals(b.id) && a.template == b.template && sameStrokes(a.strokes, b.strokes);
     }

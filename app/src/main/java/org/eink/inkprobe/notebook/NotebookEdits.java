@@ -116,6 +116,37 @@ public final class NotebookEdits {
         return true;
     }
 
+    /** One completed lasso action is one history entry; moved strokes keep their IDs/order. */
+    public NotebookLasso.Selection editSelection(NotebookLasso.Selection selection,
+            NotebookLasso.Action action, float dx, float dy) {
+        if (selection == null || action == null) throw new IllegalArgumentException("Missing selection/action");
+        selection.validate(page);
+        if (selection.isEmpty()) return selection;
+        List<NotebookPage.Stroke> replacement = action == NotebookLasso.Action.DELETE
+            ? Collections.emptyList() : NotebookLasso.translated(selection, page, dx, dy,
+                action == NotebookLasso.Action.DUPLICATE);
+        if (action == NotebookLasso.Action.DUPLICATE) appendAll(replacement);
+        else {
+            java.util.Map<java.util.UUID, NotebookPage.Stroke> byId = new java.util.HashMap<>();
+            for (NotebookPage.Stroke stroke : replacement) byId.put(stroke.id, stroke);
+            java.util.Set<NotebookPage.Stroke> selected = new java.util.HashSet<>(selection.strokes);
+            List<NotebookPage.Stroke> next = new ArrayList<>();
+            for (NotebookPage.Stroke stroke : page.strokes) {
+                if (!selected.contains(stroke)) next.add(stroke);
+                else if (byId.containsKey(stroke.id)) next.add(byId.get(stroke.id));
+            }
+            if (!next.equals(page.strokes)) commit(page.withStrokes(next));
+        }
+        return new NotebookLasso.Selection(page.id, replacement);
+    }
+
+    public NotebookLasso.Selection paste(NotebookLasso.Clipboard clipboard, float x, float y) {
+        if (clipboard == null) throw new IllegalArgumentException("Empty clipboard");
+        List<NotebookPage.Stroke> strokes = clipboard.place(page, x, y);
+        appendAll(strokes);
+        return new NotebookLasso.Selection(page.id, strokes);
+    }
+
     public boolean redo() {
         if (redo.isEmpty()) return false;
         undo.addLast(page.strokes);

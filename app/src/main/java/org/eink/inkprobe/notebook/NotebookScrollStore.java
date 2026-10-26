@@ -9,7 +9,7 @@ import java.util.zip.CRC32;
 
 /** Small single-writer viewport anchor, saved only after a completed scrolling gesture. */
 public final class NotebookScrollStore {
-    private static final int MAGIC = 0x4e425331, VERSION = 1, PAYLOAD_BYTES = 12, FILE_BYTES = 32;
+    private static final int MAGIC = 0x4e425331, PAYLOAD_BYTES = 12;
     public static final class State {
         public final int page;
         public final double fraction;
@@ -31,10 +31,17 @@ public final class NotebookScrollStore {
         public CorruptScrollException(String message) { super(message); }
     }
     private final File directory, document, backup, temporary;
+    private final long generation;
     private State state;
     private boolean failed, needsSnapshot;
     public NotebookScrollStore(File directory) {
+        this(directory, 0);
+    }
+    /** A scroll position from another page order defaults to the newly selected page. */
+    NotebookScrollStore(File directory, long generation) {
         if (directory == null) throw new IllegalArgumentException("Missing notebook directory");
+        if (generation < 0) throw new IllegalArgumentException("Invalid page-order generation");
+        this.generation = generation;
         this.directory = directory;
         document = new File(directory, "scroll.nbs"); backup = new File(directory, "scroll.nbs.bak");
         temporary = new File(directory, "scroll.nbs.tmp");
@@ -45,7 +52,7 @@ public final class NotebookScrollStore {
         state = null; failed = false;
         File source = source(); needsSnapshot = source == null || !source.equals(document);
         if (source == null) return state = fallback;
-        try { return state = read(source); }
+        try { State read = read(source); return state = read == null ? fallback : read; }
         catch (IOException error) { failed = true; throw error; }
     }
 
@@ -59,12 +66,13 @@ public final class NotebookScrollStore {
         if (!valid(page, fraction)) throw new IOException("Invalid notebook scroll position");
         State updated = new State(page, fraction);
         if (updated.equals(state) && !needsSnapshot) return state;
-        byte[] payload = payload(updated);
+        byte[] payload = payload(updated, generation);
         try {
             if (!directory.isDirectory() && !directory.mkdirs()) throw new IOException("Cannot create notebook scroll directory");
             try (FileOutputStream output = new FileOutputStream(temporary)) {
                 DataOutputStream data = new DataOutputStream(output);
-                data.writeInt(MAGIC); data.writeInt(VERSION); data.writeInt(PAYLOAD_BYTES); data.writeInt(~PAYLOAD_BYTES);
+                data.writeInt(MAGIC); data.writeInt(generation == 0 ? 1 : 2);
+                data.writeInt(payload.length); data.writeInt(~payload.length);
                 data.write(payload); data.writeInt(checksum(payload)); data.flush(); output.getFD().sync();
             }
             if (document.exists()) {
@@ -93,25 +101,35 @@ public final class NotebookScrollStore {
         return page >= 1 && page <= NotebookIndex.MAX_PAGES && !Double.isNaN(fraction)
             && !Double.isInfinite(fraction) && fraction >= 0 && fraction < 1;
     }
-    private static byte[] payload(State state) {
-        byte[] bytes = new byte[PAYLOAD_BYTES];
+    private static byte[] payload(State state, long generation) {
+        byte[] bytes = new byte[generation == 0 ? PAYLOAD_BYTES : PAYLOAD_BYTES + 8];
         for (int i = 0; i < 4; i++) bytes[i] = (byte) (state.page >>> (24 - 8 * i));
         long fraction = Double.doubleToLongBits(state.fraction);
         for (int i = 0; i < 8; i++) bytes[4 + i] = (byte) (fraction >>> (56 - 8 * i));
+        if (generation != 0) for (int i = 0; i < 8; i++) bytes[12 + i] = (byte) (generation >>> (56 - 8 * i));
         return bytes;
     }
-    private static State read(File source) throws IOException {
+    private State read(File source) throws IOException {
         try (RandomAccessFile input = new RandomAccessFile(source, "r")) {
-            if (input.length() != FILE_BYTES) throw new CorruptScrollException("Incomplete or oversized notebook scroll position");
-            if (input.readInt() != MAGIC || input.readInt() != VERSION) throw new CorruptScrollException("Unsupported scroll position header");
-            if (input.readInt() != PAYLOAD_BYTES || input.readInt() != ~PAYLOAD_BYTES) throw new CorruptScrollException("Scroll position length check failed");
-            byte[] payload = new byte[PAYLOAD_BYTES]; input.readFully(payload);
+            if (input.length() != 32 && input.length() != 40) throw new CorruptScrollException("Incomplete or oversized notebook scroll position");
+            if (input.readInt() != MAGIC) throw new CorruptScrollException("Unsupported scroll position header");
+            int version = input.readInt();
+            if (version != 1 && version != 2) throw new CorruptScrollException("Unsupported scroll position version");
+            int length = version == 1 ? 12 : 20;
+            if (input.readInt() != length || input.readInt() != ~length || input.length() != length + 20)
+                throw new CorruptScrollException("Scroll position length check failed");
+            byte[] payload = new byte[length]; input.readFully(payload);
             if (input.readInt() != checksum(payload)) throw new CorruptScrollException("Scroll position checksum failed");
             int page = 0; long fraction = 0;
             for (int i = 0; i < 4; i++) page = page << 8 | payload[i] & 255;
             for (int i = 4; i < 12; i++) fraction = fraction << 8 | payload[i] & 255L;
             double value = Double.longBitsToDouble(fraction);
             if (!valid(page, value)) throw new CorruptScrollException("Invalid notebook scroll position");
+            long savedGeneration = 0;
+            if (version == 2) for (int i = 12; i < 20; i++) savedGeneration = savedGeneration << 8 | payload[i] & 255L;
+            if (savedGeneration < 0 || version == 2 && savedGeneration == 0)
+                throw new CorruptScrollException("Invalid scroll page-order generation");
+            if (savedGeneration != generation) { needsSnapshot = true; return null; }
             return new State(page, value);
         }
     }

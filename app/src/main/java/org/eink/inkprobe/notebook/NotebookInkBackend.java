@@ -9,7 +9,7 @@ import java.util.List;
 
 /** Editor/device boundary. Live input belongs to the backend; durable pages belong to the core. */
 public interface NotebookInkBackend {
-    public enum Tool { PEN, ERASER }
+    public enum Tool { PEN, ERASER, LASSO }
 
     /** Paints only the opaque paper/background of the current physical viewport. */
     public interface PaperRenderer {
@@ -23,6 +23,9 @@ public interface NotebookInkBackend {
         void onReady();
         void onError(String message);
         default void onEraseGesture(List<NotebookPage.Point> path, float radius) { }
+        default void onLassoGesture(List<NotebookPage.Point> path) { }
+        /** Borrowed pointer stream while a closed lasso is being manipulated; AHW stays off. */
+        default void onSelectionEvent(MotionEvent event) { }
         /** Synchronous borrowed event; callers must not retain it after this callback. */
         default void onFingerEvent(MotionEvent event) { }
     }
@@ -36,6 +39,7 @@ public interface NotebookInkBackend {
     boolean isReady();
     boolean isPenDown();
     void setTool(Tool tool);
+    void setSelectionMode(boolean selected);
     void setPenWidth(float width);
     void setEraserWidth(float width);
     void setOverlayBounds(Rect bounds);

@@ -8,7 +8,10 @@ import android.graphics.Color;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.Rect;
+import android.graphics.RectF;
+import android.graphics.DashPathEffect;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -27,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.HashSet;
 
 /** Durable notebook pages, native pen ink, and document-level editing. */
 public final class NotebookActivity extends Activity {
@@ -36,7 +40,18 @@ public final class NotebookActivity extends Activity {
     private FrameLayout canvas;
     private TextView saveState, pageLabel;
     private NotebookDeviceStatus deviceStatus;
-    private NotebookIconButton paperButton, penButton, eraserButton, undoButton, redoButton;
+    private NotebookIconButton paperButton, penButton, eraserButton, lassoButton, undoButton, redoButton;
+    private NotebookLasso.Selection selection;
+    private List<NotebookPage.Point> selectionOutline;
+    private int selectionPage;
+    private AlertDialog lassoMenu;
+    private NotebookSelectionTools selectionTools;
+    private final NotebookSelectionDrag selectionDrag = new NotebookSelectionDrag();
+    private Bitmap selectionBase;
+    private final List<Path> selectionPaths = new ArrayList<>();
+    private float selectionPreviewDx, selectionPreviewDy;
+    private int selectionPointer = -1;
+    private final Runnable selectionFrame = this::drawSelectionFrame;
     private NotebookIconButton previousButton, nextButton, addButton;
     private NotebookFloatingTools floatingTools;
     private float toolsX = 0.5f, toolsY;
@@ -76,6 +91,7 @@ public final class NotebookActivity extends Activity {
         eraserWidth = NotebookWidthRange.ERASER.restore(getPreferences(MODE_PRIVATE)
             .getFloat("eraserWidth", NotebookWidthRange.ERASER.defaultWidth));
         if (saved != null && saved.getBoolean("eraser", false)) tool = NotebookInk.Tool.ERASER;
+        if (saved != null && saved.getBoolean("lasso", false)) tool = NotebookInk.Tool.LASSO;
         verifyOnReady = (getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0
             && getIntent().getBooleanExtra("verifyRestore", false);
         getIntent().removeExtra("verifyRestore");
@@ -147,9 +163,11 @@ public final class NotebookActivity extends Activity {
         addButton = floatingTools.button(NotebookFloatingTools.Action.ADD_PAGE);
         penButton = floatingTools.button(NotebookFloatingTools.Action.PEN);
         eraserButton = floatingTools.button(NotebookFloatingTools.Action.ERASER);
+        lassoButton = floatingTools.button(NotebookFloatingTools.Action.LASSO);
         undoButton = floatingTools.button(NotebookFloatingTools.Action.UNDO);
         redoButton = floatingTools.button(NotebookFloatingTools.Action.REDO);
         paperButton = floatingTools.button(NotebookFloatingTools.Action.PAPER);
+        selectionTools = new NotebookSelectionTools(this, this::performSelectionAction);
         updateControls();
     }
 
@@ -221,6 +239,7 @@ public final class NotebookActivity extends Activity {
                         pendingToolAction = null;
                         performToolAction(action);
                     }
+                    if (!toolsContact && canEdit()) showSelectionTools();
                     if (verifyOnReady) {
                         verifyOnReady = false;
                         try { NotebookVerification.write(NotebookActivity.this, viewport.compose(pages, scrollY), ink.snapshotNativeStrokes()); }
@@ -234,6 +253,12 @@ public final class NotebookActivity extends Activity {
                 }
                 @Override public void onEraseGesture(List<NotebookPage.Point> path, float radius) {
                     if (active && request == generation) erase(path, radius);
+                }
+                @Override public void onLassoGesture(List<NotebookPage.Point> path) {
+                    if (active && request == generation) lasso(path);
+                }
+                @Override public void onSelectionEvent(MotionEvent event) {
+                    if (active && request == generation) selectionTouch(event);
                 }
                 @Override public void onFingerEvent(MotionEvent event) {
                     lastInputAt = SystemClock.uptimeMillis();
@@ -317,6 +342,7 @@ public final class NotebookActivity extends Activity {
             if (shownError != null) return;
             ink.setPenWidth(fittedPenWidth());
             ink.setEraserWidth(fittedEraserWidth());
+            ink.setSelectionMode(selectionOutline != null);
             NotebookPage composed = viewport.compose(pages, scrollY);
             if (firstViewport) {
                 ink.setPage(composed); ink.setPaperRenderer(this::drawPaper);
@@ -327,7 +353,11 @@ public final class NotebookActivity extends Activity {
                 NotebookPage seed = page;
                 reopenPosition = new NotebookScrollStore.State(viewport.anchorPage(scrollY), viewport.anchorFraction(scrollY));
                 persistPosition();
+                NotebookLasso.Selection retainedSelection = selection;
+                List<NotebookPage.Point> retainedOutline = selectionOutline;
+                int retainedPage = selectionPage;
                 openCanvas(seed);
+                selection = retainedSelection; selectionOutline = retainedOutline; selectionPage = retainedPage;
                 return;
             }
             scrolling = false; cleanupInk = false;
@@ -351,7 +381,9 @@ public final class NotebookActivity extends Activity {
     }
 
     private void persistPosition() {
-        if (viewport == null || shownError != null) return;
+        if (viewport == null || shownError != null || session.error() != null) return;
+        // While the overview changes order, this covered canvas still has the old page numbers.
+        if (overview != null && (overview.pagesChanged() || overview.hasPendingPageChange())) return;
         final int request = generation;
         session.saveScroll(viewport.anchorPage(scrollY), viewport.anchorFraction(scrollY), (ignored, error) -> {
             if (!active || request != generation) return;
@@ -389,6 +421,7 @@ public final class NotebookActivity extends Activity {
             if (!canEdit() && !continueLoading) return;
             pauseForEdit();
             if (shownError != null) return;
+            if (selectionOutline != null) { clearSelection(); cleanupInk = true; }
             editing = false; scrolling = true; dragging = true; moved = false;
             fingerId = event.getPointerId(changed);
             fingerOrigin = fingerY = event.getY(changed);
@@ -415,7 +448,7 @@ public final class NotebookActivity extends Activity {
                 || action == MotionEvent.ACTION_POINTER_UP && event.getPointerId(changed) == fingerId) {
             dragging = false; fingerId = -1;
             main.removeCallbacks(previewFrame);
-            if (!moved && !settleRead && !firstViewport) {
+            if (!moved && !settleRead && !firstViewport && !cleanupInk) {
                 scrolling = false; ink.start(); scheduleSaveState();
             } else {
                 activePage = viewport.centeredPage(scrollY); savePosition |= moved;
@@ -476,6 +509,7 @@ public final class NotebookActivity extends Activity {
             drawing.scale(viewport.scale(id), viewport.scale(id));
             drawPage(drawing, current, false); drawing.restore();
         }
+        drawSelectionOutline(drawing, 0, 0);
     }
 
     private void drawPage(Canvas drawing, NotebookPage current, boolean includeInk) {
@@ -525,6 +559,7 @@ public final class NotebookActivity extends Activity {
             case ADD_PAGE: addPage(); break;
             case PEN: selectTool(NotebookInk.Tool.PEN); break;
             case ERASER: selectTool(NotebookInk.Tool.ERASER); break;
+            case LASSO: selectTool(NotebookInk.Tool.LASSO); break;
             case UNDO: changeHistory(false); break;
             case REDO: changeHistory(true); break;
             case PAPER: choosePaper(); break;
@@ -546,7 +581,7 @@ public final class NotebookActivity extends Activity {
     }
 
     private boolean canEdit() {
-        return active && !editing && !scrolling && !dragging && !fetching && shownError == null && session.error() == null
+        return active && !editing && !scrolling && !dragging && !selectionDrag.isActive() && !fetching && shownError == null && session.error() == null
             && page != null && ink != null && ink.isReady() && !ink.isPenDown();
     }
 
@@ -556,7 +591,7 @@ public final class NotebookActivity extends Activity {
         boolean ready = active && shownError == null && session.error() == null
             && page != null && page.isInitialized();
         paperButton.setAvailable(ready);
-        penButton.setAvailable(ready); eraserButton.setAvailable(ready);
+        penButton.setAvailable(ready); eraserButton.setAvailable(ready); lassoButton.setAvailable(ready);
         undoButton.setAvailable(ready && session.canUndo(activePage));
         redoButton.setAvailable(ready && session.canRedo(activePage));
         previousButton.setAvailable(ready && activePage > 1);
@@ -564,6 +599,9 @@ public final class NotebookActivity extends Activity {
         addButton.setAvailable(ready && session.pageCount() < NotebookIndex.MAX_PAGES);
         penButton.setToolSelected(tool == NotebookInk.Tool.PEN);
         eraserButton.setToolSelected(tool == NotebookInk.Tool.ERASER);
+        lassoButton.setToolSelected(tool == NotebookInk.Tool.LASSO);
+        lassoButton.setContentDescription(tool == NotebookInk.Tool.LASSO
+            ? "Lasso selected; tap for selection actions and paste" : "Lasso: select and move ink");
         penButton.setPenWidthPreview(fittedPenWidth());
         penButton.setContentDescription("Pen, thickness " + NotebookPenConfig.label(penWidth)
             + (tool == NotebookInk.Tool.PEN ? "; tap for width slider" : "; select pen"));
@@ -574,11 +612,14 @@ public final class NotebookActivity extends Activity {
     private void selectTool(NotebookInk.Tool selected) {
         if (!canEdit()) return;
         if (tool == selected) {
-            chooseWidth(selected);
+            if (selected == NotebookInk.Tool.LASSO) selectionMenu(); else chooseWidth(selected);
             return;
         }
+        boolean redraw = selectionOutline != null;
+        if (redraw) { pauseForEdit(); clearSelection(); }
         tool = selected;
         ink.setTool(selected);
+        if (redraw) { editing = false; installViewport(); }
         updateControls();
     }
 
@@ -628,6 +669,7 @@ public final class NotebookActivity extends Activity {
 
     private void changeHistory(boolean redo) {
         if (!canEdit() || !(redo ? session.canRedo(activePage) : session.canUndo(activePage))) return;
+        clearSelection();
         pauseForEdit();
         if (shownError != null) return;
         final int request = generation;
@@ -645,7 +687,259 @@ public final class NotebookActivity extends Activity {
         session.eraseViewport(gestures, (updated, error) -> finishEdit(request, updated, error));
     }
 
+    private void lasso(List<NotebookPage.Point> path) {
+        if (!canEdit() || viewport == null) return;
+        pauseForEdit();
+        if (shownError != null) return;
+        final int request = generation;
+        clearSelection();
+        int id = 0;
+        for (NotebookPage.Point point : path) {
+            id = viewport.pageAt(point.x, point.y, scrollY); if (id != 0) break;
+        }
+        if (path.isEmpty()) { editing = false; installViewport(); return; }
+        if (id == 0) id = viewport.centeredPage(scrollY);
+        final int target = id;
+        float scale = viewport.scale(id), top = viewport.pageTop(id, scrollY);
+        List<NotebookPage.Point> local = new ArrayList<>();
+        for (NotebookPage.Point p : path)
+            local.add(new NotebookPage.Point(p.x / scale, (p.y - top) / scale, p.time, p.pressure));
+        selectionPage = id; selectionOutline = NotebookLasso.closedOutline(local);
+        session.selectLasso(id, selectionOutline,
+            (selected, error) -> finishLasso(request, target, selected, error, true));
+    }
+
+    private void finishLasso(int request, int id, NotebookLasso.Selection selected,
+            IOException error, boolean keepOutline) {
+        if (!active || request != generation) return;
+        NotebookLasso.Selection previous = selection;
+        selection = selected == null || selected.isEmpty() ? null : selected;
+        selectionPage = id; activePage = id;
+        if (!keepOutline) {
+            if (selection == null) clearSelection();
+            else if (previous != null && selectionOutline != null) {
+                NotebookPage.Point before = previous.strokes.get(0).points.get(0), after = selection.strokes.get(0).points.get(0);
+                selectionOutline = NotebookLasso.offsetOutline(selectionOutline, after.x - before.x, after.y - before.y);
+            } else selectionOutline = outlineForSelection(selection);
+        }
+        selectionPreviewDx = selectionPreviewDy = 0;
+        finishEdit(request, session.current(), error);
+    }
+
+    private void clearSelection() {
+        selection = null; selectionOutline = null;
+        if (selectionTools != null) selectionTools.hide();
+    }
+
+    private List<NotebookPage.Point> outlineForSelection(NotebookLasso.Selection selected) {
+        if (selected == null || selected.isEmpty()) return null;
+        NotebookLasso.Bounds b = selected.bounds;
+        float padding = dp(10) / viewport.scale(selectionPage);
+        float l = Math.max(0, b.left - padding), r = Math.min(viewport.pageWidth(selectionPage), b.right + padding);
+        float t = Math.max(0, b.top - padding), bottom = Math.min(viewport.pageHeight(selectionPage), b.bottom + padding);
+        return NotebookLasso.closedOutline(java.util.Arrays.asList(
+            new NotebookPage.Point(l, t, 0, 1), new NotebookPage.Point(r, t, 0, 1),
+            new NotebookPage.Point(r, bottom, 0, 1), new NotebookPage.Point(l, bottom, 0, 1)));
+    }
+
+    private RectF selectionScreenBounds() {
+        RectF bounds = new RectF();
+        if (selectionOutline == null || selectionOutline.isEmpty() || viewport == null) return bounds;
+        float scale = viewport.scale(selectionPage), top = viewport.pageTop(selectionPage, scrollY);
+        NotebookPage.Point first = selectionOutline.get(0);
+        bounds.set(first.x * scale, first.y * scale + top, first.x * scale, first.y * scale + top);
+        for (NotebookPage.Point point : selectionOutline) {
+            bounds.left = Math.min(bounds.left, point.x * scale); bounds.right = Math.max(bounds.right, point.x * scale);
+            bounds.top = Math.min(bounds.top, point.y * scale + top); bounds.bottom = Math.max(bounds.bottom, point.y * scale + top);
+        }
+        return bounds;
+    }
+
+    private void drawSelectionOutline(Canvas drawing, float dx, float dy) {
+        if (selectionOutline == null || selectionOutline.isEmpty() || viewport == null) return;
+        float scale = viewport.scale(selectionPage), top = viewport.pageTop(selectionPage, scrollY);
+        Path path = new Path();
+        for (int i = 0; i < selectionOutline.size(); i++) {
+            NotebookPage.Point p = selectionOutline.get(i);
+            float x = p.x * scale + dx, y = p.y * scale + top + dy;
+            if (i == 0) path.moveTo(x, y); else path.lineTo(x, y);
+        }
+        path.close();
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG); paint.setColor(Color.BLACK);
+        paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(2.5f);
+        paint.setPathEffect(new DashPathEffect(new float[]{12, 10}, 0));
+        drawing.drawPath(path, paint);
+    }
+
+    private void showSelectionTools() {
+        if (selectionOutline != null && selectionTools != null && canEdit() && overview == null && lassoMenu == null)
+            selectionTools.show(canvas, selectionScreenBounds(), toolsBounds, selection == null ? 0 : selection.strokes.size());
+    }
+
+    private void performSelectionAction(NotebookSelectionTools.Action action) {
+        if (!canEdit() || selectionOutline == null) return;
+        if (action == NotebookSelectionTools.Action.DONE) {
+            pauseForEdit(); clearSelection(); editing = false; installViewport(); return;
+        }
+        if (selection == null) return;
+        if (action == NotebookSelectionTools.Action.COPY) { session.copy(selection); selectionTools.copied(); return; }
+        pauseForEdit();
+        if (shownError != null) return;
+        final int request = generation, id = selectionPage;
+        if (action == NotebookSelectionTools.Action.CUT) session.copy(selection);
+        float dx = 0, dy = 0;
+        NotebookLasso.Action edit = NotebookLasso.Action.DELETE;
+        if (action == NotebookSelectionTools.Action.DUPLICATE) {
+            NotebookLasso.Bounds b = selection.bounds;
+            dx = b.right + 24 <= viewport.pageWidth(id) ? 24 : -Math.min(24, b.left);
+            dy = b.bottom + 24 <= viewport.pageHeight(id) ? 24 : -Math.min(24, b.top);
+            edit = NotebookLasso.Action.DUPLICATE;
+        }
+        session.editSelection(id, selection, edit, dx, dy,
+            (selected, error) -> finishLasso(request, id, selected, error, false));
+    }
+
+    private void selectionTouch(MotionEvent event) {
+        lastInputAt = SystemClock.uptimeMillis();
+        if (viewport == null || selectionOutline == null || shownError != null) return;
+        int action = event.getActionMasked(), changed = event.getActionIndex();
+        if (action == MotionEvent.ACTION_DOWN) {
+            if (!canEdit()) return;
+            int type = event.getToolType(changed);
+            if (type != MotionEvent.TOOL_TYPE_FINGER && type != MotionEvent.TOOL_TYPE_STYLUS
+                    && type != MotionEvent.TOOL_TYPE_ERASER) return;
+            float scale = viewport.scale(selectionPage), top = viewport.pageTop(selectionPage, scrollY);
+            boolean inside = selection != null && NotebookLasso.contains(selectionOutline,
+                event.getX(changed) / scale, (event.getY(changed) - top) / scale);
+            pauseForEdit();
+            if (shownError != null) return;
+            selectionPointer = event.getPointerId(changed);
+            selectionDrag.begin(selectionPointer, event.getX(changed), event.getY(changed), inside, dp(3));
+            if (inside) prepareSelectionPreview();
+            return;
+        }
+        if (!selectionDrag.isActive()) return;
+        int index = event.findPointerIndex(selectionPointer);
+        if (action == MotionEvent.ACTION_POINTER_DOWN || action == MotionEvent.ACTION_POINTER_UP || index < 0) {
+            selectionDrag.cancel(); selectionPreviewDx = selectionPreviewDy = 0;
+            if (selectionBase != null && !main.hasCallbacks(selectionFrame)) main.postDelayed(selectionFrame, 32);
+        }
+        if (index >= 0 && selection != null && (action == MotionEvent.ACTION_MOVE || action == MotionEvent.ACTION_UP)) {
+            float scale = viewport.scale(selectionPage); NotebookLasso.Bounds b = selection.bounds;
+            selectionDrag.move(selectionPointer, event.getX(index), event.getY(index),
+                -b.left * scale, (viewport.pageWidth(selectionPage) - b.right) * scale,
+                -b.top * scale, (viewport.pageHeight(selectionPage) - b.bottom) * scale);
+            selectionPreviewDx = selectionDrag.dx; selectionPreviewDy = selectionDrag.dy;
+            if (!main.hasCallbacks(selectionFrame)) main.postDelayed(selectionFrame, 32);
+        }
+        if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            NotebookSelectionDrag.Result result = selectionDrag.finish(action == MotionEvent.ACTION_CANCEL);
+            if (result == null) return;
+            main.removeCallbacks(selectionFrame);
+            if (!result.cancelled && result.moved && !result.outside && selection != null && (result.dx != 0 || result.dy != 0)) {
+                drawSelectionFrame(); resetSelectionPreview();
+                if (shownError != null) return;
+                final int request = generation, id = selectionPage;
+                float scale = viewport.scale(id);
+                session.editSelection(id, selection, NotebookLasso.Action.MOVE, result.dx / scale, result.dy / scale,
+                    (selected, error) -> finishLasso(request, id, selected, error, false));
+            } else {
+                resetSelectionPreview(); if (!result.cancelled && result.outside) clearSelection();
+                editing = false; installViewport();
+            }
+        }
+    }
+
+    /** Cache paper/unselected ink and native pressure paths once, before movement begins. */
+    private void prepareSelectionPreview() {
+        try {
+            selectionBase = Bitmap.createBitmap(viewport.width, viewport.height, Bitmap.Config.RGB_565);
+            Canvas drawing = new Canvas(selectionBase); drawing.drawColor(0xffdddddd);
+            HashSet<java.util.UUID> selected = new HashSet<>();
+            for (NotebookPage.Stroke stroke : selection.strokes) {
+                selected.add(stroke.id); selectionPaths.add(NotebookStrokeRenderer.path(stroke, () -> false));
+            }
+            Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            for (int id : viewport.visiblePages(scrollY)) {
+                NotebookPage current = pages.get(id); if (current == null) continue;
+                drawing.save(); drawing.translate(0, viewport.pageTop(id, scrollY));
+                drawing.scale(viewport.scale(id), viewport.scale(id));
+                drawPage(drawing, current, false); drawing.clipRect(0, 0, current.width, current.height);
+                for (NotebookPage.Stroke stroke : current.strokes)
+                    if (id != selectionPage || !selected.contains(stroke.id)) NotebookStrokeRenderer.draw(drawing, stroke, paint);
+                drawing.restore();
+            }
+            selectionPreviewDx = selectionPreviewDy = 0;
+        } catch (Exception error) { resetSelectionPreview(); showError(new IOException("Could not prepare selected ink", error)); }
+    }
+
+    private void drawSelectionFrame() {
+        if (!active || selectionBase == null || selection == null || shownError != null) return;
+        try {
+            if (preview == null) preview = Bitmap.createBitmap(viewport.width, viewport.height, Bitmap.Config.RGB_565);
+            Canvas drawing = new Canvas(preview); drawing.drawBitmap(selectionBase, 0, 0, null);
+            float scale = viewport.scale(selectionPage), top = viewport.pageTop(selectionPage, scrollY);
+            drawing.save(); drawing.clipRect(0, Math.max(0, top), viewport.width,
+                Math.min(viewport.height, top + viewport.pageHeight(selectionPage) * scale));
+            drawing.translate(selectionPreviewDx, top + selectionPreviewDy); drawing.scale(scale, scale);
+            Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG); paint.setStyle(Paint.Style.FILL);
+            for (int i = 0; i < selectionPaths.size(); i++) {
+                paint.setColor(selection.strokes.get(i).color); drawing.drawPath(selectionPaths.get(i), paint);
+            }
+            drawing.restore(); drawSelectionOutline(drawing, selectionPreviewDx, selectionPreviewDy);
+            ink.showScrollPreview(preview);
+        } catch (Exception error) { showError(new IOException("Could not move selected ink", error)); }
+    }
+
+    private void resetSelectionPreview() {
+        main.removeCallbacks(selectionFrame); selectionDrag.reset(); selectionPointer = -1;
+        selectionPaths.clear(); selectionPreviewDx = selectionPreviewDy = 0;
+        if (selectionBase != null) { selectionBase.recycle(); selectionBase = null; }
+    }
+
+    private void selectionMenu() {
+        if (!canEdit() || lassoMenu != null) return;
+        if (selectionOutline != null) { showSelectionTools(); return; }
+        pauseForEdit();
+        if (shownError != null) return;
+        final int request = generation;
+        final int id = activePage;
+        final List<String> labels = new ArrayList<>();
+        final List<Runnable> actions = new ArrayList<>();
+        Runnable resume = () -> { editing = false; installViewport(); };
+        NotebookPage target = pages.get(id);
+        if (session.clipboard() != null && target != null && session.clipboard().fits(target)) {
+            labels.add("Paste"); actions.add(() -> {
+                float x = target.width / 2f;
+                float y = Math.max(0, Math.min(target.height,
+                    (viewport.height / 2f - viewport.pageTop(id, scrollY)) / viewport.scale(id)));
+                selectionOutline = null;
+                session.paste(id, x, y, (selected, error) -> finishLasso(request, id, selected, error, false));
+            });
+        }
+        if (target != null && !target.strokes.isEmpty()) {
+            labels.add("Select all on this page"); actions.add(() -> {
+                selection = NotebookLasso.all(target); selectionPage = id;
+                selectionOutline = outlineForSelection(selection); resume.run();
+            });
+        }
+        final Runnable[] chosen = {resume};
+        AlertDialog.Builder builder = new AlertDialog.Builder(this)
+            .setTitle(selection == null ? "Lasso" : selection.strokes.size() + " strokes selected")
+            .setNegativeButton("Close", null);
+        if (labels.isEmpty()) builder.setMessage("Circle the ink you want to select, then lift the stylus.");
+        else builder.setItems(labels.toArray(new String[0]), (dialog, which) -> chosen[0] = actions.get(which));
+        lassoMenu = builder.create();
+        lassoMenu.setOnDismissListener(dialog -> {
+            lassoMenu = null;
+            if (active && request == generation && shownError == null) chosen[0].run();
+        });
+        showStaticDialog(lassoMenu);
+        if (lassoMenu.getListView() != null) lassoMenu.getListView().setSelector(android.R.color.transparent);
+    }
+
     private void pauseForEdit() {
+        if (selectionTools != null) selectionTools.hide();
         editing = true;
         ink.pauseForEdit();
         main.removeCallbacks(updateSaveState);
@@ -694,6 +988,7 @@ public final class NotebookActivity extends Activity {
 
     /** Input has already been paused; the window read precedes native restoration. */
     private void jumpToPage(int target) {
+        clearSelection();
         editing = false; scrolling = true; savePosition = true;
         scrollY = viewport.pageScroll(target); activePage = target;
         settleRead = true; ++viewportRevision;
@@ -717,7 +1012,14 @@ public final class NotebookActivity extends Activity {
             dialog.setOnDismissListener(closed -> {
                 if (overview == dialog) overview = null;
                 if (!active || request != generation) return;
-                if (dialog.chosenPage() > 0) jumpToPage(dialog.chosenPage());
+                if (session.error() != null) { showError(session.error()); return; }
+                if (dialog.pagesChanged()) {
+                    clearSelection(); page = session.current();
+                    pages.clear(); viewportBuffer.clear(); tiles.clear();
+                    viewport = new NotebookViewport(session.pageCount(), page.width, page.height,
+                        viewport.width, viewport.height, dp(12));
+                    jumpToPage(dialog.chosenPage() > 0 ? dialog.chosenPage() : session.pageNumber());
+                } else if (dialog.chosenPage() > 0) jumpToPage(dialog.chosenPage());
                 else {
                     // Browsing changed no document or viewport state. Reuse the paused
                     // native tracks rather than repainting all ink on Close/Back.
@@ -733,6 +1035,7 @@ public final class NotebookActivity extends Activity {
 
     private void addPage() {
         if (!canEdit() || session.pageCount() >= NotebookIndex.MAX_PAGES) return;
+        clearSelection();
         pauseForEdit();
         if (shownError != null) return;
         final int request = generation;
@@ -765,6 +1068,8 @@ public final class NotebookActivity extends Activity {
     }
     private void showError(IOException error) {
         shownError = error;
+        if (selectionTools != null) selectionTools.hide();
+        resetSelectionPreview();
         if (ink != null) ink.stop();
         if (floatingTools != null) floatingTools.hide();
         updateControls();
@@ -817,8 +1122,9 @@ public final class NotebookActivity extends Activity {
                 : session.isSaving() ? "Saving your latest writing…" : "Your completed strokes are saved on this tablet.")
             + "\n\nDrag with one finger to scroll and stop anywhere. Write with the stylus. Tap the grid icon for thumbnails and page-number jumps. Use the left/right arrows for adjacent pages. The page-plus icon adds an empty page at the end. The paper icon changes this page’s Blank/Lined background. The books icon returns to your library."
             + "\n\nEraser draws a temporary grey trail. Lift the pen to remove whole ink strokes touched by it, together with the trail. Tap the selected Eraser icon to adjust its width (4–240). Current eraser: " + NotebookWidthRange.ERASER.label(eraserWidth) + ". Each page remembers up to 100 Undo/Redo edits while the app process stays open."
-            + "\n\nNew writing or a successful erase clears Redo. Changing paper keeps your stroke history.";
-        message += "\n\nDrag the dotted grip to move the floating tools. The direction icon beside it switches between one row and one column. The thicker border marks the selected Pen or Eraser. The page icon changes Blank/Lined paper; the grid opens the page overview."
+            + "\n\nLasso draws a temporary dashed line. Lift the stylus to close the curve automatically. Drag inside with a finger or stylus to move the selected ink. Copy, Duplicate, Cut, Delete, and Done appear beside the region. Done or a tap outside clears the selection; tap the selected Lasso icon afterward for Paste or Select all. Copied ink stays inside Scriflow until the app restarts. Selection and movement stay on one page."
+            + "\n\nNew writing or a successful edit clears Redo. Changing paper keeps your stroke history.";
+        message += "\n\nDrag the dotted grip to move the floating tools. The direction icon beside it switches between one row and one column. The thicker border marks the selected tool. The page icon changes Blank/Lined paper; the grid opens the page overview."
             + "\n\nTap the selected Pen icon to open a small width slider. Slide the point and release to apply; tap outside or press Back to cancel. Current thickness: " + NotebookPenConfig.label(penWidth) + ". The small line below the pencil previews its width. New strokes use that width; existing writing keeps its original thickness."
             + "\n\nExport PDF saves all pages in this notebook, including their paper backgrounds and handwriting.";
         final boolean[] exporting = {false};
@@ -864,23 +1170,28 @@ public final class NotebookActivity extends Activity {
     }
 
     @Override protected void onPause() {
+        boolean saveViewport = overview == null || !overview.pagesChanged() && !overview.hasPendingPageChange();
         active = false; ++generation;
         deviceStatus.stop();
         pendingToolAction = null; toolsContact = false;
+        clearSelection(); resetSelectionPreview();
+        if (lassoMenu != null) { lassoMenu.dismiss(); lassoMenu = null; }
         if (floatingTools != null) floatingTools.hide();
         if (overview != null) { overview.dismiss(); overview = null; }
         if (widthPopup != null) { widthPopup.dismiss(); widthPopup = null; }
         main.removeCallbacks(updateSaveState);
         disposeCanvas();
-        persistPosition();
+        if (saveViewport) persistPosition();
         super.onPause();
     }
     @Override protected void onSaveInstanceState(Bundle state) {
         state.putBoolean("eraser", tool == NotebookInk.Tool.ERASER);
+        state.putBoolean("lasso", tool == NotebookInk.Tool.LASSO);
         super.onSaveInstanceState(state);
     }
     private void disposeCanvas() {
         main.removeCallbacks(previewFrame);
+        clearSelection(); resetSelectionPreview();
         dragging = false;
         penDown = false;
         if (floatingTools != null) floatingTools.hide();
@@ -890,10 +1201,17 @@ public final class NotebookActivity extends Activity {
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
     @Override protected void onDestroy() {
         if (floatingTools != null) floatingTools.dispose();
+        if (selectionTools != null) selectionTools.hide();
         super.onDestroy();
     }
     @Override public void onBackPressed() {
         if (widthPopup != null) { widthPopup.cancel(); return; }
+        if (selectionDrag.isActive()) {
+            resetSelectionPreview(); editing = false; installViewport(); return;
+        }
+        if (selectionOutline != null && canEdit()) {
+            pauseForEdit(); clearSelection(); editing = false; installViewport(); return;
+        }
         super.onBackPressed(); overridePendingTransition(0, 0);
     }
 }

@@ -78,6 +78,14 @@ public final class NotebookSymbols {
                 out.lineTo(21, 20);
                 out.end(false);
                 break;
+            case "LASSO":
+                line(out, 4, 10, 5, 7, 8, 5);
+                line(out, 11, 4, 14, 4, 17, 5);
+                line(out, 20, 7, 21, 10, 20, 13);
+                line(out, 18, 15, 15, 17, 12, 17);
+                line(out, 9, 17, 6, 16, 4, 14);
+                out.begin(); out.moveTo(9, 16); out.cubicTo(4, 18, 5, 22, 9, 21); out.end(false);
+                break;
             case "REDO":
                 line(out, 16, 4, 21, 9, 16, 14);
                 out.begin();

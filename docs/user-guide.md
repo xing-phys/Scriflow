@@ -24,21 +24,46 @@ on either visible page. Scrolling has no page snapping or inertial fling.
 
 The **left/right arrows** jump to page tops. The **page-plus icon** appends an
 empty page using the active page's paper. Each page keeps its own writing and
-paper choice. The page limit is 1,000; deletion and reordering are not included.
+paper choice. The page limit is 1,000; page management is available from 0.29.
 These limits are not demonstrated large-notebook performance guarantees.
 
 The header reads **Notebook name · X / Y**. Its page is the most recently
 written page, or the page nearest the viewport center after scrolling. Eraser,
 Undo/Redo, and paper choice use that context. Fractional scroll position is
-saved per notebook. Legacy single-page notebooks remain Page 1 in place.
+saved per notebook. Existing pages keep their contents when their order changes.
 
 ## Overview and jumps
 
 Tap the **grid icon** to browse whole-page thumbnails. The current page has a
 black border and a **Current** label. Tap a thumbnail to jump to its page top,
 or enter a number beside **Go to page** and tap **Go**. **Close** or Android
-Back returns to the exact previous scroll position. Thumbnails load as you
-browse; opening the overview does not edit pages.
+Back returns to the exact previous scroll position when the page order is
+unchanged. Thumbnails load as you browse; opening the overview does not edit pages.
+
+Choose **Manage**, then tap a page for its actions. You can also hold a thumbnail
+to open the same actions while browsing:
+
+- **Move earlier/later** shifts the page by one position. **Move to page…** accepts
+  its final page number, from 1 to the notebook's current page count.
+- **Duplicate** places an independent copy immediately after the original,
+  preserving its paper and handwriting appearance.
+- **Insert blank before/after** adds a page with the chosen page's paper and size.
+- **Delete…** asks for confirmation, then removes the page from the notebook.
+  The notebook always keeps at least one page.
+
+Changes save automatically. **Undo page change** and **Redo page change** appear
+at the bottom of the overview; they are separate from the toolbar's ink history.
+They retain up to 50 page changes per notebook until the app restarts. A new
+page change clears page redo; writing on an existing page keeps that history.
+Restoring a page brings back its writing and its available ink undo history.
+
+After managing pages, Close returns to the selected page's top. New thumbnails,
+navigation, PDF exports, and editable backups follow the new order. Removed
+pages are excluded from exports and backups. Their private files remain for
+recovery; page deletion does not immediately reclaim storage.
+
+The first page-management edit upgrades that notebook's order index. Earlier
+APKs cannot read the managed notebook; preserve an editable backup before updating.
 
 ## Floating tools
 
@@ -48,7 +73,8 @@ finger or stylus to move the strip; it stops where released and remembers its
 position and orientation. Only the grip moves the tools.
 
 **Pen** uses a pencil symbol; **Eraser** uses a tilted eraser. A thick border
-marks the selected tool. The curved arrows are Undo/Redo, the grid opens the
+marks the selected tool. **Lasso** uses a dashed loop (available in development
+builds after 0.28.0-beta.2). The curved arrows are Undo/Redo, the grid opens the
 overview, and the three-dot menu offers page information, PDF export, and
 **Reset tools**. Reset returns the strip to its initial horizontal, top-center
 position. Touching controls has no ripple or pressed inversion; the page stays
@@ -87,6 +113,46 @@ the current app process. It survives leaving and returning while the process
 stays alive, but process restart begins a new history. Erasing, undo, and redo
 autosave. New writing or a successful erase clears Redo; a no-hit erase
 preserves it. Changing paper leaves stroke history available.
+
+## Selecting and moving ink
+
+Choose **Lasso** and circle the strokes you want. A native dashed line follows
+the stylus. **Lift to visibly close the curve**, including a final edge back to
+its start when you leave a gap. Strokes whose entire centreline lies inside it
+are selected. A stroke crossing the boundary stays unselected. Selection
+works on one page at a time; it does not cut strokes into pieces.
+
+A small action bar appears beside the region with its selected stroke count.
+**Drag anywhere inside the curve with a finger or the stylus** to move the ink;
+its preview follows your movement. Lift to save the move. Movement stops at
+page edges and keeps the strokes together. There is no separate Move command.
+The nearby actions are:
+
+- **Duplicate** makes an offset copy and selects it.
+- **Copy** keeps the selected ink on Scriflow's private clipboard.
+- **Cut** copies, then removes the selection; **Delete** removes it directly.
+- **Done** clears the selection. A tap outside the curve also clears it.
+
+After Done, tap the already-selected Lasso icon for these additional actions:
+
+- **Paste** places a fresh copy near the visible centre of the current page.
+  You can then drag it into position. Copy/paste works across pages and
+  notebooks, while the app process stays alive. It is not the Android system
+  clipboard. Paste is offered when copied ink fits the destination page.
+- **Select all on this page** selects its ink and shows the action bar.
+
+If the curve encloses no complete strokes, it stays visible with **No strokes
+selected**. Tap Done or outside it, then draw around the complete ink strokes.
+While a region is active, a finger inside moves it. Clear the selection before
+finger scrolling. Change tools, navigate to another page, or press Back to clear
+the selection. Undo/Redo also clears it. Each completed move, duplicate,
+cut, paste, or delete is one undoable action on its page and saves automatically.
+Selecting, copying, and deselecting do not change history or saved notes. Existing
+pressure, thickness, colour, and sample timing are retained.
+
+The owner confirmed that the updated interaction works well in 0.29.0-dev.2
+and accepted the signed APK for release. See the [device record](device-testing.md)
+for the scope of that feedback and automated checks.
 
 ## Status and display refresh
 

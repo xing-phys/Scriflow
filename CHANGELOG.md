@@ -6,6 +6,65 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## [0.29.0-dev.2](https://github.com/xing-phys/Scriflow/releases/tag/v0.29.0-dev.2) — Lasso and page management (2026-10-26)
+
+- Release whole-stroke lasso selection and overview page management: reorder,
+  duplicate, insert blank pages, delete, and separate page undo/redo. Page order
+  uses a version-2 index after the first management edit; earlier APKs cannot
+  open managed notebooks. Back up editable notes before updating.
+
+- Complete a lasso from either native or Android stylus lift, without requiring
+  a saved-track/edit callback. Retain native dashed drawing during the gesture;
+  explicitly close and display the original curve after lift, including empty
+  selections with a visible selected-stroke count.
+- Add a nonmodal action bar beside the region: Copy, Duplicate, Cut, Delete,
+  and Done. Drag inside with a finger or stylus to preview movement; commit one
+  undoable edit on release. Cache native pressure paths/background once per drag
+  and coalesce display updates to 32 ms without manual waveform overrides.
+- Preserve selection through an unsettled native-widget replacement, cancel
+  mixed-pointer/unfinished drags, and keep all outlines and preview frames out
+  of saved notes and exports. The completion fix adds no schema changes beyond
+  the page-order index introduced in dev.1.
+- Publish the exact signed versionCode 32 APK accepted by the owner, without
+  rebuilding or renaming its internal version. The owner confirmed that the
+  updated interaction works well and authorized publication. This is general
+  acceptance, without an item-by-item checklist or measured latency claims.
+- Pass 22,326 host assertions, Android lint, debug/release builds, and signed
+  APK verification. Retain the permanent public signing identity.
+
+## Development — 0.29.0-dev.1
+
+- Manage pages in the overview: move earlier/later or to a final page number,
+  duplicate, insert blank before/after, and delete with confirmation. Keep at
+  least one page. Separate page undo/redo retains 50 changes in the current process.
+- Publish page order through a checksummed version-2 index mapping display
+  positions to stable storage slots. Reordering never renames or rewrites ink;
+  duplication gives pages and strokes fresh IDs. Existing books remain in their
+  original index format until page management is used.
+- Bind saved scroll positions to the order generation so a restart after
+  reordering/deleting cannot reuse an old page number. Refresh overview and
+  editor caches after management; export and backup follow the current order.
+- Retain removed/uncommitted page files privately for recovery without exposing
+  them in current notebooks or exports. Preserve pending commands for exact retry
+  after ambiguous save completion; never overwrite unrelated orphan pages.
+- Advance development versionCode to 31. No public release or tablet installation
+  is performed; physical acceptance remains pending.
+
+- Add a Lasso tool using Huawei's native dashed pen for the live trail, with no
+  application redraw or document edit during stylus movement.
+- Select fully enclosed whole strokes on one page. Drag inside the selection
+  and lift to move it; open its actions to duplicate, copy, cut, paste, delete,
+  deselect, or select all on that page.
+- Keep copied vector ink in a private process-local clipboard for pasting
+  across pages and notebooks. Preserve pressure, timing, style, and ordering;
+  moves retain IDs and copies receive new IDs.
+- Save each completed edit as one undoable page action through the existing
+  snapshot/retry path. Selection and its temporary trail never enter notes,
+  backup, export, or history. File formats remain unchanged.
+- Host geometry/storage tests, Android lint and debug/release builds pass.
+  Native dashed input and physical e-ink responsiveness still need tablet
+  acceptance; no device was connected during implementation.
+
 ## [0.28.0-beta.2](https://github.com/xing-phys/Scriflow/releases/tag/v0.28.0-beta.2) — Scriflow identity (2026-10-26)
 
 - Rename the app to **Scriflow**, bringing together scribe, script, and scribble

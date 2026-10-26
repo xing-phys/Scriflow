@@ -17,6 +17,12 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPage.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookStore.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookEdits.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookLasso.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookLassoGesture.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookLassoCompletion.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookSelectionDrag.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookSelectionStream.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookSelectionPlacement.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookDocument.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookIndex.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookBook.java \
@@ -38,8 +44,10 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPenSliderState.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPenSliderClose.java \
   tests/CallbackTimingTest.java tests/NotebookStoreTest.java \
-  tests/NotebookEditsTest.java tests/NotebookDocumentTest.java \
+  tests/NotebookEditsTest.java tests/NotebookDocumentTest.java tests/NotebookLassoTest.java \
+  tests/NotebookLassoInteractionTest.java \
   tests/NotebookIndexTest.java tests/NotebookBookTest.java \
+  tests/NotebookPageManagementTest.java \
   tests/NotebookCatalogTest.java tests/NotebookLibraryTest.java \
   tests/NotebookViewportTest.java tests/NotebookScrollStoreTest.java \
   tests/NotebookFingerStreamTest.java tests/NotebookViewportBufferTest.java \
@@ -50,9 +58,12 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
 java -ea -cp build/host-tests org.eink.inkprobe.CallbackTimingTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookStoreTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookEditsTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookLassoTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookLassoInteractionTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookDocumentTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookIndexTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookBookTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPageManagementTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookCatalogTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookLibraryTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookViewportTest

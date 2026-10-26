@@ -5,35 +5,57 @@ import java.io.FileOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
 import java.util.zip.CRC32;
 
 /**
- * Single-writer notebook page order and selection. Page 1 remains in the legacy page directory;
- * the index never opens, moves or rewrites a page file. Call from the notebook's serial worker.
+ * Single-writer page order. Version 1 implies consecutive slots; version 2 maps display
+ * positions to stable storage slots. Publishing order never moves or rewrites page files.
  */
 public final class NotebookIndex {
     public static final int MAX_PAGES = 1000;
     private static final int MAGIC = 0x4e424931; // NBI1
-    private static final int VERSION = 1;
     private static final int PAYLOAD_BYTES = 8;
-    private static final int FILE_BYTES = 28;
+    private static final int MAX_PAYLOAD_BYTES = 20 + MAX_PAGES * 4;
 
     public static final class State {
         public final int pageCount;
         public final int selectedPage;
+        public final List<Integer> slots;
+        public final int nextSlot;
+        /** Changes only when page order changes; binds scroll positions to that order. */
+        public final long generation;
 
         private State(int pageCount, int selectedPage) {
-            this.pageCount = pageCount;
-            this.selectedPage = selectedPage;
+            this(consecutive(pageCount), selectedPage, pageCount + 1, 0);
+        }
+
+        private State(List<Integer> slots, int selectedPage, int nextSlot, long generation) {
+            this.pageCount = slots.size(); this.selectedPage = selectedPage;
+            this.slots = Collections.unmodifiableList(new ArrayList<>(slots));
+            this.nextSlot = nextSlot; this.generation = generation;
+        }
+
+        public int slot(int page) { return slots.get(page - 1); }
+        public boolean managed() { return generation != 0; }
+
+        State reordered(List<Integer> order, int selected, int next) throws IOException {
+            if (generation == Long.MAX_VALUE) throw new IOException("Notebook page-order limit reached");
+            State target = new State(order, selected, Math.max(nextSlot, next), generation + 1);
+            validate(target); return target;
         }
 
         @Override public boolean equals(Object other) {
             if (!(other instanceof State)) return false;
             State state = (State) other;
-            return pageCount == state.pageCount && selectedPage == state.selectedPage;
+            return selectedPage == state.selectedPage && slots.equals(state.slots)
+                && nextSlot == state.nextSlot && generation == state.generation;
         }
 
-        @Override public int hashCode() { return 31 * pageCount + selectedPage; }
+        @Override public int hashCode() { return java.util.Objects.hash(slots, selectedPage, nextSlot, generation); }
     }
 
     public static final class CorruptIndexException extends IOException {
@@ -73,14 +95,34 @@ public final class NotebookIndex {
         return state;
     }
 
-    /** Pages are ordered, consecutive and append-only; publication can add at most one page. */
+    /** Legacy append/navigation entry point; existing books retain v1 until a management edit. */
     public State save(int pageCount, int selectedPage) throws IOException {
         requireReady();
         validate(pageCount, selectedPage);
         if (pageCount != state.pageCount && pageCount != state.pageCount + 1) {
             throw new IOException("Notebook pages must be added one at a time");
         }
-        State updated = new State(pageCount, selectedPage);
+        State updated;
+        if (!state.managed()) updated = new State(pageCount, selectedPage);
+        else if (pageCount == state.pageCount) updated = new State(state.slots, selectedPage, state.nextSlot, state.generation);
+        else {
+            if (state.nextSlot == Integer.MAX_VALUE) throw new IOException("Notebook page storage limit reached");
+            List<Integer> order = new ArrayList<>(state.slots); order.add(state.nextSlot);
+            updated = state.reordered(order, selectedPage, state.nextSlot + 1);
+        }
+        return publish(updated);
+    }
+
+    /** Publish one exact structural change, including a session undo, in a single snapshot. */
+    State saveOrder(State updated) throws IOException {
+        requireReady(); validate(updated);
+        if (updated.equals(state)) return publish(updated);
+        if (updated.generation != state.generation + 1 || updated.nextSlot < state.nextSlot)
+            throw new IOException("Invalid page-order transition");
+        return publish(updated);
+    }
+
+    private State publish(State updated) throws IOException {
         if (updated.equals(state) && !needsSnapshot) return state;
         byte[] payload = payload(updated);
         try {
@@ -90,9 +132,9 @@ public final class NotebookIndex {
             try (FileOutputStream output = new FileOutputStream(temporary)) {
                 DataOutputStream data = new DataOutputStream(output);
                 data.writeInt(MAGIC);
-                data.writeInt(VERSION);
-                data.writeInt(PAYLOAD_BYTES);
-                data.writeInt(~PAYLOAD_BYTES);
+                data.writeInt(updated.managed() ? 2 : 1);
+                data.writeInt(payload.length);
+                data.writeInt(~payload.length);
                 data.write(payload);
                 data.writeInt(checksum(payload));
                 data.flush();
@@ -136,20 +178,36 @@ public final class NotebookIndex {
 
     private static State read(File source) throws IOException {
         try (RandomAccessFile input = new RandomAccessFile(source, "r")) {
-            if (input.length() != FILE_BYTES) throw new CorruptIndexException("Incomplete or oversized notebook index");
-            if (input.readInt() != MAGIC || input.readInt() != VERSION) {
+            if (input.length() < 28 || input.length() > MAX_PAYLOAD_BYTES + 20)
+                throw new CorruptIndexException("Incomplete or oversized notebook index");
+            if (input.readInt() != MAGIC) {
                 throw new CorruptIndexException("Unsupported notebook index header");
             }
-            if (input.readInt() != PAYLOAD_BYTES || input.readInt() != ~PAYLOAD_BYTES) {
+            int version = input.readInt();
+            if (version != 1 && version != 2) throw new CorruptIndexException("Unsupported notebook index version");
+            int length = input.readInt();
+            if (length < 8 || length > MAX_PAYLOAD_BYTES || input.readInt() != ~length
+                    || input.length() != length + 20L || version == 1 && length != PAYLOAD_BYTES) {
                 throw new CorruptIndexException("Notebook index length check failed");
             }
-            byte[] payload = new byte[PAYLOAD_BYTES];
+            byte[] payload = new byte[length];
             input.readFully(payload);
             if (input.readInt() != checksum(payload)) throw new CorruptIndexException("Notebook index checksum failed");
             int count = integer(payload, 0), selected = integer(payload, 4);
-            try { validate(count, selected); }
+            try {
+                validate(count, selected);
+                if (version == 1) return new State(count, selected);
+                if (length != 20 + count * 4) throw new IOException("Invalid page-order length");
+                int next = integer(payload, 8);
+                long generation = ((long) integer(payload, 12) << 32) | (integer(payload, 16) & 0xffffffffL);
+                List<Integer> slots = new ArrayList<>();
+                for (int i = 0; i < count; i++) slots.add(integer(payload, 20 + i * 4));
+                State result = new State(slots, selected, next, generation);
+                validate(result);
+                if (!result.managed()) throw new IOException("Missing page-order generation");
+                return result;
+            }
             catch (IOException error) { throw new CorruptIndexException("Invalid notebook page count or selection"); }
-            return new State(count, selected);
         }
     }
 
@@ -159,10 +217,29 @@ public final class NotebookIndex {
         }
     }
 
+    private static void validate(State state) throws IOException {
+        validate(state.pageCount, state.selectedPage);
+        if (state.generation < 0 || state.nextSlot < 2) throw new IOException("Invalid page-order metadata");
+        HashSet<Integer> seen = new HashSet<>();
+        for (int slot : state.slots) {
+            if (slot < 1 || slot >= state.nextSlot || !seen.add(slot)) throw new IOException("Invalid or duplicate page slot");
+        }
+    }
+
+    private static List<Integer> consecutive(int count) {
+        List<Integer> slots = new ArrayList<>(); for (int i = 1; i <= count; i++) slots.add(i); return slots;
+    }
+
     private static byte[] payload(State state) {
-        byte[] bytes = new byte[PAYLOAD_BYTES];
+        byte[] bytes = new byte[state.managed() ? 20 + state.pageCount * 4 : PAYLOAD_BYTES];
         putInteger(bytes, 0, state.pageCount);
         putInteger(bytes, 4, state.selectedPage);
+        if (state.managed()) {
+            putInteger(bytes, 8, state.nextSlot);
+            putInteger(bytes, 12, (int) (state.generation >>> 32));
+            putInteger(bytes, 16, (int) state.generation);
+            for (int i = 0; i < state.slots.size(); i++) putInteger(bytes, 20 + i * 4, state.slots.get(i));
+        }
         return bytes;
     }
 

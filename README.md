@@ -16,10 +16,10 @@ Development and physical testing target **MatePad Paper HMW-W09**, Android
 rendering use Huawei APIs already present on that firmware; no proprietary
 Huawei code is bundled. Other tablets and firmware versions are unverified.
 
-The latest public beta is **[Scriflow 0.28.0-beta.2](https://github.com/xing-phys/Scriflow/releases/tag/v0.28.0-beta.2)**,
-released on 2026-10-26 with the owner's authorization. It introduces the
-Scriflow name and updates the earlier Scribblow beta in place using the same
-application ID and public signing certificate. The core notebook features are
+The latest public prerelease is **[Scriflow 0.29.0-dev.2](https://github.com/xing-phys/Scriflow/releases/tag/v0.29.0-dev.2)**,
+released on 2026-10-26 after the owner's tablet acceptance. It adds lasso
+selection and page management, retaining the same application ID and public
+signing certificate for in-place updates. The core notebook features are
 implemented; broader use and long-session performance still need feedback.
 The [changelog](CHANGELOG.md) summarizes changes; [device records](docs/device-testing.md)
 distinguish automated checks, publication authorization, and physical testing.
@@ -30,6 +30,10 @@ distinguish automated checks, publication authorization, and physical testing.
 - Multiple named notebooks, blank/lined pages, continuous finger scrolling,
   thumbnail overview, and direct page jumps.
 - Adjustable whole-stroke eraser with a temporary grey trail, plus undo/redo.
+- Native dashed lasso to select whole strokes, move, duplicate, copy/cut/paste,
+  or delete them, with a closed region, nearby actions, and finger/stylus dragging.
+- Manage pages from the overview: reorder, duplicate, insert blank pages, delete,
+  and undo/redo page changes.
 - Automatic saving of completed strokes and editable restoration after reopening.
 - Vector PDF export for sharing and editable `.inkbook` backup/restore.
 - Movable, rotatable monochrome tools and a quiet time/battery/Wi-Fi bar.
@@ -39,8 +43,8 @@ makes no network requests. See [privacy and local storage](docs/privacy.md).
 
 ## Install and update
 
-Download the latest public **[Scriflow 0.28.0-beta.2 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.28.0-beta.2/scriflow-0.28.0-beta.2.apk)**
-from [GitHub Releases](https://github.com/xing-phys/Scriflow/releases/tag/v0.28.0-beta.2),
+Download the latest public **[Scriflow 0.29.0-dev.2 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.29.0-dev.2/scriflow-0.29.0-dev.2.apk)**
+from [GitHub Releases](https://github.com/xing-phys/Scriflow/releases/tag/v0.29.0-dev.2),
 where its file checksum and signing certificate fingerprint are recorded.
 Copy it to the supported tablet, open it with the tablet's file manager, and
 allow installation from that source when prompted.
@@ -59,6 +63,8 @@ in place without moving notebooks. If Android rejects an update because its
 signature differs, stop and follow the [signing migration instructions](docs/releasing.md#moving-from-a-development-key).
 **Uninstalling the app or clearing app storage deletes its private notes.**
 Older APKs cannot read pages upgraded to the current version-2 format.
+Version 0.29 introduces a version-2 page-order index
+when page management is first used; earlier APKs cannot open that managed book.
 
 ## Start writing
 
@@ -78,8 +84,11 @@ troubleshooting.
 
 - Erasing removes entire touched strokes. Undo/redo keeps up to 100 actions per
   page while the app process remains alive; it does not survive a process restart.
-- There is no page deletion/reordering, PDF import, handwriting recognition,
+- There is no PDF import, handwriting recognition,
   typed text, or cloud sync.
+- Page management keeps at least one page in a notebook. Its separate undo/redo
+  history holds 50 page changes until the process restarts. Removed page files
+  remain in private storage for recovery; current exports/backups exclude them.
 - Very fast passes with the maximum eraser width can lag. Finger scrolling
   has no inertia or page snapping. Use the tablet's **Refresh now** action
   when residual images need clearing.

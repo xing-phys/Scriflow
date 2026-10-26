@@ -4,7 +4,9 @@ The local build workflow prepares artifacts without publishing or installing
 them. The first public beta, [0.28.0-beta.1](https://github.com/xing-phys/Scriflow/releases/tag/v0.28.0-beta.1),
 was published as **Scribblow** on 2026-10-26 after the owner's tablet acceptance.
 **Scriflow 0.28.0-beta.2** was published on 2026-10-26 with the owner’s explicit
-authorization. Publishing is a separate step described below.
+authorization. **Scriflow 0.29.0-dev.2** follows on the same date after the owner's
+tablet acceptance and explicit release authorization. Publishing is a separate
+step described below.
 
 ## Before publishing
 
@@ -82,17 +84,18 @@ build unsigned release APKs without possessing the permanent key.
 
 ## Version numbers
 
-The current source version is **0.28.0-beta.2**, with Android `versionCode`
-**30**. It is the first public Scriflow beta, published with the owner’s
-authorization on 2026-10-26. The earlier **Scribblow 0.28.0-beta.1**, with
-`versionCode` **29**, remains available with its original APK and checksum. The notebook features are implemented, while broader
-usage and sustained performance still need testing. Beta expresses that status
-without claiming the feature freeze and confidence of a release candidate or a
-stable 1.0 release.
+The current source and public prerelease version is **0.29.0-dev.2**, with Android
+`versionCode` **32**, adding lasso selection and page management. The owner
+accepted the signed APK and authorized publication on 2026-10-26. Publish that
+exact staged file without rebuilding or changing its internal version. Earlier
+**Scriflow 0.28.0-beta.2** (`versionCode` **30**) and **Scribblow 0.28.0-beta.1**
+(`versionCode` **29**) remain available with their original APKs and checksums.
+The notebook features are implemented, while broader usage and sustained
+performance still need testing. The prerelease status reflects those limits.
 
 Release names use `MAJOR.MINOR.PATCH` with an optional suffix such as
 `-beta.1` or `-rc.1`. The earlier two-part development versions remain in the
-history. Further beta builds can use `0.28.0-beta.3`, followed by a release
+history. Further beta builds can use `0.29.0-beta.1`, followed by a release
 candidate once changes settle. Every new distributed APK must increase
 `versionCode`, including when only the prerelease suffix changes. Moving to
 1.0.0 will be a separate decision about the supported core experience, not a
@@ -120,16 +123,16 @@ and [Android versioning](https://developer.android.com/studio/publish/versioning
    The helper runs release lint and assembly, copies the candidate privately,
    verifies those exact bytes and the configured signing certificate, then
    stages a versioned APK and SHA-256 checksum under
-   `build/releases/`. For this candidate these are `scriflow-0.28.0-beta.2.apk` and
-   `scriflow-0.28.0-beta.2.apk.sha256`. Debugging is disabled, diagnostic screens are
+   `build/releases/`. For this release these are `scriflow-0.29.0-dev.2.apk` and
+   `scriflow-0.29.0-dev.2.apk.sha256`. Debugging is disabled, diagnostic screens are
    absent from the manifest, and the library is the only exported component.
 
 4. Compare the printed signer certificate SHA-256 with the intended permanent
    certificate. For later builds, pin that known digest during verification:
 
    ```bash
-   python3 scripts/verify-apk.py build/releases/scriflow-0.28.0-beta.2.apk --certificate-sha256 YOUR_KNOWN_CERTIFICATE_SHA256
-   (cd build/releases && sha256sum -c scriflow-0.28.0-beta.2.apk.sha256)
+   python3 scripts/verify-apk.py build/releases/scriflow-0.29.0-dev.2.apk --certificate-sha256 YOUR_KNOWN_CERTIFICATE_SHA256
+   (cd build/releases && sha256sum -c scriflow-0.29.0-dev.2.apk.sha256)
    ```
 
    Substitute the current version and the actual known digest. The APK file's
@@ -198,8 +201,8 @@ captures, and recovery copies. Include the MIT license and third-party notices,
 preserve the selected key, and record remaining limitations. Any screenshots
 must use disposable notes.
 
-Mark a GitHub beta release as a **pre-release** and use its full version in the
-tag and title, such as `v0.28.0-beta.2`. This identifies it as a test build
+Mark a GitHub development or beta release as a **pre-release** and use its full version in the
+tag and title, such as `v0.29.0-dev.2`. This identifies it as a test build
 without changing the ordinary APK installation process.
 
 When publishing is explicitly authorized, attach only the accepted signed APK

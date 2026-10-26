@@ -12,7 +12,7 @@ import android.graphics.drawable.Drawable;
 /** Small black vector symbols; button borders and selection belong to the host view. */
 public final class NotebookIconDrawable extends Drawable {
     public enum Icon {
-        LIBRARY, PREVIOUS, NEXT, ADD_PAGE, PEN, ERASER, UNDO, REDO,
+        LIBRARY, PREVIOUS, NEXT, ADD_PAGE, PEN, ERASER, LASSO, UNDO, REDO,
         PAPER_BLANK, PAPER_LINED, MORE, OVERVIEW, MOVE, LAYOUT_HORIZONTAL, LAYOUT_VERTICAL,
         BATTERY, WIFI, WIFI_OFF
     }

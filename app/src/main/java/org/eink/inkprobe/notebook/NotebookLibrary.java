@@ -44,6 +44,8 @@ public final class NotebookLibrary {
     public boolean canRedo() { return book != null && book.canRedo(); }
     public int pageNumber() { return book == null ? 1 : book.pageNumber(); }
     public int pageCount() { return book == null ? 1 : book.pageCount(); }
+    public boolean canUndoPageChange() { return book != null && book.canUndoPageChange(); }
+    public boolean canRedoPageChange() { return book != null && book.canRedoPageChange(); }
     public NotebookScrollStore.State scrollPosition() { return book == null ? null : book.scrollPosition(); }
     public List<NotebookCatalog.Entry> entries() { return state == null ? Collections.emptyList() : state.entries; }
     public int notebookId() { return book == null ? state == null ? 1 : state.selectedId : bookId; }
@@ -115,6 +117,11 @@ public final class NotebookLibrary {
     public void setTemplate(NotebookPage.Template template) throws IOException { edit(() -> book.setTemplate(template)); }
     public void selectPage(int number) throws IOException { edit(() -> book.selectPage(number)); }
     public void addPage() throws IOException { edit(() -> book.addPage()); }
+    public void managePages(NotebookBook.PageAction action, int source, int destination) throws IOException {
+        edit(() -> book.managePages(action, source, destination));
+    }
+    public void undoPageChange() throws IOException { edit(() -> book.undoPageChange()); }
+    public void redoPageChange() throws IOException { edit(() -> book.redoPageChange()); }
     public NotebookPage page(int number) throws IOException {
         final NotebookPage[] result = {null}; edit(() -> result[0] = book.page(number)); return result[0];
     }
@@ -142,6 +149,18 @@ public final class NotebookLibrary {
     }
     public boolean undoOnPage(int number) throws IOException {
         final boolean[] result = {false}; edit(() -> result[0] = book.undoOnPage(number)); return result[0];
+    }
+    public NotebookLasso.Selection editSelectionOnPage(int number, NotebookLasso.Selection selection,
+            NotebookLasso.Action action, float dx, float dy) throws IOException {
+        final NotebookLasso.Selection[] result = {null};
+        edit(() -> result[0] = book.editSelectionOnPage(number, selection, action, dx, dy));
+        return result[0];
+    }
+    public NotebookLasso.Selection pasteOnPage(int number, NotebookLasso.Clipboard clipboard,
+            float x, float y) throws IOException {
+        final NotebookLasso.Selection[] result = {null};
+        edit(() -> result[0] = book.pasteOnPage(number, clipboard, x, y));
+        return result[0];
     }
     public boolean redoOnPage(int number) throws IOException {
         final boolean[] result = {false}; edit(() -> result[0] = book.redoOnPage(number)); return result[0];

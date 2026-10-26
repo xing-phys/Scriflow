@@ -16,6 +16,11 @@ Uninstalling the app or clearing its storage removes its private notes and
 settings. Android automatic app backup is disabled. Make editable `.inkbook`
 backups through the library and keep them outside the app's private storage.
 
+Page deletion in development version 0.29.0-dev.1 removes a page from the visible
+notebook and future exports/backups. Its private ink files remain for undo and
+recovery; this is not secure erasure or immediate storage reclamation. Independently
+saved PDFs and backups also keep the content they contained when created.
+
 ## Exports and backups
 
 PDF export and editable backup use Android's system file picker. Scriflow

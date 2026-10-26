@@ -4,6 +4,40 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## Scriflow 0.29.0-dev.2 acceptance and release (2026-10-26)
+
+After testing the updated signed APK, the owner confirmed that it works well
+and explicitly authorized committing and releasing it. This is general tablet
+acceptance of the lasso follow-up below, without an item-by-item checklist,
+measured latency, or a long-session/maximum-capacity benchmark. The target
+remains MatePad Paper HMW-W09, firmware `HMW-W09 2.1.0.222(C00E170R1P8)`,
+Android 10/API 29.
+
+- Artifact: `scriflow-0.29.0-dev.2.apk`, Android `versionCode` 32.
+- APK SHA-256: `3c9616e296e8c33d192dc94bab0175feaeff20318707788ef966e545857e0a00`.
+- Signer certificate SHA-256: `2cc5db316df82fecc6085ff53e67cbd64f29b412f01e9a5c19bf4b34e3821709`.
+- Release tag: `v0.29.0-dev.2`.
+- Automated checks: 22,326 host assertions, debug/release builds and lint,
+  release manifest/license/signature verification, and exact staged APK checksum.
+
+The public prerelease uses the accepted staged file without rebuilding it.
+
+## Development 0.29.0-dev.1 feedback and dev.2 follow-up (2026-10-26)
+
+The owner tested the signed dev.1 APK and reported that page management works
+well and native lasso dashes draw smoothly. After lifting the stylus, however,
+no usable selection/actions appeared. This is user-reported physical behavior;
+it is not a measured latency result or acceptance of all lasso operations.
+
+Development version 0.29.0-dev.2 removes the saved-track callback dependency,
+visibly closes the original outline, adds nearby actions, and supports cached
+finger/stylus drag previews. Native and Android lift ordering, closure,
+cancellation, pointer ownership, movement/history and popup bounds are checked
+on the host. Android compilation/lint and signed packaging are checked locally.
+No tablet was connected during implementation. The owner's subsequent general
+acceptance is recorded above; it does not supply quantitative drag/display
+measurements or individual results for every operation.
+
 ## Scriflow 0.28.0-beta.2 release (2026-10-26)
 
 The owner explicitly authorized publication of the staged signed beta.2 APK.

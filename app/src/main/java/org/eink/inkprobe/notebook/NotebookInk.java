@@ -11,6 +11,7 @@ import android.graphics.RectF;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.os.SystemClock;
 import org.eink.inkprobe.DisplayPolicy;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Field;
@@ -26,6 +27,7 @@ import java.util.List;
 public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Callback {
     /** Default radius retained for the disposable native restoration self-test. */
     public static final float ERASER_RADIUS = NotebookWidthRange.ERASER.defaultWidth / 2f;
+    private static final float LASSO_WIDTH = 2.5f;
 
     public final SurfaceView view;
     interface SampleObserver { void sample(int action, long eventTime); }
@@ -36,6 +38,13 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
     private final ArrayDeque<Completion> awaitingCommit = new ArrayDeque<>();
     private final ArrayDeque<NotebookPage.Stroke> nativeCommits = new ArrayDeque<>();
     private final NotebookFingerStream fingerStream = new NotebookFingerStream();
+    private final NotebookSelectionStream selectionStream = new NotebookSelectionStream();
+    private final NotebookLassoGesture lassoGesture = new NotebookLassoGesture();
+    private final NotebookLassoGesture nativeLassoGesture = new NotebookLassoGesture();
+    private final NotebookLassoCompletion lassoCompletion = new NotebookLassoCompletion();
+    private int lassoPointer = -1, lassoSettleFrames;
+    private boolean selectionMode, replaceWidget;
+    private final Runnable finishLasso = this::finishLassoAfterInput;
     private Object surface, pointListener, editListener;
     private Bitmap paperBitmap;
     private PaperRenderer paperRenderer;
@@ -51,7 +60,7 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
     private final NotebookEraserCommit eraserCommit = new NotebookEraserCommit();
     private boolean eraserPreviewVisible;
     private final Runnable eraserTimeout = () -> {
-        if (eraserCommit.isWaiting()) fail("Native eraser did not finish; reopen the notebook", null);
+        if (eraserCommit.isWaiting()) fail("Native tool did not finish; reopen the notebook", null);
     };
     private Tool tool = Tool.PEN;
     private float scaleX = 1, scaleY = 1, widthScale = 1;
@@ -72,8 +81,8 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
         call(surface, "setAutoHandWrite", new Class<?>[]{boolean.class}, false);
         // Keep the known-working native RGBA8888 format, Z ordering and internal pen listener.
         call(get(view, "getSurfacePicture"), "bindColor", new Class<?>[]{int.class}, Color.WHITE);
-        // Both live trails use AHW. The grey native track is temporary; only our model
-        // performs whole-stroke erasure after the native track has finished.
+        // All live trails use AHW. Grey eraser and dashed lasso tracks are temporary;
+        // only our model edits/selects ink after the native track has finished.
         view.setOnTouchListener((v, event) -> touch(event));
         view.getHolder().addCallback(this);
     }
@@ -91,6 +100,7 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
     public void stop() {
         wanted = false;
         fingerStream.reset();
+        clearLasso(); selectionStream.reset();
         // UP and the firmware's track commit can arrive as separate queue messages. Preserve a
         // completed UP even when pause occurs before the later native track notification.
         flushCompletedUps();
@@ -114,7 +124,7 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
     public void pauseForEdit() {
         if (!alive || failed) return;
         boolean needsRestore = activePoints != null || eraserCommit.isActive() || !awaitingCommit.isEmpty()
-            || !nativeCommits.isEmpty();
+            || !nativeCommits.isEmpty() || lassoGesture.isActive() || nativeLassoGesture.isActive() || lassoCompletion.isPending();
         wanted = false;
         enabled = false;
         try {
@@ -125,6 +135,7 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
             flushCompletedUps();
             if (failed) return;
             activePoints = null;
+            clearLasso();
             clearEraser();
             awaitingCommit.clear();
             nativeCommits.clear();
@@ -139,7 +150,7 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
      * requests a fresh widget when native input or surface geometry cannot safely be reused.
      */
     public boolean applyEditPage(NotebookPage page) {
-        if (!alive || failed) return false;
+        if (!alive || failed || replaceWidget) return false;
         if (page == null) throw new IllegalArgumentException("Missing page");
         if (wanted || enabled || penDown) throw new IllegalStateException("Pause before editing the page");
         if (page.width != this.page.width || page.height != this.page.height) {
@@ -225,7 +236,14 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
     public boolean isPenDown() { return penDown; }
 
     public boolean isReady() {
-        return alive && wanted && enabled && !failed && !eraserCommit.isWaiting();
+        return alive && wanted && enabled && !failed && !eraserCommit.isWaiting() && !lassoCompletion.isPending();
+    }
+
+    @Override public void setSelectionMode(boolean selected) {
+        requirePaused();
+        if (selected && !selectionMode) selectionStream.activate(SystemClock.uptimeMillis());
+        selectionMode = selected;
+        if (!selected) selectionStream.reset();
     }
 
     public Tool getTool() { return tool; }
@@ -295,7 +313,7 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
         // A completed UP remains an edit even if its native commit notification is pending.
         // An unfinished pen stroke or eraser gesture is discarded on a tool change.
         boolean needsRestore = activePoints != null || eraserCommit.isActive() || !awaitingCommit.isEmpty()
-            || !nativeCommits.isEmpty();
+            || !nativeCommits.isEmpty() || lassoGesture.isActive() || nativeLassoGesture.isActive() || lassoCompletion.isPending();
         try {
             if (surface != null) call(surface, "setAutoHandWrite", new Class<?>[]{boolean.class}, false);
             enabled = false;
@@ -304,6 +322,7 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
             this.tool = tool;
             activePoints = null;
             clearEraser();
+            clearLasso(); selectionStream.reset();
             awaitingCommit.clear();
             nativeCommits.clear();
             setPenDown(false);
@@ -344,7 +363,7 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
     }
 
     private void tryEnable() {
-        if (!alive || failed || !wanted || enabled) return;
+        if (!alive || failed || !wanted || enabled || lassoCompletion.isPending()) return;
         if (!prepared || !view.getHolder().getSurface().isValid()) {
             if (++retries <= 20) view.postDelayed(this::tryEnable, 100);
             else fail("Writing surface did not become ready", null);
@@ -379,15 +398,17 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
             call(surface, "setNeedAddDownEvent", new Class<?>[]{boolean.class}, true);
             int ballpoint = Class.forName("android.eink.view.HandPenConfig")
                 .getField("PEN_TYPE_YUANZHUBI").getInt(null);
+            int nativePen = tool == Tool.LASSO ? Class.forName("android.eink.view.HandPenConfig")
+                .getField("PEN_TYPE_DASH").getInt(null) : ballpoint;
             call(surface, "setAhwPen", new Class<?>[]{int.class, float.class, int.class},
-                ballpoint, (tool == Tool.PEN ? penWidth : eraserWidth) * widthScale,
-                tool == Tool.PEN ? Color.BLACK : NotebookEraserCommit.COLOR);
+                nativePen, (tool == Tool.LASSO ? LASSO_WIDTH : tool == Tool.PEN ? penWidth : eraserWidth) * widthScale,
+                tool == Tool.ERASER ? NotebookEraserCommit.COLOR : Color.BLACK);
             configuredStyle = new NotebookPenConfig.Style(ballpoint, penWidth, Color.BLACK);
             call(view, "setState", new Class<?>[]{int.class},
                 view.getClass().getField("STATE_HADNWRITE").getInt(null));
             applyOverlayClip();
-            call(surface, "setAutoHandWrite", new Class<?>[]{boolean.class}, true);
-            if (!Boolean.TRUE.equals(get(surface, "isAutoHandWrite"))) {
+            call(surface, "setAutoHandWrite", new Class<?>[]{boolean.class}, !selectionMode);
+            if (Boolean.TRUE.equals(get(surface, "isAutoHandWrite")) == selectionMode) {
                 throw new IllegalStateException("Firmware refused the selected notebook tool");
             }
             enabled = true;
@@ -405,7 +426,9 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
                     if (sampleObserver != null) sampleObserver.sample((Integer) args[0], (Long) args[3]);
                     if (tool == Tool.PEN) point((Integer) args[0], (Float) args[1], (Float) args[2],
                         (Long) args[3], (Float) args[4]);
-                    else eraserPoint((Integer) args[0], (Float) args[1], (Float) args[2],
+                    else if (tool == Tool.ERASER) eraserPoint((Integer) args[0], (Float) args[1], (Float) args[2],
+                        (Long) args[3], (Float) args[4]);
+                    else if (!selectionMode) nativeLassoPoint((Integer) args[0], (Float) args[1], (Float) args[2],
                         (Long) args[3], (Float) args[4]);
                 }
                 return null;
@@ -419,7 +442,7 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
                 Object base = objectMethod(proxy, method, args, "NotebookCommitListener");
                 if (base != NOT_OBJECT_METHOD) return base;
                 if ("onEdit".equals(method.getName()) && enabled && !restoring) {
-                    if (tool == Tool.PEN) nativeCommit(); else nativeEraserCommit();
+                    if (tool == Tool.PEN) nativeCommit(); else if (tool == Tool.ERASER) nativeEraserCommit();
                 }
                 return null;
             });
@@ -428,6 +451,12 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
 
     private boolean touch(MotionEvent event) {
         if (!alive || failed) return true;
+        if (selectionMode) {
+            if (selectionStream.accept(event.getActionMasked(), event.getEventTime(), isReady())) {
+                listener.onSelectionEvent(event);
+            }
+            return true;
+        }
         // Own an accepted finger stream while AHW is paused. A pen joining that stream must
         // not hide its terminal event or restart native handwriting with contacts still down.
         boolean penPresent = false;
@@ -450,6 +479,7 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
             finally { if (cancellation != null) cancellation.recycle(); }
             return true;
         }
+        if (tool == Tool.LASSO && (isReady() || lassoGesture.isActive())) { captureLasso(event); return true; }
         if (!isReady()) return true;
         if (tool == Tool.PEN) {
             // Prevent a physical eraser tip from silently changing native track history.
@@ -458,6 +488,74 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
         // AHW receives stylus samples directly, independently of Android dispatch.
         // Consume Android eraser-tip events to prevent the widget's destructive pixel eraser.
         return true;
+    }
+
+    /** Android UP completes the lasso even when the dashed native brush has no edit callback. */
+    private void captureLasso(MotionEvent event) {
+        try {
+            int action = event.getActionMasked(), changed = event.getActionIndex();
+            if (action == MotionEvent.ACTION_DOWN) {
+                if (lassoCompletion.isPending()) return;
+                if (event.getToolType(changed) != MotionEvent.TOOL_TYPE_STYLUS) return;
+                lassoPointer = event.getPointerId(changed); lassoGesture.begin(); setPenDown(true);
+                eraserPreviewVisible = true;
+            }
+            if (!lassoGesture.isActive()) return;
+            int index = event.findPointerIndex(lassoPointer);
+            boolean lifted = action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_POINTER_UP
+                && event.getPointerId(changed) == lassoPointer;
+            boolean cancelled = action == MotionEvent.ACTION_CANCEL || index < 0;
+            if (index >= 0 && (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_MOVE || lifted)) {
+                for (int h = 0; h < event.getHistorySize(); h++) lassoGesture.add(
+                    event.getHistoricalX(index, h) / scaleX, event.getHistoricalY(index, h) / scaleY,
+                    event.getHistoricalEventTime(h), event.getHistoricalPressure(index, h));
+                lassoGesture.add(event.getX(index) / scaleX, event.getY(index) / scaleY,
+                    event.getEventTime(), event.getPressure(index));
+            }
+            if (lifted || cancelled) {
+                List<NotebookPage.Point> path = lassoGesture.finish(cancelled); lassoPointer = -1;
+                completeLassoInput(path, false);
+            }
+        } catch (Exception error) { fail("Cannot finish lasso input", error); }
+        // AHW draws the dash; MOVE only collects primitive samples, including event history.
+    }
+
+    private void nativeLassoPoint(int action, float x, float y, long time, float pressure) {
+        try {
+            if (action == MotionEvent.ACTION_DOWN) {
+                if (lassoCompletion.isPending()) return;
+                nativeLassoGesture.begin(); eraserPreviewVisible = true; setPenDown(true);
+            }
+            if (!nativeLassoGesture.isActive()) return;
+            nativeLassoGesture.add(x / scaleX, y / scaleY, time, pressure);
+            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL)
+                completeLassoInput(nativeLassoGesture.finish(action == MotionEvent.ACTION_CANCEL), true);
+        } catch (Exception error) { fail("Cannot capture native lasso input", error); }
+    }
+
+    private void completeLassoInput(List<NotebookPage.Point> path, boolean nativeSamples) throws Exception {
+        if (!lassoCompletion.offer(path, nativeSamples)) return;
+        call(surface, "setAutoHandWrite", new Class<?>[]{boolean.class}, false);
+        setPenDown(false); lassoSettleFrames = 0; view.postDelayed(finishLasso, 16);
+    }
+
+    private void finishLassoAfterInput() {
+        if (!alive || failed || !lassoCompletion.isPending()) return;
+        try {
+            if (Boolean.TRUE.equals(get(view, "isReceivingTrack"))) {
+                if (++lassoSettleFrames < 16) { view.postDelayed(finishLasso, 16); return; }
+                // Some dashed brushes do not settle a saved track. Retire their accumulator
+                // through the editor's existing widget-replacement path, preserving selection.
+                replaceWidget = true;
+            }
+            List<NotebookPage.Point> path = lassoCompletion.take();
+            listener.onLassoGesture(path);
+        } catch (Exception error) { fail("Cannot complete lasso selection", error); }
+    }
+
+    private void clearLasso() {
+        view.removeCallbacks(finishLasso); lassoGesture.reset(); nativeLassoGesture.reset();
+        lassoCompletion.reset(); lassoPointer = -1;
     }
 
     private static boolean isEraserInput(int type) {
@@ -495,7 +593,7 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
                 view.postDelayed(eraserTimeout, 1500);
                 finishNativeErase();
             }
-        } catch (Exception error) { fail("Cannot capture native eraser", error); }
+        } catch (Exception error) { fail("Cannot capture native tool gesture", error); }
         // AHW owns live drawing: no Canvas work, invalidate or UI update per MOVE.
     }
 
@@ -503,14 +601,14 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
         try {
             List<?> tracks = (List<?>) get(view, "getTrackList");
             if (tracks.size() != completed.size() + 1)
-                throw new IllegalStateException("Unexpected temporary eraser track count");
+                throw new IllegalStateException("Unexpected temporary tool track count");
             Object track = tracks.get(tracks.size() - 1);
             List<?> points = (List<?>) get(track, "getPoints");
-            if (points.isEmpty()) throw new IllegalStateException("Empty native eraser track");
+            if (points.isEmpty()) throw new IllegalStateException("Empty temporary tool track");
             Object last = points.get(points.size() - 1);
             eraserCommit.track(last.getClass().getField("eventtime").getLong(last));
             finishNativeErase();
-        } catch (Exception error) { fail("Cannot finish native eraser", error); }
+        } catch (Exception error) { fail("Cannot finish native tool gesture", error); }
     }
 
     private void finishNativeErase() throws Exception {
@@ -523,8 +621,8 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
             replaceNativeTracks();
             if (wanted) view.post(this::tryEnable);
         } else {
-            // The private native track accumulator is settled. Grey never enters completed,
-            // onStrokeComplete, autosave, undo history, or PDF output.
+            // The private native accumulator is settled. Neither temporary trail enters
+            // completed, onStrokeComplete, autosave, undo history, or PDF output.
             listener.onEraseGesture(result.path, result.radius);
         }
     }
@@ -734,6 +832,7 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
         if (failed || !alive) return;
         failed = true;
         fingerStream.reset();
+        clearLasso(); selectionStream.reset();
         wanted = false;
         enabled = false;
         activePoints = null;

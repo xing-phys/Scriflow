@@ -2,6 +2,7 @@ package org.eink.inkprobe.notebook;
 
 import android.app.Activity;
 import android.app.Dialog;
+import android.app.AlertDialog;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
@@ -24,12 +25,15 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
 
 /** A separate window covers the top-Z native ink surface without destroying it. */
 final class NotebookPageOverview extends Dialog {
     private static final int CACHE_SIZE = 12;
     private final NotebookSession session;
-    private final int notebookId, currentPage, pageCount;
+    private final int notebookId;
+    private int currentPage, pageCount;
     private final String notebookName;
     private final Map<Integer, Bitmap> cache = new LinkedHashMap<>(16, 0.75f, true);
     private final Set<Integer> unavailable = new HashSet<>();
@@ -39,7 +43,10 @@ final class NotebookPageOverview extends Dialog {
     private GridView grid;
     private EditText pageInput;
     private TextView validation;
-    private boolean closed;
+    private boolean closed, managing, busy, pagesChanged;
+    private NotebookButton closeButton, manageButton, undoPagesButton, redoPagesButton;
+    private LinearLayout pageHistory;
+    private AlertDialog actionDialog;
     private int chosenPage;
 
     NotebookPageOverview(Activity owner, NotebookSession session, int currentPage) {
@@ -54,6 +61,8 @@ final class NotebookPageOverview extends Dialog {
 
     /** Zero means Close/Back: the editor must keep its exact previous scroll position. */
     int chosenPage() { return chosenPage; }
+    boolean pagesChanged() { return pagesChanged; }
+    boolean hasPendingPageChange() { return busy; }
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -82,9 +91,15 @@ final class NotebookPageOverview extends Dialog {
         title.setSingleLine(true);
         title.setEllipsize(android.text.TextUtils.TruncateAt.END);
         header.addView(title, new LinearLayout.LayoutParams(0, dp(52), 1));
-        NotebookButton close = button("Close");
-        close.setOnClickListener(v -> dismiss());
-        header.addView(close, new LinearLayout.LayoutParams(dp(84), dp(52)));
+        manageButton = button("Manage");
+        manageButton.setOnClickListener(v -> {
+            if (busy || session.error() != null) return;
+            managing = !managing; updateManagementControls();
+        });
+        header.addView(manageButton, new LinearLayout.LayoutParams(dp(100), dp(52)));
+        closeButton = button("Close");
+        closeButton.setOnClickListener(v -> { if (!busy) dismiss(); });
+        header.addView(closeButton, new LinearLayout.LayoutParams(dp(84), dp(52)));
         root.addView(header, new LinearLayout.LayoutParams(-1, -2));
 
         LinearLayout jump = new LinearLayout(getContext());
@@ -137,13 +152,33 @@ final class NotebookPageOverview extends Dialog {
         grid.setVerticalScrollBarEnabled(false);
         grid.setScrollingCacheEnabled(false);
         grid.setAdapter(adapter);
-        grid.setOnItemClickListener((parent, view, position, id) -> choose(position + 1));
+        grid.setOnItemClickListener((parent, view, position, id) -> {
+            if (busy || session.error() != null) return;
+            if (managing) showPageActions(position + 1); else choose(position + 1);
+        });
+        grid.setOnItemLongClickListener((parent, view, position, id) -> {
+            if (!busy && session.error() == null) showPageActions(position + 1);
+            return true;
+        });
         grid.setOnScrollListener(new AbsListView.OnScrollListener() {
             @Override public void onScrollStateChanged(AbsListView view, int state) { scheduleLoad(); }
             @Override public void onScroll(AbsListView view, int first, int visible, int total) { scheduleLoad(); }
         });
         root.addView(grid, new LinearLayout.LayoutParams(-1, 0, 1));
+        undoPagesButton = button("Undo page change");
+        undoPagesButton.setOnClickListener(v -> {
+            if (!busy && session.canUndoPageChange() && session.error() == null) runPageChange(null, 0, 0);
+        });
+        redoPagesButton = button("Redo page change");
+        redoPagesButton.setOnClickListener(v -> {
+            if (!busy && session.canRedoPageChange() && session.error() == null) runPageChange(null, 0, 1);
+        });
+        pageHistory = new LinearLayout(getContext());
+        pageHistory.addView(undoPagesButton, new LinearLayout.LayoutParams(0, dp(48), 1));
+        pageHistory.addView(redoPagesButton, new LinearLayout.LayoutParams(0, dp(48), 1));
+        root.addView(pageHistory, new LinearLayout.LayoutParams(-1, -2));
         setContentView(root);
+        updateManagementControls();
         root.requestFocus();
         grid.setSelection((currentPage - 1) / columns * columns);
         scheduleLoad();
@@ -156,6 +191,7 @@ final class NotebookPageOverview extends Dialog {
 
     @Override public void dismiss() {
         closed = true;
+        if (actionDialog != null) { actionDialog.dismiss(); actionDialog = null; }
         if (pending != null) { pending.cancel(); pending = null; }
         if (grid != null) {
             grid.removeCallbacks(loadVisible);
@@ -167,7 +203,10 @@ final class NotebookPageOverview extends Dialog {
         super.dismiss();
     }
 
+    @Override public void onBackPressed() { if (!busy) super.onBackPressed(); }
+
     private void goToNumber() {
+        if (busy) return;
         int target;
         try { target = Integer.parseInt(pageInput.getText().toString().trim()); }
         catch (NumberFormatException error) { target = 0; }
@@ -180,15 +219,127 @@ final class NotebookPageOverview extends Dialog {
 
     private void choose(int target) { chosenPage = target; dismiss(); }
 
+    private void updateManagementControls() {
+        boolean ready = !busy && session.error() == null;
+        manageButton.setText(managing ? "Browse" : "Manage");
+        manageButton.setAvailable(ready); closeButton.setAvailable(!busy);
+        undoPagesButton.setAvailable(ready && session.canUndoPageChange());
+        redoPagesButton.setAvailable(ready && session.canRedoPageChange());
+        pageHistory.setVisibility(session.canUndoPageChange() || session.canRedoPageChange() ? View.VISIBLE : View.GONE);
+        pageInput.setHint("1–" + pageCount);
+        pageInput.setContentDescription("Page number, from 1 to " + pageCount);
+        if (ready) validation.setText((managing ? "Tap a page to manage" : "Tap a page to jump · hold for actions")
+            + " · " + pageCount + (pageCount == 1 ? " page" : " pages"));
+    }
+
+    private void showPageActions(int number) {
+        if (closed || busy || actionDialog != null) return;
+        List<String> labels = new ArrayList<>(); List<Runnable> actions = new ArrayList<>();
+        labels.add("Open page"); actions.add(() -> choose(number));
+        if (number > 1) {
+            labels.add("Move earlier"); actions.add(() -> runPageChange(NotebookBook.PageAction.MOVE, number, number - 1));
+        }
+        if (number < pageCount) {
+            labels.add("Move later"); actions.add(() -> runPageChange(NotebookBook.PageAction.MOVE, number, number + 1));
+        }
+        if (pageCount > 1) {
+            labels.add("Move to page…"); actions.add(() -> moveToPosition(number));
+        }
+        if (pageCount < NotebookIndex.MAX_PAGES) {
+            labels.add("Duplicate"); actions.add(() -> runPageChange(NotebookBook.PageAction.DUPLICATE, number, 0));
+            labels.add("Insert blank before"); actions.add(() -> runPageChange(NotebookBook.PageAction.INSERT_BEFORE, number, 0));
+            labels.add("Insert blank after"); actions.add(() -> runPageChange(NotebookBook.PageAction.INSERT_AFTER, number, 0));
+        }
+        if (pageCount > 1) {
+            labels.add("Delete…"); actions.add(() -> confirmDelete(number));
+        }
+        final Runnable[] chosen = {null};
+        AlertDialog dialog = new AlertDialog.Builder(getContext()).setTitle("Page " + number)
+            .setItems(labels.toArray(new String[0]), (choice, which) -> chosen[0] = actions.get(which))
+            .setNegativeButton("Cancel", null).create();
+        dialog.setOnDismissListener(choice -> {
+            actionDialog = null;
+            if (!closed && chosen[0] != null) chosen[0].run();
+        });
+        showActionDialog(dialog);
+    }
+
+    private void confirmDelete(int number) {
+        AlertDialog dialog = new AlertDialog.Builder(getContext()).setTitle("Delete page " + number + "?")
+            .setMessage("This removes the page and its writing from the notebook. You can restore it with Undo page change until the app restarts.")
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Delete page", (choice, which) -> runPageChange(NotebookBook.PageAction.DELETE, number, 0)).create();
+        dialog.setOnDismissListener(choice -> actionDialog = null);
+        showActionDialog(dialog);
+    }
+
+    private void moveToPosition(int number) {
+        LinearLayout input = new LinearLayout(getContext()); input.setOrientation(LinearLayout.VERTICAL);
+        input.setPadding(dp(24), dp(8), dp(24), 0);
+        TextView hint = text("Final page number · 1–" + pageCount, 15); input.addView(hint);
+        EditText position = new EditText(getContext()); position.setSingleLine(true);
+        position.setInputType(InputType.TYPE_CLASS_NUMBER); position.setText(Integer.toString(number));
+        position.setCursorVisible(false); position.setStateListAnimator(null); position.setForeground(null);
+        position.setDefaultFocusHighlightEnabled(false); position.setTextColor(Color.BLACK);
+        position.setBackgroundColor(0xffeeeeee); position.setPadding(dp(12), dp(8), dp(12), dp(8));
+        position.setSelectAllOnFocus(true); input.addView(position);
+        AlertDialog dialog = new AlertDialog.Builder(getContext()).setTitle("Move page " + number)
+            .setView(input).setNegativeButton("Cancel", null).setPositiveButton("Move", null).create();
+        dialog.setOnDismissListener(choice -> actionDialog = null);
+        showActionDialog(dialog);
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            int target;
+            try { target = Integer.parseInt(position.getText().toString().trim()); }
+            catch (NumberFormatException error) { target = 0; }
+            if (target < 1 || target > pageCount) { hint.setText("Enter a page number from 1 to " + pageCount + "."); return; }
+            dialog.dismiss(); runPageChange(NotebookBook.PageAction.MOVE, number, target);
+        });
+    }
+
+    private void showActionDialog(AlertDialog dialog) {
+        actionDialog = dialog; dialog.create();
+        dialog.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        dialog.getWindow().setDimAmount(0f); dialog.getWindow().setWindowAnimations(0);
+        dialog.show();
+        if (dialog.getListView() != null) dialog.getListView().setSelector(new ColorDrawable(Color.TRANSPARENT));
+        for (int which : new int[]{AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE}) {
+            android.widget.Button button = dialog.getButton(which); if (button != null) NotebookButton.makeStatic(button);
+        }
+    }
+
+    private void runPageChange(NotebookBook.PageAction action, int source, int destination) {
+        if (closed || busy || session.error() != null) return;
+        clearPreviews(); busy = true; updateManagementControls();
+        validation.setText("Saving page changes…");
+        NotebookSession.Callback completion = (page, error) -> {
+            if (closed) return;
+            busy = false;
+            if (error != null) {
+                updateManagementControls(); validation.setText("Couldn’t save page changes. Close to retry."); return;
+            }
+            pagesChanged = true; currentPage = session.pageNumber(); pageCount = session.pageCount();
+            updateManagementControls(); adapter.notifyDataSetChanged(); grid.setSelection(currentPage - 1); scheduleLoad();
+        };
+        if (action != null) session.managePages(action, source, destination, completion);
+        else if (destination == 1) session.redoPageChange(completion); else session.undoPageChange(completion);
+    }
+
+    private void clearPreviews() {
+        if (pending != null) { pending.cancel(); pending = null; }
+        grid.removeCallbacks(loadVisible);
+        for (int i = 0; i < grid.getChildCount(); i++) ((NotebookPageThumbnail) grid.getChildAt(i)).clear();
+        cache.clear(); unavailable.clear();
+    }
+
     private void scheduleLoad() {
-        if (closed || grid == null) return;
+        if (closed || busy || session.error() != null || grid == null) return;
         grid.removeCallbacks(loadVisible);
         grid.post(loadVisible);
     }
 
     /** Only one read/render is queued, always for a page that is currently visible. */
     private void loadNext() {
-        if (closed || pending != null || grid.getChildCount() == 0) return;
+        if (closed || busy || session.error() != null || pending != null || grid.getChildCount() == 0) return;
         int first = Math.max(0, grid.getFirstVisiblePosition());
         int last = Math.min(pageCount - 1, grid.getLastVisiblePosition());
         for (int position = first; position <= last; position++) {
@@ -230,7 +381,7 @@ final class NotebookPageOverview extends Dialog {
         @Override public int getCount() { return pageCount; }
         @Override public Object getItem(int position) { return position + 1; }
         @Override public long getItemId(int position) { return position + 1; }
-        @Override public boolean hasStableIds() { return true; }
+        @Override public boolean hasStableIds() { return false; }
         @Override public View getView(int position, View recycled, ViewGroup parent) {
             NotebookPageThumbnail cell = recycled instanceof NotebookPageThumbnail
                 ? (NotebookPageThumbnail) recycled : new NotebookPageThumbnail(getContext());
