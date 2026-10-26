@@ -4,6 +4,40 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## Scriflow 0.31.0-dev.1 PDF notebooks (2026-10-26)
+
+The owner explicitly requested PDF import with original-preserving vector ink
+export, editable/imported outlines, working links, view history, and a committed,
+pushed APK release. No tablet is connected. Publication is authorized as a
+development prerelease; physical acceptance remains pending.
+
+- Artifact: `scriflow-0.31.0-dev.1.apk`, Android `versionCode` 37.
+- SHA-256: recorded in the release checksum asset for the exact signed file.
+- Signer certificate SHA-256: `2cc5db316df82fecc6085ff53e67cbd64f29b412f01e9a5c19bf4b34e3821709`.
+- Release: [`v0.31.0-dev.1`](https://github.com/xing-phys/Scriflow/releases/tag/v0.31.0-dev.1).
+- Automated validation: **25,673 assertions across 35 suites**, including 67
+  PDF model/storage checks, 8 link-tap checks, and 46 PDF engine checks executing
+  the actual shipped PDFBox Android library on the host with a logging stub.
+- Debug/release lint and Gradle APK builds pass. The standalone APK builder and
+  manifest/signature checks also pass.
+- Source PDF bytes remain unchanged; editable backup round-trips retain those
+  exact bytes and outline UUIDs. Original PDF content streams, URI/named/numeric
+  links, nested bookmarks, metadata, and attachments survive export. Tests cover
+  all four rotations, crop offsets, duplication/reordering, duplicate-before-
+  original bookmark identity, missing assets, malformed links, and vector ink.
+- Independent Poppler rendering and visual inspection confirm ink positioning
+  on synthetic cropped/rotated exports at 0/90/180/270 degrees. A deliberately
+  malformed source link produces the same parsing warning in exported fixtures;
+  it does not invalidate the other tested links.
+
+Pending tablet checks: system import/restore/save pickers; actual PDF background
+restoration while writing, erasing, lassoing, scrolling, zooming and rotating;
+internal/external link taps with palm rejection; outline editing and history
+buttons; backups of annotated PDFs; large-PDF memory and sustained performance.
+Use disposable PDFs and notes. Imported file limit is 256 MiB / 1,000 pages.
+Password-protected PDFs require an unlocked copy. Remote-file, embedded-file,
+and JavaScript actions are retained in exports but not activated in the editor.
+
 ## Scriflow 0.30.0-dev.3 orientation synchronization (2026-10-26)
 
 The owner confirmed dev.2 solved the preceding bugs, then reported that leaving

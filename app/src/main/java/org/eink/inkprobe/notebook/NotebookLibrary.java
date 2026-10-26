@@ -54,6 +54,17 @@ public final class NotebookLibrary {
         return state == null ? "My Notebook" : state.entries.get(notebookId() - 1).name;
     }
 
+    public File currentDirectory() { return bookDirectory(notebookId()); }
+    public File sourcePdf() { return book == null ? null : book.sourcePdf(); }
+    public List<NotebookOutline.Entry> outline() throws IOException {
+        if (book == null) throw new IOException("No notebook is open");
+        return book.outline();
+    }
+    public void setOutline(List<NotebookOutline.Entry> entries) throws IOException {
+        if (book == null) throw new IOException("No notebook is open");
+        book.setOutline(entries);
+    }
+
     /** Metadata-only barrier: an open book's error remains available without hiding the catalog. */
     public void loadCatalog() throws IOException {
         if (state != null && !new File(directory, "restore.pending").exists()) return;

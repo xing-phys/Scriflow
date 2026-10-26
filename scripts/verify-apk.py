@@ -25,7 +25,7 @@ PACKAGE = 'org.eink.inkprobe'
 LAUNCHER = PACKAGE + '.notebook.NotebookLibraryActivity'
 NOTEBOOK_SCREENS = {PACKAGE + '.notebook.' + name for name in (
     'NotebookLibraryActivity', 'NotebookActivity', 'NotebookSettingsActivity',
-    'NotebookTransferActivity', 'NotebookPdfExportActivity')}
+    'NotebookTransferActivity', 'NotebookPdfExportActivity', 'NotebookPdfImportActivity')}
 DIAGNOSTICS = {PACKAGE + '.MainActivity', PACKAGE + '.notebook.NotebookSelfTestActivity'}
 PERMISSIONS = {'android.permission.ACCESS_NETWORK_STATE'}
 COMPONENTS = {'activity', 'activity-alias', 'service', 'receiver', 'provider'}

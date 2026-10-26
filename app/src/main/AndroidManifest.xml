@@ -11,6 +11,7 @@
              back stack. Normal recreation rebuilds the native writing surface. -->
         <activity android:name=".notebook.NotebookActivity" android:exported="false" android:screenOrientation="behind" />
         <activity android:name=".notebook.NotebookTransferActivity" android:exported="false" android:screenOrientation="behind" />
+        <activity android:name=".notebook.NotebookPdfImportActivity" android:exported="false" android:screenOrientation="behind" />
         <activity android:name=".notebook.NotebookPdfExportActivity" android:exported="false" android:screenOrientation="behind" />
         <activity android:name=".notebook.NotebookSettingsActivity" android:exported="false" android:screenOrientation="behind" />
         <activity android:name=".notebook.NotebookLibraryActivity" android:exported="true" android:screenOrientation="behind">

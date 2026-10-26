@@ -58,51 +58,60 @@ public final class NotebookPage {
     /** Both dimensions are zero until the first writing surface establishes page size. */
     public final UUID id;
     public final int width, height;
+    /** One-based page in the notebook's immutable source.pdf; zero for ordinary paper. */
+    public final int pdfPage;
     /** Null for legacy pages, whose original A4-width PDF normalization is retained. */
     public final NotebookPaperSize paperSize;
     public final Template template;
     public final List<Stroke> strokes;
     public final int pointCount;
 
-    private NotebookPage(UUID id, int width, int height, NotebookPaperSize paperSize, Template template,
+    private NotebookPage(UUID id, int width, int height, NotebookPaperSize paperSize, int pdfPage, Template template,
                          List<Stroke> strokes, int pointCount) {
         this.id = id;
         this.width = width;
         this.height = height;
         this.paperSize = paperSize;
+        this.pdfPage = pdfPage;
         this.template = template;
         this.strokes = Collections.unmodifiableList(new ArrayList<>(strokes));
         this.pointCount = pointCount;
     }
 
     public static NotebookPage empty() {
-        return new NotebookPage(UUID.randomUUID(), 0, 0, null, Template.BLANK, Collections.<Stroke>emptyList(), 0);
+        return new NotebookPage(UUID.randomUUID(), 0, 0, null, 0, Template.BLANK, Collections.<Stroke>emptyList(), 0);
     }
 
     public boolean isInitialized() { return width > 0 && height > 0; }
 
     NotebookPage withSize(int width, int height) {
-        return new NotebookPage(id, width, height, paperSize, template, strokes, pointCount);
+        return new NotebookPage(id, width, height, paperSize, pdfPage, template, strokes, pointCount);
     }
 
     NotebookPage withPaperSize(NotebookPaperSize paperSize) {
-        return new NotebookPage(id, width, height, paperSize, template, strokes, pointCount);
+        return new NotebookPage(id, width, height, paperSize, pdfPage, template, strokes, pointCount);
+    }
+
+    public NotebookPage withPdfPage(int sourcePage) {
+        if (sourcePage < 0 || sourcePage > NotebookIndex.MAX_PAGES)
+            throw new IllegalArgumentException("Invalid source PDF page");
+        return new NotebookPage(id, width, height, paperSize, sourcePage, template, strokes, pointCount);
     }
 
     NotebookPage withTemplate(Template template) {
-        return new NotebookPage(id, width, height, paperSize, template, strokes, pointCount);
+        return new NotebookPage(id, width, height, paperSize, pdfPage, template, strokes, pointCount);
     }
 
     NotebookPage withStroke(Stroke stroke) {
         ArrayList<Stroke> copy = new ArrayList<>(strokes);
         copy.add(stroke);
-        return new NotebookPage(id, width, height, paperSize, template, copy, pointCount + stroke.points.size());
+        return new NotebookPage(id, width, height, paperSize, pdfPage, template, copy, pointCount + stroke.points.size());
     }
 
     NotebookPage withStrokes(List<Stroke> strokes) {
         int count = 0;
         for (Stroke stroke : strokes) count = Math.addExact(count, stroke.points.size());
-        return new NotebookPage(id, width, height, paperSize, template, strokes, count);
+        return new NotebookPage(id, width, height, paperSize, pdfPage, template, strokes, count);
     }
 
     static NotebookPage restored(int width, int height, Template template, List<Stroke> strokes,
@@ -113,13 +122,21 @@ public final class NotebookPage {
     static NotebookPage restored(UUID id, int width, int height, Template template,
                                   List<Stroke> strokes, int pointCount) {
         if (id == null || template == null) throw new IllegalArgumentException("Missing page metadata");
-        return new NotebookPage(id, width, height, null, template, strokes, pointCount);
+        return new NotebookPage(id, width, height, null, 0, template, strokes, pointCount);
     }
 
     static NotebookPage restored(UUID id, int width, int height, NotebookPaperSize paperSize,
                                  Template template, List<Stroke> strokes, int pointCount) {
         if (id == null || template == null) throw new IllegalArgumentException("Missing page metadata");
-        return new NotebookPage(id, width, height, paperSize, template, strokes, pointCount);
+        return new NotebookPage(id, width, height, paperSize, 0, template, strokes, pointCount);
+    }
+
+    static NotebookPage restored(UUID id, int width, int height, NotebookPaperSize paperSize, int pdfPage,
+                                 Template template, List<Stroke> strokes, int pointCount) {
+        if (id == null || template == null) throw new IllegalArgumentException("Missing page metadata");
+        if (pdfPage < 0 || pdfPage > NotebookIndex.MAX_PAGES)
+            throw new IllegalArgumentException("Invalid source PDF page");
+        return new NotebookPage(id, width, height, paperSize, pdfPage, template, strokes, pointCount);
     }
 
     static boolean finite(float value) { return !Float.isNaN(value) && !Float.isInfinite(value); }

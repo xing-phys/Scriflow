@@ -22,7 +22,7 @@ import java.util.EnumMap;
 /** A separate, static window above the native ink surface, moved only by its grip. */
 public final class NotebookFloatingTools {
     public enum Action {
-        LIBRARY, PREVIOUS, NEXT, ADD_PAGE, PEN, ERASER, LASSO, UNDO, REDO, PAPER, MORE, OVERVIEW, ORIENTATION, COLLAPSE
+        LIBRARY, PREVIOUS, NEXT, ADD_PAGE, PEN, ERASER, LASSO, UNDO, REDO, PAPER, MORE, OVERVIEW, OUTLINE, VIEW_BACK, VIEW_FORWARD, ORIENTATION, COLLAPSE
     }
 
     public interface Listener {
@@ -103,11 +103,15 @@ public final class NotebookFloatingTools {
         add(Action.PAPER, NotebookIconDrawable.Icon.PAPER_BLANK, "Change paper");
         add(Action.MORE, NotebookIconDrawable.Icon.MORE, "Notebook menu");
         add(Action.OVERVIEW, NotebookIconDrawable.Icon.OVERVIEW, "Page overview and jumps");
+        add(Action.OUTLINE, NotebookIconDrawable.Icon.OUTLINE, "Table of contents; add and edit outline");
+        add(Action.VIEW_BACK, NotebookIconDrawable.Icon.VIEW_BACK, "Go to previous view");
+        add(Action.VIEW_FORWARD, NotebookIconDrawable.Icon.VIEW_FORWARD, "Go to next view");
         add(Action.ORIENTATION, NotebookIconDrawable.Icon.LAYOUT_VERTICAL, "Switch to vertical tools");
         order = new View[] {grip, button(Action.ORIENTATION), button(Action.PEN), button(Action.ERASER), button(Action.LASSO), button(Action.UNDO),
             button(Action.REDO), button(Action.MORE), button(Action.LIBRARY),
             button(Action.PREVIOUS), button(Action.NEXT), button(Action.ADD_PAGE),
-            button(Action.OVERVIEW), button(Action.PAPER)};
+            button(Action.OVERVIEW), button(Action.OUTLINE), button(Action.VIEW_BACK),
+            button(Action.VIEW_FORWARD), button(Action.PAPER)};
         popup = new PopupWindow(content, 0, 0, false);
         popup.setTouchable(true);
         popup.setOutsideTouchable(false);

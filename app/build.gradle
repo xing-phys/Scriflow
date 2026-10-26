@@ -1,5 +1,9 @@
 plugins { id 'com.android.application' }
 
+dependencies {
+    implementation 'com.tom-roush:pdfbox-android:2.0.27.0'
+}
+
 def appVersion = new Properties()
 file('version.properties').withInputStream { appVersion.load(it) }
 def releaseEnvironment = [
@@ -38,6 +42,9 @@ tasks.register('prepareLocalDebugKey', Exec) {
 def licenseAssets = layout.buildDirectory.dir('generated/license-assets')
 tasks.register('prepareLicenseAssets', Copy) {
     from rootProject.file('LICENSE')
+    from(rootProject.file('licenses')) {
+        include 'pdfbox-android-*', 'bouncycastle-*'
+    }
     into licenseAssets
 }
 android {

@@ -7,8 +7,9 @@ support for another device: native writing and pressure rendering require the
 [tested Huawei firmware](../README.md#compatibility-and-status).
 
 Both routes package the root [MIT license](../LICENSE) as `assets/LICENSE` in
-the APK. The verification helper checks that the packaged copy matches the
-source license exactly.
+the APK, together with the PDF runtime's upstream licenses and notices. The
+verification helper checks that the packaged MIT license matches the source
+exactly. Runtime dependency attribution is in [Third-party notices](../THIRD_PARTY_NOTICES.md).
 
 ## Prerequisites
 
@@ -19,8 +20,10 @@ installation and device checks. Android Studio is not required.
 Tool downloads are version-pinned and checksum-verified. They remain in ignored
 `.tools/`; project state and generated artifacts are ignored too. The first
 bootstrap and Gradle dependency resolution need network access. A cached build
-can run without it. Runtime APKs have no third-party dependencies or bundled
-Huawei firmware code.
+can run without it. Runtime APKs include PDFBox Android **2.0.27.0** and its
+Bouncy Castle **1.72** dependencies for preserving source PDFs and appending
+vector handwriting. They contain no bundled Huawei firmware code. Rendering
+PDF pages for display uses Android's native PDF renderer.
 
 ## Gradle: contributor and IDE route
 
@@ -34,7 +37,10 @@ and writes ignored `local.properties` if it does not exist. Gradle is pinned to
 8.11.1 and the Android plugin to 8.9.2. Set the IDE's Gradle JDK to the same
 local JDK when importing the project. Nothing changes the system Java install.
 
-`hostTest` runs the Android-independent tests in `scripts/test.sh`. Full lint
+`hostTest` runs the core tests and PDF import/export structural tests in
+`scripts/test.sh`. The PDF tests execute the shipped PDFBox Android bytecode
+on the host with a logging stub; display rendering still requires Android.
+Full lint
 is a separate check from APK assembly. The API-29 target is deliberate for this
 firmware-specific sideloaded app; raising it requires device acceptance.
 
@@ -61,12 +67,17 @@ JAVA_HOME="$PWD/.tools/jdk-17.0.21+9" ./gradlew --offline hostTest :app:lint :ap
 
 ```bash
 ./scripts/bootstrap.sh
+./scripts/bootstrap-pdfbox.sh
 ./scripts/test.sh
 ./scripts/build.sh
 ```
 
-This route uses SDK platform 29 and Build Tools 30.0.3 without Gradle. After
-bootstrap it builds offline and writes **`build/scriflow-debug.apk`**. It is
+This route uses SDK platform 29 and Build Tools 30.0.3 without Gradle. The PDF
+bootstrap downloads the runtime AAR/JARs from Maven Central, verifies their
+pinned SHA-256 checksums, and extracts the bundled font resources. Both the
+tests and alternate builder verify this cache again and download only missing
+or invalid archives. After bootstrap it builds offline and writes
+**`build/scriflow-debug.apk`**. It is
 always a development APK with debugging enabled, not the public release route.
 
 Both debug build routes call `scripts/prepare-debug-key.sh`. It preserves an

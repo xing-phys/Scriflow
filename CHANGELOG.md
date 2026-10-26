@@ -6,6 +6,25 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## [0.31.0-dev.1](https://github.com/xing-phys/Scriflow/releases/tag/v0.31.0-dev.1) — PDF notebooks and outlines (2026-10-26)
+
+- Import a PDF as a separate editable notebook through the system file picker.
+  Preserve an immutable private copy of the original PDF and keep handwritten
+  strokes separate. Render mixed page sizes and rotated pages as backgrounds.
+- Export original PDF content with added vector pressure ink, retaining source
+  PDF text, links, destinations, bookmarks, and other catalog data. PDF page
+  duplication and ordinary blank page insertion use the same notebook controls.
+- Follow PDF links with finger taps, navigate imported or manually edited note
+  outlines, and return using Previous view / Next view icons. Outline targets
+  follow stable page identities across page reordering.
+- Include original PDF bytes and outlines in version-2 editable backups; continue
+  reading earlier backups and page formats. New page snapshots use version 4.
+- Advance versionCode to 37 with the same application ID and release certificate.
+  25,673 host assertions, both Android lint/build variants, and the standalone
+  APK build pass; synthetic PDF renders were visually inspected. Publish as a
+  development prerelease at the owner's explicit request. Physical
+  tablet acceptance and large-PDF performance checks remain pending.
+
 ## [0.30.0-dev.3](https://github.com/xing-phys/Scriflow/releases/tag/v0.30.0-dev.3) — Synchronized app orientation (2026-10-26)
 
 - Share the accepted screen direction across the library, editor, Settings,

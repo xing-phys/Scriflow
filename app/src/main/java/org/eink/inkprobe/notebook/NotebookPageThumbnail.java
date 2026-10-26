@@ -7,6 +7,8 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.view.View;
+import java.io.File;
+import java.io.IOException;
 import java.util.concurrent.CancellationException;
 import java.util.function.BooleanSupplier;
 
@@ -138,6 +140,12 @@ public final class NotebookPageThumbnail extends View {
     }
 
     static Bitmap render(NotebookPage page, int width, int height, BooleanSupplier cancelled) {
+        try { return render(page, null, width, height, cancelled); }
+        catch (IOException error) { throw new IllegalStateException("Could not render page preview", error); }
+    }
+
+    public static Bitmap render(NotebookPage page, File source, int width, int height,
+                                BooleanSupplier cancelled) throws IOException {
         if (page == null || width < 1 || height < 1 || width > 1024 || height > 1024) {
             throw new IllegalArgumentException("Invalid page thumbnail dimensions");
         }
@@ -157,7 +165,15 @@ public final class NotebookPageThumbnail extends View {
             canvas.clipRect(0, 0, pageWidth, pageHeight);
             canvas.drawColor(Color.WHITE);
             Paint ink = new Paint(Paint.ANTI_ALIAS_FLAG);
-            if (page.template == NotebookPage.Template.LINED) {
+            if (page.pdfPage > 0) {
+                if (source == null) throw new IOException("Missing original PDF for page preview");
+                Bitmap background = NotebookPdfEngine.render(source, page.pdfPage,
+                    Math.max(1, Math.round(pageWidth * scale)), Math.max(1, Math.round(pageHeight * scale)));
+                try {
+                    checkCancelled(cancelled); ink.setFilterBitmap(true);
+                    canvas.drawBitmap(background, null, new RectF(0, 0, pageWidth, pageHeight), ink);
+                } finally { background.recycle(); }
+            } else if (page.template == NotebookPage.Template.LINED) {
                 ink.setColor(0xffd2d2d2);
                 ink.setStrokeWidth(Math.max(1f, 0.65f / scale));
                 for (int y = 72; y < pageHeight; y += 72) {
@@ -169,7 +185,7 @@ public final class NotebookPageThumbnail extends View {
                 NotebookStrokeRenderer.draw(canvas, stroke, ink, cancelled);
             }
             return result;
-        } catch (RuntimeException | Error error) {
+        } catch (IOException | RuntimeException | Error error) {
             result.recycle();
             throw error;
         }

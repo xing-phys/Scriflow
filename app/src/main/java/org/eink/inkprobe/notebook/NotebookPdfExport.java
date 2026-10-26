@@ -13,6 +13,8 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -51,9 +53,20 @@ final class NotebookPdfExport {
 
     /** Called on the export worker; immutable source pages cross a short writer barrier. */
     void prepare(NotebookPdf.PageSource source) {
+        prepare(source, null, Collections.emptyList());
+    }
+
+    void fail(IOException failure) {
+        error = "Couldn’t prepare the PDF. " + detail(failure);
+        state = State.FAILED;
+        changed();
+    }
+
+    void prepare(NotebookPdf.PageSource source, File originalPdf, List<NotebookOutline.Entry> outline) {
         File staging = null;
         try {
             checkCancelled();
+            NotebookPdfEngine.initialize(context);
             staging = File.createTempFile(PREFIX, ".pdf", context.getCacheDir());
             try (FileOutputStream raw = new FileOutputStream(staging);
                     BufferedOutputStream buffered = new BufferedOutputStream(raw, 65536);
@@ -65,11 +78,11 @@ final class NotebookPdfExport {
                             checkCancelled(); out.write(bytes, offset, length);
                         }
                     }) {
-                NotebookPdf.write(checked, notebookName, pageCount, number -> {
+                NotebookPdfEngine.write(checked, originalPdf, notebookName, pageCount, number -> {
                     checkCancelled(); return source.page(number);
                 }, (count, total) -> {
                     checkCancelled(); completed = count; changed();
-                }, stroke -> NotebookStrokeRenderer.outline(stroke, () -> cancelled));
+                }, stroke -> NotebookStrokeRenderer.outline(stroke, () -> cancelled), outline);
                 checked.flush();
                 raw.getFD().sync();
             }

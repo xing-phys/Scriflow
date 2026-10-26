@@ -11,6 +11,7 @@ import java.util.Collections;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.LinkedHashMap;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.RejectedExecutionException;
@@ -55,6 +56,13 @@ final class NotebookSession {
     private Map<Integer, NotebookPage> deliveredWindow = Collections.emptyMap();
     private volatile Map<Integer, Boolean> undoWindow = Collections.emptyMap(), redoWindow = Collections.emptyMap();
     private volatile NotebookScrollStore.State position;
+    private volatile File pdfSource;
+    private volatile List<NotebookOutline.Entry> outline = Collections.emptyList();
+    private volatile Map<Integer, UUID> pageIds = Collections.emptyMap();
+    private volatile Map<UUID, Integer> pageNumbers = Collections.emptyMap();
+    private volatile Map<Integer, Integer> pdfPages = Collections.emptyMap();
+    private volatile List<NotebookViewport.Size> pageSizes = Collections.emptyList();
+    private int navigationBook, navigationCount;
 
     private NotebookSession(Context context) {
         directory = new File(context.getFilesDir(), "notebook");
@@ -77,6 +85,16 @@ final class NotebookSession {
     boolean canUndo(int id) { return Boolean.TRUE.equals(undoWindow.get(id)); }
     boolean canRedo(int id) { return Boolean.TRUE.equals(redoWindow.get(id)); }
     NotebookScrollStore.State scrollPosition() { return position; }
+    File pdfSource() { return pdfSource; }
+    List<NotebookViewport.Size> pageSizes() { return pageSizes; }
+    List<NotebookOutline.Entry> outline() { return outline; }
+    UUID pageId(int number) { return pageIds.get(number); }
+    int pageNumber(UUID id) { Integer number = pageNumbers.get(id); return number == null ? 0 : number; }
+    int pageForPdf(int sourcePage) { Integer number = pdfPages.get(sourcePage); return number == null ? 0 : number; }
+    void setOutline(List<NotebookOutline.Entry> entries, Callback callback) {
+        final List<NotebookOutline.Entry> copy = new ArrayList<>(entries);
+        submit(() -> document.setOutline(copy), callback);
+    }
 
     void load(Callback callback) { submit(() -> { prepareInitialPaper(); document.load(); }, callback); }
     NotebookLasso.Clipboard clipboard() { return clipboard; }
@@ -102,7 +120,7 @@ final class NotebookSession {
     }
     void list(Callback callback) { submit(() -> { prepareInitialPaper(); document.loadCatalog(); }, callback); }
     void openNotebook(int id, Callback callback) {
-        submit(() -> { document.openNotebook(id); windowIds = Collections.emptyList(); }, callback);
+        submit(() -> { document.openNotebook(id); windowIds = Collections.emptyList(); navigationBook = 0; }, callback);
     }
     void createNotebook(String name, Callback callback) {
         createNotebook(name, NotebookPaperSize.A5, callback);
@@ -114,7 +132,7 @@ final class NotebookSession {
         submit(() -> document.renameNotebook(id, name), callback);
     }
     void initializeSize(int width, int height, Callback callback) {
-        submit(() -> document.initializeSize(width, height), callback);
+        submit(() -> { document.initializeSize(width, height); navigationBook = 0; }, callback);
     }
     void append(NotebookPage.Stroke stroke, Callback callback) {
         submit(() -> document.append(stroke), callback);
@@ -127,19 +145,19 @@ final class NotebookSession {
     void setTemplate(NotebookPage.Template template, Callback callback) {
         submit(() -> document.setTemplate(template), callback);
     }
-    void retry(Callback callback) { submit(() -> { prepareInitialPaper(); document.retry(); }, callback); }
+    void retry(Callback callback) { submit(() -> { prepareInitialPaper(); document.retry(); navigationBook = 0; }, callback); }
     void selectPage(int number, Callback callback) {
         submit(() -> document.selectPage(number), callback);
     }
     void addPage(Callback callback) { submit(document::addPage, callback); }
     void managePages(NotebookBook.PageAction action, int source, int destination, Callback callback) {
-        submit(() -> { document.managePages(action, source, destination); windowIds = Collections.emptyList(); }, callback);
+        submit(() -> { document.managePages(action, source, destination); windowIds = Collections.emptyList(); navigationBook = 0; }, callback);
     }
     void undoPageChange(Callback callback) {
-        submit(() -> { document.undoPageChange(); windowIds = Collections.emptyList(); }, callback);
+        submit(() -> { document.undoPageChange(); windowIds = Collections.emptyList(); navigationBook = 0; }, callback);
     }
     void redoPageChange(Callback callback) {
-        submit(() -> { document.redoPageChange(); windowIds = Collections.emptyList(); }, callback);
+        submit(() -> { document.redoPageChange(); windowIds = Collections.emptyList(); navigationBook = 0; }, callback);
     }
     void addPage(int sourcePage, Callback callback) {
         submit(() -> { document.selectPage(sourcePage); document.addPage(); }, callback);
@@ -185,8 +203,12 @@ final class NotebookSession {
         NotebookPdfExport job = new NotebookPdfExport(context, expectedNotebook, name, count);
         worker.execute(() -> {
             final long expectedRevision = revision;
+            final File source = document.sourcePdf();
+            final List<NotebookOutline.Entry> headings;
+            try { headings = document.outline(); }
+            catch (IOException error) { job.fail(error); return; }
             tasks.exports.execute(() -> job.prepare(number -> readExportPage(
-                expectedNotebook, count, expectedRevision, number)));
+                expectedNotebook, count, expectedRevision, number), source, headings));
         });
         return job;
     }
@@ -198,11 +220,15 @@ final class NotebookSession {
             final long version = revision;
             final int id = document.notebookId(), count = document.pageCount();
             final String name = document.notebookName();
+            final File sourcePdf = document.sourcePdf();
+            final List<NotebookOutline.Entry> headings;
+            try { headings = document.outline(); }
+            catch (IOException error) { main.post(() -> callback.complete(error)); return; }
             tasks.exports.execute(() -> {
                 IOException failure = null;
                 try (java.io.FileOutputStream output = new java.io.FileOutputStream(destination)) {
                     NotebookBackup.write(output, name, count,
-                        number -> readExportPage(id, count, version, number), cancelled);
+                        number -> readExportPage(id, count, version, number), sourcePdf, headings, cancelled);
                     output.getFD().sync();
                 } catch (IOException | RuntimeException error) { failure = new IOException("Could not back up notebook", error); }
                 final IOException result = failure;
@@ -212,13 +238,10 @@ final class NotebookSession {
     }
 
     void importBackup(NotebookBackup.Restored restored, TransferCallback callback) {
-        worker.execute(() -> {
-            IOException failure = null;
-            try { ++revision; document.importNotebook(restored); windowIds = Collections.emptyList(); }
-            catch (IOException | RuntimeException error) { failure = new IOException("Could not restore notebook. " + error.getMessage(), error); }
-            final IOException result = failure;
-            main.post(() -> callback.complete(result));
-        });
+        submit(() -> {
+            document.loadCatalog(); document.importNotebook(restored); document.load();
+            windowIds = Collections.emptyList(); navigationBook = 0;
+        }, (page, error) -> callback.complete(error));
     }
 
     /** Immutable source handoff; neither native replay nor PDF compression holds the writer. */
@@ -249,11 +272,12 @@ final class NotebookSession {
             try {
                 if (document.notebookId() != expectedNotebook) throw new IOException("The notebook has changed");
                 NotebookPage preview = document.previewPage(number);
+                final File sourcePdf = document.sourcePdf();
                 tasks.render.execute(() -> {
                     if (request.cancelled) return;
                     Bitmap bitmap = null; IOException failure = null;
-                    try { bitmap = NotebookPageThumbnail.render(preview, 320, 384, () -> request.cancelled); }
-                    catch (RuntimeException error) { failure = new IOException("Could not preview this page", error); }
+                    try { bitmap = NotebookPageThumbnail.render(preview, sourcePdf, 320, 384, () -> request.cancelled); }
+                    catch (IOException | RuntimeException error) { failure = new IOException("Could not preview this page", error); }
                     deliverPreview(request, callback, bitmap, failure);
                 });
             } catch (IOException | RejectedExecutionException error) {
@@ -281,6 +305,36 @@ final class NotebookSession {
         }
         window = Collections.unmodifiableMap(pages);
         undoWindow = Collections.unmodifiableMap(undo); redoWindow = Collections.unmodifiableMap(redo);
+    }
+
+    /** Publish small identity maps once per page-order change; UI navigation never reads files. */
+    private void publishNavigation() {
+        pdfSource = document.sourcePdf();
+        try { outline = document.current() == null ? Collections.emptyList() : document.outline(); }
+        catch (IOException error) { problem = error; }
+        if (document.current() == null || navigationBook == document.notebookId()
+                && navigationCount == document.pageCount()) return;
+        Map<Integer, UUID> ids = new LinkedHashMap<>();
+        Map<UUID, Integer> numbers = new LinkedHashMap<>();
+        Map<Integer, Integer> sources = new LinkedHashMap<>();
+        List<NotebookViewport.Size> sizes = new ArrayList<>();
+        boolean complete = true;
+        for (int number = 1; number <= document.pageCount(); number++) {
+            try {
+                NotebookPage item = document.previewPage(number);
+                ids.put(number, item.id); numbers.put(item.id, number);
+                sizes.add(new NotebookViewport.Size(Math.max(1, item.width), Math.max(1, item.height)));
+                if (item.pdfPage > 0 && !sources.containsKey(item.pdfPage)) sources.put(item.pdfPage, number);
+            } catch (IOException ignored) {
+                complete = false;
+                NotebookPage fallback = document.current();
+                sizes.add(new NotebookViewport.Size(Math.max(1, fallback.width), Math.max(1, fallback.height)));
+            }
+        }
+        pageIds = Collections.unmodifiableMap(ids); pageNumbers = Collections.unmodifiableMap(numbers);
+        pdfPages = Collections.unmodifiableMap(sources);
+        pageSizes = Collections.unmodifiableList(sizes);
+        navigationBook = complete ? document.notebookId() : 0; navigationCount = document.pageCount();
     }
 
     /** Only a truly new library receives default paper. Missing legacy files are never replaced. */
@@ -316,6 +370,7 @@ final class NotebookSession {
             position = document.scrollPosition();
             publishWindow();
             problem = failure == null ? document.error() : failure;
+            publishNavigation();
             pending.decrementAndGet();
             final NotebookPage snapshot = page;
             final IOException error = problem;

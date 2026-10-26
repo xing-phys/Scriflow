@@ -1,6 +1,7 @@
 # Scriflow architecture: foundation milestone (0.22)
 
-Status: implemented foundation; PDF import, rich content, and AI remain later milestones.
+Status: implemented foundation; [PDF notebooks](pdf-import.md) extend it in 0.31.
+Typed rich content and AI remain later milestones.
 The immediate target is MatePad Paper on Android 10. File models and transactions stay
 Android-independent so future device support does not require a new document format.
 
@@ -30,6 +31,11 @@ Android-independent so future device support does not require a new document for
   never rescale or rewrite saved samples to match a new screen.
 
 ## Durable identities and migration
+
+Version 0.31 adds version-4 snapshots with a source PDF page reference, durable
+UUID-based outlines, and version-2 editable backups containing the unchanged
+source PDF. Earlier formats remain readable. See [PDF notebooks](pdf-import.md)
+for the current extension; the sections below describe the foundation history.
 
 Version 0.30 adds version-3 page snapshots with optional physical paper
 dimensions, leaving legacy page coordinates and PDF printing scale unchanged.
@@ -88,7 +94,9 @@ signing key or initialize a new ignored development key on a clean checkout. Rel
 use explicit environment-based signing credentials, or produce an unsigned APK for contributor
 checks. They are unshrunk to retain firmware reflection. See [Building](building.md) and
 [Releasing](releasing.md) for the current setup, added after this foundation milestone.
-No new runtime dependency, networking, or system-wide Java change is introduced.
+This foundation introduced no runtime dependency or network access. Version 0.31
+adds PDFBox Android for source-preserving PDF import/export; see its pinned
+dependency and [third-party notices](../THIRD_PARTY_NOTICES.md).
 
 ## Next extensions (design constraints, not current features)
 

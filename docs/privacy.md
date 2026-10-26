@@ -8,7 +8,8 @@ does not request Android's `INTERNET` permission.
 
 Notebooks are stored in the app's private directory. They contain handwriting
 coordinates, pressure, timing, pen styles, page order, paper choices, and notebook
-names. App preferences remember tool widths, tool position, and reading position.
+names. PDF notebooks also retain the complete original PDF and outline headings.
+App preferences remember tool widths, tool position, and reading position.
 Scriflow does not add encryption to its notebook files; protection of the
 tablet and its storage depends on the device and its configuration.
 
@@ -29,10 +30,14 @@ permission. If you choose a cloud-backed file provider, that provider handles
 the transfer and its own privacy terms apply.
 
 - PDFs contain notebook names and visible page content; they are for reading
-  and sharing, rather than restoring an editable notebook.
+  and sharing, rather than restoring an editable notebook. Exports from imported
+  PDFs also preserve original document metadata and catalog resources, including
+  attachments when present. They are not a redaction tool.
 - `.inkbook` backups contain the notebook's name, ordered pages, handwriting
   samples, pressure, styles, and persistent page/stroke IDs. They exclude undo
-  history and device settings. **Backups are unencrypted.**
+  history and device settings. PDF notebooks include the entire original PDF,
+  including source pages removed from the note, plus note outlines.
+  **Backups are unencrypted.**
 - Export preparation uses private temporary files. Share exports or backups
   only with people and storage providers you intend to receive their contents.
 
@@ -41,6 +46,8 @@ the transfer and its own privacy terms apply.
 `ACCESS_NETWORK_STATE` is the only declared permission. It reads connection
 state for the Wi-Fi indicator; it does not let Scriflow send data over the
 network. The status bar also shows the tablet's time and battery level.
+Following an external PDF link opens another installed app, such as a browser;
+that app handles its network access.
 
 Development builds include diagnostic screens and checks. Diagnostics can
 export firmware metadata and captured diagnostic handwriting when explicitly

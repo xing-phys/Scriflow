@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build a dependency-free Java Android app without Gradle or network access.
+# Build the Java Android app without Gradle; runtime dependencies are cached and pinned.
 set -euo pipefail
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
@@ -8,9 +8,13 @@ BT="$ROOT/.tools/build-tools-30.0.3"
 [[ -f "$SDK" && -x "$BT/aapt" ]] || {
   echo 'Run ./scripts/bootstrap.sh first.' >&2; exit 1;
 }
+bash scripts/bootstrap-pdfbox.sh
+PDF_DEPS="$ROOT/.tools/pdfbox"
 rm -rf build/classes build/dex build/generated-sources build/license-assets build/unsigned.apk build/aligned.apk
 mkdir -p build/classes build/dex build/generated-sources build/license-assets
 cp LICENSE build/license-assets/LICENSE
+cp licenses/pdfbox-android-* licenses/bouncycastle-* build/license-assets/
+cp -R "$PDF_DEPS/assets/." build/license-assets/
 # The Android plugin owns the application ID/debug flag; the offline packager supplies them here.
 python3 - <<'MANIFEST'
 import xml.etree.ElementTree as E
@@ -52,10 +56,11 @@ PY
 # Keep the JDK bootstrap classes: Android SDK stubs intentionally omit the
 # LambdaMetafactory methods javac needs. D8 below desugars Java 8 lambdas
 # and validates against the Android API library for the device runtime.
-javac -encoding UTF-8 -source 8 -target 8 -classpath "$SDK" \
+javac -encoding UTF-8 -source 8 -target 8 -classpath "$SDK:$PDF_DEPS/*" \
   -d build/classes @build/java-sources.txt
 # d8 supports response files, avoiding command line limits as sources grow.
 find "$ROOT/build/classes" -name '*.class' -print | sort > build/dex-sources.txt
+find "$PDF_DEPS" -maxdepth 1 -name '*.jar' -print | sort >> build/dex-sources.txt
 "$BT/d8" --min-api 23 --lib "$SDK" --output build/dex @build/dex-sources.txt
 python3 - <<'PY'
 from pathlib import Path

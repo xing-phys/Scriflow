@@ -38,12 +38,36 @@ its conditions apply. Retain the embedded license, accompanying license copy,
 and launcher headers when distributing these files. The complete terms are in
 the license copy and [Apache's official license](https://www.apache.org/licenses/LICENSE-2.0).
 
+## PDF import and export runtime
+
+Scriflow includes [PDFBox Android 2.0.27.0](https://github.com/TomRoush/PdfBox-Android/tree/v2.0.27.0),
+the Android port of Apache PDFBox, under Apache License 2.0. Its unmodified
+[LICENSE](licenses/pdfbox-android-LICENSE.txt) and
+[NOTICE](licenses/pdfbox-android-NOTICE.txt) are retained and packaged in the APK
+assets. The license file also contains the upstream notices for included code
+and bundled font resources. The app uses Android's native PDF renderer for
+display and PDFBox for reading navigation metadata and appending vector ink to
+the original PDF object graph.
+
+PDFBox's runtime dependencies, Bouncy Castle **1.72** (`bcprov-jdk15to18`,
+`bcpkix-jdk15to18`, and `bcutil-jdk15to18`), use the permissive
+[Bouncy Castle license](licenses/bouncycastle-LICENSE.html), an MIT-style license.
+The exact upstream license is retained and included in APK assets. See the
+[upstream source license](https://github.com/bcgit/bc-java/blob/r1rv72/LICENSE.html).
+
+Gradle resolves these app dependencies from Maven Central. The alternate
+builder uses [scripts/bootstrap-pdfbox.sh](scripts/bootstrap-pdfbox.sh), which
+pins every runtime archive by SHA-256 before compilation and packaging. The
+archives are downloaded to ignored `.tools/pdfbox/`; they are packaged in the
+APK but are not checked into this repository. Gradle's dependency versions and
+the alternate builder's versions must remain synchronized.
+
 ## Downloaded development tools
 
 The full Gradle distribution, Android SDK/build tools, JDK, plugin dependencies,
 and their caches are downloaded separately into ignored local directories.
-They are not checked into this repository or included in the app by the build
-scripts. Their accompanying licenses and notices remain with those tools.
+Those build tools are not checked into this repository or included in the app
+by the build scripts. Their accompanying licenses and notices remain with those tools.
 
 In particular, the full Gradle 8.11.1 distribution carries a `NOTICE` describing
 included Apache Software Foundation software and other components including

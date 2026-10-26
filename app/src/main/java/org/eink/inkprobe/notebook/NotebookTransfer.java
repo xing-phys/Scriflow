@@ -70,6 +70,14 @@ final class NotebookTransfer {
                 InputStream input = context.getContentResolver().openInputStream(uri);
                 if (input == null) throw new IOException("Cannot open the selected backup");
                 staged = NotebookBackup.read(input, staging, () -> cancelled);
+                File original = new File(staging, "source.pdf");
+                if (original.exists()) {
+                    NotebookPdfAsset asset = NotebookPdfEngine.inspect(context, original);
+                    for (int number = 1; number <= staged.pageCount; number++) {
+                        NotebookPage page = new NotebookStore(NotebookBackup.pageDirectory(staging, number)).load();
+                        if (page.pdfPage > asset.pages.size()) throw new IOException("Backup refers to an unavailable PDF page");
+                    }
+                }
                 if (cancelled) { NotebookBackup.deleteTree(staging); fail(null); return; }
                 message = "Adding restored notebook…"; changed();
                 // Once this barrier is entered it must finish; cancellation never rolls back a committed book.
@@ -79,7 +87,10 @@ final class NotebookTransfer {
                     if (error != null) { fail(error); return; }
                     complete = true; busy = false; message = "Restored as a new notebook. Existing notebooks were preserved."; changed();
                 });
-            } catch (IOException | RuntimeException error) { fail(error); }
+            } catch (IOException | RuntimeException error) {
+                if (staged != null && staged.directory.exists()) NotebookBackup.deleteTree(staged.directory);
+                staged = null; fail(error);
+            }
         });
     }
     void cancel() { cancelled = true; if (!busy && prepared != null) { prepared.delete(); prepared = null; } }

@@ -55,6 +55,12 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         LinearLayout shortcuts = new LinearLayout(this);
         NotebookButton quick = button("Quick A5 note", () -> createNotebook("Note " + (session.entries().size() + 1), NotebookPaperSize.A5));
         shortcuts.addView(quick, new LinearLayout.LayoutParams(0, dp(48), 1));
+        NotebookButton importPdf = button("Import PDF", () -> {
+            if (!canAct()) return;
+            startActivity(new Intent(this, NotebookPdfImportActivity.class));
+            overridePendingTransition(0, 0);
+        });
+        shortcuts.addView(importPdf, new LinearLayout.LayoutParams(0, dp(48), 1));
         NotebookButton restore = button("Restore backup", () -> transfer(true, 0));
         shortcuts.addView(restore, new LinearLayout.LayoutParams(0, dp(48), 1));
         root.addView(shortcuts);

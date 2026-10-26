@@ -16,12 +16,12 @@ Development and physical testing target **MatePad Paper HMW-W09**, Android
 rendering use Huawei APIs already present on that firmware; no proprietary
 Huawei code is bundled. Other tablets and firmware versions are unverified.
 
-The latest public prerelease is **[Scriflow 0.30.0-dev.3](https://github.com/xing-phys/Scriflow/releases/tag/v0.30.0-dev.3)**,
-released on 2026-10-26 with the owner's explicit authorization. It synchronizes
-the accepted orientation across the bookshelf, notes, Settings, and transfer
-screens, retaining the same application ID and public signing certificate for
-in-place updates. Automated checks pass; tablet validation of these changes
-is pending. The core notebook features are implemented; broader use and
+The latest public prerelease is **[Scriflow 0.31.0-dev.1](https://github.com/xing-phys/Scriflow/releases/tag/v0.31.0-dev.1)**,
+released on 2026-10-26 with the owner's explicit authorization. It adds PDF
+notebooks, preserved source PDF export, editable outlines, and view history,
+retaining the same application ID and public signing certificate for in-place
+updates. Automated checks pass; tablet validation of these changes is pending.
+The core notebook features are implemented; broader use and
 long-session performance still need feedback.
 The [changelog](CHANGELOG.md) summarizes changes; [device records](docs/device-testing.md)
 distinguish automated checks, publication authorization, and physical testing.
@@ -42,6 +42,9 @@ distinguish automated checks, publication authorization, and physical testing.
   and undo/redo page changes.
 - Automatic saving of completed strokes and editable restoration after reopening.
 - Vector PDF export for sharing and editable `.inkbook` backup/restore.
+- Import PDFs as notebooks, write over their original pages, follow links,
+  and export with original PDF content plus vector ink.
+- Imported and editable note outlines, with previous/next view navigation.
 - Compact circular tools in a movable, rotatable, collapsible dock, plus floating
   notebook and time/battery/Wi-Fi islands over a full-screen page.
 
@@ -50,8 +53,8 @@ makes no network requests. See [privacy and local storage](docs/privacy.md).
 
 ## Install and update
 
-Download the latest public **[Scriflow 0.30.0-dev.3 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.30.0-dev.3/scriflow-0.30.0-dev.3.apk)**
-from [GitHub Releases](https://github.com/xing-phys/Scriflow/releases/tag/v0.30.0-dev.3),
+Download the latest public **[Scriflow 0.31.0-dev.1 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.31.0-dev.1/scriflow-0.31.0-dev.1.apk)**
+from [GitHub Releases](https://github.com/xing-phys/Scriflow/releases/tag/v0.31.0-dev.1),
 where its file checksum and signing certificate fingerprint are recorded.
 Copy it to the supported tablet, open it with the tablet's file manager, and
 allow installation from that source when prompted.
@@ -69,8 +72,9 @@ key is retained, so the Scriflow rename can update the released Scribblow app
 in place without moving notebooks. If Android rejects an update because its
 signature differs, stop and follow the [signing migration instructions](docs/releasing.md#moving-from-a-development-key).
 **Uninstalling the app or clearing app storage deletes its private notes.**
-Version 0.30 writes version-3 pages with optional physical paper dimensions;
-older APKs cannot read pages saved by this version. Opening an existing page
+Version 0.31 writes version-4 pages with optional PDF backgrounds and version-2
+editable backups including PDF assets and outlines; older APKs cannot read these
+new formats. Version 0.30 added optional physical paper dimensions. Opening an existing page
 keeps its stored coordinates and previous PDF printing scale.
 Version 0.29 introduces a version-2 page-order index
 when page management is first used; earlier APKs cannot open that managed book.
@@ -86,6 +90,9 @@ the page-plus icon appends a page. The grid opens page thumbnails.
 Tap an already-selected Pen or Eraser icon to adjust its width. Drag the
 six-dot grip to move the tools, tap it to collapse/expand them, or use the
 direction icon to rotate them.
+Use **Import PDF** in the library to make a PDF notebook. The outline icon
+opens imported headings and lets you add your own; finger taps follow PDF links.
+Previous/next view icons return after navigation. See [PDF notebooks](docs/pdf-import.md).
 The three-dot menu contains PDF export, save status, and **Reset tools**.
 Open **Settings** in the library, or tap the notebook title/percentage in the
 editor for zoom controls and **App settings**. Choose portrait, landscape, or
@@ -99,8 +106,9 @@ troubleshooting.
 
 - Erasing removes entire touched strokes. Undo/redo keeps up to 100 actions per
   page while the app process remains alive; it does not survive a process restart.
-- There is no PDF import, handwriting recognition,
-  typed text, or cloud sync.
+- There is no handwriting recognition, typed text, or cloud sync.
+- PDF import supports unlocked PDFs up to 256 MiB and 1,000 pages. Physical
+  acceptance and large-PDF performance testing remain pending.
 - Page management keeps at least one page in a notebook. Its separate undo/redo
   history holds 50 page changes until the process restarts. Removed page files
   remain in private storage for recovery; current exports/backups exclude them.

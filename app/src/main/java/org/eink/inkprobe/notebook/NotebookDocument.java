@@ -217,7 +217,7 @@ public final class NotebookDocument {
     }
 
     static boolean samePage(NotebookPage a, NotebookPage b) {
-        return a != null && b != null && a.width == b.width && a.height == b.height
+        return a != null && b != null && a.width == b.width && a.height == b.height && a.pdfPage == b.pdfPage
             && java.util.Objects.equals(a.paperSize, b.paperSize)
             && a.id.equals(b.id) && a.template == b.template && sameStrokes(a.strokes, b.strokes);
     }

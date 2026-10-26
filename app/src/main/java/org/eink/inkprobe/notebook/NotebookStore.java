@@ -19,8 +19,8 @@ import java.util.zip.CRC32;
  * Single-writer page store. Call only from a serialized background worker, never pen callbacks.
  * A synced, checksummed record commits each completed stroke without rewriting previous points.
  * Size/template changes and stroke edits publish an atomic snapshot and retain the previous file
- * as a backup. Legacy reads are non-mutating; the first edit atomically migrates to version 3,
- * which retains IDs and optional physical paper dimensions.
+ * as a backup. Legacy reads are non-mutating; the first edit atomically migrates to version 4,
+ * which retains IDs, optional physical paper dimensions and source PDF page identity.
  */
 public final class NotebookStore {
     public static final int MAX_POINTS_PER_STROKE = 200000;
@@ -29,7 +29,7 @@ public final class NotebookStore {
     public static final int MAX_DIMENSION = 32768;
 
     private static final int MAGIC = 0x4e424b31; // NBK1
-    private static final int VERSION = 3;
+    private static final int VERSION = 4;
     private static final int SNAPSHOT = 1, APPEND_STROKE = 2;
     private static final int MAX_RECORD_BYTES = 32 * 1024 * 1024;
     private static final long MAX_FILE_BYTES = 64L * 1024 * 1024;
@@ -156,6 +156,20 @@ public final class NotebookStore {
         return publish(page.withTemplate(template));
     }
 
+    /** Initializes one imported background before its staged notebook is published. */
+    public NotebookPage initializePdfPage(int width, int height, int sourcePage) throws IOException {
+        requireReady();
+        validateDimensions(width, height, false);
+        if (sourcePage < 1 || sourcePage > NotebookIndex.MAX_PAGES) throw new IOException("Invalid source PDF page");
+        if (!page.strokes.isEmpty()) throw new IOException("Cannot initialize a page containing writing");
+        if (page.isInitialized()) {
+            if (page.width != width || page.height != height || page.pdfPage != sourcePage)
+                throw new IOException("Existing PDF page differs; files were preserved.");
+            return needsSnapshot ? publish(page) : page;
+        }
+        return publish(page.withSize(width, height).withPdfPage(sourcePage));
+    }
+
     public NotebookPage appendStroke(NotebookPage.Stroke stroke) throws IOException {
         requireReady();
         if (!page.isInitialized()) throw new IOException("Notebook size has not been initialized");
@@ -203,13 +217,14 @@ public final class NotebookStore {
             pointCount += stroke.points.size();
             if (pointCount > MAX_TOTAL_POINTS) throw new IOException("Notebook page has reached its point limit");
         }
-        return publish(NotebookPage.restored(page.id, page.width, page.height, page.paperSize, page.template, copy, pointCount));
+        return publish(NotebookPage.restored(page.id, page.width, page.height, page.paperSize, page.pdfPage, page.template, copy, pointCount));
     }
 
     /** Write a canonical transport snapshot; ownership of output stays with the caller. */
     public static void writeSnapshot(java.io.OutputStream output, NotebookPage page) throws IOException {
         validateDimensions(page.width, page.height, true);
         validatePaperSize(page.width, page.height, page.paperSize);
+        validatePdfPage(page.width, page.height, page.pdfPage);
         if (page.strokes.size() > MAX_STROKES || page.pointCount > MAX_TOTAL_POINTS)
             throw new IOException("Page exceeds storage limits");
         HashSet<UUID> ids = new HashSet<>();
@@ -295,7 +310,7 @@ public final class NotebookStore {
                 valid = input.getFilePointer();
             }
             if (!state.hasSnapshot) throw corrupt("Notebook has no complete initial snapshot");
-            NotebookPage loaded = NotebookPage.restored(state.id, state.width, state.height, state.paperSize, state.template,
+            NotebookPage loaded = NotebookPage.restored(state.id, state.width, state.height, state.paperSize, state.pdfPage, state.template,
                                                        state.strokes, state.pointCount);
             return new ReadResult(loaded, valid, incomplete, version);
         } catch (IllegalArgumentException error) {
@@ -317,6 +332,8 @@ public final class NotebookStore {
                 if (hasPaper == 1) state.paperSize = NotebookPaperSize.custom(input.readDouble(), input.readDouble());
                 validatePaperSize(width, height, state.paperSize);
             }
+            if (state.version >= 4) state.pdfPage = input.readInt();
+            validatePdfPage(width, height, state.pdfPage);
             int template = input.readUnsignedByte();
             if (template >= NotebookPage.Template.values().length) throw corrupt("Unknown paper template");
             int count = input.readInt();
@@ -381,6 +398,11 @@ public final class NotebookStore {
         }
     }
 
+    private static void validatePdfPage(int width, int height, int pdfPage) throws IOException {
+        if (pdfPage < 0 || pdfPage > NotebookIndex.MAX_PAGES || pdfPage > 0 && (width == 0 || height == 0))
+            throw corrupt("Invalid source PDF page metadata");
+    }
+
     private static void validateStroke(NotebookPage bounds, NotebookPage.Stroke stroke) throws IOException {
         validateStroke(bounds.width, bounds.height, stroke);
     }
@@ -406,6 +428,7 @@ public final class NotebookStore {
         if (page.paperSize != null) {
             output.writeDouble(page.paperSize.widthMm); output.writeDouble(page.paperSize.heightMm);
         }
+        output.writeInt(page.pdfPage);
         output.writeByte(page.template.ordinal());
         output.writeInt(page.strokes.size());
         for (NotebookPage.Stroke stroke : page.strokes) writeStroke(output, stroke);
@@ -460,7 +483,7 @@ public final class NotebookStore {
 
     private static final class ReadState {
         UUID id;
-        int version, width, height, pointCount;
+        int version, width, height, pointCount, pdfPage;
         final HashSet<UUID> ids = new HashSet<>();
         boolean hasSnapshot;
         NotebookPage.Template template;

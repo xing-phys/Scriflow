@@ -34,6 +34,24 @@ public final class NotebookSymbols {
             case "NEXT":
                 line(out, 9, 5, 16, 12, 9, 19);
                 break;
+            case "VIEW_BACK":
+                line(out, 10, 5, 3, 12, 10, 19);
+                line(out, 3, 12, 21, 12);
+                line(out, 19, 5, 21, 5, 21, 19, 19, 19);
+                break;
+            case "VIEW_FORWARD":
+                line(out, 14, 5, 21, 12, 14, 19);
+                line(out, 3, 12, 21, 12);
+                line(out, 5, 5, 3, 5, 3, 19, 5, 19);
+                break;
+            case "OUTLINE":
+                circle(out, 4, 5, 1);
+                line(out, 8, 5, 21, 5);
+                line(out, 10, 10, 21, 10);
+                circle(out, 4, 15, 1);
+                line(out, 8, 15, 21, 15);
+                line(out, 10, 20, 21, 20);
+                break;
             case "ADD_PAGE":
                 paper(out);
                 line(out, 9, 14, 15, 14);

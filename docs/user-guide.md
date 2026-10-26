@@ -23,6 +23,13 @@ keep their original coordinates and PDF printing scale.
 
 ## Zoom and screen orientation
 
+For PDFs, choose **Import PDF** in the library. Each PDF becomes a separate
+notebook with editable handwriting and its own retained source file. Finger
+taps follow PDF links; the stylus writes over them. Open **Outline** to navigate
+imported bookmarks or add, edit, and remove your own headings. **Previous view**
+and **Next view** return after jumps while restoring zoom and position.
+See [PDF notebooks](pdf-import.md) for export preservation, backups, and limits.
+
 New notes open at **Fit width**. Pinch with **two fingers** to zoom in or out;
 a percentage indicator appears during zoom. The zoom controls offer **Fit width**,
 **Fit height**, **Fit page**, and fixed percentages. Drag with a finger to pan

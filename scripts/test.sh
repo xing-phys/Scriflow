@@ -15,6 +15,9 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookTasks.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookTransform.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPage.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookOutline.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookViewHistory.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookLinkTapGesture.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPaperSize.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookStore.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookEdits.java \
@@ -54,6 +57,8 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   tests/NotebookLassoInteractionTest.java \
   tests/NotebookIndexTest.java tests/NotebookBookTest.java \
   tests/NotebookPageManagementTest.java \
+  tests/NotebookPdfModelTest.java \
+  tests/NotebookLinkTapGestureTest.java \
   tests/NotebookCatalogTest.java tests/NotebookLibraryTest.java tests/NotebookPaperSizeTest.java \
   tests/NotebookViewportTest.java tests/NotebookViewportZoomTest.java tests/NotebookScrollStoreTest.java \
   tests/NotebookFingerStreamTest.java tests/NotebookInputPolicyTest.java tests/NotebookSensorRotationTest.java tests/NotebookDisplayStateTest.java tests/NotebookViewportBufferTest.java \
@@ -70,6 +75,8 @@ java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookDocumentTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookIndexTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookBookTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPageManagementTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPdfModelTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookLinkTapGestureTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookCatalogTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookLibraryTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPaperSizeTest
@@ -94,3 +101,4 @@ java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookEraserTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookEraserCommitTest
 
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookFoundationTest
+bash scripts/test-pdf-engine.sh

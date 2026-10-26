@@ -1,2 +1,4 @@
 # Store Windows launchers as text; check them out with native batch line endings.
 *.bat text eol=crlf
+# Preserve upstream license text, including its original whitespace.
+licenses/* -whitespace

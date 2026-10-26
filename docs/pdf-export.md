@@ -1,5 +1,10 @@
 # PDF export - 0.21
 
+Version 0.31 adds [PDF notebooks](pdf-import.md): their exports retain the source
+PDF document and append vector ink, preserving links and original bookmarks.
+Manually added note outlines are also exported. The ordinary-note vector writer
+described below remains in use.
+
 ## Use
 
 Open a notebook and tap **⋮**, then **Export PDF**. Every page in the notebook

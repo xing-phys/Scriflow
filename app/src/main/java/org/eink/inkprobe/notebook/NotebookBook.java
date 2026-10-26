@@ -18,6 +18,7 @@ public final class NotebookBook {
     private interface Operation { void run() throws IOException; }
     private final File directory;
     private final NotebookIndex index;
+    private List<NotebookOutline.Entry> outline = java.util.Collections.emptyList();
     private NotebookScrollStore scroll;
     private final Map<Integer, NotebookDocument> documents = new HashMap<>();
     private NotebookIndex.State durableIndex;
@@ -74,6 +75,22 @@ public final class NotebookBook {
     public NotebookScrollStore.State scrollPosition() { return position; }
     public boolean canUndoPageChange() { return !pageUndo.isEmpty(); }
     public boolean canRedoPageChange() { return !pageRedo.isEmpty(); }
+    public File sourcePdf() { File source = new File(directory, "source.pdf"); return source.isFile() ? source : null; }
+    public List<NotebookOutline.Entry> outline() { return outline; }
+
+    /** UUID destinations remain valid when pages are reordered and can reappear after undo. */
+    public int pageNumber(java.util.UUID id) throws IOException {
+        requireLoaded();
+        if (id == null) return 0;
+        for (int number = 1; number <= count; number++) if (previewPage(number).id.equals(id)) return number;
+        return 0;
+    }
+
+    public void setOutline(List<NotebookOutline.Entry> entries) throws IOException {
+        requireLoaded(); requireWritable();
+        // An outline write has its own error boundary: a failed heading edit must not stop ink.
+        outline = NotebookOutline.save(directory, entries);
+    }
 
     /** Fetch a page for a settled viewport without changing the selected page or page index. */
     public NotebookPage page(int number) throws IOException {
@@ -99,10 +116,13 @@ public final class NotebookBook {
     public NotebookPage previewPage(int number) throws IOException {
         requireLoaded(); requirePageNumber(number);
         NotebookDocument cached = documents.get(storageSlot(number));
-        if (cached != null && cached.current() != null) return cached.current();
+        if (cached != null && cached.current() != null) {
+            requirePdfSource(cached.current()); return cached.current();
+        }
         requirePageFiles(number);
         NotebookPage result = new NotebookStore(pageDirectory(number)).load();
         if ((count > 1 || durableIndex.managed()) && !result.isInitialized()) throw new IOException("Saved page has no dimensions");
+        requirePdfSource(result);
         return result;
     }
 
@@ -256,6 +276,7 @@ public final class NotebookBook {
                     strokes.add(new NotebookPage.Stroke(stroke.penType, stroke.width, stroke.color, stroke.points));
                 created = NotebookPage.empty().withSize(original.width, original.height)
                     .withPaperSize(original.paperSize).withTemplate(original.template).withStrokes(strokes);
+                if (action == PageAction.DUPLICATE) created = created.withPdfPage(original.pdfPage);
                 int after = action == PageAction.INSERT_AFTER && destination > 0 ? destination : source;
                 target = action == PageAction.INSERT_BEFORE ? source : after + 1;
                 if (target < 1 || target > count + 1) throw new IOException("Page insertion position is out of range");
@@ -332,6 +353,8 @@ public final class NotebookBook {
         position = durablePosition = scroll.load(selected);
         if (position.page > count) throw new IOException("Saved scroll position refers to a missing page");
         attemptedPosition = targetPosition = null;
+        outline = NotebookOutline.load(directory);
+        requirePdfSource(current());
         loaded = true;
         problem = null;
     }
@@ -368,6 +391,7 @@ public final class NotebookBook {
         if (target.error() == null) target.load(); else target.retry();
         target.validateDisk();
         if (!target.current().isInitialized()) throw new IOException("Saved page has no dimensions");
+        requirePdfSource(target.current());
         NotebookIndex.State saved = index.saveOrder(change.after); index.sync();
         NotebookScrollStore nextScroll = new NotebookScrollStore(directory, saved.generation);
         NotebookScrollStore.State nextPosition = nextScroll.load(saved.selectedPage);
@@ -429,6 +453,7 @@ public final class NotebookBook {
         // state before navigation makes them writable again.
         next.document.retry();
         if (!next.document.current().isInitialized()) throw new IOException("Saved page has no dimensions");
+        requirePdfSource(next.document.current());
     }
 
     private void prepareNewPage(Navigation next) throws IOException {
@@ -446,7 +471,7 @@ public final class NotebookBook {
                 NotebookPage candidate = new NotebookStore(target).load();
                 if (candidate.width != next.source.width || candidate.height != next.source.height
                         || !java.util.Objects.equals(candidate.paperSize, next.source.paperSize)
-                        || candidate.template != next.source.template || !candidate.strokes.isEmpty()) {
+                        || candidate.template != next.source.template || candidate.pdfPage != 0 || !candidate.strokes.isEmpty()) {
                     throw new IOException("An unexpected unindexed page exists; its files were preserved.");
                 }
             }
@@ -488,12 +513,14 @@ public final class NotebookBook {
                 if (count > 1 || durableIndex.managed()) requirePageFiles(number);
                 target.validateDisk();
             }
+            requirePdfSource(target.current());
             return target;
         }
         if (count > 1 || durableIndex.managed()) requirePageFiles(number);
         if (target == null) target = documentFor(number);
         target.load();
         if ((count > 1 || durableIndex.managed()) && !target.current().isInitialized()) throw new IOException("Saved page has no dimensions");
+        requirePdfSource(target.current());
         return target;
     }
 
@@ -511,6 +538,7 @@ public final class NotebookBook {
             if (dirtyOnly && entry.getValue().error() == null) continue;
             if (count > 1 || durableIndex.managed()) requireSlotFiles(entry.getKey());
             entry.getValue().retry();
+            requirePdfSource(entry.getValue().current());
         }
     }
 
@@ -556,6 +584,13 @@ public final class NotebookBook {
         }
     }
 
+    private void requirePdfSource(NotebookPage page) throws IOException {
+        if (page == null || page.pdfPage == 0) return;
+        File source = sourcePdf();
+        if (source == null || source.length() == 0)
+            throw new IOException("The original source PDF is missing or empty; files were preserved.");
+    }
+
     private boolean matchesAttempt(NotebookIndex.State state) {
         return attemptedCount != 0 && state.pageCount == attemptedCount
             && state.selectedPage == attemptedSelection
@@ -569,6 +604,7 @@ public final class NotebookBook {
             // Completed pen-up events already queued before a page save failure still belong to
             // this visible page. Document retains them in memory while refusing disk writes.
             if (problem != null && document.error() == null) throw problem;
+            requirePdfSource(current());
             operation.run();
         });
     }

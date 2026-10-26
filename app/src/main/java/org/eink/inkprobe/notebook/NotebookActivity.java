@@ -2,6 +2,8 @@ package org.eink.inkprobe.notebook;
 
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.ActivityNotFoundException;
+import android.net.Uri;
 import android.content.pm.ApplicationInfo;
 import android.graphics.Color;
 import android.graphics.Bitmap;
@@ -25,12 +27,23 @@ import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.PopupWindow;
 import android.widget.TextView;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.Spinner;
+import android.widget.ArrayAdapter;
+import android.widget.ListView;
+import android.widget.Toast;
+import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.HashSet;
+import java.util.UUID;
+import java.util.Collections;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /** Durable notebook pages, native pen ink, and document-level editing. */
 public final class NotebookActivity extends NotebookDisplayActivity {
@@ -70,7 +83,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private float eraserWidth = NotebookWidthRange.ERASER.defaultWidth;
     private NotebookWidthPopup widthPopup;
     private boolean verifyOnReady;
-    private int generation;
+    private volatile int generation;
     private NotebookViewport viewport;
     private final Map<Integer, NotebookPage> pages = new LinkedHashMap<>();
     private final NotebookViewportBuffer viewportBuffer = new NotebookViewportBuffer();
@@ -82,6 +95,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private final NotebookPinchGesture pinchIntent = new NotebookPinchGesture();
     private boolean pinchAllowed, gestureEngaged;
     private NotebookViewport gestureStartViewport;
+    private NotebookViewHistory.State gestureStartView;
     private float gestureStartScroll, gestureStartZoom;
     private NotebookViewport.Fit gestureStartFit;
     private boolean selectionViewportGesture, selectionMixed;
@@ -100,6 +114,15 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private long viewportRevision;
     private NotebookScrollStore.State reopenPosition;
     private NotebookPageOverview overview;
+    private AlertDialog outlineMenu, outlineChild;
+    private final NotebookViewHistory viewHistory = new NotebookViewHistory();
+    private final NotebookLinkTapGesture linkTap = new NotebookLinkTapGesture();
+    private int writingRevision;
+    private final ExecutorService pdfWorker = Executors.newSingleThreadExecutor();
+    private final Map<Integer, Bitmap> pdfBackgrounds = new LinkedHashMap<>();
+    private final Map<Integer, List<NotebookPdfAsset.Link>> pdfLinks = new LinkedHashMap<>();
+    private final HashSet<Integer> pdfLoading = new HashSet<>();
+    private volatile java.util.Set<Integer> pdfWanted = Collections.emptySet();
     private final Runnable previewFrame = this::drawPreview;
     private final Runnable updateSaveState = this::showSaveState;
 
@@ -216,6 +239,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         if (session.notebookId() != viewNotebookId) {
             viewNotebookId = session.notebookId();
             zoom = 1; zoomFit = NotebookViewport.Fit.WIDTH; restoreCenter = false; viewport = null;
+            viewHistory.clear();
         }
         active = true;
         deviceStatus.start();
@@ -273,6 +297,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                 @Override public void onPenStateChanged(boolean down) {
                     if (!active || request != generation) return;
                     penDown = down;
+                    if (down) { ++writingRevision; linkTap.cancel(); }
                     setWritingContact(down);
                     lastInputAt = SystemClock.uptimeMillis();
                     main.removeCallbacks(updateSaveState);
@@ -327,7 +352,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     }
 
     private void configureViewport(int width, int height) {
-        viewport = new NotebookViewport(session.pageCount(), page.width, page.height, width, height, dp(12), zoom, 0);
+        viewport = createViewport(width, height, 0);
         int centerPage = Math.max(1, Math.min(session.pageCount(), restoreCenterPage));
         if (zoomFit != NotebookViewport.Fit.CUSTOM) {
             zoom = viewport.fittedZoom(zoomFit, restoreCenter ? centerPage : session.pageNumber());
@@ -344,6 +369,99 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         restoreCenter = false;
         activePage = viewport.centeredPage(scrollY);
         requestWindow();
+    }
+
+    private NotebookViewport createViewport(int width, int height, float pan) {
+        List<NotebookViewport.Size> sizes = session.pageSizes();
+        if (sizes.size() == session.pageCount())
+            return new NotebookViewport(sizes, width, height, dp(12), zoom, pan);
+        return new NotebookViewport(session.pageCount(), page.width, page.height,
+            width, height, dp(12), zoom, pan);
+    }
+
+    /** PDF pixels are prepared off the input thread before native handwriting resumes. */
+    private boolean preparePdfBackgrounds() {
+        File source = session.pdfSource();
+        if (source == null || viewport == null) return true;
+        HashSet<Integer> retained = new HashSet<>();
+        List<Integer> wantedPages = wantedPages();
+        for (int id : wantedPages) {
+            NotebookPage current = pages.get(id);
+            if (current != null && current.pdfPage > 0) retained.add(current.pdfPage);
+        }
+        pdfWanted = Collections.unmodifiableSet(retained);
+        for (int id : wantedPages) {
+            NotebookPage current = pages.get(id);
+            if (current == null || current.pdfPage == 0) continue;
+            final int sourcePage = current.pdfPage;
+            if (pdfBackgrounds.containsKey(sourcePage) || !pdfLoading.add(sourcePage)) continue;
+            final int request = generation;
+            // Bound every decoded page even at extreme zoom. The source and export stay vector.
+            float scale = Math.min(2560f / Math.max(current.width, current.height),
+                Math.min(2f * viewport.width / current.width,
+                    (float) Math.sqrt(Math.min(3_000_000d, 6_000_000d / wantedPages.size())
+                        / ((double) current.width * current.height))));
+            final int width = Math.max(1, Math.round(current.width * scale));
+            final int height = Math.max(1, Math.round(current.height * scale));
+            pdfWorker.execute(() -> {
+                if (request != generation) return;
+                if (!pdfWanted.contains(sourcePage)) {
+                    main.post(() -> {
+                        if (!active || request != generation) return;
+                        pdfLoading.remove(sourcePage);
+                        if (scrolling && !dragging) installViewport();
+                    });
+                    return;
+                }
+                Bitmap rendered = null;
+                List<NotebookPdfAsset.Link> links = Collections.emptyList();
+                IOException failure = null;
+                try {
+                    rendered = NotebookPdfEngine.render(source, sourcePage, width, height);
+                    links = NotebookPdfEngine.links(getApplicationContext(), source, sourcePage);
+                } catch (IOException | RuntimeException error) {
+                    failure = new IOException("Could not display source PDF page " + sourcePage, error);
+                }
+                final Bitmap result = rendered;
+                final List<NotebookPdfAsset.Link> pageLinks = links;
+                final IOException error = failure;
+                main.post(() -> {
+                    if (!active || request != generation) {
+                        if (result != null) result.recycle();
+                        return;
+                    }
+                    pdfLoading.remove(sourcePage);
+                    if (error != null) {
+                        if (result != null) result.recycle();
+                        showError(error); return;
+                    }
+                    boolean wanted = false;
+                    for (int requestedId : wantedPages()) {
+                        NotebookPage candidate = pages.get(requestedId);
+                        if (candidate != null && candidate.pdfPage == sourcePage) wanted = true;
+                    }
+                    if (wanted) {
+                        pdfBackgrounds.put(sourcePage, result);
+                        pdfLinks.put(sourcePage, pageLinks);
+                        tiles.clear();
+                    } else result.recycle();
+                    if (dragging) schedulePreview();
+                    else if (scrolling) installViewport();
+                });
+            });
+        }
+        java.util.Iterator<Map.Entry<Integer, Bitmap>> old = pdfBackgrounds.entrySet().iterator();
+        while (old.hasNext()) {
+            Map.Entry<Integer, Bitmap> item = old.next();
+            if (!retained.contains(item.getKey())) {
+                item.getValue().recycle(); pdfLinks.remove(item.getKey()); old.remove();
+            }
+        }
+        for (int id : viewport.visiblePages(scrollY)) {
+            NotebookPage current = pages.get(id);
+            if (current != null && current.pdfPage > 0 && !pdfBackgrounds.containsKey(current.pdfPage)) return false;
+        }
+        return true;
     }
 
     private List<Integer> wantedPages() {
@@ -385,6 +503,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         if (viewport == null) return;
         viewportBuffer.window(session.window(), wantedPages());
         updatePreviewPages();
+        preparePdfBackgrounds();
     }
 
     private void updatePreviewPages() {
@@ -398,6 +517,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         if (!active || dragging || editing || viewport == null || shownError != null) return;
         if (settleRead) { requestWindow(); return; }
         for (int id : viewport.visiblePages(scrollY)) if (!pages.containsKey(id)) { requestWindow(); return; }
+        if (!preparePdfBackgrounds()) return;
         try {
             ink.pauseForEdit();
             if (shownError != null) return;
@@ -433,6 +553,11 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private void updatePaperButton() {
         NotebookPage current = pages.get(activePage);
         if (current == null) return;
+        if (current.pdfPage > 0) {
+            paperButton.setIcon(NotebookIconDrawable.Icon.PAPER_BLANK);
+            paperButton.setContentDescription("Original PDF page background");
+            return;
+        }
         updatePaperIcon(current.template);
     }
 
@@ -481,6 +606,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             boolean continueLoading = active && scrolling && !dragging && !editing
                 && shownError == null && session.error() == null && ink != null && !ink.isPenDown();
             if (!canEdit() && !continueLoading) return;
+            linkTap.begin(event.getX(changed), event.getY(changed), event.getEventTime(), dp(4), writingRevision);
             rememberGestureStart();
             // A resting palm must not switch off native handwriting. Pause it only once
             // movement establishes an actual navigation gesture.
@@ -493,6 +619,11 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             return;
         }
         if (!dragging) return;
+        if (action == MotionEvent.ACTION_POINTER_DOWN) linkTap.cancel();
+        if (action == MotionEvent.ACTION_MOVE) {
+            int pointer = event.findPointerIndex(fingerId);
+            if (pointer >= 0) linkTap.move(event.getX(pointer), event.getY(pointer));
+        }
         int first = -1, second = -1;
         for (int i = 0; i < event.getPointerCount(); i++) {
             if (action == MotionEvent.ACTION_POINTER_UP && i == changed
@@ -556,11 +687,20 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                 zoom = gestureStartZoom; zoomFit = gestureStartFit;
                 tiles.clear(); ++viewportRevision; updatePageLabel();
             }
+            if (gestureEngaged && moved && action == MotionEvent.ACTION_UP && gestureStartView != null
+                    && !gestureStartView.equals(currentView()))
+                viewHistory.record(gestureStartView);
+            gestureStartView = null;
             gestureStartViewport = null;
             dragging = false; fingerId = -1;
             zoomBadge.dismiss();
             main.removeCallbacks(previewFrame);
             if (!gestureEngaged) {
+                boolean follow = action == MotionEvent.ACTION_UP && !scrolling
+                    && linkTap.finish(event.getX(changed), event.getY(changed), event.getEventTime(),
+                        writingRevision, ink.isPenDown());
+                if (follow && followPdfLink(event.getX(changed), event.getY(changed))) return;
+                linkTap.cancel();
                 if (scrolling) requestWindow();
                 scheduleSaveState();
                 return;
@@ -578,6 +718,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private void rememberGestureStart() {
         gestureStartViewport = viewport; gestureStartScroll = scrollY;
         gestureStartZoom = zoom; gestureStartFit = zoomFit;
+        gestureStartView = currentView();
     }
 
     private boolean engageNavigation() {
@@ -703,7 +844,16 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         drawing.save(); drawing.clipRect(0, 0, current.width, current.height);
         drawing.drawColor(Color.WHITE);
         Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        if (current.template == NotebookPage.Template.LINED) {
+        if (current.pdfPage > 0) {
+            Bitmap background = pdfBackgrounds.get(current.pdfPage);
+            if (background != null && !background.isRecycled()) {
+                paint.setFilterBitmap(true);
+                drawing.drawBitmap(background, null, new RectF(0, 0, current.width, current.height), paint);
+            } else {
+                paint.setColor(0xff555555); paint.setTextSize(Math.max(16, current.width / 40f));
+                drawing.drawText("Loading PDF page…", 20, 45, paint);
+            }
+        } else if (current.template == NotebookPage.Template.LINED) {
             paint.setColor(0xffd2d2d2); paint.setStrokeWidth(1);
             for (int y = 72; y < current.height; y += 72) drawing.drawLine(0, y, current.width, y, paint);
         }
@@ -785,6 +935,9 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             case PAPER: choosePaper(); break;
             case MORE: pageInformation(); break;
             case OVERVIEW: pageOverview(); break;
+            case OUTLINE: showOutline(); break;
+            case VIEW_BACK: changeViewHistory(false); break;
+            case VIEW_FORWARD: changeViewHistory(true); break;
             case ORIENTATION: toggleToolsOrientation(); break;
             case COLLAPSE: toggleToolsCollapsed(); break;
         }
@@ -821,13 +974,17 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         // canEdit() gates every action while the surface or writer is busy.
         boolean ready = active && shownError == null && session.error() == null
             && page != null && page.isInitialized();
-        paperButton.setAvailable(ready);
+        NotebookPage current = pages.get(activePage);
+        paperButton.setAvailable(ready && (current == null || current.pdfPage == 0));
         penButton.setAvailable(ready); eraserButton.setAvailable(ready); lassoButton.setAvailable(ready);
         undoButton.setAvailable(ready && session.canUndo(activePage));
         redoButton.setAvailable(ready && session.canRedo(activePage));
         previousButton.setAvailable(ready && activePage > 1);
         nextButton.setAvailable(ready && activePage < session.pageCount());
         addButton.setAvailable(ready && session.pageCount() < NotebookIndex.MAX_PAGES);
+        floatingTools.button(NotebookFloatingTools.Action.OUTLINE).setAvailable(ready);
+        floatingTools.button(NotebookFloatingTools.Action.VIEW_BACK).setAvailable(ready && viewHistory.canBack());
+        floatingTools.button(NotebookFloatingTools.Action.VIEW_FORWARD).setAvailable(ready && viewHistory.canForward());
         penButton.setToolSelected(tool == NotebookInk.Tool.PEN);
         eraserButton.setToolSelected(tool == NotebookInk.Tool.ERASER);
         lassoButton.setToolSelected(tool == NotebookInk.Tool.LASSO);
@@ -1259,12 +1416,14 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                     return;
                 }
                 if (which >= 0) {
+                    NotebookViewHistory.State outgoing = currentView();
                     zoomFit = which == 0 ? NotebookViewport.Fit.WIDTH
                         : which == 1 ? NotebookViewport.Fit.HEIGHT
                         : which == 2 ? NotebookViewport.Fit.PAGE : NotebookViewport.Fit.CUSTOM;
                     float target = which < 3 ? viewport.fittedZoom(zoomFit, activePage) : percentages[which - 3];
                     zoomAt(target, viewport.width / 2f, viewport.height / 2f, viewport.width / 2f, viewport.height / 2f);
                     if (which == 1 || which == 2) scrollY = viewport.pageScroll(activePage);
+                    if (outgoing != null && !outgoing.equals(currentView())) viewHistory.record(outgoing);
                     savePosition = true;
                 }
                 editing = false; scrolling = true;
@@ -1298,8 +1457,107 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         jumpToPage(target);
     }
 
+    private NotebookViewHistory.State currentView() {
+        if (viewport == null) return null;
+        int id = viewport.centeredPage(scrollY);
+        UUID pageId = session.pageId(id);
+        if (pageId == null) return null;
+        return new NotebookViewHistory.State(pageId,
+            (viewport.width / 2f - viewport.pageLeft(id)) / viewport.scale(id),
+            (viewport.height / 2f - viewport.pageTop(id, scrollY)) / viewport.scale(id), zoom, zoomFit.name());
+    }
+
+    private void rememberView() {
+        NotebookViewHistory.State state = currentView();
+        if (state != null) viewHistory.record(state);
+    }
+
+    private void changeViewHistory(boolean forward) {
+        if (!canEdit() || !(forward ? viewHistory.canForward() : viewHistory.canBack())) return;
+        NotebookViewHistory.State current = currentView();
+        if (current == null) return;
+        NotebookViewHistory.State target = forward ? viewHistory.forward(current) : viewHistory.back(current);
+        if (target == null) return;
+        int number = session.pageNumber(target.pageId);
+        if (number < 1) { viewHistory.clear(); updateControls(); return; }
+        pauseForEdit();
+        if (shownError != null) return;
+        clearSelection();
+        zoom = target.zoom;
+        try { zoomFit = NotebookViewport.Fit.valueOf(target.fit); }
+        catch (IllegalArgumentException ignored) { zoomFit = NotebookViewport.Fit.CUSTOM; }
+        viewport = viewport.withView(zoom, 0);
+        viewport = viewport.withView(zoom, viewport.panForPoint(number, target.x, viewport.width / 2f));
+        scrollY = viewport.scrollForPoint(number, target.y, viewport.height / 2f);
+        activePage = viewport.centeredPage(scrollY);
+        tiles.clear(); editing = false; scrolling = true; savePosition = true;
+        settleRead = true; ++viewportRevision;
+        requestWindow();
+    }
+
+    private void jumpToLocation(int target, double fraction) {
+        float destination = viewport.scrollForPoint(target, (float) fraction * viewport.pageHeight(target), 0);
+        if (scrollY != destination || viewport.pan != 0) rememberView();
+        clearSelection();
+        viewport = viewport.withView(zoom, 0);
+        scrollY = destination;
+        activePage = target;
+        editing = false; scrolling = true; savePosition = true;
+        settleRead = true; ++viewportRevision;
+        requestWindow();
+    }
+
+    private boolean followPdfLink(float x, float y) {
+        if (!canEdit() || viewport == null) return false;
+        int number = viewport.pageAt(x, y, scrollY);
+        NotebookPage current = pages.get(number);
+        if (current == null || current.pdfPage == 0) return false;
+        List<NotebookPdfAsset.Link> links = pdfLinks.get(current.pdfPage);
+        if (links == null) return false;
+        float localX = (x - viewport.pageLeft(number)) / (viewport.scale(number) * current.width);
+        float localY = (y - viewport.pageTop(number, scrollY)) / (viewport.scale(number) * current.height);
+        for (NotebookPdfAsset.Link link : links) {
+            if (localX < link.left || localX > link.right || localY < link.top || localY > link.bottom) continue;
+            if (link.targetPage > 0) {
+                int target = session.pageForPdf(link.targetPage);
+                if (target < 1) {
+                    Toast.makeText(this, "The linked page was removed from this note", Toast.LENGTH_SHORT).show();
+                    return true;
+                }
+                pauseForEdit();
+                if (shownError == null) jumpToLocation(target, link.fraction);
+                return true;
+            }
+            if (link.uri != null && !link.uri.isEmpty()) {
+                Uri uri = Uri.parse(link.uri);
+                String scheme = uri.getScheme();
+                if (scheme == null || !("https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme)
+                        || "mailto".equalsIgnoreCase(scheme) || "tel".equalsIgnoreCase(scheme)
+                        || "geo".equalsIgnoreCase(scheme) || "ftp".equalsIgnoreCase(scheme))) {
+                    Toast.makeText(this, "This PDF link type cannot be opened on this tablet", Toast.LENGTH_SHORT).show();
+                    return true;
+                }
+                pauseForEdit();
+                if (shownError != null) return true;
+                try { startActivity(new Intent(Intent.ACTION_VIEW, uri)); }
+                catch (ActivityNotFoundException | SecurityException error) {
+                    Toast.makeText(this, "No app is available to open this link", Toast.LENGTH_SHORT).show();
+                }
+                editing = false;
+                if (active) { ink.start(); updateControls(); scheduleSaveState(); }
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** Input has already been paused; the window read precedes native restoration. */
     private void jumpToPage(int target) {
+        jumpToPage(target, true);
+    }
+
+    private void jumpToPage(int target, boolean remember) {
+        if (remember && scrollY != viewport.pageScroll(target)) rememberView();
         clearSelection();
         editing = false; scrolling = true; savePosition = true;
         scrollY = viewport.pageScroll(target); activePage = target;
@@ -1328,9 +1586,9 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                 if (dialog.pagesChanged()) {
                     clearSelection(); page = session.current();
                     pages.clear(); viewportBuffer.clear(); tiles.clear();
-                    viewport = new NotebookViewport(session.pageCount(), page.width, page.height,
-                        viewport.width, viewport.height, dp(12), zoom, viewport.pan);
-                    jumpToPage(dialog.chosenPage() > 0 ? dialog.chosenPage() : session.pageNumber());
+                    viewHistory.clear();
+                    viewport = createViewport(viewport.width, viewport.height, viewport.pan);
+                    jumpToPage(dialog.chosenPage() > 0 ? dialog.chosenPage() : session.pageNumber(), false);
                 } else if (dialog.chosenPage() > 0) jumpToPage(dialog.chosenPage());
                 else {
                     // Browsing changed no document or viewport state. Reuse the paused
@@ -1345,6 +1603,169 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         });
     }
 
+    private void showOutline() {
+        if (!canEdit() || outlineMenu != null) return;
+        pauseForEdit();
+        if (shownError != null) return;
+        floatingTools.hide();
+        final int request = generation;
+        final NotebookOutline.Entry[] destination = {null};
+        final boolean[] editMode = {false};
+        List<NotebookOutline.Entry> entries = new ArrayList<>();
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1);
+        ListView list = new ListView(this);
+        list.setAdapter(adapter); list.setSelector(android.R.color.transparent);
+        list.setContentDescription("Note outline; tap a heading to jump, hold to edit");
+        TextView hint = new TextView(this);
+        hint.setText("Tap a heading to jump. Hold to edit or reorder. Add heading marks the current view.");
+        hint.setTextColor(Color.BLACK); hint.setPadding(dp(16), dp(8), dp(16), dp(8));
+        LinearLayout content = new LinearLayout(this); content.setOrientation(LinearLayout.VERTICAL);
+        content.addView(hint); content.addView(list, new LinearLayout.LayoutParams(-1, dp(320)));
+        Runnable refresh = () -> {
+            entries.clear(); entries.addAll(session.outline()); adapter.clear();
+            for (NotebookOutline.Entry entry : entries) {
+                int number = session.pageNumber(entry.pageId);
+                StringBuilder label = new StringBuilder();
+                for (int level = 0; level < Math.min(8, entry.depth); level++) label.append("  ");
+                label.append(entry.title).append("  ·  ").append(number > 0 ? "p. " + number : "Page removed");
+                adapter.add(label.toString());
+            }
+            adapter.notifyDataSetChanged();
+            hint.setText(entries.isEmpty() ? "Your outline is empty. Add a heading at the current view."
+                : editMode[0] ? "Tap a heading to edit, delete, or reorder it."
+                : "Tap a heading to jump. Hold to edit or reorder. Add heading marks the current view.");
+        };
+        outlineMenu = new AlertDialog.Builder(this).setTitle("Table of contents")
+            .setView(content).setNegativeButton("Close", null)
+            .setPositiveButton("Add heading", null).setNeutralButton("Edit headings", null).create();
+        AlertDialog dialog = outlineMenu;
+        list.setOnItemClickListener((parent, row, position, id) -> {
+            NotebookOutline.Entry entry = entries.get(position);
+            if (editMode[0]) { outlineEntryActions(entry, refresh); return; }
+            if (session.pageNumber(entry.pageId) < 1) {
+                outlineEntryActions(entry, refresh); return;
+            }
+            destination[0] = entry; dialog.dismiss();
+        });
+        list.setOnItemLongClickListener((parent, row, position, id) -> {
+            outlineEntryActions(entries.get(position), refresh); return true;
+        });
+        dialog.setOnDismissListener(closed -> {
+            if (outlineMenu == dialog) outlineMenu = null;
+            if (!active || request != generation || shownError != null) return;
+            NotebookOutline.Entry entry = destination[0];
+            int number = entry == null ? 0 : session.pageNumber(entry.pageId);
+            if (number > 0) jumpToLocation(number, entry.fraction);
+            else { editing = false; installViewport(); }
+        });
+        refresh.run(); showStaticDialog(dialog);
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> showOutlineEditor(null, refresh));
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
+            editMode[0] = !editMode[0];
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setText(editMode[0] ? "Browse headings" : "Edit headings");
+            refresh.run();
+        });
+    }
+
+    private void outlineEntryActions(NotebookOutline.Entry entry, Runnable refresh) {
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle(entry.title)
+            .setItems(new String[]{"Edit heading", "Move up", "Move down", "Delete heading"}, (choice, which) -> {
+                if (which == 0) { showOutlineEditor(entry, refresh); return; }
+                List<NotebookOutline.Entry> updated = new ArrayList<>(session.outline());
+                int index = updated.indexOf(entry);
+                if (index < 0) return;
+                if (which == 3) updated.remove(index);
+                else {
+                    int target = index + (which == 1 ? -1 : 1);
+                    if (target < 0 || target >= updated.size()) return;
+                    Collections.swap(updated, index, target);
+                }
+                saveOutline(updated, refresh);
+            }).setNegativeButton("Cancel", null).create();
+        showOutlineChild(dialog);
+        if (dialog.getListView() != null) dialog.getListView().setSelector(android.R.color.transparent);
+    }
+
+    private void showOutlineEditor(NotebookOutline.Entry entry, Runnable refresh) {
+        if (entry == null && session.outline().size() >= NotebookOutline.MAX_ENTRIES) {
+            Toast.makeText(this, "This note has the maximum number of headings", Toast.LENGTH_SHORT).show(); return;
+        }
+        int currentPage = viewport.nearestPage(0, scrollY);
+        double currentFraction = Math.max(0, Math.min(.999999,
+            -viewport.pageTop(currentPage, scrollY) / (viewport.scale(currentPage) * viewport.pageHeight(currentPage))));
+        int initialPage = entry == null ? currentPage : session.pageNumber(entry.pageId);
+        final int[] targetPage = {initialPage};
+        final double[] fraction = {entry == null ? currentFraction : entry.fraction};
+        LinearLayout fields = new LinearLayout(this); fields.setOrientation(LinearLayout.VERTICAL);
+        fields.setPadding(dp(20), dp(4), dp(20), 0);
+        EditText title = new EditText(this); title.setSingleLine(true);
+        title.setHint("Heading title"); title.setContentDescription("Heading title");
+        title.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(NotebookOutline.MAX_TITLE_LENGTH)});
+        if (entry != null) title.setText(entry.title);
+        fields.addView(title);
+        TextView pageHint = new TextView(this); pageHint.setText("Page number"); fields.addView(pageHint);
+        EditText number = new EditText(this); number.setSingleLine(true);
+        number.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        number.setContentDescription("Heading page number");
+        number.setText(initialPage > 0 ? String.valueOf(initialPage) : ""); fields.addView(number);
+        TextView depthHint = new TextView(this); depthHint.setText("Heading level"); fields.addView(depthHint);
+        Spinner depth = new Spinner(this);
+        String[] levels = new String[NotebookOutline.MAX_DEPTH + 1];
+        for (int i = 0; i < levels.length; i++) levels[i] = "Level " + (i + 1);
+        ArrayAdapter<String> depths = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, levels);
+        depths.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item); depth.setAdapter(depths);
+        depth.setSelection(entry == null ? 0 : entry.depth); fields.addView(depth);
+        AlertDialog editor = new AlertDialog.Builder(this).setTitle(entry == null ? "Add heading" : "Edit heading")
+            .setView(fields).setNegativeButton("Cancel", null).setPositiveButton("Save", null)
+            .setNeutralButton("Use current view", null).create();
+        showOutlineChild(editor);
+        editor.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
+            targetPage[0] = currentPage; fraction[0] = currentFraction; number.setText(String.valueOf(currentPage));
+        });
+        editor.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String heading = title.getText().toString().trim();
+            if (heading.isEmpty() || heading.indexOf('\0') >= 0) { title.setError("Enter a heading title"); return; }
+            int chosen;
+            try { chosen = Integer.parseInt(number.getText().toString().trim()); }
+            catch (NumberFormatException error) { chosen = 0; }
+            if (chosen < 1 || chosen > session.pageCount()) { number.setError("Enter an existing page number"); return; }
+            UUID pageId = session.pageId(chosen);
+            if (pageId == null) { number.setError("This page is unavailable; reopen the note and try again"); return; }
+            double position = chosen == targetPage[0] ? fraction[0] : 0;
+            NotebookOutline.Entry changed = new NotebookOutline.Entry(entry == null ? UUID.randomUUID() : entry.id,
+                heading, pageId, position, depth.getSelectedItemPosition());
+            List<NotebookOutline.Entry> updated = new ArrayList<>(session.outline());
+            if (entry == null) updated.add(changed);
+            else {
+                int index = updated.indexOf(entry);
+                if (index < 0) { editor.dismiss(); return; }
+                updated.set(index, changed);
+            }
+            editor.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);
+            saveOutline(updated, () -> { editor.dismiss(); refresh.run(); });
+        });
+    }
+
+    private void saveOutline(List<NotebookOutline.Entry> entries, Runnable complete) {
+        final int request = generation;
+        session.setOutline(entries, (loaded, error) -> {
+            if (!active || request != generation) return;
+            if (error != null) {
+                showError(error);
+                if (outlineChild != null) outlineChild.dismiss();
+                if (outlineMenu != null) outlineMenu.dismiss();
+                return;
+            }
+            complete.run();
+        });
+    }
+
+    private void showOutlineChild(AlertDialog dialog) {
+        outlineChild = dialog;
+        dialog.setOnDismissListener(closed -> { if (outlineChild == dialog) outlineChild = null; });
+        showStaticDialog(dialog);
+    }
+
     private void addPage() {
         if (!canEdit() || session.pageCount() >= NotebookIndex.MAX_PAGES) return;
         clearSelection();
@@ -1354,8 +1775,8 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         session.addPage(activePage, (updated, error) -> {
             if (!active || request != generation) return;
             if (error != null) { showError(error); return; }
-            viewport = new NotebookViewport(session.pageCount(), page.width, page.height,
-                viewport.width, viewport.height, dp(12), zoom, viewport.pan);
+            rememberView();
+            viewport = createViewport(viewport.width, viewport.height, viewport.pan);
             editing = false; scrolling = true; savePosition = true;
             activePage = session.pageCount(); scrollY = viewport.pageScroll(activePage);
             settleRead = true; ++viewportRevision;
@@ -1413,6 +1834,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
 
     private void choosePaper() {
         if (!canEdit()) return;
+        if (pages.get(activePage).pdfPage > 0) return;
         NotebookPage.Template selected = pages.get(activePage).template == NotebookPage.Template.LINED
             ? NotebookPage.Template.BLANK : NotebookPage.Template.LINED;
         pauseForEdit();
@@ -1430,7 +1852,8 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         NotebookPage current = pages.get(activePage);
         String message = current == null ? "Your page is opening." :
             session.notebookName() + "\nPage " + activePage + " of " + session.pageCount() + " · "
-            + (current.template == NotebookPage.Template.LINED ? "Lined" : "Blank")
+            + (current.pdfPage > 0 ? "PDF page " + current.pdfPage
+                : current.template == NotebookPage.Template.LINED ? "Lined" : "Blank")
             + "\n" + current.strokes.size() + " strokes\n"
             + (session.error() != null ? "Some writing has not been saved."
                 : session.isSaving() ? "Saving your latest writing…" : "Your completed strokes are saved on this tablet.")
@@ -1439,6 +1862,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             + "\n\nLasso draws a temporary dashed line. Lift the stylus to close the curve automatically. Drag inside with a finger or stylus to move the selected ink. Copy, Duplicate, Cut, Delete, and Done appear beside the region. Done or a tap outside clears the selection; tap the selected Lasso icon afterward for Paste or Select all. Copied ink stays inside Scriflow until the app restarts. Selection and movement stay on one page."
             + "\n\nNew writing or a successful edit clears Redo. Changing paper keeps your stroke history.";
         message += "\n\nTap the dotted grip to collapse or expand the floating tools; drag it to move them, even when collapsed. The direction icon beside it switches between one row and one column. The thicker circle marks the selected tool. The page icon changes Blank/Lined paper; the grid opens the page overview."
+            + "\n\nThe outline icon opens the table of contents. Add headings at the current view; hold a heading or tap Edit headings to rename, move, or delete it. Imported PDF outlines are ready to use. Tap PDF links with one finger; writing with the stylus keeps annotating. The previous-view and next-view arrows restore your page, scroll position, horizontal pan, and zoom after a jump or gesture."
             + "\n\nTap the selected Pen icon to open a small width slider. Slide the point and release to apply; tap outside or press Back to cancel. Current thickness: " + NotebookPenConfig.label(penWidth) + ". The small line below the pencil previews its width. New strokes use that width; existing writing keeps its original thickness."
             + "\n\nExport PDF saves all pages in this notebook, including their paper backgrounds and handwriting.";
         final boolean[] exporting = {false};
@@ -1498,6 +1922,8 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         clearSelection(); resetSelectionPreview();
         if (lassoMenu != null) { lassoMenu.dismiss(); lassoMenu = null; }
         if (viewMenu != null) { viewMenu.dismiss(); viewMenu = null; }
+        if (outlineChild != null) { outlineChild.dismiss(); outlineChild = null; }
+        if (outlineMenu != null) { outlineMenu.dismiss(); outlineMenu = null; }
         if (floatingTools != null) floatingTools.hide();
         if (overview != null) { overview.dismiss(); overview = null; }
         if (widthPopup != null) { widthPopup.dismiss(); widthPopup = null; }
@@ -1524,6 +1950,9 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         clearSelection(); resetSelectionPreview();
         dragging = false; pinching = false; gestureEngaged = false; gestureStartViewport = null;
         selectionViewportGesture = false;
+        linkTap.cancel(); pdfLoading.clear(); pdfWanted = Collections.emptySet();
+        for (Bitmap background : pdfBackgrounds.values()) background.recycle();
+        pdfBackgrounds.clear(); pdfLinks.clear();
         if (zoomBadge != null) zoomBadge.dismiss();
         penDown = false;
         if (floatingTools != null) floatingTools.hide();
@@ -1532,6 +1961,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     }
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
     @Override protected void onDestroy() {
+        pdfWorker.shutdownNow();
         if (statusIslands != null) statusIslands.hide();
         if (floatingTools != null) floatingTools.dispose();
         if (selectionTools != null) selectionTools.hide();
