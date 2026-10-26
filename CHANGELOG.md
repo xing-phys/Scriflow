@@ -6,6 +6,30 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## [0.30.0-dev.1](https://github.com/xing-phys/Scriflow/releases/tag/v0.30.0-dev.1) — Paper sizes, zoom, and orientation (2026-10-26)
+
+- Create an A5 notebook in one tap with **Quick A5 note**, or choose A5, A4,
+  ISO B5, Letter, other standard paper, or custom width/height when creating
+  a named notebook. The fresh-install starter notebook also uses A5.
+- Export new pages at their selected physical PDF size. Preserve physical
+  dimensions through page addition, blank insertion, duplication, and editable
+  backup/restore. Existing notes retain their logical coordinates and PDF scale.
+- Add two-finger pinch zoom, percentage feedback, page-fitting choices, fixed
+  percentage presets, horizontal panning, and white space outside paper.
+  New notes start at Fit width. Map handwriting, erasing, and lasso edits
+  through the current page transform.
+- Add app-wide Portrait, Landscape, and Follow device sensor settings. Rebuild
+  the native writing surface after rotation, keep its position and zoom, and
+  defer sensor rotation during a pen contact. Preserve creation/rename drafts
+  across activity recreation.
+- Advance page snapshots to version 3 with optional physical paper dimensions.
+  Continue reading version 1/2 without changing their coordinates or IDs.
+  Older APKs cannot read pages saved in version 3; keep editable backups.
+- Advance Android versionCode to 34, retaining the application ID and permanent
+  public signing certificate. Publish as a development prerelease at the
+  owner's explicit request. Automated checks pass; physical tablet acceptance
+  of pinch gestures, landscape handwriting, and sensor rotation remains pending.
+
 ## [0.29.0-dev.3](https://github.com/xing-phys/Scriflow/releases/tag/v0.29.0-dev.3) — Floating tools and status islands (2026-10-26)
 
 - Replace rounded-square tools with compact 32 dp circular buttons inside a

@@ -19,7 +19,8 @@ import java.util.zip.CRC32;
  * Single-writer page store. Call only from a serialized background worker, never pen callbacks.
  * A synced, checksummed record commits each completed stroke without rewriting previous points.
  * Size/template changes and stroke edits publish an atomic snapshot and retain the previous file
- * as a backup. Version 1 reads are non-mutating; the first edit atomically migrates to version 2 with IDs.
+ * as a backup. Legacy reads are non-mutating; the first edit atomically migrates to version 3,
+ * which retains IDs and optional physical paper dimensions.
  */
 public final class NotebookStore {
     public static final int MAX_POINTS_PER_STROKE = 200000;
@@ -28,7 +29,7 @@ public final class NotebookStore {
     public static final int MAX_DIMENSION = 32768;
 
     private static final int MAGIC = 0x4e424b31; // NBK1
-    private static final int VERSION = 2;
+    private static final int VERSION = 3;
     private static final int SNAPSHOT = 1, APPEND_STROKE = 2;
     private static final int MAX_RECORD_BYTES = 32 * 1024 * 1024;
     private static final long MAX_FILE_BYTES = 64L * 1024 * 1024;
@@ -122,17 +123,30 @@ public final class NotebookStore {
      * An existing page is accepted only when it is the exact empty target; writing is untouched.
      */
     public NotebookPage initializePage(int width, int height, NotebookPage.Template template) throws IOException {
+        return initializePage(width, height, null, template);
+    }
+
+    public NotebookPage initializePage(NotebookPaperSize size, NotebookPage.Template template) throws IOException {
+        if (size == null) throw new IllegalArgumentException("Missing paper size");
+        return initializePage(size.logicalWidth(), size.logicalHeight(), size, template);
+    }
+
+    /** Explicit logical size supports exact inheritance without changing legacy coordinates. */
+    public NotebookPage initializePage(int width, int height, NotebookPaperSize size,
+                                       NotebookPage.Template template) throws IOException {
         requireReady();
         validateDimensions(width, height, false);
+        validatePaperSize(width, height, size);
         if (template == null) throw new IllegalArgumentException("Missing paper template");
         if (!page.strokes.isEmpty()) throw new IOException("Cannot initialize a page containing writing");
         if (page.isInitialized()) {
-            if (page.width != width || page.height != height || page.template != template) {
+            if (page.width != width || page.height != height || !java.util.Objects.equals(page.paperSize, size)
+                    || page.template != template) {
                 throw new IOException("Existing page has different dimensions or paper; files were preserved.");
             }
             return needsSnapshot ? publish(page) : page;
         }
-        return publish(page.withSize(width, height).withTemplate(template));
+        return publish(page.withSize(width, height).withPaperSize(size).withTemplate(template));
     }
 
     public NotebookPage setTemplate(NotebookPage.Template template) throws IOException {
@@ -189,12 +203,13 @@ public final class NotebookStore {
             pointCount += stroke.points.size();
             if (pointCount > MAX_TOTAL_POINTS) throw new IOException("Notebook page has reached its point limit");
         }
-        return publish(NotebookPage.restored(page.id, page.width, page.height, page.template, copy, pointCount));
+        return publish(NotebookPage.restored(page.id, page.width, page.height, page.paperSize, page.template, copy, pointCount));
     }
 
     /** Write a canonical transport snapshot; ownership of output stays with the caller. */
     public static void writeSnapshot(java.io.OutputStream output, NotebookPage page) throws IOException {
         validateDimensions(page.width, page.height, true);
+        validatePaperSize(page.width, page.height, page.paperSize);
         if (page.strokes.size() > MAX_STROKES || page.pointCount > MAX_TOTAL_POINTS)
             throw new IOException("Page exceeds storage limits");
         HashSet<UUID> ids = new HashSet<>();
@@ -280,7 +295,7 @@ public final class NotebookStore {
                 valid = input.getFilePointer();
             }
             if (!state.hasSnapshot) throw corrupt("Notebook has no complete initial snapshot");
-            NotebookPage loaded = NotebookPage.restored(state.id, state.width, state.height, state.template,
+            NotebookPage loaded = NotebookPage.restored(state.id, state.width, state.height, state.paperSize, state.template,
                                                        state.strokes, state.pointCount);
             return new ReadResult(loaded, valid, incomplete, version);
         } catch (IllegalArgumentException error) {
@@ -296,6 +311,12 @@ public final class NotebookStore {
             if (state.version >= 2) state.id = readId(input);
             int width = input.readInt(), height = input.readInt();
             validateDimensions(width, height, true);
+            if (state.version >= 3) {
+                int hasPaper = input.readUnsignedByte();
+                if (hasPaper > 1) throw corrupt("Invalid physical paper metadata");
+                if (hasPaper == 1) state.paperSize = NotebookPaperSize.custom(input.readDouble(), input.readDouble());
+                validatePaperSize(width, height, state.paperSize);
+            }
             int template = input.readUnsignedByte();
             if (template >= NotebookPage.Template.values().length) throw corrupt("Unknown paper template");
             int count = input.readInt();
@@ -354,6 +375,12 @@ public final class NotebookStore {
         }
     }
 
+    private static void validatePaperSize(int width, int height, NotebookPaperSize size) throws IOException {
+        if (size != null && (width != size.logicalWidth() || height != size.logicalHeight())) {
+            throw corrupt("Physical paper size differs from logical page dimensions");
+        }
+    }
+
     private static void validateStroke(NotebookPage bounds, NotebookPage.Stroke stroke) throws IOException {
         validateStroke(bounds.width, bounds.height, stroke);
     }
@@ -375,6 +402,10 @@ public final class NotebookStore {
         writeId(output, page.id);
         output.writeInt(page.width);
         output.writeInt(page.height);
+        output.writeByte(page.paperSize == null ? 0 : 1);
+        if (page.paperSize != null) {
+            output.writeDouble(page.paperSize.widthMm); output.writeDouble(page.paperSize.heightMm);
+        }
         output.writeByte(page.template.ordinal());
         output.writeInt(page.strokes.size());
         for (NotebookPage.Stroke stroke : page.strokes) writeStroke(output, stroke);
@@ -433,6 +464,7 @@ public final class NotebookStore {
         final HashSet<UUID> ids = new HashSet<>();
         boolean hasSnapshot;
         NotebookPage.Template template;
+        NotebookPaperSize paperSize;
         final List<NotebookPage.Stroke> strokes = new ArrayList<>();
     }
 

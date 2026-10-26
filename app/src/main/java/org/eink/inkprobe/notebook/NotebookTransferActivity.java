@@ -19,6 +19,7 @@ public final class NotebookTransferActivity extends Activity {
     private boolean awaiting;
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
+        NotebookSettings.applyOrientation(this);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
         getWindow().setWindowAnimations(0);
         LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
@@ -42,7 +43,9 @@ public final class NotebookTransferActivity extends Activity {
         }
         awaiting = saved != null && saved.getBoolean("awaiting", false);
     }
-    @Override protected void onResume() { super.onResume(); job.observe(this::render); }
+    @Override protected void onResume() {
+        super.onResume(); NotebookSettings.applyOrientation(this); job.observe(this::render);
+    }
     @Override protected void onPause() { job.detach(); super.onPause(); }
     private void render() {
         status.setText(job.message == null ? "Preparing…" : job.message);

@@ -101,9 +101,13 @@ public final class NotebookPdf {
 
         private void writePage(int index, NotebookPage page) throws IOException {
             int id = pageObject(index), content = id + 1, length = id + 2;
-            double scale = Math.min(PAGE_WIDTH / page.width, MAX_PAGE_HEIGHT / page.height);
-            double width = page.width * scale;
-            double height = page.height * scale;
+            double scaleX = Math.min(PAGE_WIDTH / page.width, MAX_PAGE_HEIGHT / page.height);
+            double scaleY = scaleX;
+            double width = page.width * scaleX, height = page.height * scaleY;
+            if (page.paperSize != null) {
+                width = page.paperSize.pdfWidth(); height = page.paperSize.pdfHeight();
+                scaleX = width / page.width; scaleY = height / page.height;
+            }
             object(id);
             ascii("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 " + number(width) + " " +
                 number(height) + "] /Resources 4 0 R /Contents " + content + " 0 R >>\nendobj\n");
@@ -118,7 +122,7 @@ public final class NotebookPdf {
             }, deflater, 32768);
             pageOutput = compressed;
             try {
-                ascii("q\n" + number(scale) + " 0 0 " + number(-scale) + " 0 " + number(height) + " cm\n");
+                ascii("q\n" + number(scaleX) + " 0 0 " + number(-scaleY) + " 0 " + number(height) + " cm\n");
                 ascii("0 0 " + page.width + " " + page.height + " re W n\n");
                 ascii("1 1 1 rg\n0 0 " + page.width + " " + page.height + " re f\n");
                 if (page.template == NotebookPage.Template.LINED) {

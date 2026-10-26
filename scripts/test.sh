@@ -15,6 +15,7 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookTasks.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookTransform.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPage.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookPaperSize.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookStore.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookEdits.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookLasso.java \
@@ -49,8 +50,8 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   tests/NotebookLassoInteractionTest.java \
   tests/NotebookIndexTest.java tests/NotebookBookTest.java \
   tests/NotebookPageManagementTest.java \
-  tests/NotebookCatalogTest.java tests/NotebookLibraryTest.java \
-  tests/NotebookViewportTest.java tests/NotebookScrollStoreTest.java \
+  tests/NotebookCatalogTest.java tests/NotebookLibraryTest.java tests/NotebookPaperSizeTest.java \
+  tests/NotebookViewportTest.java tests/NotebookViewportZoomTest.java tests/NotebookScrollStoreTest.java \
   tests/NotebookFingerStreamTest.java tests/NotebookViewportBufferTest.java \
   tests/NotebookPdfTest.java tests/NotebookOutlineFixture.java tests/NotebookStrokeOutlineTest.java tests/NotebookOverlayClipTest.java \
   tests/NotebookToolStripTest.java tests/NotebookGripGestureTest.java tests/NotebookDeviceStatusStateTest.java \
@@ -67,7 +68,9 @@ java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookBookTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPageManagementTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookCatalogTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookLibraryTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPaperSizeTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookViewportTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookViewportZoomTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookScrollStoreTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookFingerStreamTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookViewportBufferTest

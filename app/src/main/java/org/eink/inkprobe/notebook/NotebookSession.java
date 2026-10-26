@@ -39,6 +39,8 @@ final class NotebookSession {
     private NotebookLasso.Clipboard clipboard;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final NotebookLibrary document;
+    private final File directory;
+    private boolean initialPaperChecked, initialPaperRequired;
     private final AtomicInteger pending = new AtomicInteger();
     private volatile NotebookPage page;
     private volatile IOException problem;
@@ -55,7 +57,8 @@ final class NotebookSession {
     private volatile NotebookScrollStore.State position;
 
     private NotebookSession(Context context) {
-        document = new NotebookLibrary(new File(context.getFilesDir(), "notebook"));
+        directory = new File(context.getFilesDir(), "notebook");
+        document = new NotebookLibrary(directory);
     }
 
     NotebookPage current() { return page; }
@@ -75,7 +78,7 @@ final class NotebookSession {
     boolean canRedo(int id) { return Boolean.TRUE.equals(redoWindow.get(id)); }
     NotebookScrollStore.State scrollPosition() { return position; }
 
-    void load(Callback callback) { submit(document::load, callback); }
+    void load(Callback callback) { submit(() -> { prepareInitialPaper(); document.load(); }, callback); }
     NotebookLasso.Clipboard clipboard() { return clipboard; }
     void copy(NotebookLasso.Selection selection) { clipboard = new NotebookLasso.Clipboard(selection); }
 
@@ -97,12 +100,15 @@ final class NotebookSession {
         submit(() -> selected[0] = document.pasteOnPage(id, source, x, y),
             (page, error) -> callback.complete(selected[0], error));
     }
-    void list(Callback callback) { submit(document::loadCatalog, callback); }
+    void list(Callback callback) { submit(() -> { prepareInitialPaper(); document.loadCatalog(); }, callback); }
     void openNotebook(int id, Callback callback) {
         submit(() -> { document.openNotebook(id); windowIds = Collections.emptyList(); }, callback);
     }
     void createNotebook(String name, Callback callback) {
-        submit(() -> { document.createNotebook(name); windowIds = Collections.emptyList(); }, callback);
+        createNotebook(name, NotebookPaperSize.A5, callback);
+    }
+    void createNotebook(String name, NotebookPaperSize paperSize, Callback callback) {
+        submit(() -> { document.createNotebook(name, paperSize); windowIds = Collections.emptyList(); }, callback);
     }
     void renameNotebook(int id, String name, Callback callback) {
         submit(() -> document.renameNotebook(id, name), callback);
@@ -121,7 +127,7 @@ final class NotebookSession {
     void setTemplate(NotebookPage.Template template, Callback callback) {
         submit(() -> document.setTemplate(template), callback);
     }
-    void retry(Callback callback) { submit(document::retry, callback); }
+    void retry(Callback callback) { submit(() -> { prepareInitialPaper(); document.retry(); }, callback); }
     void selectPage(int number, Callback callback) {
         submit(() -> document.selectPage(number), callback);
     }
@@ -275,6 +281,19 @@ final class NotebookSession {
         }
         window = Collections.unmodifiableMap(pages);
         undoWindow = Collections.unmodifiableMap(undo); redoWindow = Collections.unmodifiableMap(redo);
+    }
+
+    /** Only a truly new library receives default paper. Missing legacy files are never replaced. */
+    private void prepareInitialPaper() throws IOException {
+        if (!initialPaperChecked) {
+            String[] contents = directory.list();
+            initialPaperRequired = !directory.exists() || contents != null && contents.length == 0;
+            initialPaperChecked = true;
+        }
+        if (!initialPaperRequired) return;
+        NotebookStore bootstrap = new NotebookStore(directory);
+        bootstrap.load(); bootstrap.initializePage(NotebookPaperSize.A5, NotebookPage.Template.BLANK); bootstrap.sync();
+        initialPaperRequired = false;
     }
 
     private void submit(Operation operation, Callback callback) {

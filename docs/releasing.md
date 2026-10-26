@@ -12,6 +12,10 @@ step described below.
 of the floating dock/status UI update. No tablet is connected for this release;
 physical acceptance remains pending and is disclosed in the release notes.
 
+**Scriflow 0.30.0-dev.1** is the next explicitly authorized development
+prerelease, adding paper sizes, zoom, and screen orientation settings. No tablet
+is connected for this release either; physical acceptance remains pending.
+
 ## Before publishing
 
 - Retain the [MIT License](../LICENSE) and applicable
@@ -88,12 +92,13 @@ build unsigned release APKs without possessing the permanent key.
 
 ## Version numbers
 
-The current source and public prerelease version is **0.29.0-dev.3**, with Android
-`versionCode` **33**, adding compact circular tools, a collapsible dock, and
-floating status islands over a full-screen page. The owner explicitly requested
-committing and releasing it on 2026-10-26 after being informed that no tablet was
-connected; physical validation remains pending. Publish the verified staged
-file without rebuilding or changing its internal version. Earlier
+The current source and public prerelease version is **0.30.0-dev.1**, with Android
+`versionCode` **34**, adding physical paper sizes, pinch zoom, and screen
+orientation settings. The owner explicitly requested implementation, commit,
+push, and APK publication on 2026-10-26. Physical validation remains pending.
+Publish the verified staged file without rebuilding or changing its internal
+version. The previous **0.29.0-dev.3** (`versionCode` **33**) introduced compact
+tools and floating status islands with tablet validation pending. Earlier
 **Scriflow 0.29.0-dev.2** (`versionCode` **32**) was accepted on the tablet and
 released for lasso selection and page management.
 **Scriflow 0.28.0-beta.2** (`versionCode` **30**) and **Scribblow 0.28.0-beta.1**
@@ -131,16 +136,16 @@ and [Android versioning](https://developer.android.com/studio/publish/versioning
    The helper runs release lint and assembly, copies the candidate privately,
    verifies those exact bytes and the configured signing certificate, then
    stages a versioned APK and SHA-256 checksum under
-   `build/releases/`. For this release these are `scriflow-0.29.0-dev.3.apk` and
-   `scriflow-0.29.0-dev.3.apk.sha256`. Debugging is disabled, diagnostic screens are
+   `build/releases/`. For this release these are `scriflow-0.30.0-dev.1.apk` and
+   `scriflow-0.30.0-dev.1.apk.sha256`. Debugging is disabled, diagnostic screens are
    absent from the manifest, and the library is the only exported component.
 
 4. Compare the printed signer certificate SHA-256 with the intended permanent
    certificate. For later builds, pin that known digest during verification:
 
    ```bash
-   python3 scripts/verify-apk.py build/releases/scriflow-0.29.0-dev.3.apk --certificate-sha256 YOUR_KNOWN_CERTIFICATE_SHA256
-   (cd build/releases && sha256sum -c scriflow-0.29.0-dev.3.apk.sha256)
+   python3 scripts/verify-apk.py build/releases/scriflow-0.30.0-dev.1.apk --certificate-sha256 YOUR_KNOWN_CERTIFICATE_SHA256
+   (cd build/releases && sha256sum -c scriflow-0.30.0-dev.1.apk.sha256)
    ```
 
    Substitute the current version and the actual known digest. The APK file's
@@ -177,6 +182,9 @@ notebook and keep real notes backed up.
   the picker and confirm failure does not replace an existing notebook.
 - [ ] Repeat write/reopen and scrolling after a longer writing session. Report
   memory/performance observations without claiming untested maximum capacity.
+- [ ] Complete the paper-size, zoom, and rotation checks in
+  [the 0.30 feature record](paper-zoom-orientation.md), including PDF dimensions,
+  backup round trips, writing near page margins, and rotation after pen lift.
 
 Earlier physical results are retained in the [device record](device-testing.md)
 and [refresh record](fast-refresh.md). They do not replace acceptance of a new
@@ -206,10 +214,11 @@ an APK over version-2 pages, or assume a signature change preserves app data.
 
 ## Publish only after acceptance
 
-For **0.29.0-dev.3**, the owner explicitly authorized publication while tablet
-validation is pending. This scoped development prerelease exception does not
-establish physical acceptance. Keep that limitation visible in the release,
-README, and device record; do not carry over dev.2's acceptance to the new APK.
+For **0.30.0-dev.1**, the owner explicitly authorized APK publication as part of
+this implementation task. Publish as a development prerelease with tablet
+validation pending. This authorization does not establish physical acceptance.
+Keep that limitation visible in the release, README, and device record; do not
+carry over an earlier APK's acceptance to this build.
 
 Review the exact files selected for source distribution: exclude private keys,
 filled signing environment files, `.tools/`, build outputs, personal device

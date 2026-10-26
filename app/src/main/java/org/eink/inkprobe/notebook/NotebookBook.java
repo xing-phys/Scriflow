@@ -255,7 +255,7 @@ public final class NotebookBook {
                 if (action == PageAction.DUPLICATE) for (NotebookPage.Stroke stroke : original.strokes)
                     strokes.add(new NotebookPage.Stroke(stroke.penType, stroke.width, stroke.color, stroke.points));
                 created = NotebookPage.empty().withSize(original.width, original.height)
-                    .withTemplate(original.template).withStrokes(strokes);
+                    .withPaperSize(original.paperSize).withTemplate(original.template).withStrokes(strokes);
                 int after = action == PageAction.INSERT_AFTER && destination > 0 ? destination : source;
                 target = action == PageAction.INSERT_BEFORE ? source : after + 1;
                 if (target < 1 || target > count + 1) throw new IOException("Page insertion position is out of range");
@@ -445,6 +445,7 @@ public final class NotebookBook {
                 requirePageFiles(next.target);
                 NotebookPage candidate = new NotebookStore(target).load();
                 if (candidate.width != next.source.width || candidate.height != next.source.height
+                        || !java.util.Objects.equals(candidate.paperSize, next.source.paperSize)
                         || candidate.template != next.source.template || !candidate.strokes.isEmpty()) {
                     throw new IOException("An unexpected unindexed page exists; its files were preserved.");
                 }
@@ -456,7 +457,7 @@ public final class NotebookBook {
             // sized BLANK intermediate when the user requested LINED paper, even after a crash.
             NotebookStore bootstrap = new NotebookStore(pageDirectory(next.target));
             bootstrap.load();
-            bootstrap.initializePage(next.source.width, next.source.height, next.source.template);
+            bootstrap.initializePage(next.source.width, next.source.height, next.source.paperSize, next.source.template);
             bootstrap.sync();
             next.document = documentFor(next.target);
         }

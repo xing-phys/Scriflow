@@ -25,6 +25,7 @@ public final class NotebookLibrary {
     private static final class Pending {
         final int kind, selected;
         final List<NotebookCatalog.Entry> entries;
+        NotebookPaperSize paperSize;
         NotebookBook book;
         boolean ownsDirectory;
         Pending(int kind, List<NotebookCatalog.Entry> entries, int selected) {
@@ -82,6 +83,11 @@ public final class NotebookLibrary {
     }
 
     public void createNotebook(String name) throws IOException {
+        createNotebook(name, null);
+    }
+
+    /** New application notebooks choose physical paper before becoming visible in the catalog. */
+    public void createNotebook(String name, NotebookPaperSize paperSize) throws IOException {
         execute(() -> {
             requireCatalog(); requireWritable();
             if (state.entries.size() >= NotebookCatalog.MAX_NOTEBOOKS) throw new IOException("Notebook library is full");
@@ -89,6 +95,7 @@ public final class NotebookLibrary {
             List<NotebookCatalog.Entry> entries = new ArrayList<>(state.entries);
             entries.add(new NotebookCatalog.Entry(id, name));
             pending = new Pending(CREATE, entries, id);
+            pending.paperSize = paperSize;
             finishPending();
         });
     }
@@ -243,7 +250,7 @@ public final class NotebookLibrary {
                 throw new IOException("Cannot inspect an unlisted notebook; files were preserved.");
             }
             if (contents != null && contents.length != 0) {
-                // The only adoptable orphan is our durable, unsized blank first page. Extra
+                // The only adoptable orphan is our exact durable blank first page. Extra
                 // page/index files or any writing indicate an unrelated notebook, not a retry.
                 for (String file : contents) {
                     if (!file.equals("page.nbk") && !file.equals("page.nbk.bak") && !file.equals("page.nbk.tmp")) {
@@ -252,7 +259,11 @@ public final class NotebookLibrary {
                 }
                 requirePageFiles(next.selected);
                 NotebookPage candidate = new NotebookStore(target).load();
-                if (candidate.isInitialized() || !candidate.strokes.isEmpty()
+                if (candidate.isInitialized() != (next.paperSize != null)
+                        || !java.util.Objects.equals(candidate.paperSize, next.paperSize)
+                        || next.paperSize != null && (candidate.width != next.paperSize.logicalWidth()
+                            || candidate.height != next.paperSize.logicalHeight())
+                        || !candidate.strokes.isEmpty()
                         || candidate.template != NotebookPage.Template.BLANK) {
                     throw new IOException("An unexpected unlisted notebook exists; files were preserved.");
                 }
@@ -260,7 +271,10 @@ public final class NotebookLibrary {
             next.ownsDirectory = true;
         }
         NotebookStore bootstrap = new NotebookStore(target);
-        bootstrap.load(); bootstrap.initializeEmpty(); bootstrap.sync();
+        bootstrap.load();
+        if (next.paperSize == null) bootstrap.initializeEmpty();
+        else bootstrap.initializePage(next.paperSize, NotebookPage.Template.BLANK);
+        bootstrap.sync();
     }
 
     private NotebookBook bookFor(int id) {

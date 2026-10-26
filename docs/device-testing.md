@@ -4,6 +4,33 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## Scriflow 0.30.0-dev.1 authorized prerelease (2026-10-26)
+
+The owner explicitly requested implementing paper sizes, zoom, and app-wide
+orientation settings, then committing, pushing, and publishing an APK. No
+tablet is connected. Publication authorization does not establish physical
+acceptance; pinch touch routing, landscape native handwriting, sensor rotation,
+and visible e-ink behavior remain pending. See the
+[feature acceptance checklist](paper-zoom-orientation.md).
+
+- Artifact: `scriflow-0.30.0-dev.1.apk`, Android `versionCode` 34.
+- APK SHA-256: recorded in the release's `scriflow-0.30.0-dev.1.apk.sha256`
+  asset and release notes for the exact published file.
+- Signer certificate SHA-256: `2cc5db316df82fecc6085ff53e67cbd64f29b412f01e9a5c19bf4b34e3821709`.
+- Release tag: [`v0.30.0-dev.1`](https://github.com/xing-phys/Scriflow/releases/tag/v0.30.0-dev.1).
+- Automated checks: 24,966 host assertions, including 118 physical-paper
+  checks and 2,501 zoom/pan/rotation-anchor checks; debug/release lint and
+  builds; packaged version, permissions, license, component exposure, and APK
+  signing verification.
+- Independent Poppler parsing and rendered inspection of a five-page production
+  PDF fixture confirm A5, A4, ISO B5, Letter, and custom landscape dimensions
+  within 0.001 point. This uses synthetic host outlines, not tablet handwriting.
+
+Physical sizes are stored in version-3 snapshots and preserved in editable
+backups. Legacy notes retain their coordinates and PDF scale. Older APKs
+cannot read pages saved in version 3. The application ID and permanent public
+signing identity are unchanged, allowing in-place updates.
+
 ## Scriflow 0.29.0-dev.3 authorized prerelease (2026-10-26)
 
 The owner explicitly requested committing and releasing the circular-tool,

@@ -31,6 +31,12 @@ Android-independent so future device support does not require a new document for
 
 ## Durable identities and migration
 
+Version 0.30 adds version-3 page snapshots with optional physical paper
+dimensions, leaving legacy page coordinates and PDF printing scale unchanged.
+See [paper, zoom, and orientation](paper-zoom-orientation.md) for the current
+format extension and viewport behavior. The version-2 description below records
+the earlier identity migration.
+
 Version-2 `page.nbk` retains version-1 framing, checksums and journal semantics. A snapshot now
 starts with a 128-bit page ID before dimensions; every stroke starts with its 128-bit object ID
 before style and samples. IDs are UUIDs; within a page stroke IDs must be unique. Page IDs must
@@ -44,10 +50,11 @@ page directory, and stroke IDs from that page ID plus original record order. The
 edit writes an atomic v2 snapshot and retains the v1 predecessor as `.bak`. The migration preserves
 sample coordinates, style, pressure, event time, and ordering. IDs survive edits, undo/redo,
 reopening and backup. Opening and exporting an old notebook does not migrate its original files;
-a portable backup always contains v2 canonical snapshots with explicit IDs. Do not move raw v1
+a portable backup contains canonical snapshots with explicit IDs (version 3
+from 0.30). Do not move raw v1
 files around as a substitute for portable backup. Unknown versions fail closed.
 
-After a page migrates, older APKs cannot read its v2 data. Use the new editable backup format
+After a page migrates, APKs predating that format cannot read its data. Use the editable backup format
 before major updates; preserve the local signing key. No automatic downgrade migration exists.
 The app still keeps history only within the running process, up to 100 actions per page.
 

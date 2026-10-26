@@ -171,9 +171,9 @@ public final class NotebookStoreTest {
         byte[] invalidWidth = payload.clone();
         putInt(invalidWidth, 17, Integer.MAX_VALUE);
         byte[] invalidTemplate = payload.clone();
-        invalidTemplate[25] = 100;
+        invalidTemplate[26] = 100;
         byte[] invalidCount = payload.clone();
-        putInt(invalidCount, 26, Integer.MAX_VALUE);
+        putInt(invalidCount, 27, Integer.MAX_VALUE);
         byte[] invalidType = payload.clone();
         invalidType[0] = 99;
         for (byte[] malformed : new byte[][] {invalidWidth, invalidTemplate, invalidCount, invalidType}) {
@@ -312,7 +312,7 @@ public final class NotebookStoreTest {
         equal(2, reopened.strokes.size(), "release fixture supports edit then append");
         sameStroke(stroke(20), reopened.strokes.get(0));
         sameStroke(stroke(30), reopened.strokes.get(1));
-        equal(2, intAt(bytes(directory, "page.nbk"), 4), "editing atomically migrates to version 2");
+        equal(3, intAt(bytes(directory, "page.nbk"), 4), "editing atomically migrates to version 3");
     }
 
     private static void editSnapshotAndContinuedWriting() throws Exception {
@@ -470,7 +470,7 @@ public final class NotebookStoreTest {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         DataOutputStream output = new DataOutputStream(bytes);
         output.writeInt(0x4e424b31);
-        output.writeInt(2);
+        output.writeInt(3);
         output.write(record(payload));
         return bytes.toByteArray();
     }

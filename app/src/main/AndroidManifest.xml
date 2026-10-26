@@ -6,11 +6,13 @@
         <!-- Match Jnotes' firmware-managed scrolling/handwriting policy on this tablet.
              This is an app policy, not a raw EPDC waveform number. -->
         <meta-data android:name="hw_eink.app.refresh.mode" android:value="13" />
-        <!-- Portrait coordinates are part of the validated Huawei pen/display integration. -->
-        <activity android:name=".notebook.NotebookActivity" android:exported="false" android:screenOrientation="portrait" />
-        <activity android:name=".notebook.NotebookTransferActivity" android:exported="false" android:screenOrientation="portrait" />
-        <activity android:name=".notebook.NotebookPdfExportActivity" android:exported="false" android:screenOrientation="portrait" />
-        <activity android:name=".notebook.NotebookLibraryActivity" android:exported="true" android:screenOrientation="portrait">
+        <!-- Runtime display settings choose orientation. Normal Activity recreation rebuilds
+             the native writing surface at the new physical screen dimensions. -->
+        <activity android:name=".notebook.NotebookActivity" android:exported="false" />
+        <activity android:name=".notebook.NotebookTransferActivity" android:exported="false" />
+        <activity android:name=".notebook.NotebookPdfExportActivity" android:exported="false" />
+        <activity android:name=".notebook.NotebookSettingsActivity" android:exported="false" />
+        <activity android:name=".notebook.NotebookLibraryActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

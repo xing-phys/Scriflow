@@ -12,6 +12,7 @@ import android.graphics.Path;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.DashPathEffect;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -23,6 +24,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.FrameLayout;
+import android.widget.PopupWindow;
 import android.widget.TextView;
 import java.io.IOException;
 import java.util.List;
@@ -75,7 +77,19 @@ public final class NotebookActivity extends Activity {
     private final NotebookViewportBuffer viewportBuffer = new NotebookViewportBuffer();
     private final Map<Integer, Bitmap> tiles = new LinkedHashMap<>();
     private Bitmap preview;
-    private float scrollY, fingerY, fingerOrigin;
+    private float scrollY, fingerX, fingerY, fingerOriginX, fingerOrigin;
+    private float pinchDistance, pinchX, pinchY;
+    private boolean pinching;
+    private boolean selectionViewportGesture, selectionMixed;
+    private NotebookViewport.Fit zoomFit = NotebookViewport.Fit.WIDTH;
+    private float zoom = 1;
+    private int viewNotebookId;
+    private boolean restoreCenter;
+    private int restoreCenterPage;
+    private float restoreCenterX, restoreCenterY;
+    private PopupWindow zoomBadge;
+    private TextView zoomBadgeText;
+    private AlertDialog viewMenu;
     private int activePage = 1, fingerId = -1;
     private boolean scrolling, dragging, moved, fetching, firstViewport, savePosition, cleanupInk;
     private boolean settleRead;
@@ -87,7 +101,19 @@ public final class NotebookActivity extends Activity {
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
+        NotebookSettings.applyOrientation(this);
         session = NotebookSession.get(this);
+        viewNotebookId = session.notebookId();
+        if (saved != null && viewNotebookId == saved.getInt("viewNotebookId", -1)) {
+            zoom = saved.getFloat("zoom", 1);
+            if (!NotebookPage.finite(zoom) || zoom <= 0) zoom = 1;
+            try { zoomFit = NotebookViewport.Fit.valueOf(saved.getString("zoomFit", "WIDTH")); }
+            catch (IllegalArgumentException ignored) { zoomFit = NotebookViewport.Fit.WIDTH; }
+            restoreCenter = saved.getBoolean("viewCenter", false);
+            restoreCenterPage = saved.getInt("viewCenterPage", 1);
+            restoreCenterX = saved.getFloat("viewCenterX", 0);
+            restoreCenterY = saved.getFloat("viewCenterY", 0);
+        }
         penWidth = NotebookPenConfig.restore(getPreferences(MODE_PRIVATE)
             .getFloat("penWidth", NotebookPenConfig.DEFAULT_WIDTH));
         eraserWidth = NotebookWidthRange.ERASER.restore(getPreferences(MODE_PRIVATE)
@@ -107,11 +133,23 @@ public final class NotebookActivity extends Activity {
         root.addView(canvas, new FrameLayout.LayoutParams(-1, -1));
         setContentView(root);
         pageLabel = new TextView(this);
-        pageLabel.setText(session.notebookName() + " · 1 / 1");
+        pageLabel.setText(session.notebookName() + " · 1 / 1 · 100%");
         pageLabel.setTextSize(12); pageLabel.setTextColor(Color.BLACK);
         pageLabel.setSingleLine(true); pageLabel.setIncludeFontPadding(false);
         pageLabel.setEllipsize(TextUtils.TruncateAt.MIDDLE);
         pageLabel.setGravity(Gravity.CENTER_VERTICAL);
+        pageLabel.setOnClickListener(v -> chooseView());
+        zoomBadgeText = new TextView(this);
+        zoomBadgeText.setTextSize(18); zoomBadgeText.setTextColor(Color.BLACK);
+        zoomBadgeText.setGravity(Gravity.CENTER);
+        zoomBadgeText.setPadding(dp(14), dp(7), dp(14), dp(7));
+        GradientDrawable badgeBackground = new GradientDrawable();
+        badgeBackground.setColor(Color.WHITE); badgeBackground.setStroke(dp(1), Color.BLACK);
+        badgeBackground.setCornerRadius(dp(6)); zoomBadgeText.setBackground(badgeBackground);
+        zoomBadge = new PopupWindow(zoomBadgeText, -2, -2, false);
+        zoomBadge.setTouchable(false); zoomBadge.setAnimationStyle(0);
+        zoomBadge.setEnterTransition(null); zoomBadge.setExitTransition(null);
+        zoomBadge.setElevation(0f);
         saveState = new TextView(this);
         saveState.setSingleLine(true); saveState.setIncludeFontPadding(false);
         saveState.setText("Not saved · Retry"); saveState.setTextSize(12); saveState.setTextColor(Color.BLACK);
@@ -171,7 +209,13 @@ public final class NotebookActivity extends Activity {
     }
 
     @Override protected void onResume() {
-        super.onResume(); active = true;
+        super.onResume();
+        NotebookSettings.applyOrientation(this);
+        if (session.notebookId() != viewNotebookId) {
+            viewNotebookId = session.notebookId();
+            zoom = 1; zoomFit = NotebookViewport.Fit.WIDTH; restoreCenter = false; viewport = null;
+        }
+        active = true;
         deviceStatus.start();
         canvas.post(() -> { if (active) statusIslands.show(canvas); });
         loadPage();
@@ -192,6 +236,7 @@ public final class NotebookActivity extends Activity {
 
     private void openCanvas(NotebookPage loaded) {
         final int request = ++generation;
+        if (!restoreCenter) captureViewCenter();
         disposeCanvas();
         shownError = null;
         saveState.setOnClickListener(null);
@@ -226,6 +271,7 @@ public final class NotebookActivity extends Activity {
                 @Override public void onPenStateChanged(boolean down) {
                     if (!active || request != generation) return;
                     penDown = down;
+                    NotebookSettings.setPenDown(NotebookActivity.this, down);
                     lastInputAt = SystemClock.uptimeMillis();
                     main.removeCallbacks(updateSaveState);
                     if (!down) scheduleSaveState();
@@ -279,17 +325,28 @@ public final class NotebookActivity extends Activity {
     }
 
     private void configureViewport(int width, int height) {
-        viewport = new NotebookViewport(session.pageCount(), page.width, page.height, width, height, dp(12));
+        viewport = new NotebookViewport(session.pageCount(), page.width, page.height, width, height, dp(12), zoom, 0);
+        int centerPage = Math.max(1, Math.min(session.pageCount(), restoreCenterPage));
+        if (zoomFit != NotebookViewport.Fit.CUSTOM) {
+            zoom = viewport.fittedZoom(zoomFit, restoreCenter ? centerPage : session.pageNumber());
+            viewport = viewport.withView(zoom, 0);
+        }
         NotebookScrollStore.State position = reopenPosition == null ? session.scrollPosition() : reopenPosition;
         reopenPosition = null;
         scrollY = position == null ? viewport.pageScroll(session.pageNumber())
             : viewport.scrollForAnchor(position.page, position.fraction);
+        if (restoreCenter && NotebookPage.finite(restoreCenterX) && NotebookPage.finite(restoreCenterY)) {
+            viewport = viewport.withView(zoom, viewport.panForPoint(centerPage, restoreCenterX, width / 2f));
+            scrollY = viewport.scrollForPoint(centerPage, restoreCenterY, height / 2f);
+        }
+        restoreCenter = false;
         activePage = viewport.centeredPage(scrollY);
         requestWindow();
     }
 
     private List<Integer> wantedPages() {
         List<Integer> visible = viewport.visiblePages(scrollY);
+        if (visible.isEmpty()) visible = java.util.Collections.singletonList(viewport.centeredPage(scrollY));
         List<Integer> result = new ArrayList<>();
         int first = Math.max(1, visible.get(0) - 1);
         int last = Math.min(viewport.pageCount, visible.get(visible.size() - 1) + 1);
@@ -345,6 +402,7 @@ public final class NotebookActivity extends Activity {
             ink.setPenWidth(fittedPenWidth());
             ink.setEraserWidth(fittedEraserWidth());
             ink.setSelectionMode(selectionOutline != null);
+            updateOverlayBounds();
             NotebookPage composed = viewport.compose(pages, scrollY);
             if (firstViewport) {
                 ink.setPage(composed); ink.setPaperRenderer(this::drawPaper);
@@ -425,30 +483,65 @@ public final class NotebookActivity extends Activity {
             if (shownError != null) return;
             if (selectionOutline != null) { clearSelection(); cleanupInk = true; }
             editing = false; scrolling = true; dragging = true; moved = false;
+            pinching = false;
             fingerId = event.getPointerId(changed);
+            fingerOriginX = fingerX = event.getX(changed);
             fingerOrigin = fingerY = event.getY(changed);
             return;
         }
         if (!dragging) return;
+        int first = -1, second = -1;
+        for (int i = 0; i < event.getPointerCount(); i++) {
+            if (action == MotionEvent.ACTION_POINTER_UP && i == changed
+                    || event.getToolType(i) != MotionEvent.TOOL_TYPE_FINGER) continue;
+            if (first < 0) first = i; else if (second < 0) second = i;
+        }
+        if (first >= 0 && second >= 0 && action != MotionEvent.ACTION_UP && action != MotionEvent.ACTION_CANCEL) {
+            float x = (event.getX(first) + event.getX(second)) / 2;
+            float y = (event.getY(first) + event.getY(second)) / 2;
+            float distance = (float) Math.hypot(event.getX(first) - event.getX(second),
+                event.getY(first) - event.getY(second));
+            if (pinching && action == MotionEvent.ACTION_MOVE && pinchDistance > dp(8) && distance > dp(8)) {
+                float minimum = Math.min(.1f, viewport.fittedZoom(NotebookViewport.Fit.PAGE, activePage));
+                float maximum = Math.max(8f, viewport.fittedZoom(NotebookViewport.Fit.HEIGHT, activePage));
+                float nextZoom = Math.max(minimum, Math.min(maximum, zoom * distance / pinchDistance));
+                zoomAt(nextZoom, pinchX, pinchY, x, y);
+                zoomFit = NotebookViewport.Fit.CUSTOM;
+                moved = true;
+                showZoomBadge();
+            }
+            pinching = true; pinchDistance = distance; pinchX = x; pinchY = y;
+            return;
+        }
+        if (pinching) {
+            pinching = false;
+            if (first >= 0) {
+                fingerId = event.getPointerId(first);
+                fingerOriginX = fingerX = event.getX(first);
+                fingerOrigin = fingerY = event.getY(first);
+            }
+        }
         int index = event.findPointerIndex(fingerId);
         if (action == MotionEvent.ACTION_POINTER_UP && event.getPointerId(changed) == fingerId) {
             for (int i = 0; i < event.getPointerCount(); i++) {
                 if (i == changed || event.getToolType(i) != MotionEvent.TOOL_TYPE_FINGER) continue;
-                fingerId = event.getPointerId(i); fingerY = event.getY(i);
-                if (!moved) fingerOrigin = fingerY;
+                fingerId = event.getPointerId(i); fingerX = event.getX(i); fingerY = event.getY(i);
+                if (!moved) { fingerOriginX = fingerX; fingerOrigin = fingerY; }
                 return;
             }
         }
         if (action == MotionEvent.ACTION_MOVE && index >= 0) {
-            float y = event.getY(index);
-            if (!moved && Math.abs(y - fingerOrigin) < dp(4)) return;
+            float x = event.getX(index), y = event.getY(index);
+            if (!moved && Math.hypot(x - fingerOriginX, y - fingerOrigin) < dp(4)) return;
             moved = true;
-            scrollY = viewport.clampScroll(scrollY + fingerY - y); fingerY = y;
+            viewport = viewport.withView(zoom, viewport.pan + fingerX - x);
+            scrollY = viewport.clampScroll(scrollY + fingerY - y); fingerX = x; fingerY = y;
             ++viewportRevision;
             schedulePreview(); requestWindow();
         } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL || index < 0
                 || action == MotionEvent.ACTION_POINTER_UP && event.getPointerId(changed) == fingerId) {
             dragging = false; fingerId = -1;
+            zoomBadge.dismiss();
             main.removeCallbacks(previewFrame);
             if (!moved && !settleRead && !firstViewport && !cleanupInk) {
                 scrolling = false; ink.start(); scheduleSaveState();
@@ -460,6 +553,38 @@ public final class NotebookActivity extends Activity {
         }
     }
 
+    private void zoomAt(float nextZoom, float fromX, float fromY, float toX, float toY) {
+        int id = viewport.nearestPage(fromY, scrollY);
+        float x = (fromX - viewport.pageLeft(id)) / viewport.scale(id);
+        float y = (fromY - viewport.pageTop(id, scrollY)) / viewport.scale(id);
+        NotebookViewport next = viewport.withView(nextZoom, 0);
+        next = next.withView(nextZoom, next.panForPoint(id, x, toX));
+        scrollY = next.scrollForPoint(id, y, toY);
+        viewport = next; zoom = nextZoom;
+        tiles.clear(); ++viewportRevision;
+        updatePageLabel();
+        schedulePreview(); requestWindow();
+    }
+
+    private String zoomLabel() { return Math.round(zoom * 100) + "%"; }
+
+    private void showZoomBadge() {
+        zoomBadgeText.setText(zoomLabel());
+        if (zoomBadge.isShowing() || !canvas.isAttachedToWindow()) return;
+        zoomBadge.showAtLocation(canvas, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, 0, dp(24));
+    }
+
+    private void captureViewCenter() {
+        if (viewport == null) return;
+        if (overview != null && (overview.pagesChanged() || overview.hasPendingPageChange())) {
+            restoreCenter = false;
+            return;
+        }
+        restoreCenter = true; restoreCenterPage = viewport.centeredPage(scrollY);
+        restoreCenterX = (viewport.width / 2f - viewport.pageLeft(restoreCenterPage)) / viewport.scale(restoreCenterPage);
+        restoreCenterY = (viewport.height / 2f - viewport.pageTop(restoreCenterPage, scrollY)) / viewport.scale(restoreCenterPage);
+    }
+
     private void schedulePreview() {
         if (active && dragging && !main.hasCallbacks(previewFrame)) main.postDelayed(previewFrame, 24);
     }
@@ -469,30 +594,35 @@ public final class NotebookActivity extends Activity {
         try {
             if (preview == null) preview = Bitmap.createBitmap(viewport.width, viewport.height, Bitmap.Config.RGB_565);
             Canvas drawing = new Canvas(preview);
-            drawing.drawColor(0xffdddddd);
+            drawing.drawColor(Color.WHITE);
             for (int id : viewport.visiblePages(scrollY)) {
-                float top = viewport.pageTop(id, scrollY);
+                float top = viewport.pageTop(id, scrollY), left = viewport.pageLeft(id);
                 NotebookPage current = pages.get(id);
                 if (current == null) {
                     Paint paint = new Paint(); paint.setColor(Color.WHITE);
-                    drawing.drawRect(0, top, viewport.width, top + viewport.pageHeight(id) * viewport.scale(id), paint);
+                    drawing.drawRect(left, top, viewport.pageRight(id), top + viewport.pageHeight(id) * viewport.scale(id), paint);
                     paint.setColor(0xff555555); paint.setTextSize(dp(16));
                     drawing.drawText("Loading page " + id + "…", dp(20), Math.max(dp(30), top + dp(30)), paint);
                     continue;
                 }
-                int height = Math.max(1, Math.round(current.height * viewport.scale(id)));
-                if (height <= viewport.height * 2) {
+                int width = Math.max(1, (int) Math.ceil(current.width * viewport.scale(id)));
+                int height = Math.max(1, (int) Math.ceil(current.height * viewport.scale(id)));
+                // A pinch changes scale every frame; render into the reused viewport bitmap
+                // instead of repeatedly allocating and discarding page-sized tiles.
+                if (!pinching && width <= viewport.width * 2 && height <= viewport.height * 2
+                        && (long) width * height <= (long) viewport.width * viewport.height * 2) {
                     Bitmap tile = tiles.get(id);
                     if (tile == null) {
-                        tile = Bitmap.createBitmap(viewport.width, height, Bitmap.Config.RGB_565);
+                        tile = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565);
                         Canvas tileCanvas = new Canvas(tile);
+                        tileCanvas.drawColor(Color.WHITE);
                         tileCanvas.scale(viewport.scale(id), viewport.scale(id));
                         drawPage(tileCanvas, current, true);
                         tiles.put(id, tile);
                     }
-                    drawing.drawBitmap(tile, 0, top, null);
+                    drawing.drawBitmap(tile, left, top, null);
                 } else {
-                    drawing.save(); drawing.translate(0, top);
+                    drawing.save(); drawing.translate(left, top);
                     drawing.scale(viewport.scale(id), viewport.scale(id));
                     drawPage(drawing, current, true); drawing.restore();
                 }
@@ -502,12 +632,12 @@ public final class NotebookActivity extends Activity {
     }
 
     private void drawPaper(Canvas drawing, int width, int height) {
-        drawing.drawColor(0xffdddddd);
+        drawing.drawColor(Color.WHITE);
         if (viewport == null) return;
         for (int id : viewport.visiblePages(scrollY)) {
             NotebookPage current = pages.get(id);
             if (current == null) continue;
-            drawing.save(); drawing.translate(0, viewport.pageTop(id, scrollY));
+            drawing.save(); drawing.translate(viewport.pageLeft(id), viewport.pageTop(id, scrollY));
             drawing.scale(viewport.scale(id), viewport.scale(id));
             drawPage(drawing, current, false); drawing.restore();
         }
@@ -541,7 +671,30 @@ public final class NotebookActivity extends Activity {
     }
 
     private void updateOverlayBounds() {
-        if (ink != null) ink.setOverlayBounds(toolsBounds, notebookStatusBounds, deviceStatusBounds);
+        if (ink == null) return;
+        List<Rect> bounds = new ArrayList<>();
+        bounds.add(toolsBounds); bounds.add(notebookStatusBounds); bounds.add(deviceStatusBounds);
+        if (viewport != null) {
+            int[] origin = new int[2]; ink.view().getLocationOnScreen(origin);
+            int left = Math.max(0, (int) Math.floor(viewport.pageLeft(1)));
+            int right = Math.min(viewport.width, (int) Math.ceil(viewport.pageRight(1)));
+            addPageExclusion(bounds, origin, 0, 0, left, viewport.height);
+            addPageExclusion(bounds, origin, right, 0, viewport.width, viewport.height);
+            int bottom = 0;
+            for (int id : viewport.visiblePages(scrollY)) {
+                int top = Math.max(0, Math.min(viewport.height, (int) Math.floor(viewport.pageTop(id, scrollY))));
+                addPageExclusion(bounds, origin, 0, bottom, viewport.width, top);
+                bottom = Math.max(bottom, Math.min(viewport.height,
+                    (int) Math.ceil(viewport.pageTop(id, scrollY) + viewport.pageHeight(id) * viewport.scale(id))));
+            }
+            addPageExclusion(bounds, origin, 0, bottom, viewport.width, viewport.height);
+        }
+        ink.setOverlayBounds(bounds.toArray(new Rect[0]));
+    }
+
+    private void addPageExclusion(List<Rect> bounds, int[] origin, int left, int top, int right, int bottom) {
+        if (right > left && bottom > top)
+            bounds.add(new Rect(origin[0] + left, origin[1] + top, origin[0] + right, origin[1] + bottom));
     }
 
     private void finishToolsContact() {
@@ -647,11 +800,12 @@ public final class NotebookActivity extends Activity {
     }
 
     private float fittedPenWidth() {
-        return penWidth * (viewport == null ? 1f : viewport.scale(activePage));
+        return Math.min(1024, penWidth * (viewport == null ? 1f : viewport.scale(activePage)));
     }
 
     private float fittedEraserWidth() {
-        return eraserWidth * (viewport == null ? 1f : viewport.scale(activePage));
+        return Math.min(NotebookStore.MAX_DIMENSION,
+            eraserWidth * (viewport == null ? 1f : viewport.scale(activePage)));
     }
 
     private void chooseWidth(NotebookInk.Tool selected) {
@@ -723,10 +877,10 @@ public final class NotebookActivity extends Activity {
         if (path.isEmpty()) { editing = false; installViewport(); return; }
         if (id == 0) id = viewport.centeredPage(scrollY);
         final int target = id;
-        float scale = viewport.scale(id), top = viewport.pageTop(id, scrollY);
+        float scale = viewport.scale(id), top = viewport.pageTop(id, scrollY), left = viewport.pageLeft(id);
         List<NotebookPage.Point> local = new ArrayList<>();
         for (NotebookPage.Point p : path)
-            local.add(new NotebookPage.Point(p.x / scale, (p.y - top) / scale, p.time, p.pressure));
+            local.add(new NotebookPage.Point((p.x - left) / scale, (p.y - top) / scale, p.time, p.pressure));
         selectionPage = id; selectionOutline = NotebookLasso.closedOutline(local);
         session.selectLasso(id, selectionOutline,
             (selected, error) -> finishLasso(request, target, selected, error, true));
@@ -768,11 +922,11 @@ public final class NotebookActivity extends Activity {
     private RectF selectionScreenBounds() {
         RectF bounds = new RectF();
         if (selectionOutline == null || selectionOutline.isEmpty() || viewport == null) return bounds;
-        float scale = viewport.scale(selectionPage), top = viewport.pageTop(selectionPage, scrollY);
+        float scale = viewport.scale(selectionPage), top = viewport.pageTop(selectionPage, scrollY), left = viewport.pageLeft(selectionPage);
         NotebookPage.Point first = selectionOutline.get(0);
-        bounds.set(first.x * scale, first.y * scale + top, first.x * scale, first.y * scale + top);
+        bounds.set(first.x * scale + left, first.y * scale + top, first.x * scale + left, first.y * scale + top);
         for (NotebookPage.Point point : selectionOutline) {
-            bounds.left = Math.min(bounds.left, point.x * scale); bounds.right = Math.max(bounds.right, point.x * scale);
+            bounds.left = Math.min(bounds.left, point.x * scale + left); bounds.right = Math.max(bounds.right, point.x * scale + left);
             bounds.top = Math.min(bounds.top, point.y * scale + top); bounds.bottom = Math.max(bounds.bottom, point.y * scale + top);
         }
         return bounds;
@@ -780,11 +934,11 @@ public final class NotebookActivity extends Activity {
 
     private void drawSelectionOutline(Canvas drawing, float dx, float dy) {
         if (selectionOutline == null || selectionOutline.isEmpty() || viewport == null) return;
-        float scale = viewport.scale(selectionPage), top = viewport.pageTop(selectionPage, scrollY);
+        float scale = viewport.scale(selectionPage), top = viewport.pageTop(selectionPage, scrollY), left = viewport.pageLeft(selectionPage);
         Path path = new Path();
         for (int i = 0; i < selectionOutline.size(); i++) {
             NotebookPage.Point p = selectionOutline.get(i);
-            float x = p.x * scale + dx, y = p.y * scale + top + dy;
+            float x = p.x * scale + left + dx, y = p.y * scale + top + dy;
             if (i == 0) path.moveTo(x, y); else path.lineTo(x, y);
         }
         path.close();
@@ -824,8 +978,22 @@ public final class NotebookActivity extends Activity {
 
     private void selectionTouch(MotionEvent event) {
         lastInputAt = SystemClock.uptimeMillis();
-        if (viewport == null || selectionOutline == null || shownError != null) return;
+        if (viewport == null || shownError != null) return;
         int action = event.getActionMasked(), changed = event.getActionIndex();
+        if (selectionViewportGesture) {
+            for (int i = 0; i < event.getPointerCount(); i++)
+                if (event.getToolType(i) != MotionEvent.TOOL_TYPE_FINGER) selectionMixed = true;
+            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                selectionViewportGesture = false;
+                if (selectionMixed) {
+                    MotionEvent cancelled = MotionEvent.obtain(event);
+                    cancelled.setAction(MotionEvent.ACTION_CANCEL);
+                    try { finger(cancelled); } finally { cancelled.recycle(); }
+                } else finger(event);
+            } else if (!selectionMixed) finger(event);
+            return;
+        }
+        if (selectionOutline == null) return;
         if (action == MotionEvent.ACTION_DOWN) {
             if (!canEdit()) return;
             int type = event.getToolType(changed);
@@ -833,7 +1001,7 @@ public final class NotebookActivity extends Activity {
                     && type != MotionEvent.TOOL_TYPE_ERASER) return;
             float scale = viewport.scale(selectionPage), top = viewport.pageTop(selectionPage, scrollY);
             boolean inside = selection != null && NotebookLasso.contains(selectionOutline,
-                event.getX(changed) / scale, (event.getY(changed) - top) / scale);
+                (event.getX(changed) - viewport.pageLeft(selectionPage)) / scale, (event.getY(changed) - top) / scale);
             pauseForEdit();
             if (shownError != null) return;
             selectionPointer = event.getPointerId(changed);
@@ -842,6 +1010,20 @@ public final class NotebookActivity extends Activity {
             return;
         }
         if (!selectionDrag.isActive()) return;
+        if (action == MotionEvent.ACTION_POINTER_DOWN && event.getPointerCount() >= 2) {
+            boolean fingersOnly = true;
+            for (int i = 0; i < event.getPointerCount(); i++)
+                fingersOnly &= event.getToolType(i) == MotionEvent.TOOL_TYPE_FINGER;
+            if (fingersOnly) {
+                resetSelectionPreview(); clearSelection(); cleanupInk = true;
+                editing = false; scrolling = true; dragging = true; moved = false; pinching = false;
+                selectionViewportGesture = true; selectionMixed = false;
+                fingerId = event.getPointerId(0);
+                fingerOriginX = fingerX = event.getX(0); fingerOrigin = fingerY = event.getY(0);
+                finger(event);
+                return;
+            }
+        }
         int index = event.findPointerIndex(selectionPointer);
         if (action == MotionEvent.ACTION_POINTER_DOWN || action == MotionEvent.ACTION_POINTER_UP || index < 0) {
             selectionDrag.cancel(); selectionPreviewDx = selectionPreviewDy = 0;
@@ -877,7 +1059,7 @@ public final class NotebookActivity extends Activity {
     private void prepareSelectionPreview() {
         try {
             selectionBase = Bitmap.createBitmap(viewport.width, viewport.height, Bitmap.Config.RGB_565);
-            Canvas drawing = new Canvas(selectionBase); drawing.drawColor(0xffdddddd);
+            Canvas drawing = new Canvas(selectionBase); drawing.drawColor(Color.WHITE);
             HashSet<java.util.UUID> selected = new HashSet<>();
             for (NotebookPage.Stroke stroke : selection.strokes) {
                 selected.add(stroke.id); selectionPaths.add(NotebookStrokeRenderer.path(stroke, () -> false));
@@ -885,7 +1067,7 @@ public final class NotebookActivity extends Activity {
             Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
             for (int id : viewport.visiblePages(scrollY)) {
                 NotebookPage current = pages.get(id); if (current == null) continue;
-                drawing.save(); drawing.translate(0, viewport.pageTop(id, scrollY));
+                drawing.save(); drawing.translate(viewport.pageLeft(id), viewport.pageTop(id, scrollY));
                 drawing.scale(viewport.scale(id), viewport.scale(id));
                 drawPage(drawing, current, false); drawing.clipRect(0, 0, current.width, current.height);
                 for (NotebookPage.Stroke stroke : current.strokes)
@@ -901,10 +1083,10 @@ public final class NotebookActivity extends Activity {
         try {
             if (preview == null) preview = Bitmap.createBitmap(viewport.width, viewport.height, Bitmap.Config.RGB_565);
             Canvas drawing = new Canvas(preview); drawing.drawBitmap(selectionBase, 0, 0, null);
-            float scale = viewport.scale(selectionPage), top = viewport.pageTop(selectionPage, scrollY);
-            drawing.save(); drawing.clipRect(0, Math.max(0, top), viewport.width,
+            float scale = viewport.scale(selectionPage), top = viewport.pageTop(selectionPage, scrollY), left = viewport.pageLeft(selectionPage);
+            drawing.save(); drawing.clipRect(Math.max(0, left), Math.max(0, top), Math.min(viewport.width, viewport.pageRight(selectionPage)),
                 Math.min(viewport.height, top + viewport.pageHeight(selectionPage) * scale));
-            drawing.translate(selectionPreviewDx, top + selectionPreviewDy); drawing.scale(scale, scale);
+            drawing.translate(left + selectionPreviewDx, top + selectionPreviewDy); drawing.scale(scale, scale);
             Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG); paint.setStyle(Paint.Style.FILL);
             for (int i = 0; i < selectionPaths.size(); i++) {
                 paint.setColor(selection.strokes.get(i).color); drawing.drawPath(selectionPaths.get(i), paint);
@@ -933,7 +1115,8 @@ public final class NotebookActivity extends Activity {
         NotebookPage target = pages.get(id);
         if (session.clipboard() != null && target != null && session.clipboard().fits(target)) {
             labels.add("Paste"); actions.add(() -> {
-                float x = target.width / 2f;
+                float x = Math.max(0, Math.min(target.width,
+                    (viewport.width / 2f - viewport.pageLeft(id)) / viewport.scale(id)));
                 float y = Math.max(0, Math.min(target.height,
                     (viewport.height / 2f - viewport.pageTop(id, scrollY)) / viewport.scale(id)));
                 selectionOutline = null;
@@ -980,10 +1163,57 @@ public final class NotebookActivity extends Activity {
 
     private void updatePageLabel() {
         String name = session.notebookName();
-        String text = name + " · " + activePage + " / " + session.pageCount();
+        String text = name + " · " + activePage + " / " + session.pageCount() + " · " + zoomLabel();
         if (!text.contentEquals(pageLabel.getText())) pageLabel.setText(text);
         pageLabel.setContentDescription(session.notebookName() + ", page " + activePage
-            + " of " + session.pageCount());
+            + " of " + session.pageCount() + ", zoom " + zoomLabel() + "; tap for zoom and app settings");
+    }
+
+    /** The quiet notebook title also provides zoom presets without enlarging the pen tools. */
+    private void chooseView() {
+        if (!canEdit() || viewMenu != null) return;
+        pauseForEdit();
+        if (shownError != null) return;
+        clearSelection();
+        final int request = generation;
+        final int[] choice = {-1};
+        final float[] percentages = {.25f, .5f, .75f, 1, 1.25f, 1.5f, 2, 3, 4};
+        List<String> labels = new ArrayList<>();
+        labels.add("Fit width"); labels.add("Fit height"); labels.add("Fit page");
+        for (float percentage : percentages) labels.add(Math.round(percentage * 100) + "%");
+        labels.add("App settings");
+        viewMenu = new AlertDialog.Builder(this)
+            .setTitle("Zoom · " + zoomLabel() + " (100% = fit width)")
+            .setItems(labels.toArray(new String[0]), (dialog, which) -> choice[0] = which)
+            .setNegativeButton("Close", null).create();
+        viewMenu.setOnDismissListener(dialog -> {
+            viewMenu = null;
+            if (!active || request != generation) return;
+            session.load((loaded, error) -> {
+                if (!active || request != generation) return;
+                mergeWindow();
+                if (error != null) { showError(error); return; }
+                int which = choice[0];
+                if (which == percentages.length + 3) {
+                    startActivity(new Intent(this, NotebookSettingsActivity.class));
+                    overridePendingTransition(0, 0);
+                    return;
+                }
+                if (which >= 0) {
+                    zoomFit = which == 0 ? NotebookViewport.Fit.WIDTH
+                        : which == 1 ? NotebookViewport.Fit.HEIGHT
+                        : which == 2 ? NotebookViewport.Fit.PAGE : NotebookViewport.Fit.CUSTOM;
+                    float target = which < 3 ? viewport.fittedZoom(zoomFit, activePage) : percentages[which - 3];
+                    zoomAt(target, viewport.width / 2f, viewport.height / 2f, viewport.width / 2f, viewport.height / 2f);
+                    if (which == 1 || which == 2) scrollY = viewport.pageScroll(activePage);
+                    savePosition = true;
+                }
+                editing = false; scrolling = true;
+                requestWindow();
+            });
+        });
+        showStaticDialog(viewMenu);
+        if (viewMenu.getListView() != null) viewMenu.getListView().setSelector(android.R.color.transparent);
     }
 
     private void returnToLibrary() {
@@ -1040,7 +1270,7 @@ public final class NotebookActivity extends Activity {
                     clearSelection(); page = session.current();
                     pages.clear(); viewportBuffer.clear(); tiles.clear();
                     viewport = new NotebookViewport(session.pageCount(), page.width, page.height,
-                        viewport.width, viewport.height, dp(12));
+                        viewport.width, viewport.height, dp(12), zoom, viewport.pan);
                     jumpToPage(dialog.chosenPage() > 0 ? dialog.chosenPage() : session.pageNumber());
                 } else if (dialog.chosenPage() > 0) jumpToPage(dialog.chosenPage());
                 else {
@@ -1066,7 +1296,7 @@ public final class NotebookActivity extends Activity {
             if (!active || request != generation) return;
             if (error != null) { showError(error); return; }
             viewport = new NotebookViewport(session.pageCount(), page.width, page.height,
-                viewport.width, viewport.height, dp(12));
+                viewport.width, viewport.height, dp(12), zoom, viewport.pan);
             editing = false; scrolling = true; savePosition = true;
             activePage = session.pageCount(); scrollY = viewport.pageScroll(activePage);
             settleRead = true; ++viewportRevision;
@@ -1145,7 +1375,7 @@ public final class NotebookActivity extends Activity {
             + "\n" + current.strokes.size() + " strokes\n"
             + (session.error() != null ? "Some writing has not been saved."
                 : session.isSaving() ? "Saving your latest writing…" : "Your completed strokes are saved on this tablet.")
-            + "\n\nDrag with one finger to scroll and stop anywhere. Write with the stylus. Tap the grid icon for thumbnails and page-number jumps. Use the left/right arrows for adjacent pages. The page-plus icon adds an empty page at the end. The paper icon changes this page’s Blank/Lined background. The books icon returns to your library."
+            + "\n\nDrag with one finger to scroll and pan. Pinch with two fingers to zoom around their midpoint. Tap the notebook title or zoom percentage for Fit width, Fit height, Fit page, zoom presets, and App settings. New notes start at Fit width; 100% means Fit width. Write with the stylus. Tap the grid icon for thumbnails and page-number jumps. Use the left/right arrows for adjacent pages. The page-plus icon adds an empty page at the end. The paper icon changes this page’s Blank/Lined background. The books icon returns to your library."
             + "\n\nEraser draws a temporary grey trail. Lift the pen to remove whole ink strokes touched by it, together with the trail. Tap the selected Eraser icon to adjust its width (4–240). Current eraser: " + NotebookWidthRange.ERASER.label(eraserWidth) + ". Each page remembers up to 100 Undo/Redo edits while the app process stays open."
             + "\n\nLasso draws a temporary dashed line. Lift the stylus to close the curve automatically. Drag inside with a finger or stylus to move the selected ink. Copy, Duplicate, Cut, Delete, and Done appear beside the region. Done or a tap outside clears the selection; tap the selected Lasso icon afterward for Paste or Select all. Copied ink stays inside Scriflow until the app restarts. Selection and movement stay on one page."
             + "\n\nNew writing or a successful edit clears Redo. Changing paper keeps your stroke history.";
@@ -1198,21 +1428,34 @@ public final class NotebookActivity extends Activity {
 
     @Override protected void onPause() {
         boolean saveViewport = overview == null || !overview.pagesChanged() && !overview.hasPendingPageChange();
+        // Flush completed pen-UP events against the current layout before retiring its callbacks.
+        if (ink != null) ink.pauseForEdit();
+        captureViewCenter();
         active = false; ++generation;
+        NotebookSettings.setPenDown(this, false);
         deviceStatus.stop();
         statusIslands.hide();
         pendingToolAction = null; toolsContact = false;
         clearSelection(); resetSelectionPreview();
         if (lassoMenu != null) { lassoMenu.dismiss(); lassoMenu = null; }
+        if (viewMenu != null) { viewMenu.dismiss(); viewMenu = null; }
         if (floatingTools != null) floatingTools.hide();
         if (overview != null) { overview.dismiss(); overview = null; }
         if (widthPopup != null) { widthPopup.dismiss(); widthPopup = null; }
         main.removeCallbacks(updateSaveState);
         disposeCanvas();
+        if (!saveViewport) { viewport = null; restoreCenter = false; }
         if (saveViewport) persistPosition();
         super.onPause();
     }
     @Override protected void onSaveInstanceState(Bundle state) {
+        captureViewCenter();
+        state.putInt("viewNotebookId", viewNotebookId);
+        state.putFloat("zoom", zoom);
+        state.putString("zoomFit", zoomFit.name());
+        state.putBoolean("viewCenter", restoreCenter);
+        state.putInt("viewCenterPage", restoreCenterPage);
+        state.putFloat("viewCenterX", restoreCenterX); state.putFloat("viewCenterY", restoreCenterY);
         state.putBoolean("eraser", tool == NotebookInk.Tool.ERASER);
         state.putBoolean("lasso", tool == NotebookInk.Tool.LASSO);
         super.onSaveInstanceState(state);
@@ -1220,7 +1463,8 @@ public final class NotebookActivity extends Activity {
     private void disposeCanvas() {
         main.removeCallbacks(previewFrame);
         clearSelection(); resetSelectionPreview();
-        dragging = false;
+        dragging = false; pinching = false; selectionViewportGesture = false;
+        if (zoomBadge != null) zoomBadge.dismiss();
         penDown = false;
         if (floatingTools != null) floatingTools.hide();
         if (ink != null) { ink.release(); ink = null; }

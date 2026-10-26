@@ -12,6 +12,34 @@ its title without moving its files. Names may contain up to 80 Unicode
 characters; the library supports up to 200 notebooks. The editor's **books icon**
 returns to the library. Each notebook remembers its own reading position.
 
+Tap **Quick A5 note** to create and open an A5 notebook immediately with an
+automatic name. **+ Notebook** opens the named creation form.
+New notebooks default to **A5 (148 × 210 mm)**. The creation form offers
+standard paper sizes, including A4, ISO B5, and Letter, and a **Custom** choice
+with width and height in millimetres. Newly added or inserted blank pages
+inherit the source page's dimensions. PDF export uses the chosen physical size;
+changing screen orientation or zoom does not change the paper. Existing notes
+keep their original coordinates and PDF printing scale.
+
+## Zoom and screen orientation
+
+New notes open at **Fit width**. Pinch with **two fingers** to zoom in or out;
+a percentage indicator appears during zoom. The zoom controls offer **Fit width**,
+**Fit height**, **Fit page**, and fixed percentages. Drag with a finger to pan
+across enlarged pages and scroll through the notebook. Space outside the paper
+is white. Ink stays attached to the page when you zoom or rotate.
+
+Tap the notebook title/percentage in the top-left island to open the zoom
+controls and **App settings**.
+
+Open **Settings** from the library or **App settings** from the editor. Choose **Portrait**,
+**Landscape**, or **Follow device sensor**. The choice is saved for the whole
+app. Sensor mode follows the tablet even if system rotation is locked; while
+writing, rotation waits until you lift the pen. Screen rotation rebuilds the
+writing surface without changing stored page dimensions.
+
+## Writing and saving
+
 Write with the stylus. Completed strokes save automatically in the background;
 there is no manual save button. The three-dot menu shows the page's save state.
 If a save fails, writing pauses and **Not saved · Retry** appears. Retry before

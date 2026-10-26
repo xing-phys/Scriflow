@@ -21,11 +21,14 @@ The saved PDF contains filled vector outlines from Huawei's native pressure
 brush, retaining per-stroke style, pressure-shaped width, dots, color/opacity,
 and each page's blank/lined background. Before 0.21, export drew fixed-width
 centre lines and ignored the saved pressure samples. Existing notes now render
-correctly without migration; older PDFs need to be exported again. It preserves each
-page's proportions, with a 595.2756-point (210 mm) page width and proportional
-height. The source stores logical pixels rather than physical paper sizes, so
-this is a printing scale, not the tablet's physical size. An extreme page is
-scaled smaller if necessary to stay within PDF's 14,400-point page-height limit.
+correctly without migration; older PDFs need to be exported again.
+From 0.30, new pages store physical dimensions: A5 exports at 148 × 210 mm,
+and other presets or custom sizes export at their selected width and height.
+Zoom and screen rotation do not affect PDF dimensions. Legacy pages without
+physical dimensions retain a 595.2756-point (210 mm) page width and proportional
+height. This legacy printing scale is independent of the tablet's physical size.
+An extreme legacy page is scaled smaller if necessary to stay within PDF's
+14,400-point page-height limit.
 Pages are clipped to their stored boundaries. Continuous-view gaps and app
 controls are excluded. Changing the viewport does not crop the export.
 

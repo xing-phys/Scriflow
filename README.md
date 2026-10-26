@@ -16,11 +16,11 @@ Development and physical testing target **MatePad Paper HMW-W09**, Android
 rendering use Huawei APIs already present on that firmware; no proprietary
 Huawei code is bundled. Other tablets and firmware versions are unverified.
 
-The latest public prerelease is **[Scriflow 0.29.0-dev.3](https://github.com/xing-phys/Scriflow/releases/tag/v0.29.0-dev.3)**,
-released on 2026-10-26 with the owner's explicit authorization. It adds compact
-circular tools, a collapsible dock, and floating status islands over a full-screen
-page, retaining the same application ID and public signing certificate for
-in-place updates. Automated checks pass; tablet validation of this UI update
+The latest public prerelease is **[Scriflow 0.30.0-dev.1](https://github.com/xing-phys/Scriflow/releases/tag/v0.30.0-dev.1)**,
+released on 2026-10-26 with the owner's explicit authorization. It adds physical
+paper sizes, pinch zoom with page-fitting choices, and app-wide screen orientation
+settings, retaining the same application ID and public signing certificate for
+in-place updates. Automated checks pass; tablet validation of these changes
 is pending. The core notebook features are implemented; broader use and
 long-session performance still need feedback.
 The [changelog](CHANGELOG.md) summarizes changes; [device records](docs/device-testing.md)
@@ -31,6 +31,10 @@ distinguish automated checks, publication authorization, and physical testing.
 - Native handwriting with adjustable pen thickness and pressure-preserving ink.
 - Multiple named notebooks, blank/lined pages, continuous finger scrolling,
   thumbnail overview, and direct page jumps.
+- A5 by default for new notes, standard paper sizes and custom dimensions,
+  with matching physical PDF page sizes.
+- Two-finger zoom, a percentage indicator, and fit width/height/page choices.
+- Portrait, landscape, or automatic sensor rotation from Settings.
 - Adjustable whole-stroke eraser with a temporary grey trail, plus undo/redo.
 - Native dashed lasso to select whole strokes, move, duplicate, copy/cut/paste,
   or delete them, with a closed region, nearby actions, and finger/stylus dragging.
@@ -46,8 +50,8 @@ makes no network requests. See [privacy and local storage](docs/privacy.md).
 
 ## Install and update
 
-Download the latest public **[Scriflow 0.29.0-dev.3 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.29.0-dev.3/scriflow-0.29.0-dev.3.apk)**
-from [GitHub Releases](https://github.com/xing-phys/Scriflow/releases/tag/v0.29.0-dev.2),
+Download the latest public **[Scriflow 0.30.0-dev.1 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.30.0-dev.1/scriflow-0.30.0-dev.1.apk)**
+from [GitHub Releases](https://github.com/xing-phys/Scriflow/releases/tag/v0.30.0-dev.1),
 where its file checksum and signing certificate fingerprint are recorded.
 Copy it to the supported tablet, open it with the tablet's file manager, and
 allow installation from that source when prompted.
@@ -65,20 +69,27 @@ key is retained, so the Scriflow rename can update the released Scribblow app
 in place without moving notebooks. If Android rejects an update because its
 signature differs, stop and follow the [signing migration instructions](docs/releasing.md#moving-from-a-development-key).
 **Uninstalling the app or clearing app storage deletes its private notes.**
-Older APKs cannot read pages upgraded to the current version-2 format.
+Version 0.30 writes version-3 pages with optional physical paper dimensions;
+older APKs cannot read pages saved by this version. Opening an existing page
+keeps its stored coordinates and previous PDF printing scale.
 Version 0.29 introduces a version-2 page-order index
 when page management is first used; earlier APKs cannot open that managed book.
 
 ## Start writing
 
-Open **My Notebook** or choose **+ Notebook**. Write with the stylus and drag
-vertically with one finger to scroll. The paper icon switches blank/lined paper;
+Open **My Notebook** or choose **+ Notebook**, select a paper size, and create
+the note. New notes default to A5 and open fitted to the screen width. Pinch
+with two fingers to zoom. Write with the stylus and drag with one finger to
+scroll. The paper icon switches blank/lined paper;
 the page-plus icon appends a page. The grid opens page thumbnails.
 
 Tap an already-selected Pen or Eraser icon to adjust its width. Drag the
 six-dot grip to move the tools, tap it to collapse/expand them, or use the
 direction icon to rotate them.
 The three-dot menu contains PDF export, save status, and **Reset tools**.
+Open **Settings** in the library, or tap the notebook title/percentage in the
+editor for zoom controls and **App settings**. Choose portrait, landscape, or
+sensor rotation there.
 If saving fails, writing pauses and **Not saved · Retry** appears.
 
 See the [user guide](docs/user-guide.md) for controls, saving, backups, and

@@ -6,8 +6,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Pure geometry for a continuous, width-fitted stack of independently stored pages. */
+/** Pure geometry for a continuous, zoomable stack of independently stored pages. */
 public final class NotebookViewport {
+    /** Percentages are relative to the width-fitted view, independent of display density. */
+    public enum Fit { WIDTH, HEIGHT, PAGE, CUSTOM }
     public static final class Size {
         public final int width, height;
         public Size(int width, int height) {
@@ -31,6 +33,7 @@ public final class NotebookViewport {
 
     public final int width, height, pageCount;
     public final float gap;
+    public final float zoom, pan;
     private final List<Size> sizes;
     private final float[] tops, scales, heights;
     private final float totalHeight;
@@ -41,11 +44,23 @@ public final class NotebookViewport {
     }
 
     public NotebookViewport(List<Size> sizes, int viewportWidth, int viewportHeight, float gap) {
+        this(sizes, viewportWidth, viewportHeight, gap, 1, 0);
+    }
+
+    public NotebookViewport(int pageCount, int logicalWidth, int logicalHeight,
+                            int viewportWidth, int viewportHeight, float gap, float zoom, float pan) {
+        this(uniform(pageCount, logicalWidth, logicalHeight), viewportWidth, viewportHeight, gap, zoom, pan);
+    }
+
+    public NotebookViewport(List<Size> sizes, int viewportWidth, int viewportHeight, float gap, float zoom, float pan) {
         if (sizes == null || sizes.isEmpty() || sizes.size() > NotebookIndex.MAX_PAGES
-                || viewportWidth <= 0 || viewportHeight <= 0 || !NotebookPage.finite(gap) || gap < 0) {
+                || viewportWidth <= 0 || viewportHeight <= 0 || !NotebookPage.finite(gap) || gap < 0
+                || !NotebookPage.finite(zoom) || zoom <= 0 || !NotebookPage.finite(pan)) {
             throw new IllegalArgumentException("Invalid notebook viewport");
         }
         this.width = viewportWidth; this.height = viewportHeight; this.gap = gap;
+        this.zoom = zoom;
+        this.pan = Math.max(0, Math.min(Math.max(0, width * zoom - width), pan));
         this.sizes = Collections.unmodifiableList(new ArrayList<>(sizes));
         pageCount = sizes.size();
         tops = new float[pageCount]; scales = new float[pageCount]; heights = new float[pageCount];
@@ -53,7 +68,7 @@ public final class NotebookViewport {
         for (int i = 0; i < pageCount; i++) {
             Size size = this.sizes.get(i);
             if (size == null) throw new IllegalArgumentException("Missing page dimensions");
-            scales[i] = (float) width / size.width;
+            scales[i] = (float) width / size.width * zoom;
             heights[i] = size.height * scales[i];
             tops[i] = top;
             top += heights[i] + (i + 1 < pageCount ? gap : 0);
@@ -68,6 +83,32 @@ public final class NotebookViewport {
         return Math.max(0, Math.min(maxScroll(), scroll));
     }
     public float scale(int pageId) { return scales[index(pageId)]; }
+    public float pageLeft(int pageId) { index(pageId); return zoom <= 1 ? width * (1 - zoom) / 2 : -pan; }
+    public float pageRight(int pageId) { return pageLeft(pageId) + pageWidth(pageId) * scale(pageId); }
+    public float maxPan() { return Math.max(0, width * zoom - width); }
+    public float clampPan(float position) {
+        if (!NotebookPage.finite(position)) throw new IllegalArgumentException("Invalid horizontal position");
+        return Math.max(0, Math.min(maxPan(), position));
+    }
+    public NotebookViewport withView(float zoom, float pan) { return new NotebookViewport(sizes, width, height, gap, zoom, pan); }
+
+    public float fittedZoom(Fit fit, int pageId) {
+        float heightFit = (float) height * pageWidth(pageId) / (width * (float) pageHeight(pageId));
+        if (fit == Fit.WIDTH) return 1;
+        if (fit == Fit.HEIGHT) return heightFit;
+        if (fit == Fit.PAGE) return Math.min(1, heightFit);
+        throw new IllegalArgumentException("Custom zoom has no fitted value");
+    }
+
+    /** Keep a logical page point under the same screen position during pinch or resize. */
+    public float scrollForPoint(int pageId, float logicalY, float screenY) {
+        if (!NotebookPage.finite(logicalY) || !NotebookPage.finite(screenY)) throw new IllegalArgumentException("Invalid zoom anchor");
+        return clampScroll(tops[index(pageId)] + logicalY * scale(pageId) - screenY);
+    }
+    public float panForPoint(int pageId, float logicalX, float screenX) {
+        if (!NotebookPage.finite(logicalX) || !NotebookPage.finite(screenX)) throw new IllegalArgumentException("Invalid zoom anchor");
+        return clampPan(logicalX * scale(pageId) - screenX);
+    }
     public int pageWidth(int pageId) { return sizes.get(index(pageId)).width; }
     public int pageHeight(int pageId) { return sizes.get(index(pageId)).height; }
     public float pageTop(int pageId, float scroll) { return tops[index(pageId)] - clampScroll(scroll); }
@@ -109,14 +150,20 @@ public final class NotebookViewport {
         if (!NotebookPage.finite(x) || !NotebookPage.finite(y) || x < 0 || x > width || y < 0 || y > height) return 0;
         float position = y + clampScroll(scroll);
         for (int i = 0; i < pageCount; i++) {
-            if (position >= tops[i] && position <= tops[i] + heights[i]) return i + 1;
+            if (x >= pageLeft(i + 1) && x <= pageRight(i + 1)
+                    && position >= tops[i] && position <= tops[i] + heights[i]) return i + 1;
         }
         return 0;
     }
 
     /** Chooses the nearest page when the viewport center falls inside a gap. */
     public int centeredPage(float scroll) {
-        float center = clampScroll(scroll) + height / 2f;
+        return nearestPage(height / 2f, scroll);
+    }
+
+    public int nearestPage(float y, float scroll) {
+        if (!NotebookPage.finite(y)) throw new IllegalArgumentException("Invalid page position");
+        float center = clampScroll(scroll) + y;
         int closest = 1;
         float distance = Float.MAX_VALUE;
         for (int i = 0; i < pageCount; i++) {
@@ -137,12 +184,14 @@ public final class NotebookViewport {
             if (page.width != pageWidth(id) || page.height != pageHeight(id)) {
                 throw new IllegalArgumentException("Loaded page dimensions differ from viewport layout");
             }
-            float scale = scale(id), top = pageTop(id, scroll);
+            float scale = scale(id), top = pageTop(id, scroll), left = pageLeft(id);
             for (NotebookPage.Stroke stroke : page.strokes) {
-                List<NotebookPage.Point> screen = transform(stroke.points, scale, 0, top);
-                for (List<NotebookPage.Point> piece : clip(screen, 0, Math.max(0, top), width,
+                List<NotebookPage.Point> screen = transform(stroke.points, scale, left, top);
+                for (List<NotebookPage.Point> piece : clip(screen, Math.max(0, left), Math.max(0, top), Math.min(width, pageRight(id)),
                         Math.min(height, top + heights[index(id)]))) {
-                    result.add(new NotebookPage.Stroke(stroke.penType, stroke.width * scale, stroke.color, piece));
+                    // The native widget caps display widths at 1024. Keep unusually broad
+                    // legacy tracks displayable at high zoom; their durable width is unchanged.
+                    result.add(new NotebookPage.Stroke(stroke.penType, Math.min(1024, stroke.width * scale), stroke.color, piece));
                     count = Math.addExact(count, piece.size());
                 }
             }
@@ -155,14 +204,14 @@ public final class NotebookViewport {
         if (stroke == null) throw new IllegalArgumentException("Missing viewport stroke");
         Map<Integer, List<NotebookPage.Stroke>> result = new LinkedHashMap<>();
         for (int id : visiblePages(scroll)) {
-            float top = pageTop(id, scroll), scale = scale(id);
-            List<List<NotebookPage.Point>> pieces = clip(stroke.points, 0, Math.max(0, top), width,
+            float top = pageTop(id, scroll), scale = scale(id), left = pageLeft(id);
+            List<List<NotebookPage.Point>> pieces = clip(stroke.points, Math.max(0, left), Math.max(0, top), Math.min(width, pageRight(id)),
                     Math.min(height, top + heights[index(id)]));
             if (pieces.isEmpty()) continue;
             List<NotebookPage.Stroke> local = new ArrayList<>();
             for (List<NotebookPage.Point> piece : pieces) {
                 local.add(new NotebookPage.Stroke(stroke.penType, stroke.width / scale, stroke.color,
-                        transformClipped(piece, 1 / scale, 0, -top / scale, pageWidth(id), pageHeight(id))));
+                        transformClipped(piece, 1 / scale, -left / scale, -top / scale, pageWidth(id), pageHeight(id))));
             }
             result.put(id, Collections.unmodifiableList(local));
         }
@@ -175,14 +224,14 @@ public final class NotebookViewport {
         if (!NotebookPage.finite(radius) || radius < 0) throw new IllegalArgumentException("Invalid eraser radius");
         List<EraseGesture> result = new ArrayList<>();
         for (int id : visiblePages(scroll)) {
-            float top = pageTop(id, scroll), scale = scale(id);
-            List<List<NotebookPage.Point>> pieces = clip(path, -radius, Math.max(0, top) - radius, width + radius,
+            float top = pageTop(id, scroll), scale = scale(id), left = pageLeft(id);
+            List<List<NotebookPage.Point>> pieces = clip(path, Math.max(0, left) - radius, Math.max(0, top) - radius, Math.min(width, pageRight(id)) + radius,
                     Math.min(height, top + heights[index(id)]) + radius);
             if (pieces.isEmpty()) continue;
             List<List<NotebookPage.Point>> local = new ArrayList<>();
             // Eraser paths are transient and may lie outside page bounds. Clamping the centres
             // would distort the grey footprint and turn a near miss into a deletion.
-            for (List<NotebookPage.Point> piece : pieces) local.add(transform(piece, 1 / scale, 0, -top / scale));
+            for (List<NotebookPage.Point> piece : pieces) local.add(transform(piece, 1 / scale, -left / scale, -top / scale));
             result.add(new EraseGesture(id, local, radius / scale));
         }
         return Collections.unmodifiableList(result);

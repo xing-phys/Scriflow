@@ -31,6 +31,7 @@ public final class NotebookPdfExportActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        NotebookSettings.applyOrientation(this);
         notebookId = getIntent().getIntExtra("notebookId", 0);
         notebookName = getIntent().getStringExtra("notebookName");
         pageCount = getIntent().getIntExtra("pageCount", 0);
@@ -138,6 +139,7 @@ public final class NotebookPdfExportActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
+        NotebookSettings.applyOrientation(this);
         resumed = true;
         render();
     }
