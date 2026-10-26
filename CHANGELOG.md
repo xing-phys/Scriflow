@@ -6,6 +6,23 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## [0.30.0-dev.3](https://github.com/xing-phys/Scriflow/releases/tag/v0.30.0-dev.3) — Synchronized app orientation (2026-10-26)
+
+- Share the accepted screen direction across the library, editor, Settings,
+  backup/restore, and PDF export. Update screens in the back stack when the
+  direction changes, so returning to the bookshelf does not reuse its old
+  portrait request and then wait for another sensor reading.
+- Apply the shared direction before creating screen content; new screens
+  inherit the direction beneath them during launch. Remember the last accepted
+  direction across process restart and preserve both reverse directions.
+- Calibrate sensor directions from real display dimensions, independent of
+  a background Activity's potentially stale resource configuration. Keep the
+  existing settling interval and pen deferral for actual physical turns.
+- Advance versionCode to 36, retaining the application ID, signing key, file
+  formats, and existing paper/zoom/palm behavior. Host regressions, Android
+  builds/lint, and packaged orientation checks pass. The navigation transition
+  still needs confirmation on the tablet.
+
 ## [0.30.0-dev.2](https://github.com/xing-phys/Scriflow/releases/tag/v0.30.0-dev.2) — Page edges and touch safeguards (2026-10-26)
 
 - Draw faint page outlines on the white writing background at every zoom,

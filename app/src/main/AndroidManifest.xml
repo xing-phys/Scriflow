@@ -6,13 +6,14 @@
         <!-- Match Jnotes' firmware-managed scrolling/handwriting policy on this tablet.
              This is an app policy, not a raw EPDC waveform number. -->
         <meta-data android:name="hw_eink.app.refresh.mode" android:value="13" />
-        <!-- Runtime display settings choose orientation. Normal Activity recreation rebuilds
-             the native writing surface at the new physical screen dimensions. -->
-        <activity android:name=".notebook.NotebookActivity" android:exported="false" />
-        <activity android:name=".notebook.NotebookTransferActivity" android:exported="false" />
-        <activity android:name=".notebook.NotebookPdfExportActivity" android:exported="false" />
-        <activity android:name=".notebook.NotebookSettingsActivity" android:exported="false" />
-        <activity android:name=".notebook.NotebookLibraryActivity" android:exported="true">
+        <!-- New screens inherit the direction beneath them until the shared app direction
+             is applied before content creation. Existing screens are synchronized in the
+             back stack. Normal recreation rebuilds the native writing surface. -->
+        <activity android:name=".notebook.NotebookActivity" android:exported="false" android:screenOrientation="behind" />
+        <activity android:name=".notebook.NotebookTransferActivity" android:exported="false" android:screenOrientation="behind" />
+        <activity android:name=".notebook.NotebookPdfExportActivity" android:exported="false" android:screenOrientation="behind" />
+        <activity android:name=".notebook.NotebookSettingsActivity" android:exported="false" android:screenOrientation="behind" />
+        <activity android:name=".notebook.NotebookLibraryActivity" android:exported="true" android:screenOrientation="behind">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

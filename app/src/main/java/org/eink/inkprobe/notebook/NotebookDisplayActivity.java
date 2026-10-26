@@ -2,17 +2,19 @@ package org.eink.inkprobe.notebook;
 
 import android.app.Activity;
 import android.content.pm.ActivityInfo;
-import android.content.res.Configuration;
+import android.graphics.Point;
 import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.view.OrientationEventListener;
-import android.view.Surface;
+import android.view.Display;
 
 /** Foreground-only sensor rotation shared by all production notebook screens. */
-public abstract class NotebookDisplayActivity extends Activity {
+public abstract class NotebookDisplayActivity extends Activity implements NotebookDisplayState.Target {
+    private static NotebookDisplayState sharedDisplay;
+    private NotebookDisplayState displayState;
     private final Handler rotationHandler = new Handler(Looper.getMainLooper());
     private final NotebookSensorRotation rotation = new NotebookSensorRotation();
     private OrientationEventListener orientationSensor;
@@ -20,14 +22,23 @@ public abstract class NotebookDisplayActivity extends Activity {
     private final Runnable rotateWhenSettled = () -> {
         if (!displayResumed || NotebookSettings.orientation(this) != NotebookSettings.Orientation.SENSOR) return;
         int angle = rotation.ready(SystemClock.uptimeMillis());
-        if (angle >= 0) requestFacing(NotebookSensorRotation.facing(angle, naturalLandscape));
+        if (angle >= 0) shareFacing(NotebookSensorRotation.facing(angle, naturalLandscape));
     };
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
-        int displayRotation = getWindowManager().getDefaultDisplay().getRotation();
-        boolean sideways = displayRotation == Surface.ROTATION_90 || displayRotation == Surface.ROTATION_270;
-        naturalLandscape = (getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE) != sideways;
+        Display display = getWindowManager().getDefaultDisplay();
+        int displayRotation = display.getRotation();
+        Point physicalSize = new Point(); display.getRealSize(physicalSize);
+        // A background Activity's resource configuration may already reflect a requested
+        // direction while the physical display still belongs to a different foreground UI.
+        naturalLandscape = NotebookSensorRotation.naturalLandscape(displayRotation, physicalSize.x, physicalSize.y);
+        if (sharedDisplay == null) {
+            int angle = (360 - displayRotation * 90) % 360;
+            sharedDisplay = new NotebookDisplayState(NotebookSettings.displayFacing(this,
+                NotebookSensorRotation.facing(angle, naturalLandscape)));
+        }
+        displayState = sharedDisplay;
         orientationSensor = new OrientationEventListener(this, SensorManager.SENSOR_DELAY_NORMAL) {
             @Override public void onOrientationChanged(int angle) {
                 if (!displayResumed) return;
@@ -36,16 +47,24 @@ public abstract class NotebookDisplayActivity extends Activity {
             }
         };
         applyDisplayPreference();
+        displayState.attach(this);
     }
 
     @Override protected void onResume() {
-        super.onResume(); displayResumed = true; refreshDisplayOrientation();
+        super.onResume();
+        displayState.attach(this);
+        displayResumed = true; refreshDisplayOrientation();
     }
 
     @Override protected void onPause() {
         displayResumed = false;
         orientationSensor.disable(); rotationHandler.removeCallbacks(rotateWhenSettled); rotation.reset();
         super.onPause();
+    }
+
+    @Override protected void onDestroy() {
+        if (displayState != null) displayState.detach(this);
+        super.onDestroy();
     }
 
     protected final void refreshDisplayOrientation() {
@@ -71,14 +90,20 @@ public abstract class NotebookDisplayActivity extends Activity {
     private void applyDisplayPreference() {
         NotebookSettings.Orientation preference = NotebookSettings.orientation(this);
         if (preference == NotebookSettings.Orientation.SENSOR) {
-            // Hold the current direction until a stable sensor reading requests a concrete
-            // orientation. Some e-ink firmware ignores Android's FULL_SENSOR request.
-            int angle = (360 - getWindowManager().getDefaultDisplay().getRotation() * 90) % 360;
-            requestFacing(NotebookSensorRotation.facing(angle, naturalLandscape));
-        } else if (getRequestedOrientation() != preference.requested) setRequestedOrientation(preference.requested);
+            // Inherit the app's accepted direction, rather than this Activity's old display
+            // configuration. Sensor settling is only for a genuinely new physical turn.
+            onDisplayFacing(displayState.current());
+        } else shareFacing(preference == NotebookSettings.Orientation.LANDSCAPE
+            ? NotebookSensorRotation.Facing.LANDSCAPE : NotebookSensorRotation.Facing.PORTRAIT);
     }
 
-    private void requestFacing(NotebookSensorRotation.Facing facing) {
+    private void shareFacing(NotebookSensorRotation.Facing facing) {
+        if (displayState.publish(facing)) NotebookSettings.saveDisplayFacing(this, displayState.current());
+        onDisplayFacing(displayState.current());
+    }
+
+    @Override public final void onDisplayFacing(NotebookSensorRotation.Facing facing) {
+        if (isFinishing() || isDestroyed()) return;
         int requested;
         switch (facing) {
             case LANDSCAPE: requested = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE; break;

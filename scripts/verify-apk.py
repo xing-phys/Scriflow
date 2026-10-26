@@ -23,6 +23,9 @@ import zipfile
 ROOT = Path(__file__).resolve().parent.parent
 PACKAGE = 'org.eink.inkprobe'
 LAUNCHER = PACKAGE + '.notebook.NotebookLibraryActivity'
+NOTEBOOK_SCREENS = {PACKAGE + '.notebook.' + name for name in (
+    'NotebookLibraryActivity', 'NotebookActivity', 'NotebookSettingsActivity',
+    'NotebookTransferActivity', 'NotebookPdfExportActivity')}
 DIAGNOSTICS = {PACKAGE + '.MainActivity', PACKAGE + '.notebook.NotebookSelfTestActivity'}
 PERMISSIONS = {'android.permission.ACCESS_NETWORK_STATE'}
 COMPONENTS = {'activity', 'activity-alias', 'service', 'receiver', 'provider'}
@@ -212,6 +215,12 @@ def verify_manifest(manifest, badging, variant, version):
     components = [child for child in application.children if child.tag in COMPONENTS]
     names = [component_name(component) for component in components]
     require(all(names) and len(names) == len(set(names)), 'Missing or duplicate component names.')
+    require(NOTEBOOK_SCREENS <= set(names), 'Missing a production notebook screen.')
+    for component in components:
+        if component_name(component) in NOTEBOOK_SCREENS:
+            # ActivityInfo.SCREEN_ORIENTATION_BEHIND is 3: preserve direction while launching.
+            require(component.attributes.get('android:screenOrientation') == 3,
+                    'Notebook screens must inherit orientation before the shared controller starts.')
     launchers = [component_name(component) for component in components if launcher_filter(component)]
     require(launchers == [LAUNCHER], f'Expected only the notebook library launcher; found {launchers}.')
     launcher = next(component for component in components if component_name(component) == LAUNCHER)

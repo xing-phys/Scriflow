@@ -37,6 +37,17 @@ final class NotebookSettings {
         preferences(context).edit().putString(ORIENTATION, orientation.name()).apply();
     }
 
+    static NotebookSensorRotation.Facing displayFacing(Context context, NotebookSensorRotation.Facing fallback) {
+        String stored = preferences(context).getString("displayFacing", "");
+        for (NotebookSensorRotation.Facing facing : NotebookSensorRotation.Facing.values())
+            if (facing.name().equals(stored)) return facing;
+        return fallback;
+    }
+
+    static void saveDisplayFacing(Context context, NotebookSensorRotation.Facing facing) {
+        preferences(context).edit().putString("displayFacing", facing.name()).apply();
+    }
+
     static boolean pinchZoomEnabled(Context context) {
         return preferences(context).getBoolean("pinchZoom", true);
     }

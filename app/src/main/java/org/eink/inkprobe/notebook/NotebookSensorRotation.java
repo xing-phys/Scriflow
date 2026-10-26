@@ -30,6 +30,12 @@ final class NotebookSensorRotation {
 
     void reset() { writing = false; lastAngle = candidate = -1; }
 
+    /** Use real display dimensions rather than a background Activity's overridden resources. */
+    static boolean naturalLandscape(int displayRotation, int displayWidth, int displayHeight) {
+        boolean sideways = displayRotation == 1 || displayRotation == 3;
+        return (displayWidth > displayHeight) != sideways;
+    }
+
     private static int sector(int angle) {
         if (angle < 0 || angle >= 360) return -1;
         int nearest = ((angle + 45) / 90 * 90) % 360;

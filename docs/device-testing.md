@@ -4,6 +4,27 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## Scriflow 0.30.0-dev.3 orientation synchronization (2026-10-26)
+
+The owner confirmed dev.2 solved the preceding bugs, then reported that leaving
+a landscape note briefly reveals the bookshelf in portrait before it turns.
+This is general functional feedback on dev.2, without an itemized acceptance
+checklist or latency measurement. Dev.3 synchronizes the accepted direction
+across every production screen, including existing background screens.
+
+- Artifact: `scriflow-0.30.0-dev.3.apk`, Android `versionCode` 36.
+- SHA-256: recorded in the release checksum asset for the exact signed file.
+- Signer certificate SHA-256: `2cc5db316df82fecc6085ff53e67cbd64f29b412f01e9a5c19bf4b34e3821709`.
+- Release: [`v0.30.0-dev.3`](https://github.com/xing-phys/Scriflow/releases/tag/v0.30.0-dev.3).
+- Automated validation: 25,552 host assertions, including 46 shared-direction
+  regressions and 388 sensor/calibration checks; debug/release lint and builds;
+  packaged manifest checks for inherited orientation on all five screens.
+
+No tablet is connected for this update. The exact transition still needs
+on-device confirmation. Follow the dev.3 acceptance steps in the
+[feature record](paper-zoom-orientation.md). Existing sensor settling, pen
+deferral, palm rejection, paper geometry, and file formats are retained.
+
 ## Scriflow 0.30.0-dev.2 follow-up (2026-10-26)
 
 The owner reports that dev.1 two-finger zoom works, but resting-hand contact

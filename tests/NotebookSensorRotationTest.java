@@ -8,6 +8,7 @@ public final class NotebookSensorRotationTest {
         ambiguousAndFlatReadings();
         penDefersRotation();
         allAnglesAndNaturalOrientations();
+        realDisplayCalibration();
         System.out.println("NotebookSensorRotation: " + assertions + " assertions passed (sensor sectors and pen deferral).");
     }
     private static void stableReadingsAndJitter() {
@@ -59,6 +60,15 @@ public final class NotebookSensorRotationTest {
         for (int i = 0; i < 4; i++) {
             check(NotebookSensorRotation.facing(i * 90, false) == portrait[i], "portrait-natural mapping " + i);
             check(NotebookSensorRotation.facing(i * 90, true) == landscape[i], "landscape-natural mapping " + i);
+        }
+    }
+    private static void realDisplayCalibration() {
+        for (int rotation = 0; rotation < 4; rotation++) {
+            boolean sideways = rotation == 1 || rotation == 3;
+            check(!NotebookSensorRotation.naturalLandscape(rotation, sideways ? 1872 : 1404, sideways ? 1404 : 1872),
+                "portrait-natural real display independent of Activity resources " + rotation);
+            check(NotebookSensorRotation.naturalLandscape(rotation, sideways ? 1404 : 1872, sideways ? 1872 : 1404),
+                "landscape-natural real display independent of Activity resources " + rotation);
         }
     }
     private static void check(boolean value, String message) {

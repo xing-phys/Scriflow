@@ -40,7 +40,10 @@ app. Sensor mode listens to the tablet directly, including when system rotation
 is locked. Hold the tablet tilted rather than flat; it turns after a short,
 stable hold. While writing, rotation waits until you lift the pen. Settings
 shows whether a sensor was detected. No additional permission is required.
-Screen rotation rebuilds the
+All screens share the accepted direction. The bookshelf, note, Settings, and
+transfer screens keep the same orientation when you move between them;
+navigation does not wait for another sensor reading. The settling interval
+applies when physically turning the tablet. Screen rotation rebuilds the
 writing surface without changing stored page dimensions.
 
 Finger navigation is ignored while the pen hovers nearby, during writing,

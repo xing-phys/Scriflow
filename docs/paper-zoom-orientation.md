@@ -66,6 +66,36 @@ these safeguards supplement the existing mixed-input ownership/cancellation
 path. Device hover delivery and contact-size reporting remain firmware-specific.
 See [Android stylus and palm cancellation guidance](https://developer.android.com/develop/ui/views/touch-and-input/stylus-input/advanced-stylus-features).
 
+## Dev.3 shared app direction
+
+The owner confirmed dev.2 solves the preceding bugs, then reported a separate
+transition issue: rotate an open note to landscape, return to the library,
+and the library first appears in portrait before rotating. Each Activity had
+kept its own orientation request and restarted sensor settling on resume.
+
+Dev.3 publishes every accepted direction to a process-wide state with weak
+screen registrations. Existing background screens receive it before navigation;
+new and recreated screens apply it before content is built. Production manifest
+entries use `screenOrientation="behind"` while launching, then the controller
+applies the shared direction. This uses Android's
+[inherited orientation behavior](https://developer.android.com/guide/topics/manifest/activity-element#screen).
+The last accepted direction is also saved in private device preferences.
+Manual Portrait/Landscape changes publish through the same path. All four
+directions remain distinct, and destroyed screens detach.
+
+Sensor calibration now uses real display size and rotation, since a background
+Activity can have a resource orientation differing from the actual display.
+Sensor listeners remain foreground-only. The 600 ms settling interval and
+writing guard still apply to a physical turn; switching screens consumes the
+already accepted shared direction immediately. No note or backup format changes.
+
+Acceptance: rotate a note, return to the bookshelf with both the books button
+and Android Back, reopen a note, and enter Settings/backup/PDF screens. Repeat
+for all four sensor directions, manual Portrait/Landscape, and when holding
+the tablet flat after a rotation. Confirm each screen opens in the accepted
+direction without a second portrait/landscape transition. This new transition
+has automated regression coverage but no connected-tablet verification yet.
+
 This is a development prerelease. Automated storage, PDF, and geometry checks
 and Android build/lint checks cover the changes. No tablet was connected during
 implementation, so physical acceptance remains pending. On the signed APK,
