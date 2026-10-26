@@ -1,7 +1,9 @@
-# Ink Probe
+# Scribblow ink diagnostics
 
-A small Android diagnostic app for low-latency stylus handwriting on Huawei
-MatePad Paper HMW-W09. This is a handwriting experiment, not yet a notes app.
+The original **Ink Probe** experiment is retained as Scribblow's disposable
+handwriting diagnostics for Huawei MatePad Paper HMW-W09. The launcher opens
+the notebook library; the explicit command below opens this diagnostic screen.
+Earlier experiment names and version records below are historical.
 
 It deliberately separates firmware live ink from application-rendered strokes.
 An enabled API and successful point capture do not prove visible live ink.
@@ -19,14 +21,14 @@ existing toolchain; a larger app can adopt Kotlin later.
 ```bash
 ./scripts/bootstrap.sh
 ./scripts/build.sh
-adb -d install --no-incremental -r build/inkprobe-debug.apk
+adb -d install --no-incremental -r build/scribblow-debug.apk
 ./scripts/read-display-policy.sh
 adb -d shell am start -W -n org.eink.inkprobe/.MainActivity
 ```
 
-The APK is debug-signed with a locally generated, ignored key. It requests no
-permissions, has no network features, and stores diagnostics only in its own app
-directory. Losing the local signing key prevents updating an existing installation
+The APK is debug-signed with a locally generated, ignored key. Scribblow requests only the normal
+`ACCESS_NETWORK_STATE` permission for its Wi-Fi indicator. The diagnostics make
+no network requests and store their output only in the app's private directory. Losing the local signing key prevents updating an existing installation
 with the same identity; keep `.tools/debug.keystore` locally if retaining app data.
 
 ## Modes

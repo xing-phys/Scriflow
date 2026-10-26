@@ -21,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.json.JSONObject;
@@ -65,7 +66,7 @@ public final class NotebookSelfTestActivity extends Activity implements Notebook
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Color.WHITE);
         status = new TextView(this);
-        status.setText("Disposable notebook self-test · " + template.name().toLowerCase());
+        status.setText("Disposable notebook self-test · " + template.name().toLowerCase(Locale.ROOT));
         status.setTextColor(Color.BLACK);
         status.setTextSize(14);
         status.setSingleLine(true);
@@ -412,7 +413,7 @@ public final class NotebookSelfTestActivity extends Activity implements Notebook
             require(!completed, "Adapter failed during the simulated callback check");
         }
         completed = true;
-        writeResult(result, "PASS · " + template.name().toLowerCase() + " · 2 native tracks / "
+        writeResult(result, "PASS · " + template.name().toLowerCase(Locale.ROOT) + " · 2 native tracks / "
             + result.getInt("pointCount") + " points");
     }
 
@@ -572,7 +573,7 @@ public final class NotebookSelfTestActivity extends Activity implements Notebook
         JSONObject result = new JSONObject();
         result.put("schema", 1);
         result.put("startedAtMillis", startedAtMillis);
-        result.put("template", template == null ? "unknown" : template.name().toLowerCase());
+        result.put("template", template == null ? "unknown" : template.name().toLowerCase(Locale.ROOT));
         result.put("disposableSyntheticDocument", true);
         result.put("userNotebookFilesOpened", false);
         if (expected != null) {

@@ -1,4 +1,4 @@
-# Ink Notebook architecture: foundation milestone (0.22)
+# Scribblow architecture: foundation milestone (0.22)
 
 Status: implemented foundation; PDF import, rich content, and AI remain later milestones.
 The immediate target is MatePad Paper on Android 10. File models and transactions stay
@@ -74,9 +74,12 @@ without duplicating it. Abandoned pre-intent staging files may require later cac
 The existing checksum-pinned offline SDK build remains supported. A standard Android Gradle
 project is added for dependencies and IDE support, pinned to Gradle 8.11.1 / Android plugin
 8.9.2 / JDK 17 / Build Tools 35.0.0. It still compiles and targets API 29 and Java 8 bytecode.
-Both build routes use `app/version.properties` and the original local signing key. Debug and
-release APKs are local development artifacts; release is unshrunk and has no public-release
-signing setup. No new runtime dependency, networking, or system-wide Java change is introduced.
+Both build routes use `app/version.properties`. Debug builds preserve the original local
+signing key or initialize a new ignored development key on a clean checkout. Release builds
+use explicit environment-based signing credentials, or produce an unsigned APK for contributor
+checks. They are unshrunk to retain firmware reflection. See [Building](building.md) and
+[Releasing](releasing.md) for the current setup, added after this foundation milestone.
+No new runtime dependency, networking, or system-wide Java change is introduced.
 
 ## Next extensions (design constraints, not current features)
 

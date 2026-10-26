@@ -1,6 +1,7 @@
 package org.eink.inkprobe;
 
 import android.app.Activity;
+import android.content.pm.ApplicationInfo;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -46,6 +47,10 @@ public final class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
+        if ((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0) {
+            finish();
+            return;
+        }
         if (saved != null) {
             fullscreen = saved.getBoolean("fullscreen", false);
             notesUi = saved.getBoolean("notesUi", false);
@@ -59,7 +64,8 @@ public final class MainActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(Color.WHITE);
         TextView title = new TextView(this);
-        title.setText("Ink Probe 0.6 · MatePad Paper"); title.setTextSize(22); title.setTextColor(Color.BLACK);
+        title.setText(getString(R.string.ink_diagnostics_title, getString(R.string.app_name)));
+        title.setTextSize(22); title.setTextColor(Color.BLACK);
         title.setPadding(16, 12, 12, 6); root.addView(title);
         LinearLayout modes = row(root);
         button(modes, "Android", () -> select("Android"));
@@ -170,7 +176,7 @@ public final class MainActivity extends Activity {
         // Explicit snapshot only; callbacks never trigger disk I/O.
         try {
             JSONObject snapshot = trace.json();
-            snapshot.put("appVersion", "0.6");
+            snapshot.put("appVersion", getPackageManager().getPackageInfo(getPackageName(), 0).versionName);
             snapshot.put("model", Build.MODEL); snapshot.put("firmware", Build.DISPLAY);
             snapshot.put("mode", mode); snapshot.put("zOnTop", onTop);
             snapshot.put("fullscreen", fullscreen);

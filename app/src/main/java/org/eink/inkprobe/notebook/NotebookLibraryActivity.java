@@ -16,6 +16,7 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import java.io.IOException;
+import org.eink.inkprobe.R;
 
 /** Notebook home. All file/catalog work goes through the process-wide serialized writer. */
 public final class NotebookLibraryActivity extends Activity {
@@ -36,7 +37,7 @@ public final class NotebookLibraryActivity extends Activity {
         root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(Color.WHITE);
         root.setPadding(dp(24), dp(16), dp(24), dp(16));
         LinearLayout header = new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL);
-        TextView title = label("Notebooks", 26);
+        TextView title = label(getString(R.string.app_name), 26);
         header.addView(title, new LinearLayout.LayoutParams(0, dp(56), 1));
         NotebookButton create = button("+ Notebook", this::createNotebook);
         header.addView(create, new LinearLayout.LayoutParams(dp(142), dp(56)));

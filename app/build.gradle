@@ -2,6 +2,34 @@ plugins { id 'com.android.application' }
 
 def appVersion = new Properties()
 file('version.properties').withInputStream { appVersion.load(it) }
+def releaseEnvironment = [
+    storeFile: 'SCRIBBLOW_KEYSTORE',
+    keyAlias: 'SCRIBBLOW_KEY_ALIAS',
+    storePassword: 'SCRIBBLOW_STORE_PASSWORD',
+    keyPassword: 'SCRIBBLOW_KEY_PASSWORD',
+]
+def releaseCredentials = releaseEnvironment.collectEntries { field, variable ->
+    [(field): System.getenv(variable)]
+}
+def signingRequested = releaseCredentials.values().any { it != null }
+def missingCredentials = releaseEnvironment.findAll { field, variable ->
+    releaseCredentials[field] == null || releaseCredentials[field].trim().isEmpty()
+}.values()
+if (signingRequested && !missingCredentials.isEmpty()) {
+    throw new GradleException('Incomplete release signing configuration. Set: '
+        + missingCredentials.join(', ') + '. See docs/releasing.md.')
+}
+tasks.register('prepareLocalDebugKey', Exec) {
+    workingDir rootDir
+    commandLine 'bash', rootProject.file('scripts/prepare-debug-key.sh').absolutePath
+    inputs.file rootProject.file('scripts/prepare-debug-key.sh')
+    outputs.file rootProject.file('.tools/debug.keystore')
+}
+def licenseAssets = layout.buildDirectory.dir('generated/license-assets')
+tasks.register('prepareLicenseAssets', Copy) {
+    from rootProject.file('LICENSE')
+    into licenseAssets
+}
 android {
     namespace 'org.eink.inkprobe'
     compileSdk 29
@@ -20,13 +48,22 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        if (signingRequested) {
+            publicRelease {
+                storeFile rootProject.file(releaseCredentials.storeFile)
+                storePassword releaseCredentials.storePassword
+                keyAlias releaseCredentials.keyAlias
+                keyPassword releaseCredentials.keyPassword
+            }
+        }
     }
     buildTypes {
         debug { signingConfig signingConfigs.localDevelopment }
         release {
-            // Development APK only. Reflection-based firmware access is intentionally not shrunk.
+            // Firmware reflection must remain intact. No credentials produces an unsigned APK.
+            debuggable false
             minifyEnabled false
-            signingConfig signingConfigs.localDevelopment
+            if (signingRequested) signingConfig signingConfigs.publicRelease
         }
     }
     compileOptions {
@@ -38,4 +75,11 @@ android {
         disable 'ExpiredTargetSdkVersion'
     }
     buildFeatures { buildConfig false }
+    sourceSets.main.assets.srcDir(licenseAssets)
+}
+tasks.matching { it.name == 'preBuild' }.configureEach {
+    dependsOn tasks.named('prepareLicenseAssets')
+}
+tasks.matching { it.name == 'validateSigningDebug' }.configureEach {
+    dependsOn tasks.named('prepareLocalDebugKey')
 }

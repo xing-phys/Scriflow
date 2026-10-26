@@ -52,12 +52,12 @@ The user physically tested writing, scrolling, and immediate writing afterward
 in Jnotes and confirmed no transition flashes or freezing. Read-only queries
 and live display logs during that test showed application/default/last mode 13,
 compositor waveform 13, and driver acceptance of mode 13. Jnotes' manifest also
-declares policy 13; the previous Ink Notebook declaration was 3.
+declares policy 13; the previous Scribblow declaration was 3.
 
 The system PenKit library loaded by Jnotes constructs
 `android.eink.view.edit.HWEditView` and enables writing through its framebuffer
 surface's `setAutoHandWrite`, the same native widget and AHW entry point used by
-Ink Notebook. Jnotes' protected application implementation is not fully
+Scribblow. Jnotes' protected application implementation is not fully
 inspectable, so this does not establish that every part of its layer handling
 is identical. No proprietary code is copied or bundled into the app.
 

@@ -1,5 +1,8 @@
 # Device test record
 
+The app is now named **Scribblow**; see [branding](branding.md). Historical
+app names, log tags, and APK filenames below describe the original experiments.
+
 Date: 2026-10-23. Device: HMW-W09, firmware
 `HMW-W09 2.1.0.222(C00E170R1P8)`, Android 10/API 29.
 

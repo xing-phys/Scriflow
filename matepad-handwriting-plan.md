@@ -1,5 +1,8 @@
 # MatePad Paper handwriting investigation and development plan
 
+The app is now named **Scribblow**; see [branding](docs/branding.md). Historical
+app names, log tags, and APK filenames below describe the original experiments.
+
 Initial review: 2026-10-23. Implementation and device trials began afterward;
 see [the current test record](docs/device-testing.md) and [prototype](README.md).
 

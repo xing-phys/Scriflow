@@ -1,0 +1,22 @@
+name: Feature request
+description: Suggest an improvement to the writing and thinking experience.
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What would this help you do?
+      description: Describe a writing, calculation, drawing, or organization task that is difficult today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Suggested behavior
+      description: Explain how you would expect it to work, including any examples.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives or context
+      description: Optional. Include workarounds, related apps, or device constraints.

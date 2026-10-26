@@ -207,6 +207,7 @@ public final class NotebookStore {
     }
 
     private static UUID legacyId(File directory) throws IOException {
+        // This legacy identity prefix must survive visible app renames.
         return UUID.nameUUIDFromBytes(("ink-notebook:page:" + directory.getCanonicalPath())
             .getBytes(StandardCharsets.UTF_8));
     }
@@ -321,7 +322,7 @@ public final class NotebookStore {
                 throw corrupt("Notebook point/stroke limit exceeded");
             }
             if (!state.ids.add(stroke.id)) throw corrupt("Duplicate stroke ID");
-                state.strokes.add(stroke);
+            state.strokes.add(stroke);
             state.pointCount += stroke.points.size();
         } else {
             throw corrupt("Unknown notebook record type");

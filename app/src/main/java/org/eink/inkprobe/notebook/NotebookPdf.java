@@ -56,7 +56,7 @@ public final class NotebookPdf {
         }
 
         void write(String name, PageSource source, Progress progress) throws IOException {
-            ascii("%PDF-1.4\n%Ink Notebook vector export\n");
+            ascii("%PDF-1.4\n%Scribblow vector export\n");
             object(1); ascii("<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
             object(2); ascii("<< /Type /Pages /Count " + pageCount + " /Kids [");
             for (int page = 1; page <= pageCount; page++) ascii(pageObject(page) + " 0 R ");
@@ -67,7 +67,7 @@ public final class NotebookPdf {
                 int c = name.charAt(i);
                 ascii(hex(c >> 12) + hex(c >> 8) + hex(c >> 4) + hex(c));
             }
-            ascii("> /Creator (Ink Notebook) >>\nendobj\n");
+            ascii("> /Creator (Scribblow) >>\nendobj\n");
             for (int number = 1; number <= pageCount; number++) {
                 NotebookPage page;
                 try { page = source.page(number); }

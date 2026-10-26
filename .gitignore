@@ -13,3 +13,10 @@ artifacts/
 .gradle/
 app/build/
 local.properties
+
+# Local production signing credentials and other private key formats
+signing.env
+.env
+.env.*
+*.p12
+*.pfx

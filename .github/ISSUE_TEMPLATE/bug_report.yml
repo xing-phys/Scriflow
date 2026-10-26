@@ -1,0 +1,50 @@
+name: Bug report
+description: Report a reproducible problem with Scribblow.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Scribblow depends on device-specific e-ink handwriting support. Include the tablet and firmware so we can distinguish app behavior from compatibility limits. Remove private notebook content from attachments.
+  - type: input
+    id: version
+    attributes:
+      label: Scribblow version
+      description: Include the version and whether this is an official APK or a local build.
+      placeholder: "0.28.0-beta.1, local debug build"
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Tablet and firmware
+      description: Device model, Android/HarmonyOS version, and firmware build if available.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Describe the smallest sequence that reproduces the problem.
+      placeholder: |
+        1. Open a notebook…
+        2. …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include whether notes were saved correctly and whether the problem repeats after reopening.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Screenshots or logs
+      description: Optional. A short screen recording can help with pen, scrolling, or refresh problems.

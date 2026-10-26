@@ -239,7 +239,7 @@ public final class NotebookFloatingTools {
         Rect locallyVisible = new Rect();
         if (anchor.getLocalVisibleRect(locallyVisible)) {
             locallyVisible.offset(location[0], location[1]);
-            writingArea.intersect(locallyVisible);
+            if (!writingArea.intersect(locallyVisible)) writingArea.setEmpty();
         }
         if (!allowedBounds.intersect(writingArea)) allowedBounds.set(writingArea);
         int margin = dp(8);
