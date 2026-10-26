@@ -1,12 +1,12 @@
-# Scribblow user guide
+# Scriflow user guide
 
-Scribblow is designed for Huawei MatePad Paper HMW-W09 on Android 10/API 29,
+Scriflow is designed for Huawei MatePad Paper HMW-W09 on Android 10/API 29,
 firmware `HMW-W09 2.1.0.222(C00E170R1P8)`. Other devices and firmware have not
 been verified. See the [README](../README.md) for installation and current limits.
 
 ## Notebooks and pages
 
-Open **Scribblow** to see the library. Tap **My Notebook** to open existing
+Open **Scriflow** to see the library. Tap **My Notebook** to open existing
 pages, or **+ Notebook** to create and open a named notebook. **Rename** changes
 its title without moving its files. Names may contain up to 80 Unicode
 characters; the library supports up to 200 notebooks. The editor's **books icon**

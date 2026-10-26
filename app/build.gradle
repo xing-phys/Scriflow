@@ -3,11 +3,21 @@ plugins { id 'com.android.application' }
 def appVersion = new Properties()
 file('version.properties').withInputStream { appVersion.load(it) }
 def releaseEnvironment = [
-    storeFile: 'SCRIBBLOW_KEYSTORE',
-    keyAlias: 'SCRIBBLOW_KEY_ALIAS',
-    storePassword: 'SCRIBBLOW_STORE_PASSWORD',
-    keyPassword: 'SCRIBBLOW_KEY_PASSWORD',
+    storeFile: 'SCRIFLOW_KEYSTORE',
+    keyAlias: 'SCRIFLOW_KEY_ALIAS',
+    storePassword: 'SCRIFLOW_STORE_PASSWORD',
+    keyPassword: 'SCRIFLOW_KEY_PASSWORD',
 ]
+// Existing private signing backups remain usable after the rename. Never mix
+// individual values from the two namespaces into a signing configuration.
+if (!releaseEnvironment.values().any { System.getenv(it) != null }) {
+    def legacyEnvironment = releaseEnvironment.collectEntries { field, variable ->
+        [(field): variable.replace('SCRIFLOW_', 'SCRIBBLOW_')]
+    }
+    if (legacyEnvironment.values().any { System.getenv(it) != null }) {
+        releaseEnvironment = legacyEnvironment
+    }
+}
 def releaseCredentials = releaseEnvironment.collectEntries { field, variable ->
     [(field): System.getenv(variable)]
 }

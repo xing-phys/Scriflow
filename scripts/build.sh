@@ -68,7 +68,7 @@ PY
 # Shared with Gradle; an existing development identity is never overwritten.
 bash scripts/prepare-debug-key.sh
 "$BT/apksigner" sign --ks .tools/debug.keystore --ks-key-alias androiddebugkey \
-  --ks-pass pass:android --key-pass pass:android --out build/scribblow-debug.apk build/aligned.apk
-"$BT/apksigner" verify --verbose build/scribblow-debug.apk
-"$BT/aapt" dump badging build/scribblow-debug.apk | head -n 3
-printf '%s\n' "Built $ROOT/build/scribblow-debug.apk"
+  --ks-pass pass:android --key-pass pass:android --out build/scriflow-debug.apk build/aligned.apk
+"$BT/apksigner" verify --verbose build/scriflow-debug.apk
+"$BT/aapt" dump badging build/scriflow-debug.apk | head -n 3
+printf '%s\n' "Built $ROOT/build/scriflow-debug.apk"

@@ -1,16 +1,16 @@
 name: Bug report
-description: Report a reproducible problem with Scribblow.
+description: Report a reproducible problem with Scriflow.
 body:
   - type: markdown
     attributes:
       value: |
-        Scribblow depends on device-specific e-ink handwriting support. Include the tablet and firmware so we can distinguish app behavior from compatibility limits. Remove private notebook content from attachments.
+        Scriflow depends on device-specific e-ink handwriting support. Include the tablet and firmware so we can distinguish app behavior from compatibility limits. Remove private notebook content from attachments.
   - type: input
     id: version
     attributes:
-      label: Scribblow version
+      label: Scriflow version
       description: Include the version and whether this is an official APK or a local build.
-      placeholder: "0.28.0-beta.1, local debug build"
+      placeholder: "0.28.0-beta.2, local debug build"
     validations:
       required: true
   - type: input

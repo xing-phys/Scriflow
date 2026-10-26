@@ -1,6 +1,6 @@
 # Third-party notices
 
-Scribblow's own source, documentation, and original artwork use the
+Scriflow's own source, documentation, and original artwork use the
 [MIT License](LICENSE). The third-party files below retain their upstream
 licenses and notices.
 
@@ -29,7 +29,7 @@ Inspection of this JAR found Gradle wrapper, command-line parsing, and supportin
 `org.gradle` classes, plus `META-INF/MANIFEST.MF` and `META-INF/LICENSE`. It has
 no `NOTICE` entry or other library namespace. It is a small bootstrap tool,
 rather than the full Gradle distribution; the wrapper and launch scripts are
-not packaged into the Scribblow APK.
+not packaged into the Scriflow APK.
 
 For redistribution, Apache License 2.0 section 4 requires a license copy,
 preservation of applicable source notices, notices identifying modified files,

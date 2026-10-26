@@ -8,8 +8,8 @@ see the [current device record](device-testing.md) and
 public-release APK. Use the [release checklist](releasing.md) for that.
 
 Historical app names, signing descriptions, and APK paths refer to the artifacts
-used at that milestone. The current app is Scribblow; current build and signing
-instructions are in [Building](building.md). Diagnostic commands below apply
+used at that milestone. The current app is Scriflow (formerly Scribblow); current
+build and signing instructions are in [Building](building.md). Diagnostic commands below apply
 only to development builds.
 
 ## Automated and on-device verification
@@ -198,6 +198,16 @@ and the next extension steps.
 Version 0.27 adopts the **Scribblow** name, a flowing-S launcher icon, and
 Scribblow PDF credits. The application ID, signing key, notebook formats,
 legacy page identities, and handwriting path are retained. Install it as an
-update over the existing app. The standalone build now writes
+update over the existing app. At that milestone the standalone build wrote
 `build/scribblow-debug.apk`; older versioned APK filenames in the development
 records refer to the original artifacts. See [branding](branding.md).
+
+
+Version 0.28.0-beta.1 was the first public Scribblow release. The owner accepted
+its dedicated-key signed APK on 2026-10-26; the published file and checksum remain
+unchanged. Version 0.28.0-beta.2 renames the app to **Scriflow**, retaining the
+flowing-S symbol, application ID, permanent signing certificate, notebook
+storage, page identities, and formats. New standalone builds use
+`build/scriflow-debug.apk`; new PDF credits and APK filenames use Scriflow.
+The renamed candidate requires its own physical acceptance before publication.
+See [branding](branding.md) and the [device record](device-testing.md).

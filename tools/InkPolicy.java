@@ -14,7 +14,7 @@ public final class InkPolicy {
             System.out.println(name + ": " + bundle);
             if ("org.eink.inkprobe".equals(name)) verified = "13".equals(String.valueOf(mode));
         }
-        if (!verified) throw new IllegalStateException("Scribblow effective policy is not 13");
-        System.out.println("Verified: Scribblow effective application policy is 13.");
+        if (!verified) throw new IllegalStateException("Scriflow effective policy is not 13");
+        System.out.println("Verified: Scriflow effective application policy is 13.");
     }
 }

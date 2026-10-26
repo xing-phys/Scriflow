@@ -1,4 +1,4 @@
-# Building Scribblow
+# Building Scriflow
 
 Both build routes compile the same Java sources and resources. They read
 `app/version.properties`, retain application ID `org.eink.inkprobe`, and target
@@ -66,7 +66,7 @@ JAVA_HOME="$PWD/.tools/jdk-17.0.21+9" ./gradlew --offline hostTest :app:lint :ap
 ```
 
 This route uses SDK platform 29 and Build Tools 30.0.3 without Gradle. After
-bootstrap it builds offline and writes **`build/scribblow-debug.apk`**. It is
+bootstrap it builds offline and writes **`build/scriflow-debug.apk`**. It is
 always a development APK with debugging enabled, not the public release route.
 
 Both debug build routes call `scripts/prepare-debug-key.sh`. It preserves an
@@ -83,7 +83,7 @@ ID, API level, exact permission set, component exposure, debugging flag, and
 signature state:
 
 ```bash
-python3 scripts/verify-apk.py build/scribblow-debug.apk --variant debug
+python3 scripts/verify-apk.py build/scriflow-debug.apk --variant debug
 python3 scripts/verify-apk.py app/build/outputs/apk/release/app-release-unsigned.apk --signature unsigned
 ```
 
@@ -91,7 +91,7 @@ Back up important notebooks before installing. Install the development APK
 over an existing installation only if its signature matches:
 
 ```bash
-adb -d install --no-incremental -r build/scribblow-debug.apk
+adb -d install --no-incremental -r build/scriflow-debug.apk
 adb -d shell am start -W -n org.eink.inkprobe/.notebook.NotebookLibraryActivity
 ./scripts/read-display-policy.sh
 ```

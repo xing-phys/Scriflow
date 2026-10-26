@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Summarize callback delivery, not optical pen-to-ink latency, from a Scribblow ink-diagnostics export."""
+"""Summarize callback delivery, not optical pen-to-ink latency, from a Scriflow ink-diagnostics export."""
 import argparse
 import json
 import math
@@ -18,7 +18,7 @@ def main():
     parser.add_argument("export", type=Path)
     args = parser.parse_args()
     data = json.loads(args.export.read_text())
-    print(f"Scribblow ink diagnostics {data.get('appVersion', '?')} / mode {data.get('mode', '?')}")
+    print(f"Scriflow ink diagnostics {data.get('appVersion', '?')} / mode {data.get('mode', '?')}")
     print("Times below describe software callback delivery, not visible ink latency.")
     print("Stroke  Source          Points  Event span  Arrival span  Delay p50/p95/max (ms)")
     timed = 0

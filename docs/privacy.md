@@ -1,6 +1,6 @@
 # Privacy and local storage
 
-Scribblow works locally on the tablet. It has no accounts, analytics, advertising,
+Scriflow works locally on the tablet. It has no accounts, analytics, advertising,
 crash-reporting service, cloud sync, or app-initiated network requests. The APK
 does not request Android's `INTERNET` permission.
 
@@ -9,7 +9,7 @@ does not request Android's `INTERNET` permission.
 Notebooks are stored in the app's private directory. They contain handwriting
 coordinates, pressure, timing, pen styles, page order, paper choices, and notebook
 names. App preferences remember tool widths, tool position, and reading position.
-Scribblow does not add encryption to its notebook files; protection of the
+Scriflow does not add encryption to its notebook files; protection of the
 tablet and its storage depends on the device and its configuration.
 
 Uninstalling the app or clearing its storage removes its private notes and
@@ -18,7 +18,7 @@ backups through the library and keep them outside the app's private storage.
 
 ## Exports and backups
 
-PDF export and editable backup use Android's system file picker. Scribblow
+PDF export and editable backup use Android's system file picker. Scriflow
 receives access to the location you choose rather than requesting broad storage
 permission. If you choose a cloud-backed file provider, that provider handles
 the transfer and its own privacy terms apply.
@@ -34,7 +34,7 @@ the transfer and its own privacy terms apply.
 ## Permission and diagnostics
 
 `ACCESS_NETWORK_STATE` is the only declared permission. It reads connection
-state for the Wi-Fi indicator; it does not let Scribblow send data over the
+state for the Wi-Fi indicator; it does not let Scriflow send data over the
 network. The status bar also shows the tablet's time and battery level.
 
 Development builds include diagnostic screens and checks. Diagnostics can

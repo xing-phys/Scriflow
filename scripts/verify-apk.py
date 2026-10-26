@@ -4,7 +4,7 @@
 Requires Android SDK Build Tools (aapt and apksigner), but no signing key.
 Examples:
   python3 scripts/verify-apk.py app/build/outputs/apk/release/app-release-unsigned.apk --signature unsigned
-  python3 scripts/verify-apk.py build/scribblow-debug.apk --variant debug
+  python3 scripts/verify-apk.py build/scriflow-debug.apk --variant debug
   python3 scripts/verify-apk.py release.apk --certificate-sha256 EXPECTED_HEX_DIGEST
 """
 
@@ -202,7 +202,7 @@ def verify_manifest(manifest, badging, variant, version):
     require(application.attributes.get('android:allowBackup') == 0, 'Automatic Android backup must remain disabled.')
     require('android:icon' in application.attributes, 'Missing launcher icon.')
     labels = re.findall(r"^application-label(?:-[^:]+)?:'([^']*)'$", badging, re.MULTILINE)
-    require(labels and set(labels) == {'Scribblow'}, 'Expected the Scribblow label in every packaged locale.')
+    require(labels and set(labels) == {'Scriflow'}, 'Expected the Scriflow label in every packaged locale.')
     sdk = [child for child in manifest.children if child.tag == 'uses-sdk']
     require(len(sdk) == 1 and sdk[0].attributes.get('android:minSdkVersion') == 29
             and sdk[0].attributes.get('android:targetSdkVersion') == 29, 'Expected minSdk=29 and targetSdk=29.')
@@ -293,7 +293,7 @@ def main():
             require(package.read('assets/LICENSE') == (ROOT / 'LICENSE').read_bytes(),
                     'Packaged license differs from the project LICENSE.')
         certificate = verify_signature(args.apk, apksigner, args.signature, args.certificate_sha256)
-        print(f'Verified {args.apk}: Scribblow {version[0]} ({version[1]}), {args.variant}, {args.signature}.')
+        print(f'Verified {args.apk}: Scriflow {version[0]} ({version[1]}), {args.variant}, {args.signature}.')
         print('Package, API level, permissions, launcher, and component exposure are correct.')
         if certificate:
             print('Signer certificate SHA-256: ' + certificate)

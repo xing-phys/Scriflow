@@ -1,6 +1,6 @@
-# Contributing to Scribblow
+# Contributing to Scriflow
 
-Scribblow currently targets one verified tablet/firmware combination. Please
+Scriflow currently targets one verified tablet/firmware combination. Please
 read the [compatibility statement](README.md#compatibility-and-status),
 [architecture](docs/architecture.md), and [build guide](docs/building.md) before
 changing the handwriting or storage paths.
@@ -21,7 +21,7 @@ personal notes or commit device captures.
 
 ## Reporting a problem
 
-Use the [GitHub issue forms](https://github.com/xing-phys/Scribblow/issues/new/choose).
+Use the [GitHub issue forms](https://github.com/xing-phys/Scriflow/issues/new/choose).
 
 Include the app version, tablet model, exact firmware, steps to reproduce,
 expected/observed behavior, and whether the issue concerns saving or only display.
@@ -32,5 +32,5 @@ Review attachments for handwriting, notebook names, device identifiers, and
 other private information. See [privacy](docs/privacy.md). Never include signing
 keys, passwords, local tool directories, or recovery copies in a contribution.
 
-Scribblow uses the [MIT License](LICENSE). Preserve its copyright and license
+Scriflow uses the [MIT License](LICENSE). Preserve its copyright and license
 notice, and retain applicable [third-party notices](THIRD_PARTY_NOTICES.md).

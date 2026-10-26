@@ -3,12 +3,26 @@
 set -euo pipefail
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
-for variable in SCRIBBLOW_KEYSTORE SCRIBBLOW_KEY_ALIAS SCRIBBLOW_STORE_PASSWORD SCRIBBLOW_KEY_PASSWORD; do
+# Accept a complete old signing environment when no current variable is set.
+# An explicitly empty current variable still requests current configuration.
+current_signing=false
+for field in KEYSTORE KEY_ALIAS STORE_PASSWORD KEY_PASSWORD; do
+  variable="SCRIFLOW_$field"
+  if [[ -v "$variable" ]]; then current_signing=true; fi
+done
+if [[ "$current_signing" == false ]]; then
+  for field in KEYSTORE KEY_ALIAS STORE_PASSWORD KEY_PASSWORD; do
+    variable="SCRIFLOW_$field"
+    legacy="SCRIBBLOW_$field"
+    if [[ -v "$legacy" ]]; then export "$variable=${!legacy}"; fi
+  done
+fi
+for variable in SCRIFLOW_KEYSTORE SCRIFLOW_KEY_ALIAS SCRIFLOW_STORE_PASSWORD SCRIFLOW_KEY_PASSWORD; do
   [[ -n "${!variable:-}" ]] || {
     printf 'Missing %s. See docs/releasing.md.\n' "$variable" >&2; exit 1;
   }
 done
-[[ -f "$SCRIBBLOW_KEYSTORE" ]] || { echo 'The release keystore file does not exist.' >&2; exit 1; }
+[[ -f "$SCRIFLOW_KEYSTORE" ]] || { echo 'The release keystore file does not exist.' >&2; exit 1; }
 if [[ -z "${JAVA_HOME:-}" && -x .tools/jdk-17.0.21+9/bin/java ]]; then
   export JAVA_HOME="$ROOT/.tools/jdk-17.0.21+9"
 fi
@@ -28,7 +42,7 @@ if not re.fullmatch(r'[0-9A-Za-z][0-9A-Za-z._+-]*', version):
     raise SystemExit('Version name is not safe for a release filename')
 directory = Path('build/releases')
 directory.mkdir(parents=True, exist_ok=True)
-destination = directory / ('scribblow-' + version + '.apk')
+destination = directory / ('scriflow-' + version + '.apk')
 fd, temporary = tempfile.mkstemp(prefix='.release-', dir=directory)
 os.close(fd)
 try:
@@ -36,9 +50,9 @@ try:
     # Verify the staged bytes, even if another Gradle build replaces its output.
     keytool = str(Path(os.environ['JAVA_HOME']) / 'bin/keytool') if os.environ.get('JAVA_HOME') else 'keytool'
     certificate = subprocess.run([
-        keytool, '-exportcert', '-keystore', os.environ['SCRIBBLOW_KEYSTORE'],
-        '-alias', os.environ['SCRIBBLOW_KEY_ALIAS'],
-        '-storepass:env', 'SCRIBBLOW_STORE_PASSWORD',
+        keytool, '-exportcert', '-keystore', os.environ['SCRIFLOW_KEYSTORE'],
+        '-alias', os.environ['SCRIFLOW_KEY_ALIAS'],
+        '-storepass:env', 'SCRIFLOW_STORE_PASSWORD',
     ], capture_output=True, check=False)
     if certificate.returncode:
         raise SystemExit('Cannot read the configured signing certificate; no release was staged.')

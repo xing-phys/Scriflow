@@ -1,12 +1,23 @@
 # Device test record
 
-The app is now named **Scribblow**; see [branding](branding.md). Historical
-app names, log tags, and APK filenames below describe the original experiments.
+The app is now named **Scriflow** (formerly **Scribblow**); see
+[branding](branding.md). Historical app names, log tags, and APK filenames below
+describe the original experiments.
 
-## Public beta 0.28.0-beta.1 acceptance (2026-10-26)
+## Scriflow 0.28.0-beta.2 candidate (tablet acceptance pending)
+
+Version 0.28.0-beta.2 (Android `versionCode` 30) introduces the Scriflow name.
+It keeps the permanent application ID, public signing certificate, notebook
+storage, and formats. This candidate is not publicly released; earlier
+acceptance of Scribblow does not establish acceptance of these new APK bytes.
+Run the [tablet acceptance checks](releasing.md#tablet-acceptance) on the exact
+signed candidate before publishing it, including the launcher name and an
+in-place update from Scribblow with the existing library preserved.
+
+## Scribblow public beta 0.28.0-beta.1 acceptance (2026-10-26)
 
 The owner tested the dedicated-key signed APK and confirmed that it works,
-authorizing the [public beta release](https://github.com/xing-phys/Scribblow/releases/tag/v0.28.0-beta.1).
+authorizing the [public beta release](https://github.com/xing-phys/Scriflow/releases/tag/v0.28.0-beta.1).
 This is general tablet acceptance; the owner did not provide an item-by-item
 checklist or a long-session/maximum-capacity benchmark. The target remains
 MatePad Paper HMW-W09, firmware `HMW-W09 2.1.0.222(C00E170R1P8)`, Android 10/API 29;
@@ -18,7 +29,7 @@ other firmware and devices remain unverified.
 - Build source/tag: `b3a1834685115b3c7b2a9c69016b63704e0a76e2` / `v0.28.0-beta.1`.
 - Automated checks: 20,160 host assertions; debug/release lint and builds;
   APK manifest, bundled license, and signature verification. Public
-  [CI run 40247579382](https://github.com/xing-phys/Scribblow/actions/runs/40247579382)
+  [CI run 40247579382](https://github.com/xing-phys/Scriflow/actions/runs/40247579382)
   also passed without private signing credentials.
 
 The published APK is the same file the owner accepted; it was not rebuilt for

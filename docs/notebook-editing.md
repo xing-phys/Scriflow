@@ -86,7 +86,7 @@ No ADB access, app installation, or tablet changes were performed for this updat
 
 1. Transfer `build/ink-notebook-0.8.apk` to the tablet and install it as an update.
    Keep the existing app installed; uninstalling deletes its private notes.
-2. Open Scribblow and confirm the existing page and paper are present.
+2. Open Scriflow and confirm the existing page and paper are present.
 3. With Pen selected, write three separate test strokes. Wait for Saved, then
    try Undo and Redo; each tap should remove or restore one stroke.
 4. Select Eraser. Cross two test strokes and lift the pen. Both should disappear

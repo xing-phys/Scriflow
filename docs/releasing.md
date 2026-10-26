@@ -1,17 +1,18 @@
-# Preparing a Scribblow release
+# Preparing a Scriflow release
 
 The local build workflow prepares artifacts without publishing or installing
-them. The first public beta, [0.28.0-beta.1](https://github.com/xing-phys/Scribblow/releases/tag/v0.28.0-beta.1),
-was published on 2026-10-26 after the owner's tablet acceptance. Publishing is
-a separate step described below.
+them. The first public beta, [0.28.0-beta.1](https://github.com/xing-phys/Scriflow/releases/tag/v0.28.0-beta.1),
+was published as **Scribblow** on 2026-10-26 after the owner's tablet acceptance.
+The current **Scriflow 0.28.0-beta.2** candidate is not public and still needs
+its own tablet acceptance. Publishing is a separate step described below.
 
 ## Before publishing
 
 - Retain the [MIT License](../LICENSE) and applicable
   [third-party notices](../THIRD_PARTY_NOTICES.md) with source distributions.
 - Confirm the permanent application ID, currently `org.eink.inkprobe`, and
-  preserve the dedicated release signing identity selected for Scribblow. Its
-  public certificate SHA-256 is recorded in
+  preserve the dedicated release signing identity originally selected for
+  Scribblow and retained for Scriflow. Its public certificate SHA-256 is recorded in
   [release-signing-certificate.sha256](../release-signing-certificate.sha256).
   Keep a secure independent backup of the private key and credentials. Future
   updates require signing continuity.
@@ -28,12 +29,17 @@ environment variables:
 
 | Variable | Meaning |
 | --- | --- |
-| `SCRIBBLOW_KEYSTORE` | Existing private keystore path; absolute or relative to the project root |
-| `SCRIBBLOW_KEY_ALIAS` | Alias of the selected signing key |
-| `SCRIBBLOW_STORE_PASSWORD` | Keystore password |
-| `SCRIBBLOW_KEY_PASSWORD` | Signing-key password |
+| `SCRIFLOW_KEYSTORE` | Existing private keystore path; absolute or relative to the project root |
+| `SCRIFLOW_KEY_ALIAS` | Alias of the selected signing key |
+| `SCRIFLOW_STORE_PASSWORD` | Keystore password |
+| `SCRIFLOW_KEY_PASSWORD` | Signing-key password |
 
-With **none** set, `assembleRelease` produces
+The `SCRIFLOW_*` names are preferred. For existing private setups, a complete
+legacy `SCRIBBLOW_*` set is accepted only when **no** `SCRIFLOW_*` variables are
+set. Never mix the two variable families. If any new variable is present, all
+four new variables must be nonempty; legacy values cannot fill missing entries.
+
+With **neither family** set, `assembleRelease` produces
 `app/build/outputs/apk/release/app-release-unsigned.apk`. With **all four** set,
 it produces signed `app/build/outputs/apk/release/app-release.apk`. Any partial
 configuration fails, including empty values. The release helper requires all
@@ -64,22 +70,30 @@ or public build logs. Keep the permanent private key in a protected location
 with an independent recovery copy.
 
 The owner's local release setup uses `.tools/release-signing/scribblow-release.keystore`
-and `.tools/signing.env`. These private files are ignored by Git and restricted
-to the owner. The public fingerprint file is safe to include in the repository;
+with its existing alias `scribblow`, and `.tools/signing.env`. The filename
+and alias deliberately retain the former name: preserving the same key is what
+allows Scriflow to update the public Scribblow beta. The local environment file
+now uses `SCRIFLOW_*` variables. Restore these private files on a new computer
+and adjust the keystore path if necessary; do not generate a replacement key
+for public updates. These files are ignored by Git and restricted to the owner.
+The public fingerprint file is safe to include in the repository;
 the release helper checks that the configured key matches it. Contributors can
 build unsigned release APKs without possessing the permanent key.
 
 ## Version numbers
 
-The current public beta is **0.28.0-beta.1**, with Android `versionCode` **29**.
-The owner accepted its signed APK on 2026-10-26. Its core notebook features are
-implemented, while broader usage and sustained performance still need testing.
-Beta expresses that status without claiming the feature freeze and confidence
-of a release candidate or a stable 1.0 release.
+The current source version is **0.28.0-beta.2**, with Android `versionCode`
+**30**. It is the first Scriflow candidate and needs physical acceptance before
+publication. The latest public beta remains **Scribblow 0.28.0-beta.1**, with
+`versionCode` **29**, accepted on 2026-10-26. Its published APK filename and
+checksum remain unchanged. The notebook features are implemented, while broader
+usage and sustained performance still need testing. Beta expresses that status
+without claiming the feature freeze and confidence of a release candidate or a
+stable 1.0 release.
 
 Release names use `MAJOR.MINOR.PATCH` with an optional suffix such as
 `-beta.1` or `-rc.1`. The earlier two-part development versions remain in the
-history. Future beta builds can use `0.28.0-beta.2`, followed by a release
+history. Further beta builds can use `0.28.0-beta.3`, followed by a release
 candidate once changes settle. Every new distributed APK must increase
 `versionCode`, including when only the prerelease suffix changes. Moving to
 1.0.0 will be a separate decision about the supported core experience, not a
@@ -107,23 +121,23 @@ and [Android versioning](https://developer.android.com/studio/publish/versioning
    The helper runs release lint and assembly, copies the candidate privately,
    verifies those exact bytes and the configured signing certificate, then
    stages a versioned APK and SHA-256 checksum under
-   `build/releases/`. For this beta these are `scribblow-0.28.0-beta.1.apk` and
-   `scribblow-0.28.0-beta.1.apk.sha256`. Debugging is disabled, diagnostic screens are
+   `build/releases/`. For this candidate these are `scriflow-0.28.0-beta.2.apk` and
+   `scriflow-0.28.0-beta.2.apk.sha256`. Debugging is disabled, diagnostic screens are
    absent from the manifest, and the library is the only exported component.
 
 4. Compare the printed signer certificate SHA-256 with the intended permanent
    certificate. For later builds, pin that known digest during verification:
 
    ```bash
-   python3 scripts/verify-apk.py build/releases/scribblow-0.28.0-beta.1.apk --certificate-sha256 YOUR_KNOWN_CERTIFICATE_SHA256
-   (cd build/releases && sha256sum -c scribblow-0.28.0-beta.1.apk.sha256)
+   python3 scripts/verify-apk.py build/releases/scriflow-0.28.0-beta.2.apk --certificate-sha256 YOUR_KNOWN_CERTIFICATE_SHA256
+   (cd build/releases && sha256sum -c scriflow-0.28.0-beta.2.apk.sha256)
    ```
 
    Substitute the current version and the actual known digest. The APK file's
    SHA-256 checksum and the signer's certificate SHA-256 identify different
    things; publish both clearly in the release notes.
 
-The verifier checks version, application ID, API 29, Scribblow label/icon,
+The verifier checks version, application ID, API 29, Scriflow label/icon,
 `ACCESS_NETWORK_STATE` as the only permission, disabled automatic backup,
 component exposure, debugging state, and cryptographic signature validity.
 Those checks do not establish the tablet behaviors below.
@@ -165,7 +179,7 @@ Android rejects an ordinary update. Plan the migration before removing anything:
    Retain a second independent copy; optional PDFs provide readable copies too.
 2. Restore each backup into the current app as a separate notebook and check its
    pages, or verify it on another supported installation. Confirm the exported
-   files can still be accessed outside Scribblow.
+   files can still be accessed outside the app.
 3. Only after those copies have been verified, deliberately uninstall the old
    installation if required to install the chosen public identity. Uninstalling
    erases private notebooks and settings; this step is irreversible without
@@ -186,7 +200,7 @@ preserve the selected key, and record remaining limitations. Any screenshots
 must use disposable notes.
 
 Mark a GitHub beta release as a **pre-release** and use its full version in the
-tag and title, such as `v0.28.0-beta.1`. This identifies it as a test build
+tag and title, such as `v0.28.0-beta.2`. This identifies it as a test build
 without changing the ordinary APK installation process.
 
 When publishing is explicitly authorized, attach only the accepted signed APK

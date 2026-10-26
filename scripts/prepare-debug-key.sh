@@ -20,7 +20,7 @@ if [[ -n "${JAVA_HOME:-}" ]]; then KEYTOOL="$JAVA_HOME/bin/keytool"; fi
 "$KEYTOOL" -genkeypair -keystore "$STAGE/debug.keystore" -storetype JKS \
   -storepass android -keypass android -alias androiddebugkey \
   -keyalg RSA -keysize 2048 -validity 10000 \
-  -dname 'CN=Android Debug,O=Scribblow,C=US' >/dev/null 2>&1
+  -dname 'CN=Android Debug,O=Scriflow,C=US' >/dev/null 2>&1
 # Linking is atomic and cannot overwrite a key created by a concurrent build.
 if ! ln "$STAGE/debug.keystore" "$DESTINATION" 2>/dev/null; then
   [[ -f "$DESTINATION" && -s "$DESTINATION" ]] || {

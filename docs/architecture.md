@@ -1,4 +1,4 @@
-# Scribblow architecture: foundation milestone (0.22)
+# Scriflow architecture: foundation milestone (0.22)
 
 Status: implemented foundation; PDF import, rich content, and AI remain later milestones.
 The immediate target is MatePad Paper on Android 10. File models and transactions stay

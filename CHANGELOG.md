@@ -1,11 +1,27 @@
 # Changelog
 
-The first public release is 0.28.0-beta.1. Earlier version numbers below
+The first public release, 0.28.0-beta.1, used the name Scribblow. Current
+development uses Scriflow. Earlier version numbers below
 identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
-## [0.28.0-beta.1](https://github.com/xing-phys/Scribblow/releases/tag/v0.28.0-beta.1) — First public beta (2026-10-26)
+## 0.28.0-beta.2 — Scriflow identity (unreleased)
+
+- Rename the app to **Scriflow**, bringing together scribe, script, and scribble
+  with flow. Retain the flowing-S monochrome symbol and the tagline
+  **Handwriting for thinking.**
+- Update launcher and screen labels, PDF credits, generated APK names,
+  documentation, and repository links to the new name.
+- Advance Android `versionCode` to 30 while preserving application ID,
+  permanent release signing identity, notebook storage, formats, and page IDs.
+- Prefer `SCRIFLOW_*` signing variables; accept a complete legacy `SCRIBBLOW_*`
+  environment only when no new variables are set, so existing private backups
+  remain usable without mixing credentials.
+- Keep the published Scribblow 0.28.0-beta.1 artifact and its checksum unchanged.
+  The renamed candidate needs its own physical tablet acceptance before release.
+
+## [0.28.0-beta.1](https://github.com/xing-phys/Scriflow/releases/tag/v0.28.0-beta.1) — First public beta (2026-10-26)
 
 - Publish the signed APK and checksum after the owner's tablet acceptance.
 - License Scribblow's source, documentation, and original artwork under MIT;

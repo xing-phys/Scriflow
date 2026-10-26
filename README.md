@@ -1,12 +1,13 @@
-# Scribblow
+# Scriflow
 
-<img src="assets/branding/scribblow-icon.png" alt="Scribblow app icon" width="112" height="112">
+<img src="assets/branding/scriflow-icon.png" alt="Scriflow app icon" width="112" height="112">
 
 **Handwriting for thinking.**
 
-Scribblow combines *scribble* and *flow*: a quiet place to draft, calculate,
-work through a derivation, and follow an idea. It is an early-stage notebook
-app for the **Huawei MatePad Paper**.
+Scriflow brings together *scribe*, *script*, and *scribble* with *flow*: a quiet
+place to draft, calculate, work through a derivation, and follow an idea. It is
+an early-stage notebook app for the **Huawei MatePad Paper**, formerly named
+**Scribblow**.
 
 ## Compatibility and status
 
@@ -15,12 +16,15 @@ Development and physical testing target **MatePad Paper HMW-W09**, Android
 rendering use Huawei APIs already present on that firmware; no proprietary
 Huawei code is bundled. Other tablets and firmware versions are unverified.
 
-The first public beta is **[0.28.0-beta.1](https://github.com/xing-phys/Scribblow/releases/tag/v0.28.0-beta.1)**,
-released on 2026-10-26 after the owner tested and accepted the signed APK.
-The core notebook features are implemented; broader use and long-session
-performance still need feedback. The [changelog](CHANGELOG.md) summarizes
-changes; [device records](docs/device-testing.md) distinguish automated checks
-from physical testing. Future release APKs need their own tablet acceptance.
+The current source version is **0.28.0-beta.2**, the first **Scriflow** candidate.
+It is not publicly released and still needs tablet acceptance. The latest
+public APK is **[0.28.0-beta.1](https://github.com/xing-phys/Scriflow/releases/tag/v0.28.0-beta.1)**,
+released as **Scribblow** on 2026-10-26 after the owner tested and accepted that
+signed APK. Its filename and contents remain unchanged. The core notebook
+features are implemented; broader use and long-session performance still need
+feedback. The [changelog](CHANGELOG.md) summarizes changes;
+[device records](docs/device-testing.md) distinguish automated checks from
+physical testing. Every new release APK needs its own tablet acceptance.
 
 ## Features
 
@@ -32,18 +36,19 @@ from physical testing. Future release APKs need their own tablet acceptance.
 - Vector PDF export for sharing and editable `.inkbook` backup/restore.
 - Movable, rotatable monochrome tools and a quiet time/battery/Wi-Fi bar.
 
-Notes stay on the tablet. Scribblow has no account, analytics, or cloud sync and
+Notes stay on the tablet. Scriflow has no account, analytics, or cloud sync and
 makes no network requests. See [privacy and local storage](docs/privacy.md).
 
 ## Install and update
 
-Download the **[0.28.0-beta.1 APK](https://github.com/xing-phys/Scribblow/releases/download/v0.28.0-beta.1/scribblow-0.28.0-beta.1.apk)**
-from [GitHub Releases](https://github.com/xing-phys/Scribblow/releases/tag/v0.28.0-beta.1),
+Download the latest public **[Scribblow 0.28.0-beta.1 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.28.0-beta.1/scribblow-0.28.0-beta.1.apk)**
+from [GitHub Releases](https://github.com/xing-phys/Scriflow/releases/tag/v0.28.0-beta.1),
 where its file checksum and signing certificate fingerprint are recorded.
 Copy it to the supported tablet, open it with the tablet's file manager, and
 allow installation from that source when prompted.
-Open **Scribblow** from the launcher. Review the app version and signing
-certificate supplied with a release before installing it.
+That published APK opens as **Scribblow**; the new candidate opens as
+**Scriflow**. Review the app version and signing certificate supplied with a
+release before installing it.
 
 **Back up your notes before an update or a change of signing identity.** In the
 library, choose **Backup** beside each notebook and save its `.inkbook` file
@@ -51,9 +56,10 @@ outside the app's private storage. Try **Restore backup** to confirm it opens
 as a separate notebook. PDF export is a reading copy, not an editable backup.
 
 An ordinary update must keep the same application ID and signing certificate.
-The application ID remains `org.eink.inkprobe` to preserve identity through the
-rename. If Android rejects an update because its signature differs, stop and
-follow the [signing migration instructions](docs/releasing.md#moving-from-a-development-key).
+The application ID remains `org.eink.inkprobe`, and the existing public signing
+key is retained, so the Scriflow rename can update the released Scribblow app
+in place without moving notebooks. If Android rejects an update because its
+signature differs, stop and follow the [signing migration instructions](docs/releasing.md#moving-from-a-development-key).
 **Uninstalling the app or clearing app storage deletes its private notes.**
 Older APKs cannot read pages upgraded to the current version-2 format.
 
@@ -109,11 +115,11 @@ See [Building](docs/building.md), [Contributing](CONTRIBUTING.md), and the
 [development history](docs/development-history.md), and
 [name and artwork](docs/branding.md) explain the implementation and its history.
 Report bugs and suggest improvements through the
-[issue forms](https://github.com/xing-phys/Scribblow/issues/new/choose).
+[issue forms](https://github.com/xing-phys/Scriflow/issues/new/choose).
 
 ## License
 
-Scribblow's source, documentation, and original artwork are licensed under the
+Scriflow's source, documentation, and original artwork are licensed under the
 [MIT License](LICENSE). Third-party build tooling retains its own licenses;
 see [third-party notices](THIRD_PARTY_NOTICES.md). APKs include a copy of the
 MIT license notice.
