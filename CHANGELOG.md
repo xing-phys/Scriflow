@@ -6,6 +6,24 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## [0.29.0-dev.3](https://github.com/xing-phys/Scriflow/releases/tag/v0.29.0-dev.3) — Floating tools and status islands (2026-10-26)
+
+- Replace rounded-square tools with compact 32 dp circular buttons inside a
+  pill-shaped dock, retaining horizontal/vertical layouts and grip dragging.
+- Tap the six-dot grip to collapse the dock to one circle; tap again to expand.
+  Dragging still works when collapsed. Remember position, orientation, and
+  collapsed state; Reset tools expands and restores the initial placement.
+- Replace the fixed header with separate notebook/page and time/battery/Wi-Fi
+  islands at the top corners. Extend the page through the former header area
+  and protect all floating controls from native ink, including overlapping bounds.
+- Distinguish grip taps from drags using touch slop, cancel toggles for
+  multi-pointer/cancelled gestures, and retain idle-only device-status updates.
+- Advance Android versionCode to 33, preserving the application ID, permanent
+  public signing identity, notebook storage, and file formats.
+- Publish as a development prerelease at the owner's explicit request. Host
+  tests, Android lint/builds, and signed APK verification pass. No tablet is
+  connected; physical validation of the UI and native ink exclusions is pending.
+
 ## [0.29.0-dev.2](https://github.com/xing-phys/Scriflow/releases/tag/v0.29.0-dev.2) — Lasso and page management (2026-10-26)
 
 - Release whole-stroke lasso selection and overview page management: reorder,

@@ -10,6 +10,7 @@ import android.os.SystemClock;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.WindowManager;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
@@ -21,7 +22,7 @@ import java.util.EnumMap;
 /** A separate, static window above the native ink surface, moved only by its grip. */
 public final class NotebookFloatingTools {
     public enum Action {
-        LIBRARY, PREVIOUS, NEXT, ADD_PAGE, PEN, ERASER, LASSO, UNDO, REDO, PAPER, MORE, OVERVIEW, ORIENTATION
+        LIBRARY, PREVIOUS, NEXT, ADD_PAGE, PEN, ERASER, LASSO, UNDO, REDO, PAPER, MORE, OVERVIEW, ORIENTATION, COLLAPSE
     }
 
     public interface Listener {
@@ -42,11 +43,12 @@ public final class NotebookFloatingTools {
     private final ContactLayout content;
     private final PopupWindow popup;
     private final NotebookIconButton grip;
+    private final NotebookGripGesture gripMotion;
     private final View[] order;
     private final Rect screenBounds = new Rect();
     private final Rect allowedBounds = new Rect();
     private View anchor;
-    private boolean vertical;
+    private boolean vertical, collapsed;
     private int width, height;
     private int movingPointer = -1;
     private boolean gripGesture, moveAccepted, disposed;
@@ -67,15 +69,18 @@ public final class NotebookFloatingTools {
         this.listener = listener;
         content = new ContactLayout(activity);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(6), dp(6), dp(6), dp(6));
+        content.setPadding(dp(4), dp(4), dp(4), dp(4));
         content.setStateListAnimator(null);
         content.setElevation(0f);
         GradientDrawable background = new GradientDrawable();
         background.setColor(Color.WHITE);
-        background.setCornerRadius(dp(12));
+        background.setCornerRadius(dp(1000));
         background.setStroke(dp(1), Color.BLACK);
         content.setBackground(background);
-        grip = new NotebookIconButton(activity, NotebookIconDrawable.Icon.MOVE, "Move tools");
+        gripMotion = new NotebookGripGesture(ViewConfiguration.get(activity).getScaledTouchSlop());
+        grip = new NotebookIconButton(activity, NotebookIconDrawable.Icon.MOVE,
+                "Collapse tools; drag to move");
+        grip.setOnClickListener(view -> listener.onAction(Action.COLLAPSE));
         grip.setOnTouchListener((view, event) -> {
             // A narrow-window strip can scroll, but its grip always moves the window.
             if (event.getActionMasked() == MotionEvent.ACTION_DOWN)
@@ -151,6 +156,34 @@ public final class NotebookFloatingTools {
 
     public boolean isVertical() { return vertical; }
 
+    public boolean isCollapsed() { return collapsed; }
+
+    /** Keep the grip at the same screen position where space permits. Ink must be paused. */
+    public void setCollapsed(boolean value) {
+        if (collapsed == value) return;
+        collapsed = value;
+        grip.setContentDescription(value ? "Expand tools; drag to move" : "Collapse tools; drag to move");
+        if (isShowing()) {
+            position(horizontalFraction, verticalFraction, true);
+            rememberPosition();
+        }
+    }
+
+    /** Initial placement only. Subsequent grip drags remain unrestricted by the islands. */
+    void avoidStatusIslands(Rect... islands) {
+        boolean overlaps = false;
+        int top = screenBounds.top;
+        for (Rect island : islands) {
+            if (Rect.intersects(screenBounds, island)) overlaps = true;
+            if (!island.isEmpty()) top = Math.max(top, island.bottom + dp(8));
+        }
+        if (!overlaps || !isShowing()) return;
+        pendingTop = Math.max(allowedBounds.top, Math.min(allowedBounds.bottom - height, top));
+        setBounds(pendingLeft, pendingTop);
+        popup.update(pendingLeft, pendingTop, width, height);
+        rememberPosition();
+    }
+
     /** Caller pauses native ink before changing the window's exclusion rectangle. */
     public void setVertical(boolean value) {
         if (vertical == value) return;
@@ -208,13 +241,18 @@ public final class NotebookFloatingTools {
     public Rect bounds() { return new Rect(screenBounds); }
 
     private void position(float horizontal, float vertical) {
+        position(horizontal, vertical, false);
+    }
+
+    private void position(float horizontal, float vertical, boolean keepGripPosition) {
         if (anchor == null) return;
+        int previousLeft = screenBounds.left, previousTop = screenBounds.top;
         horizontalFraction = fraction(horizontal);
         verticalFraction = fraction(vertical);
         updateAllowedBounds();
-        NotebookToolStrip.Layout layout = NotebookToolStrip.measure(this.vertical, order.length,
+        NotebookToolStrip.Layout layout = NotebookToolStrip.measure(this.vertical, collapsed ? 1 : order.length,
                 Math.max(1, allowedBounds.width()), Math.max(1, allowedBounds.height()),
-                dp(36), dp(28), dp(4), dp(6));
+                dp(32), dp(28), dp(4), dp(4));
         width = layout.width; height = layout.height;
         buildStrip(layout);
         content.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
@@ -223,6 +261,10 @@ public final class NotebookFloatingTools {
                 * Math.max(0, allowedBounds.width() - width));
         int top = allowedBounds.top + Math.round(verticalFraction
                 * Math.max(0, allowedBounds.height() - height));
+        if (keepGripPosition) {
+            left = Math.max(allowedBounds.left, Math.min(allowedBounds.right - width, previousLeft));
+            top = Math.max(allowedBounds.top, Math.min(allowedBounds.bottom - height, previousTop));
+        }
         pendingLeft = left;
         pendingTop = top;
         setBounds(left, top);
@@ -256,7 +298,7 @@ public final class NotebookFloatingTools {
         }
         LinearLayout strip = new LinearLayout(activity);
         strip.setOrientation(vertical ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
-        for (int index = 0; index < order.length; index++) {
+        for (int index = 0; index < (collapsed ? 1 : order.length); index++) {
             LinearLayout.LayoutParams item = new LinearLayout.LayoutParams(layout.button, layout.button);
             if (index != 0) {
                 if (vertical) item.topMargin = dp(4); else item.leftMargin = dp(4);
@@ -271,7 +313,7 @@ public final class NotebookFloatingTools {
             scroll.setSmoothScrollingEnabled(false);
             scroll.addView(strip, new FrameLayout.LayoutParams(layout.stripWidth, layout.stripHeight));
             content.addView(scroll, new LinearLayout.LayoutParams(
-                Math.max(1, width - dp(12)), Math.max(1, height - dp(12))));
+                Math.max(1, width - dp(8)), Math.max(1, height - dp(8))));
         } else {
             HorizontalScrollView scroll = new HorizontalScrollView(activity);
             scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
@@ -280,7 +322,7 @@ public final class NotebookFloatingTools {
             scroll.setSmoothScrollingEnabled(false);
             scroll.addView(strip, new FrameLayout.LayoutParams(layout.stripWidth, layout.stripHeight));
             content.addView(scroll, new LinearLayout.LayoutParams(
-                Math.max(1, width - dp(12)), Math.max(1, height - dp(12))));
+                Math.max(1, width - dp(8)), Math.max(1, height - dp(8))));
         }
     }
 
@@ -292,6 +334,7 @@ public final class NotebookFloatingTools {
             movingPointer = event.getPointerId(0);
             startRawX = event.getRawX();
             startRawY = event.getRawY();
+            gripMotion.begin(startRawX, startRawY);
             startLeft = pendingLeft = screenBounds.left;
             startTop = pendingTop = screenBounds.top;
             lastMove = SystemClock.uptimeMillis();
@@ -304,8 +347,11 @@ public final class NotebookFloatingTools {
             else if (!main.hasCallbacks(moveFrame))
                 main.postDelayed(moveFrame, MOVE_INTERVAL_MS
                         - (SystemClock.uptimeMillis() - lastMove));
+        } else if (action == MotionEvent.ACTION_POINTER_DOWN) {
+            gripMotion.cancelTap();
         } else if (action == MotionEvent.ACTION_POINTER_UP
                 && event.getPointerId(event.getActionIndex()) == movingPointer) {
+            gripMotion.cancelTap();
             if (moveAccepted) { track(event); applyPendingMove(); }
             // Freeze after the grip finger lifts; resume ink only after all fingers lift.
             movingPointer = -1;
@@ -314,7 +360,9 @@ public final class NotebookFloatingTools {
                 if (action == MotionEvent.ACTION_UP && movingPointer != -1) track(event);
                 applyPendingMove();
             }
+            boolean click = gripMotion.finish(action == MotionEvent.ACTION_CANCEL || !moveAccepted);
             stopDrag();
+            if (click) grip.performClick();
         }
         return true;
     }
@@ -325,6 +373,7 @@ public final class NotebookFloatingTools {
         // getRawX/Y(index) requires API 29; the common window offset works on API 23 too.
         float rawX = event.getX(index) + event.getRawX() - event.getX(0);
         float rawY = event.getY(index) + event.getRawY() - event.getY(0);
+        if (!gripMotion.move(rawX, rawY)) return;
         pendingLeft = Math.max(allowedBounds.left,
                 Math.min(allowedBounds.right - width, startLeft + Math.round(rawX - startRawX)));
         pendingTop = Math.max(allowedBounds.top,
@@ -346,16 +395,19 @@ public final class NotebookFloatingTools {
         if (!gripGesture) return;
         boolean accepted = moveAccepted;
         gripGesture = false;
+        gripMotion.finish(true);
         moveAccepted = false;
         movingPointer = -1;
         if (accepted) {
-            horizontalFraction = relative(screenBounds.left - allowedBounds.left,
-                    allowedBounds.width() - width);
-            verticalFraction = relative(screenBounds.top - allowedBounds.top,
-                    allowedBounds.height() - height);
-            listener.onPositionChanged(horizontalFraction, verticalFraction);
+            rememberPosition();
             listener.onMoveEnd();
         }
+    }
+
+    private void rememberPosition() {
+        horizontalFraction = relative(screenBounds.left - allowedBounds.left, allowedBounds.width() - width);
+        verticalFraction = relative(screenBounds.top - allowedBounds.top, allowedBounds.height() - height);
+        listener.onPositionChanged(horizontalFraction, verticalFraction);
     }
 
     private void finishContact() {

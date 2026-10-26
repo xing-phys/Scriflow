@@ -16,11 +16,13 @@ Development and physical testing target **MatePad Paper HMW-W09**, Android
 rendering use Huawei APIs already present on that firmware; no proprietary
 Huawei code is bundled. Other tablets and firmware versions are unverified.
 
-The latest public prerelease is **[Scriflow 0.29.0-dev.2](https://github.com/xing-phys/Scriflow/releases/tag/v0.29.0-dev.2)**,
-released on 2026-10-26 after the owner's tablet acceptance. It adds lasso
-selection and page management, retaining the same application ID and public
-signing certificate for in-place updates. The core notebook features are
-implemented; broader use and long-session performance still need feedback.
+The latest public prerelease is **[Scriflow 0.29.0-dev.3](https://github.com/xing-phys/Scriflow/releases/tag/v0.29.0-dev.3)**,
+released on 2026-10-26 with the owner's explicit authorization. It adds compact
+circular tools, a collapsible dock, and floating status islands over a full-screen
+page, retaining the same application ID and public signing certificate for
+in-place updates. Automated checks pass; tablet validation of this UI update
+is pending. The core notebook features are implemented; broader use and
+long-session performance still need feedback.
 The [changelog](CHANGELOG.md) summarizes changes; [device records](docs/device-testing.md)
 distinguish automated checks, publication authorization, and physical testing.
 
@@ -36,14 +38,15 @@ distinguish automated checks, publication authorization, and physical testing.
   and undo/redo page changes.
 - Automatic saving of completed strokes and editable restoration after reopening.
 - Vector PDF export for sharing and editable `.inkbook` backup/restore.
-- Movable, rotatable monochrome tools and a quiet time/battery/Wi-Fi bar.
+- Compact circular tools in a movable, rotatable, collapsible dock, plus floating
+  notebook and time/battery/Wi-Fi islands over a full-screen page.
 
 Notes stay on the tablet. Scriflow has no account, analytics, or cloud sync and
 makes no network requests. See [privacy and local storage](docs/privacy.md).
 
 ## Install and update
 
-Download the latest public **[Scriflow 0.29.0-dev.2 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.29.0-dev.2/scriflow-0.29.0-dev.2.apk)**
+Download the latest public **[Scriflow 0.29.0-dev.3 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.29.0-dev.3/scriflow-0.29.0-dev.3.apk)**
 from [GitHub Releases](https://github.com/xing-phys/Scriflow/releases/tag/v0.29.0-dev.2),
 where its file checksum and signing certificate fingerprint are recorded.
 Copy it to the supported tablet, open it with the tablet's file manager, and
@@ -73,7 +76,8 @@ vertically with one finger to scroll. The paper icon switches blank/lined paper;
 the page-plus icon appends a page. The grid opens page thumbnails.
 
 Tap an already-selected Pen or Eraser icon to adjust its width. Drag the
-six-dot grip to move the tools, or use the direction icon to rotate them.
+six-dot grip to move the tools, tap it to collapse/expand them, or use the
+direction icon to rotate them.
 The three-dot menu contains PDF export, save status, and **Reset tools**.
 If saving fails, writing pauses and **Not saved · Retry** appears.
 

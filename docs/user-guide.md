@@ -27,8 +27,8 @@ empty page using the active page's paper. Each page keeps its own writing and
 paper choice. The page limit is 1,000; page management is available from 0.29.
 These limits are not demonstrated large-notebook performance guarantees.
 
-The header reads **Notebook name · X / Y**. Its page is the most recently
-written page, or the page nearest the viewport center after scrolling. Eraser,
+The top-left floating island reads **Notebook name · X / Y**. Its page is the
+most recently written page, or the page nearest the viewport center after scrolling. Eraser,
 Undo/Redo, and paper choice use that context. Fractional scroll position is
 saved per notebook. Existing pages keep their contents when their order changes.
 
@@ -67,18 +67,21 @@ APKs cannot read the managed notebook; preserve an editable backup before updati
 
 ## Floating tools
 
-The controls form a single row or column of 36 dp buttons. Tap the **direction
-icon beside the grip** to switch orientation. Drag the **six-dot grip** with a
-finger or stylus to move the strip; it stops where released and remembers its
-position and orientation. Only the grip moves the tools.
+The controls form a single row or column of 32 dp circular buttons inside a
+pill-shaped dock. Tap the **direction icon beside the grip** to switch
+orientation. Drag the **six-dot grip** with a finger or stylus to move the dock;
+it stops where released. **Tap the grip once** to collapse all tools into that
+one circle; tap again to expand. The collapsed grip can still be dragged.
+Position, orientation, and collapsed state are remembered. Only the grip moves
+the tools.
 
 **Pen** uses a pencil symbol; **Eraser** uses a tilted eraser. A thick border
 marks the selected tool. **Lasso** uses a dashed loop (available in development
 builds after 0.28.0-beta.2). The curved arrows are Undo/Redo, the grid opens the
 overview, and the three-dot menu offers page information, PDF export, and
-**Reset tools**. Reset returns the strip to its initial horizontal, top-center
-position. Touching controls has no ripple or pressed inversion; the page stays
-writable outside the tools.
+**Reset tools**. Reset expands the dock and returns it to its initial horizontal
+position near the top center, below the status islands. Touching controls has
+no ripple or pressed inversion; the page stays writable outside the tools.
 
 ## Pen thickness
 
@@ -156,8 +159,10 @@ for the scope of that feedback and automated checks.
 
 ## Status and display refresh
 
-The slim header shows the notebook/page on the left and time, battery level,
-and Wi-Fi state on the right. Time follows the tablet's 12/24-hour setting and
+Two small floating islands show the notebook/page at the top left and time,
+battery level, and Wi-Fi state at the top right. The paper fills the screen
+behind them, including the space between the islands; there is no reserved
+header row. Time follows the tablet's 12/24-hour setting and
 updates by the minute. Device-status changes wait until writing has been idle
 for about a second; no per-second updates run during handwriting.
 

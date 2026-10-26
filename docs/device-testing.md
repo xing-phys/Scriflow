@@ -4,6 +4,28 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## Scriflow 0.29.0-dev.3 authorized prerelease (2026-10-26)
+
+The owner explicitly requested committing and releasing the circular-tool,
+collapsible-dock, and floating-status-island update after being informed that
+no tablet was connected. This is publication authorization, not physical tablet
+acceptance. Native ink exclusion around multiple islands, tap/drag behavior on
+the device, visible e-ink transitions, and writing in the former header area
+remain pending checks. Earlier acceptance does not establish these results.
+
+- Artifact: `scriflow-0.29.0-dev.3.apk`, Android `versionCode` 33.
+- APK SHA-256: recorded in the release's `scriflow-0.29.0-dev.3.apk.sha256`
+  asset and release notes for the exact published file.
+- Signer certificate SHA-256: `2cc5db316df82fecc6085ff53e67cbd64f29b412f01e9a5c19bf4b34e3821709`.
+- Release tag: [`v0.29.0-dev.3`](https://github.com/xing-phys/Scriflow/releases/tag/v0.29.0-dev.3).
+- Automated checks: 22,347 host assertions, including grip tap/drag intent and
+  expanded/collapsed dock sizing; debug/release lint and builds; manifest,
+  bundled license, signature/certificate, and staged APK checksum verification.
+
+The existing application ID, permanent public signing identity, notebook
+storage, and file formats are preserved. The release is marked as a prerelease
+with physical validation pending.
+
 ## Scriflow 0.29.0-dev.2 acceptance and release (2026-10-26)
 
 After testing the updated signed APK, the owner confirmed that it works well

@@ -64,7 +64,7 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
     };
     private Tool tool = Tool.PEN;
     private float scaleX = 1, scaleY = 1, widthScale = 1;
-    private Rect overlayScreenBounds;
+    private final List<Rect> overlayScreenBounds = new ArrayList<>();
 
     public NotebookInk(Context context, NotebookPage page, Listener listener) throws Exception {
         if (page == null || listener == null) throw new IllegalArgumentException("Missing notebook state");
@@ -270,15 +270,17 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
     }
 
     /**
-     * Excludes a floating control window from native pen-DOWN handling. Bounds use
+     * Excludes floating control windows from native pen-DOWN handling. Bounds use
      * physical screen pixels, independently of the notebook's logical page scale.
      * Call before displaying or moving the window; pause handwriting before moving
      * it during an existing gesture. A stroke begun on paper may pass behind it.
      */
-    public void setOverlayBounds(Rect screenBounds) {
+    public void setOverlayBounds(Rect... screenBounds) {
         if (!alive || failed) return;
-        overlayScreenBounds = screenBounds == null || screenBounds.isEmpty()
-            ? null : new Rect(screenBounds);
+        overlayScreenBounds.clear();
+        if (screenBounds != null) for (Rect bounds : screenBounds) {
+            if (bounds != null && !bounds.isEmpty()) overlayScreenBounds.add(new Rect(bounds));
+        }
         // Layout and framebuffer binding can follow creation of the floating window.
         // tryEnable always installs the latest exclusion before native ink resumes.
         if (!prepared || surface == null) return;
@@ -288,18 +290,24 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
 
     private void applyOverlayClip() throws Exception {
         Path clip = null;
-        if (overlayScreenBounds != null) {
+        if (!overlayScreenBounds.isEmpty()) {
             int[] location = new int[2];
             view.getLocationOnScreen(location);
-            Rect bounds = overlayScreenBounds;
-            NotebookOverlayClip.Hole hole = NotebookOverlayClip.localHole(
-                location[0], location[1], surfaceWidth, surfaceHeight,
-                bounds.left, bounds.top, bounds.right, bounds.bottom);
-            if (hole != null) {
-                clip = new Path();
-                clip.setFillType(Path.FillType.EVEN_ODD);
-                clip.addRect(0, 0, surfaceWidth, surfaceHeight, Path.Direction.CW);
-                clip.addRect(hole.left, hole.top, hole.right, hole.bottom, Path.Direction.CW);
+            for (Rect bounds : overlayScreenBounds) {
+                NotebookOverlayClip.Hole hole = NotebookOverlayClip.localHole(
+                    location[0], location[1], surfaceWidth, surfaceHeight,
+                    bounds.left, bounds.top, bounds.right, bounds.bottom);
+                if (hole != null) {
+                    if (clip == null) {
+                        clip = new Path();
+                        clip.addRect(0, 0, surfaceWidth, surfaceHeight, Path.Direction.CW);
+                    }
+                    Path exclusion = new Path();
+                    exclusion.addRect(hole.left, hole.top, hole.right, hole.bottom, Path.Direction.CW);
+                    // Difference also protects intersections when a dock overlaps a status island.
+                    if (!clip.op(exclusion, Path.Op.DIFFERENCE))
+                        throw new IllegalStateException("Could not combine floating control bounds");
+                }
             }
         }
         // setClip replaces the persistent initial native clip; clipRect would stack

@@ -42,7 +42,7 @@ public interface NotebookInkBackend {
     void setSelectionMode(boolean selected);
     void setPenWidth(float width);
     void setEraserWidth(float width);
-    void setOverlayBounds(Rect bounds);
+    void setOverlayBounds(Rect... bounds);
     void setPage(NotebookPage page);
     void setPaperRenderer(PaperRenderer renderer);
     boolean updateViewport(NotebookPage page, PaperRenderer renderer);

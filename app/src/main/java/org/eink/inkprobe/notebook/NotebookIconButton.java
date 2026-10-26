@@ -4,7 +4,6 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
-import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
 import android.view.MotionEvent;
 import android.view.View;
@@ -16,7 +15,6 @@ import android.widget.Button;
 /** A static e-ink button: its only visual state change is an explicitly selected tool. */
 public final class NotebookIconButton extends View {
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final RectF border = new RectF();
     private final NotebookIconDrawable symbol;
     private boolean available = true;
     private boolean toolSelected;
@@ -88,22 +86,21 @@ public final class NotebookIconButton extends View {
     }
 
     @Override protected void onMeasure(int widthSpec, int heightSpec) {
-        setMeasuredDimension(resolveSize(dp(36), widthSpec), resolveSize(dp(36), heightSpec));
+        setMeasuredDimension(resolveSize(dp(32), widthSpec), resolveSize(dp(32), heightSpec));
     }
 
     @Override protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         // Pressed, focused, hovered, and unavailable all draw exactly the same pixels.
         float stroke = dpFloat(toolSelected ? 3f : 1f);
-        float inset = stroke / 2f;
-        border.set(inset, inset, getWidth() - inset, getHeight() - inset);
+        float radius = Math.max(0, (Math.min(getWidth(), getHeight()) - stroke) / 2f);
         paint.setColor(Color.WHITE);
         paint.setStyle(Paint.Style.FILL);
-        canvas.drawRoundRect(border, dpFloat(8), dpFloat(8), paint);
+        canvas.drawCircle(getWidth() / 2f, getHeight() / 2f, radius, paint);
         paint.setColor(Color.BLACK);
         paint.setStrokeWidth(stroke);
         paint.setStyle(Paint.Style.STROKE);
-        canvas.drawRoundRect(border, dpFloat(8), dpFloat(8), paint);
+        canvas.drawCircle(getWidth() / 2f, getHeight() / 2f, radius, paint);
         int size = Math.max(1, Math.min(dp(20), Math.min(getWidth(), getHeight()) - dp(12)));
         int left = (getWidth() - size) / 2;
         int top = (getHeight() - size) / 2 - (penWidthPreview > 0 ? dp(2) : 0);
