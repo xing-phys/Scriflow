@@ -1,10 +1,11 @@
 # Preparing a Scribblow release
 
-This workflow prepares artifacts locally. It does **not** push source, create
-a GitHub release, upload an APK, or install an app on a tablet. The repository
-has not yet published its first public release.
+The local build workflow prepares artifacts without publishing or installing
+them. The first public beta, [0.28.0-beta.1](https://github.com/xing-phys/Scribblow/releases/tag/v0.28.0-beta.1),
+was published on 2026-10-26 after the owner's tablet acceptance. Publishing is
+a separate step described below.
 
-## Before the first public release
+## Before publishing
 
 - Retain the [MIT License](../LICENSE) and applicable
   [third-party notices](../THIRD_PARTY_NOTICES.md) with source distributions.
@@ -17,8 +18,8 @@ has not yet published its first public release.
 - Preserve the existing development key and verified editable backups before
   migrating any current installation. A new public key cannot silently update
   the app signed by the old development key.
-- Add authentic screenshots made with disposable notes and the actual download
-  link after the repository/release exists. No placeholder release URL is used.
+- Keep the README download link current. Any screenshots added should use
+  disposable notes rather than personal handwriting or private notebooks.
 
 ## Signing configuration
 
@@ -70,11 +71,11 @@ build unsigned release APKs without possessing the permanent key.
 
 ## Version numbers
 
-The current beta candidate is **0.28.0-beta.1**, with Android `versionCode` **29**.
-Its core notebook features are implemented, while broader usage, sustained
-performance, and acceptance of the final signed APK still need testing. Beta
-expresses that status without claiming the feature freeze and confidence of a
-release candidate or a stable 1.0 release.
+The current public beta is **0.28.0-beta.1**, with Android `versionCode` **29**.
+The owner accepted its signed APK on 2026-10-26. Its core notebook features are
+implemented, while broader usage and sustained performance still need testing.
+Beta expresses that status without claiming the feature freeze and confidence
+of a release candidate or a stable 1.0 release.
 
 Release names use `MAJOR.MINOR.PATCH` with an optional suffix such as
 `-beta.1` or `-rc.1`. The earlier two-part development versions remain in the
@@ -181,7 +182,8 @@ an APK over version-2 pages, or assume a signature change preserves app data.
 Review the exact files selected for source distribution: exclude private keys,
 filled signing environment files, `.tools/`, build outputs, personal device
 captures, and recovery copies. Include the MIT license and third-party notices,
-preserve the selected key, add genuine screenshots, and record remaining limitations.
+preserve the selected key, and record remaining limitations. Any screenshots
+must use disposable notes.
 
 Mark a GitHub beta release as a **pre-release** and use its full version in the
 tag and title, such as `v0.28.0-beta.1`. This identifies it as a test build

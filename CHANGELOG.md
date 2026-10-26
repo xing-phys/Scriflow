@@ -1,12 +1,13 @@
 # Changelog
 
-This project has not yet published its first public release. Version numbers
-below identify development milestones. Detailed historical verification is in
+The first public release is 0.28.0-beta.1. Earlier version numbers below
+identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
-## 0.28.0-beta.1 — Public beta preparation (unreleased)
+## [0.28.0-beta.1](https://github.com/xing-phys/Scribblow/releases/tag/v0.28.0-beta.1) — First public beta (2026-10-26)
 
+- Publish the signed APK and checksum after the owner's tablet acceptance.
 - License Scribblow's source, documentation, and original artwork under MIT;
   include the MIT notice in APKs and retain the Gradle Wrapper's Apache 2.0
   license and notices separately.

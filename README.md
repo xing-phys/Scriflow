@@ -15,14 +15,12 @@ Development and physical testing target **MatePad Paper HMW-W09**, Android
 rendering use Huawei APIs already present on that firmware; no proprietary
 Huawei code is bundled. Other tablets and firmware versions are unverified.
 
-The current build is **0.28.0-beta.1**, prepared for public beta testing. The
-core notebook features are implemented; broader use and final tablet checks
-are still needed. Source is available at
-[xing-phys/Scribblow](https://github.com/xing-phys/Scribblow). No public APK has
-been published yet. The
-[changelog](CHANGELOG.md) summarizes changes;
-[device records](docs/device-testing.md) distinguish automated checks from
-physical testing. Each release APK still needs its own tablet acceptance check.
+The first public beta is **[0.28.0-beta.1](https://github.com/xing-phys/Scribblow/releases/tag/v0.28.0-beta.1)**,
+released on 2026-10-26 after the owner tested and accepted the signed APK.
+The core notebook features are implemented; broader use and long-session
+performance still need feedback. The [changelog](CHANGELOG.md) summarizes
+changes; [device records](docs/device-testing.md) distinguish automated checks
+from physical testing. Future release APKs need their own tablet acceptance.
 
 ## Features
 
@@ -39,10 +37,11 @@ makes no network requests. See [privacy and local storage](docs/privacy.md).
 
 ## Install and update
 
-Accepted beta APKs will be published on
-[GitHub Releases](https://github.com/xing-phys/Scribblow/releases).
-Once an APK is published, copy it to the supported tablet, open it with the
-tablet's file manager, and allow installation from that source when prompted.
+Download the **[0.28.0-beta.1 APK](https://github.com/xing-phys/Scribblow/releases/download/v0.28.0-beta.1/scribblow-0.28.0-beta.1.apk)**
+from [GitHub Releases](https://github.com/xing-phys/Scribblow/releases/tag/v0.28.0-beta.1),
+where its file checksum and signing certificate fingerprint are recorded.
+Copy it to the supported tablet, open it with the tablet's file manager, and
+allow installation from that source when prompted.
 Open **Scribblow** from the launcher. Review the app version and signing
 certificate supplied with a release before installing it.
 
