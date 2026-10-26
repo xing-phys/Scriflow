@@ -1,6 +1,5 @@
 package org.eink.inkprobe.notebook;
 
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Color;
@@ -22,7 +21,7 @@ import java.io.IOException;
 import org.eink.inkprobe.R;
 
 /** Notebook home. All file/catalog work goes through the process-wide serialized writer. */
-public final class NotebookLibraryActivity extends Activity {
+public final class NotebookLibraryActivity extends NotebookDisplayActivity {
     private NotebookSession session;
     private LinearLayout rows;
     private TextView status;
@@ -37,7 +36,6 @@ public final class NotebookLibraryActivity extends Activity {
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
-        NotebookSettings.applyOrientation(this);
         dialogDraft = saved == null ? null : saved.getBundle("notebookDialog");
         session = NotebookSession.get(this);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
@@ -74,7 +72,7 @@ public final class NotebookLibraryActivity extends Activity {
     }
 
     @Override protected void onResume() {
-        super.onResume(); NotebookSettings.applyOrientation(this); active = true; refresh();
+        super.onResume(); active = true; refresh();
     }
     @Override protected void onPause() {
         captureDialogDraft();

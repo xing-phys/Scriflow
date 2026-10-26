@@ -28,15 +28,33 @@ a percentage indicator appears during zoom. The zoom controls offer **Fit width*
 **Fit height**, **Fit page**, and fixed percentages. Drag with a finger to pan
 across enlarged pages and scroll through the notebook. Space outside the paper
 is white. Ink stays attached to the page when you zoom or rotate.
+Faint grey lines mark the page edges on screen; these guides are not exported
+as ink or PDF content.
 
 Tap the notebook title/percentage in the top-left island to open the zoom
 controls and **App settings**.
 
 Open **Settings** from the library or **App settings** from the editor. Choose **Portrait**,
 **Landscape**, or **Follow device sensor**. The choice is saved for the whole
-app. Sensor mode follows the tablet even if system rotation is locked; while
-writing, rotation waits until you lift the pen. Screen rotation rebuilds the
+app. Sensor mode listens to the tablet directly, including when system rotation
+is locked. Hold the tablet tilted rather than flat; it turns after a short,
+stable hold. While writing, rotation waits until you lift the pen. Settings
+shows whether a sensor was detected. No additional permission is required.
+Screen rotation rebuilds the
 writing surface without changing stored page dimensions.
+
+Finger navigation is ignored while the pen hovers nearby, during writing,
+and for 0.6 seconds after the last pen contact or hover exit. Lift the pen away
+before using your fingers. A rejected resting hand must lift before it can
+start navigation. Broad contacts and gestures with more than two fingers are
+also rejected when the device reports them.
+
+For pinch zoom, place both fingers within 0.35 seconds, then deliberately
+change their separation. Small contact jitter does not zoom. If an accepted
+navigation gesture is cancelled as a palm/mixed-input gesture, its temporary
+zoom and pan are discarded. In **Settings → Touch gestures**, turn **Two-finger
+zoom** off to use the title/percentage menu for zoom while keeping one-finger
+scrolling available.
 
 ## Writing and saving
 

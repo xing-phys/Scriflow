@@ -23,6 +23,9 @@ continuous notebook. Fit width, Fit height, Fit page, and percentage presets
 are available from the zoom controls. Percentages are relative to Fit width.
 The area outside page bounds is white. Completed strokes, erasing, and lasso
 selection use inverse page transforms; zoom does not rewrite saved samples.
+From dev.2, faint grey screen-only lines mark the paper boundary while its
+surroundings stay white. The lines are included in all editor previews and
+excluded from stored strokes and PDF export.
 
 Settings offers Portrait, Landscape, and Follow device sensor. The setting
 applies to the library, writing screen, backup/restore, and PDF export. Sensor
@@ -30,6 +33,38 @@ mode uses the physical sensor even when system rotation is locked. Rotation
 waits for pen lift, then uses normal Android activity recreation to release
 and reconstruct the Huawei writing surface. The process-wide notebook writer
 and editing history survive that recreation; page geometry stays fixed.
+
+## Dev.2 input and rotation follow-up
+
+The owner reported that dev.1 pinch zoom works, but resting-hand contacts can
+zoom unintentionally, paper edges are hard to see, and sensor rotation does
+not respond. The cause of the firmware's sensor-policy failure is not confirmed
+without a connected tablet. Dev.2 replaces reliance on FULL_SENSOR with
+OrientationEventListener readings and explicit orientation requests in every
+production screen. Sensor listeners run only while resumed. Upright sectors
+have 30-degree acceptance windows and must settle for 600 ms; flat/unknown and
+diagonal readings keep the current direction. Pen lift starts a fresh settling
+interval so pending stroke commits can finish first. Natural landscape devices
+and reverse orientations have explicit mappings. Settings reports sensor
+availability. This uses normal-rate accelerometer access, with no added
+permission or changes to global rotation settings. See Android's
+[orientation listener](https://developer.android.com/reference/android/view/OrientationEventListener)
+and [sensor lifecycle guidance](https://developer.android.com/develop/sensors-and-location/sensors/sensors_overview).
+
+For finger navigation, pen hover/contact takes priority and adds a 600 ms quiet
+period. Rejected contacts stay rejected until release; an untouched resting
+finger does not pause the native stylus path. A broad contact (24 mm when
+reported by the hardware) or more than two fingers cancels navigation. Zoom
+requires two contacts arriving within 350 ms, then at least 60 ms and a span
+change exceeding 12 dp or 4%, whichever is larger. These are conservative app
+heuristics rather than a claim of perfect palm recognition. Cancellation
+restores the viewport from before the gesture. Users can disable pinch zoom
+in Settings and keep menu zoom and one-finger navigation.
+
+Android 10 does not provide Android 13's per-pointer FLAG_CANCELED signal, so
+these safeguards supplement the existing mixed-input ownership/cancellation
+path. Device hover delivery and contact-size reporting remain firmware-specific.
+See [Android stylus and palm cancellation guidance](https://developer.android.com/develop/ui/views/touch-and-input/stylus-input/advanced-stylus-features).
 
 This is a development prerelease. Automated storage, PDF, and geometry checks
 and Android build/lint checks cover the changes. No tablet was connected during

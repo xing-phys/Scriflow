@@ -38,6 +38,9 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
     private final ArrayDeque<Completion> awaitingCommit = new ArrayDeque<>();
     private final ArrayDeque<NotebookPage.Stroke> nativeCommits = new ArrayDeque<>();
     private final NotebookFingerStream fingerStream = new NotebookFingerStream();
+    private final NotebookPalmGuard palmGuard = new NotebookPalmGuard();
+    private boolean blockedSelectionFingers;
+    private float pixelsPerMm;
     private final NotebookSelectionStream selectionStream = new NotebookSelectionStream();
     private final NotebookLassoGesture lassoGesture = new NotebookLassoGesture();
     private final NotebookLassoGesture nativeLassoGesture = new NotebookLassoGesture();
@@ -71,6 +74,9 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
         DisplayPolicy.requireHandwritingPolicy(context);
         this.page = page;
         this.listener = listener;
+        float dpi = context.getResources().getDisplayMetrics().xdpi;
+        if (dpi < 80 || dpi > 1000) dpi = context.getResources().getDisplayMetrics().density * 160;
+        pixelsPerMm = dpi / 25.4f;
         completed.addAll(page.strokes);
         Class<?> editor = Class.forName("android.eink.view.edit.HWEditView");
         view = (SurfaceView) editor.getConstructor(Context.class).newInstance(context);
@@ -84,6 +90,11 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
         // All live trails use AHW. Grey eraser and dashed lasso tracks are temporary;
         // only our model edits/selects ink after the native track has finished.
         view.setOnTouchListener((v, event) -> touch(event));
+        view.setOnHoverListener((v, event) -> {
+            if (event.getPointerCount() > 0 && isEraserInput(event.getToolType(0)))
+                palmGuard.hover(event.getActionMasked() != MotionEvent.ACTION_HOVER_EXIT, event.getEventTime());
+            return false; // Preserve the firmware's own hover handling.
+        });
         view.getHolder().addCallback(this);
     }
 
@@ -459,7 +470,37 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
 
     private boolean touch(MotionEvent event) {
         if (!alive || failed) return true;
+        boolean penPresent = false, broadContact = false;
+        int fingers = 0;
+        for (int i = 0; i < event.getPointerCount(); i++) {
+            if (isEraserInput(event.getToolType(i))) penPresent = true;
+            if (event.getToolType(i) == MotionEvent.TOOL_TYPE_FINGER) {
+                fingers++;
+                broadContact |= NotebookPalmGuard.broadContact(event.getTouchMajor(i), pixelsPerMm);
+            }
+        }
+        if (penPresent) palmGuard.penSeen(event.getEventTime());
+        boolean rejectFingers = palmGuard.rejectFingers(event.getEventTime(), broadContact || fingers > 2);
+        boolean changedFinger = event.getPointerCount() > 0
+            && event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_FINGER;
         if (selectionMode) {
+            int action = event.getActionMasked();
+            if (action == MotionEvent.ACTION_DOWN)
+                blockedSelectionFingers = changedFinger && !penPresent && rejectFingers;
+            if (blockedSelectionFingers) {
+                if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) blockedSelectionFingers = false;
+                return true;
+            }
+            if (broadContact || fingers > 2) {
+                MotionEvent cancelled = MotionEvent.obtain(event);
+                cancelled.setAction(MotionEvent.ACTION_CANCEL);
+                try {
+                    if (selectionStream.accept(MotionEvent.ACTION_CANCEL, event.getEventTime(), isReady()))
+                        listener.onSelectionEvent(cancelled);
+                } finally { cancelled.recycle(); }
+                blockedSelectionFingers = action != MotionEvent.ACTION_UP && action != MotionEvent.ACTION_CANCEL;
+                return true;
+            }
             if (selectionStream.accept(event.getActionMasked(), event.getEventTime(), isReady())) {
                 listener.onSelectionEvent(event);
             }
@@ -467,13 +508,8 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
         }
         // Own an accepted finger stream while AHW is paused. A pen joining that stream must
         // not hide its terminal event or restart native handwriting with contacts still down.
-        boolean penPresent = false;
-        for (int i = 0; i < event.getPointerCount(); i++)
-            if (isEraserInput(event.getToolType(i))) { penPresent = true; break; }
-        boolean changedFinger = event.getPointerCount() > 0
-            && event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_FINGER;
         NotebookFingerStream.Dispatch dispatch = fingerStream.accept(event.getActionMasked(),
-            penPresent, changedFinger, penDown);
+            penPresent, changedFinger, penDown, rejectFingers);
         if (dispatch != NotebookFingerStream.Dispatch.UNHANDLED) {
             MotionEvent cancellation = null;
             try {
@@ -831,6 +867,7 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
 
     private void setPenDown(boolean down) {
         if (penDown != down) {
+            palmGuard.penContact(down, SystemClock.uptimeMillis());
             penDown = down;
             listener.onPenStateChanged(down);
         }

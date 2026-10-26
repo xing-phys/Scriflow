@@ -6,6 +6,25 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## [0.30.0-dev.2](https://github.com/xing-phys/Scriflow/releases/tag/v0.30.0-dev.2) — Page edges and touch safeguards (2026-10-26)
+
+- Draw faint page outlines on the white writing background at every zoom,
+  including scrolling and selection previews. Guides are screen-only.
+- Replace the firmware-managed FULL_SENSOR request with a foreground sensor
+  listener and explicit orientation requests. Use stable gravity sectors,
+  a 600 ms settling interval, and pen-contact deferral; retain direction when
+  flat or ambiguous. Settings reports sensor availability. No new permission
+  or system-setting access is needed.
+- Give the stylus priority over finger navigation using hover/contact state
+  and a 600 ms quiet period. Keep rejected palm contacts suppressed until
+  release; leave native writing enabled for an unengaged resting touch.
+- Filter broad contacts and more than two fingers. Require two fresh contacts
+  and deliberate span change before zoom; discard temporary zoom/pan on
+  cancelled gestures. Add a Two-finger zoom switch in Settings.
+- Advance versionCode to 35, retaining the application ID, release key, page
+  format, and physical PDF dimensions. Automated checks pass; the sensor and
+  palm changes still need confirmation on the actual tablet.
+
 ## [0.30.0-dev.1](https://github.com/xing-phys/Scriflow/releases/tag/v0.30.0-dev.1) — Paper sizes, zoom, and orientation (2026-10-26)
 
 - Create an A5 notebook in one tap with **Quick A5 note**, or choose A5, A4,

@@ -6,14 +6,24 @@ final class NotebookFingerStream {
 
     // MotionEvent action-mask values, kept here so the ownership rules are host-testable.
     static final int DOWN = 0, UP = 1, MOVE = 2, CANCEL = 3, POINTER_DOWN = 5, POINTER_UP = 6;
-    private boolean active, mixed;
+    private boolean active, mixed, blocked;
 
     Dispatch accept(int action, boolean hasPen, boolean changedFinger, boolean penDown) {
+        return accept(action, hasPen, changedFinger, penDown, false);
+    }
+
+    Dispatch accept(int action, boolean hasPen, boolean changedFinger, boolean penDown, boolean rejectFingers) {
+        if (blocked) {
+            if (action == UP || action == CANCEL) blocked = false;
+            // An ignored palm must not disable the native stylus path.
+            return hasPen || penDown ? Dispatch.UNHANDLED : Dispatch.CONSUME;
+        }
         if (!active) {
             // Preserve the pen/eraser owner's complete event stream, including CANCEL and
             // MOVE events whose action-index pointer happens to be an accompanying palm.
             if (penDown || action == CANCEL) return Dispatch.UNHANDLED;
             if (action == DOWN && changedFinger && !hasPen && !penDown) {
+                if (rejectFingers) { blocked = true; return Dispatch.CONSUME; }
                 active = true;
                 return Dispatch.FORWARD;
             }
@@ -24,7 +34,7 @@ final class NotebookFingerStream {
         // Once a pen joins, hold the entire stream even if that pen subsequently lifts. A
         // synthetic cancellation is delivered only after the final contact releases, keeping
         // native handwriting off while either the original finger or the pen remains down.
-        mixed |= hasPen || penDown;
+        mixed |= hasPen || penDown || rejectFingers;
         if (action == UP || action == CANCEL) {
             Dispatch result = mixed ? Dispatch.CANCEL : Dispatch.FORWARD;
             reset(); // Clear ownership before a callback can resume or recreate the surface.
@@ -33,5 +43,5 @@ final class NotebookFingerStream {
         return mixed ? Dispatch.CONSUME : Dispatch.FORWARD;
     }
 
-    void reset() { active = false; mixed = false; }
+    void reset() { active = false; mixed = false; blocked = false; }
 }

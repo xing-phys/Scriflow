@@ -1,6 +1,5 @@
 package org.eink.inkprobe.notebook;
 
-import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
@@ -10,7 +9,8 @@ final class NotebookSettings {
     enum Orientation {
         PORTRAIT("Portrait", ActivityInfo.SCREEN_ORIENTATION_PORTRAIT),
         LANDSCAPE("Landscape", ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE),
-        SENSOR("Follow device sensor", ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR);
+        // NotebookDisplayActivity drives concrete directions from sensor readings.
+        SENSOR("Follow device sensor", ActivityInfo.SCREEN_ORIENTATION_LOCKED);
 
         final String label;
         final int requested;
@@ -32,24 +32,16 @@ final class NotebookSettings {
         return Orientation.PORTRAIT;
     }
 
-    static void setOrientation(Activity activity, Orientation orientation) {
+    static void setOrientation(Context context, Orientation orientation) {
         if (orientation == null) throw new IllegalArgumentException("Missing orientation");
-        preferences(activity).edit().putString(ORIENTATION, orientation.name()).apply();
-        applyOrientation(activity);
+        preferences(context).edit().putString(ORIENTATION, orientation.name()).apply();
     }
 
-    /** Call on create and resume so an Activity below Settings also receives a changed choice. */
-    static void applyOrientation(Activity activity) {
-        int requested = orientation(activity).requested;
-        if (activity.getRequestedOrientation() != requested) activity.setRequestedOrientation(requested);
+    static boolean pinchZoomEnabled(Context context) {
+        return preferences(context).getBoolean("pinchZoom", true);
     }
 
-    /** Keep the physical surface stable until a pen contact has finished. */
-    static void setPenDown(Activity activity, boolean down) {
-        if (orientation(activity) != Orientation.SENSOR) return;
-        if (down) {
-            if (activity.getRequestedOrientation() != ActivityInfo.SCREEN_ORIENTATION_LOCKED)
-                activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LOCKED);
-        } else applyOrientation(activity);
+    static void setPinchZoomEnabled(Context context, boolean enabled) {
+        preferences(context).edit().putBoolean("pinchZoom", enabled).apply();
     }
 }

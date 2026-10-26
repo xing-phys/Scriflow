@@ -1,6 +1,5 @@
 package org.eink.inkprobe.notebook;
 
-import android.app.Activity;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.Gravity;
@@ -13,13 +12,13 @@ import java.util.EnumMap;
 import java.util.Map;
 
 /** Static, immediately saved display choices shared by every notebook screen. */
-public final class NotebookSettingsActivity extends Activity {
+public final class NotebookSettingsActivity extends NotebookDisplayActivity {
+    private NotebookButton pinchChoice;
     private final Map<NotebookSettings.Orientation, NotebookButton> choices =
         new EnumMap<>(NotebookSettings.Orientation.class);
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
-        NotebookSettings.applyOrientation(this);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
         getWindow().setWindowAnimations(0);
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE
@@ -58,6 +57,7 @@ public final class NotebookSettingsActivity extends Activity {
             button.setPadding(dp(12), 0, dp(12), 0);
             button.setOnClickListener(view -> {
                 NotebookSettings.setOrientation(this, orientation);
+                refreshDisplayOrientation();
                 updateChoices();
             });
             choices.put(orientation, button);
@@ -65,9 +65,22 @@ public final class NotebookSettingsActivity extends Activity {
             View divider = new View(this); divider.setBackgroundColor(0xffbbbbbb);
             body.addView(divider, new LinearLayout.LayoutParams(-1, dp(1)));
         }
-        TextView sensor = label("Follow device sensor rotates with the tablet, including when the system rotation lock is on. Rotation waits until you lift the pen.", 15);
+        TextView sensor = label(canUseOrientationSensor()
+            ? "Sensor detected. Hold the tablet at an angle to rotate; when it lies flat, the current direction stays. Rotation waits until you finish writing. No extra permission is needed."
+            : "Automatic rotation is unavailable: no orientation sensor was detected. Choose Portrait or Landscape instead.", 15);
         sensor.setPadding(0, dp(20), 0, dp(24));
         body.addView(sensor, new LinearLayout.LayoutParams(-1, -2));
+        body.addView(label("Touch gestures", 22), new LinearLayout.LayoutParams(-1, -2));
+        pinchChoice = new NotebookButton(this); pinchChoice.setTextSize(20);
+        pinchChoice.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
+        pinchChoice.setOnClickListener(view -> {
+            NotebookSettings.setPinchZoomEnabled(this, !NotebookSettings.pinchZoomEnabled(this));
+            updateChoices();
+        });
+        body.addView(pinchChoice, new LinearLayout.LayoutParams(-1, dp(68)));
+        TextView palms = label("Finger navigation pauses while the pen is nearby and briefly after writing. For zoom, lift the pen away, place two fingers together, then pinch. You can turn pinch zoom off and use the percentage menu instead.", 15);
+        palms.setPadding(0, dp(12), 0, dp(24));
+        body.addView(palms, new LinearLayout.LayoutParams(-1, -2));
         scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(root);
@@ -76,11 +89,16 @@ public final class NotebookSettingsActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
-        NotebookSettings.applyOrientation(this);
         updateChoices();
     }
 
     private void updateChoices() {
+        if (pinchChoice != null) {
+            boolean enabled = NotebookSettings.pinchZoomEnabled(this);
+            pinchChoice.setText("Two-finger zoom: " + (enabled ? "On" : "Off"));
+            pinchChoice.setSelected(enabled);
+            pinchChoice.setContentDescription("Two-finger zoom " + (enabled ? "on" : "off") + "; tap to change");
+        }
         NotebookSettings.Orientation selected = NotebookSettings.orientation(this);
         for (Map.Entry<NotebookSettings.Orientation, NotebookButton> entry : choices.entrySet()) {
             boolean checked = selected == entry.getKey();

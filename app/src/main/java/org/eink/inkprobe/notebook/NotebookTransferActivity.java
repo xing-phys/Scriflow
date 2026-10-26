@@ -1,6 +1,5 @@
 package org.eink.inkprobe.notebook;
 
-import android.app.Activity;
 import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
@@ -11,7 +10,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 /** System document picker access; no broad storage permission and no interaction with live ink. */
-public final class NotebookTransferActivity extends Activity {
+public final class NotebookTransferActivity extends NotebookDisplayActivity {
     private static final int PICK = 2401;
     private NotebookTransfer job;
     private TextView status;
@@ -19,7 +18,6 @@ public final class NotebookTransferActivity extends Activity {
     private boolean awaiting;
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
-        NotebookSettings.applyOrientation(this);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
         getWindow().setWindowAnimations(0);
         LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
@@ -44,7 +42,7 @@ public final class NotebookTransferActivity extends Activity {
         awaiting = saved != null && saved.getBoolean("awaiting", false);
     }
     @Override protected void onResume() {
-        super.onResume(); NotebookSettings.applyOrientation(this); job.observe(this::render);
+        super.onResume(); job.observe(this::render);
     }
     @Override protected void onPause() { job.detach(); super.onPause(); }
     private void render() {

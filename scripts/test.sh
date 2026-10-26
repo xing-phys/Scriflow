@@ -32,6 +32,9 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookViewport.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookScrollStore.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookFingerStream.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookPalmGuard.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookPinchGesture.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookSensorRotation.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookViewportBuffer.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPdf.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookStrokeOutline.java \
@@ -52,7 +55,7 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   tests/NotebookPageManagementTest.java \
   tests/NotebookCatalogTest.java tests/NotebookLibraryTest.java tests/NotebookPaperSizeTest.java \
   tests/NotebookViewportTest.java tests/NotebookViewportZoomTest.java tests/NotebookScrollStoreTest.java \
-  tests/NotebookFingerStreamTest.java tests/NotebookViewportBufferTest.java \
+  tests/NotebookFingerStreamTest.java tests/NotebookInputPolicyTest.java tests/NotebookSensorRotationTest.java tests/NotebookViewportBufferTest.java \
   tests/NotebookPdfTest.java tests/NotebookOutlineFixture.java tests/NotebookStrokeOutlineTest.java tests/NotebookOverlayClipTest.java \
   tests/NotebookToolStripTest.java tests/NotebookGripGestureTest.java tests/NotebookDeviceStatusStateTest.java \
   tests/NotebookPenConfigTest.java tests/NotebookPenSliderTest.java \
@@ -73,6 +76,8 @@ java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookViewportTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookViewportZoomTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookScrollStoreTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookFingerStreamTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookInputPolicyTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookSensorRotationTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookViewportBufferTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPdfTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookStrokeOutlineTest

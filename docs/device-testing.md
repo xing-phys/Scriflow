@@ -4,6 +4,29 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## Scriflow 0.30.0-dev.2 follow-up (2026-10-26)
+
+The owner reports that dev.1 two-finger zoom works, but resting-hand contact
+can trigger unwanted zoom, white page edges are hard to locate, and sensor
+rotation does not respond. These are user observations, not measured input
+latency or a confirmed permission failure. Dev.2 adds faint page outlines,
+direct orientation sensor listening, and layered palm/pinch safeguards.
+
+- Artifact: `scriflow-0.30.0-dev.2.apk`, Android `versionCode` 35.
+- SHA-256: recorded in the release checksum asset for the exact signed file.
+- Signer certificate SHA-256: `2cc5db316df82fecc6085ff53e67cbd64f29b412f01e9a5c19bf4b34e3821709`.
+- Release: [`v0.30.0-dev.2`](https://github.com/xing-phys/Scriflow/releases/tag/v0.30.0-dev.2).
+- Automated validation: 25,498 host assertions, including 152 palm/pinch checks
+  and 380 sensor-sector/pen-deferral checks; Android lint and both build variants.
+
+No tablet is connected for this implementation. Actual hover/contact-size
+delivery, orientation readings, and native landscape behavior remain pending
+confirmation. Repeat the 0.30 checklist with particular attention to resting
+the palm between strokes, pen-before-palm and palm-before-pen ordering, lifting
+the pen away before intentional pinch, disabling pinch in Settings, tilt in
+all four directions, flat-position stability, and rotating immediately after
+pen lift. Page format and PDF dimensions are unchanged from dev.1.
+
 ## Scriflow 0.30.0-dev.1 authorized prerelease (2026-10-26)
 
 The owner explicitly requested implementing paper sizes, zoom, and app-wide

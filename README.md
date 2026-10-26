@@ -16,10 +16,10 @@ Development and physical testing target **MatePad Paper HMW-W09**, Android
 rendering use Huawei APIs already present on that firmware; no proprietary
 Huawei code is bundled. Other tablets and firmware versions are unverified.
 
-The latest public prerelease is **[Scriflow 0.30.0-dev.1](https://github.com/xing-phys/Scriflow/releases/tag/v0.30.0-dev.1)**,
-released on 2026-10-26 with the owner's explicit authorization. It adds physical
-paper sizes, pinch zoom with page-fitting choices, and app-wide screen orientation
-settings, retaining the same application ID and public signing certificate for
+The latest public prerelease is **[Scriflow 0.30.0-dev.2](https://github.com/xing-phys/Scriflow/releases/tag/v0.30.0-dev.2)**,
+released on 2026-10-26 with the owner's explicit authorization. It adds faint
+page boundaries, stronger palm and pinch safeguards, and direct sensor-driven
+rotation, retaining the same application ID and public signing certificate for
 in-place updates. Automated checks pass; tablet validation of these changes
 is pending. The core notebook features are implemented; broader use and
 long-session performance still need feedback.
@@ -50,8 +50,8 @@ makes no network requests. See [privacy and local storage](docs/privacy.md).
 
 ## Install and update
 
-Download the latest public **[Scriflow 0.30.0-dev.1 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.30.0-dev.1/scriflow-0.30.0-dev.1.apk)**
-from [GitHub Releases](https://github.com/xing-phys/Scriflow/releases/tag/v0.30.0-dev.1),
+Download the latest public **[Scriflow 0.30.0-dev.2 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.30.0-dev.2/scriflow-0.30.0-dev.2.apk)**
+from [GitHub Releases](https://github.com/xing-phys/Scriflow/releases/tag/v0.30.0-dev.2),
 where its file checksum and signing certificate fingerprint are recorded.
 Copy it to the supported tablet, open it with the tablet's file manager, and
 allow installation from that source when prompted.

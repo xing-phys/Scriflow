@@ -1,6 +1,5 @@
 package org.eink.inkprobe.notebook;
 
-import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.graphics.Color;
@@ -17,7 +16,7 @@ import java.io.File;
 import java.io.IOException;
 
 /** A static export screen whose picker lifecycle is independent of the writing surface. */
-public final class NotebookPdfExportActivity extends Activity {
+public final class NotebookPdfExportActivity extends NotebookDisplayActivity {
     private static final int CREATE_PDF = 2301;
     private static final String TEMP_FILE = "pdfFile";
     private final NotebookPdfExport.Listener listener = this::render;
@@ -31,7 +30,6 @@ public final class NotebookPdfExportActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
-        NotebookSettings.applyOrientation(this);
         notebookId = getIntent().getIntExtra("notebookId", 0);
         notebookName = getIntent().getStringExtra("notebookName");
         pageCount = getIntent().getIntExtra("pageCount", 0);
@@ -139,7 +137,6 @@ public final class NotebookPdfExportActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
-        NotebookSettings.applyOrientation(this);
         resumed = true;
         render();
     }
