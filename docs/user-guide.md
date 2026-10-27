@@ -7,10 +7,18 @@ been verified. See the [README](../README.md) for installation and current limit
 ## Notebooks and pages
 
 Open **Scriflow** to see the library. Tap **My Notebook** to open existing
-pages, or **+ Notebook** to create and open a named notebook. **Rename** changes
+pages, or **+ Notebook** to create and open a named notebook. Tap **⋮** beside
+a notebook for Rename, Move to folder, Backup, or Move to Trash. **Rename** changes
 its title without moving its files. Names may contain up to 80 Unicode
 characters; the library supports up to 200 notebooks. The editor's **books icon**
-returns to the library. Each notebook remembers its own reading position.
+is last in the dock and returns to the library. Each notebook remembers its own
+reading position. **+ Folder** creates a folder at the bookshelf root; use its
+**⋮** menu to rename or remove it. Removing a folder keeps its notebooks.
+
+**Trash** holds deleted notebooks. Its **⋮** menu restores a notebook to its
+folder, or permanently deletes its pages and imported PDF after confirmation.
+Permanent deletion frees a notebook slot. See [bookshelf settings](bookshelf-settings.md)
+for configurable list/thumbnail layouts and storage compatibility.
 
 Tap **Quick A5 note** to create and open an A5 notebook immediately with an
 automatic name. **+ Notebook** opens the named creation form.
@@ -43,12 +51,15 @@ as ink or PDF content.
 Tap the notebook title/percentage in the top-left island to open the zoom
 controls and **App settings**.
 
-Open **Settings** from the library or **App settings** from the editor. Choose **Portrait**,
+Tap the **time/battery/Wi-Fi area** to open Settings, or use **App settings** in the editor zoom menu. Choose **Portrait**,
 **Landscape**, or **Follow device sensor**. The choice is saved for the whole
 app. Sensor mode listens to the tablet directly, including when system rotation
 is locked. Hold the tablet tilted rather than flat; it turns after a short,
 stable hold. While writing, rotation waits until you lift the pen. Settings
 shows whether a sensor was detected. No additional permission is required.
+**Settings → Screen → Keep screen on** prevents the normal timeout while Scriflow
+is visible. It releases when the app pauses; the cover, Power button, and system
+sleep remain in control. Cover behavior still needs verification on the MatePad.
 All screens share the accepted direction. The bookshelf, note, Settings, and
 transfer screens keep the same orientation when you move between them;
 navigation does not wait for another sensor reading. The settling interval
@@ -80,8 +91,8 @@ without clearing its writing. **Drag vertically with one finger** to scroll,
 then lift it to stop anywhere, including between pages. Write with the stylus
 on either visible page. Scrolling has no page snapping or inertial fling.
 
-The **left/right arrows** jump to page tops. The **page-plus icon** appends an
-empty page using the active page's paper. Each page keeps its own writing and
+The **left/right arrows** jump to page tops. The **page-plus icon** inserts an
+empty page immediately after the current page and selects it, using that page's paper. Each page keeps its own writing and
 paper choice. The page limit is 1,000; page management is available from 0.29.
 These limits are not demonstrated large-notebook performance guarantees.
 
@@ -97,6 +108,8 @@ black border and a **Current** label. Tap a thumbnail to jump to its page top,
 or enter a number beside **Go to page** and tap **Go**. **Close** or Android
 Back returns to the exact previous scroll position when the page order is
 unchanged. Thumbnails load as you browse; opening the overview does not edit pages.
+Settings → Page overview sets portrait and landscape columns separately (defaults:
+5 and 8). The bookshelf has separate row/column preferences.
 
 Choose **Manage**, then tap a page for its actions. You can also hold a thumbnail
 to open the same actions while browsing:
@@ -136,7 +149,8 @@ the tools.
 **Pen** uses a pencil symbol; **Eraser** uses a tilted eraser. A thick border
 marks the selected tool. **Lasso** uses a dashed loop (available in development
 builds after 0.28.0-beta.2). The curved arrows are Undo/Redo, the grid opens the
-overview, and the three-dot menu offers page information, PDF export, and
+overview. The vertical **⋮** menu beside the top-left zoom percentage offers
+page information, PDF export, and
 **Reset tools**. Reset expands the dock and returns it to its initial horizontal
 position near the top center, below the status islands. Touching controls has
 no ripple or pressed inversion; the page stays writable outside the tools.

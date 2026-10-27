@@ -18,6 +18,14 @@ is connected for this release either; physical acceptance remains pending.
 
 ## Before publishing
 
+**0.32.0-dev.1** (`versionCode` **42**) is the compact-layout update for
+bookshelf grids, folders/Trash, page insertion and foreground screen-on settings.
+The owner explicitly authorizes commit, push and release after automated
+verification. Publish as a development prerelease with the permanent signing
+identity; tablet installation and acceptance remain pending. Check cover/power sleep and both
+orientations on the MatePad before claiming physical acceptance. The library
+catalog upgrades to version 2; page and backup formats are unchanged.
+
 **Scriflow 0.31.0-dev.5** (`versionCode` **41**) restores the optimized direct
 native AHW live path from `0.30.0-dev.3` after the owner's dev.4 latency report.
 Delete the Java-driven second pen and callback bitmap drawing. Preserve PDFs,
@@ -134,8 +142,9 @@ build unsigned release APKs without possessing the permanent key.
 
 ## Version numbers
 
-The current source and public prerelease version is **0.31.0-dev.5**, with Android
-`versionCode` **41**, restoring direct native handwriting. **0.31.0-dev.4**
+The current source and public development prerelease is **0.32.0-dev.1**, Android
+`versionCode` **42**, for the compact bookshelf and management update. It retains
+the direct native handwriting restored in **0.31.0-dev.5**, `versionCode` **41**. **0.31.0-dev.4**
 (`versionCode` **40**) added rotation history and pen modes, but its manual
 page-mode drawing was rejected for severe latency.
 **0.31.0-dev.3** (`versionCode` **39**) fixed the handwriting clipping failure from dev.2.
@@ -186,16 +195,16 @@ and [Android versioning](https://developer.android.com/studio/publish/versioning
    The helper runs release lint and assembly, copies the candidate privately,
    verifies those exact bytes and the configured signing certificate, then
    stages a versioned APK and SHA-256 checksum under
-   `build/releases/`. For this release these are `scriflow-0.31.0-dev.5.apk` and
-   `scriflow-0.31.0-dev.5.apk.sha256`. Debugging is disabled, diagnostic screens are
+   `build/releases/`. For this release these are `scriflow-0.32.0-dev.1.apk` and
+   `scriflow-0.32.0-dev.1.apk.sha256`. Debugging is disabled, diagnostic screens are
    absent from the manifest, and the library is the only exported component.
 
 4. Compare the printed signer certificate SHA-256 with the intended permanent
    certificate. For later builds, pin that known digest during verification:
 
    ```bash
-   python3 scripts/verify-apk.py build/releases/scriflow-0.31.0-dev.5.apk --certificate-sha256 YOUR_KNOWN_CERTIFICATE_SHA256
-   (cd build/releases && sha256sum -c scriflow-0.31.0-dev.5.apk.sha256)
+   python3 scripts/verify-apk.py build/releases/scriflow-0.32.0-dev.1.apk --certificate-sha256 YOUR_KNOWN_CERTIFICATE_SHA256
+   (cd build/releases && sha256sum -c scriflow-0.32.0-dev.1.apk.sha256)
    ```
 
    Substitute the current version and the actual known digest. The APK file's
@@ -263,6 +272,12 @@ Do not use raw private version-1 files as a portable migration format, downgrade
 an APK over version-2 pages, or assume a signature change preserves app data.
 
 ## Publish only after acceptance
+
+For **0.32.0-dev.1**, the owner explicitly authorizes commit, push and release
+once ready. Publish the verified signed APK and checksum as a development
+prerelease. Disclose the catalog-v2 upgrade and pending physical validation of
+layout, handwriting, cover/power sleep and battery behavior. Retain the
+permanent signing identity and do not imply tablet acceptance from host checks.
 
 For **0.31.0-dev.5**, the owner explicitly authorizes restoring the optimized
 native writing implementation. Continue the established commit/push/APK workflow

@@ -30,7 +30,7 @@ import java.util.List;
 
 /** A separate window covers the top-Z native ink surface without destroying it. */
 final class NotebookPageOverview extends Dialog {
-    private static final int CACHE_SIZE = 12;
+    private static final int CACHE_SIZE = 32;
     private final NotebookSession session;
     private final int notebookId;
     private int currentPage, pageCount;
@@ -48,6 +48,7 @@ final class NotebookPageOverview extends Dialog {
     private LinearLayout pageHistory;
     private AlertDialog actionDialog;
     private int chosenPage;
+    private NotebookDeviceStatus deviceStatus;
 
     NotebookPageOverview(Activity owner, NotebookSession session, int currentPage) {
         super(owner);
@@ -73,6 +74,7 @@ final class NotebookPageOverview extends Dialog {
         window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
         window.setDimAmount(0f);
         window.setWindowAnimations(0);
+        window.setElevation(0f);
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
             | WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
         window.getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE
@@ -100,6 +102,13 @@ final class NotebookPageOverview extends Dialog {
         closeButton = button("Close");
         closeButton.setOnClickListener(v -> { if (!busy) dismiss(); });
         header.addView(closeButton, new LinearLayout.LayoutParams(dp(84), dp(52)));
+        deviceStatus = new NotebookDeviceStatus(getContext(), () -> true);
+        deviceStatus.setOnClickListener(v -> {
+            if (busy) return;
+            Activity owner = getOwnerActivity(); dismiss();
+            if (owner != null) { owner.startActivity(new android.content.Intent(owner, NotebookSettingsActivity.class)); owner.overridePendingTransition(0, 0); }
+        });
+        header.addView(deviceStatus, new LinearLayout.LayoutParams(-2, dp(32)));
         root.addView(header, new LinearLayout.LayoutParams(-1, -2));
 
         LinearLayout jump = new LinearLayout(getContext());
@@ -138,11 +147,11 @@ final class NotebookPageOverview extends Dialog {
         });
 
         grid = new GridView(getContext());
-        int columns = getContext().getResources().getConfiguration().screenWidthDp >= 600 ? 3 : 2;
+        int columns = NotebookSettings.pageColumns(getContext(), NotebookSettings.landscape(getContext()));
         grid.setNumColumns(columns);
         grid.setStretchMode(GridView.STRETCH_COLUMN_WIDTH);
-        grid.setHorizontalSpacing(dp(8));
-        grid.setVerticalSpacing(dp(12));
+        grid.setHorizontalSpacing(dp(4));
+        grid.setVerticalSpacing(dp(4));
         grid.setSelector(new ColorDrawable(Color.TRANSPARENT));
         grid.setDefaultFocusHighlightEnabled(false);
         grid.setDrawSelectorOnTop(false);
@@ -186,11 +195,13 @@ final class NotebookPageOverview extends Dialog {
 
     @Override public void show() {
         super.show();
+        deviceStatus.start();
         getWindow().setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
     }
 
     @Override public void dismiss() {
         closed = true;
+        if (deviceStatus != null) deviceStatus.stop();
         if (actionDialog != null) { actionDialog.dismiss(); actionDialog = null; }
         if (pending != null) { pending.cancel(); pending = null; }
         if (grid != null) {
@@ -297,14 +308,7 @@ final class NotebookPageOverview extends Dialog {
     }
 
     private void showActionDialog(AlertDialog dialog) {
-        actionDialog = dialog; dialog.create();
-        dialog.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-        dialog.getWindow().setDimAmount(0f); dialog.getWindow().setWindowAnimations(0);
-        dialog.show();
-        if (dialog.getListView() != null) dialog.getListView().setSelector(new ColorDrawable(Color.TRANSPARENT));
-        for (int which : new int[]{AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE}) {
-            android.widget.Button button = dialog.getButton(which); if (button != null) NotebookButton.makeStatic(button);
-        }
+        actionDialog = dialog; NotebookUi.show(dialog);
     }
 
     private void runPageChange(NotebookBook.PageAction action, int source, int destination) {

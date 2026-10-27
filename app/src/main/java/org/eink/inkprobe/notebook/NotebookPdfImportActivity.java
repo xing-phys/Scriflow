@@ -23,9 +23,9 @@ public final class NotebookPdfImportActivity extends NotebookDisplayActivity {
         getWindow().setWindowAnimations(0);
         LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Color.WHITE); root.setPadding(32, 24, 32, 24);
-        TextView title = new TextView(this); title.setTextColor(Color.BLACK); title.setTextSize(26);
-        title.setText("Import PDF as notebook"); root.addView(title);
-        status = new TextView(this); status.setTextColor(Color.BLACK); status.setTextSize(19);
+        TextView title = new TextView(this); title.setTextColor(Color.BLACK); title.setTextSize(17);
+        title.setText("Import PDF as notebook"); addScreenHeader(root, title);
+        status = new TextView(this); status.setTextColor(Color.BLACK); status.setTextSize(14);
         root.addView(status, new LinearLayout.LayoutParams(-1, 0, 1));
         choose = new NotebookButton(this); choose.setText("Choose PDF"); choose.setOnClickListener(v -> pick());
         root.addView(choose, new LinearLayout.LayoutParams(-1, 64));

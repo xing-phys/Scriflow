@@ -85,8 +85,8 @@ public final class NotebookPdfExportActivity extends NotebookDisplayActivity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Color.WHITE);
-        root.setPadding(dp(24), dp(16), dp(24), dp(16));
-        root.addView(label("PDF export", 26), new LinearLayout.LayoutParams(-1, dp(60)));
+        root.setPadding(dp(12), dp(6), dp(12), dp(6));
+        addScreenHeader(root, label("PDF export", 17));
         TextView notebook = label(notebookName == null ? "Notebook" : notebookName, 18);
         notebook.setMaxLines(2);
         notebook.setEllipsize(TextUtils.TruncateAt.END);
@@ -103,12 +103,12 @@ public final class NotebookPdfExportActivity extends NotebookDisplayActivity {
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
         body.setPadding(0, dp(28), 0, dp(24));
-        status = label("Preparing PDF", 23);
+        status = label("Preparing PDF", 16);
         body.addView(status, new LinearLayout.LayoutParams(-1, -2));
-        detail = label("", 16);
+        detail = label("", 13);
         detail.setPadding(0, dp(14), 0, 0);
         body.addView(detail, new LinearLayout.LayoutParams(-1, -2));
-        notice = label("", 15);
+        notice = label("", 13);
         notice.setPadding(0, dp(22), 0, 0);
         body.addView(notice, new LinearLayout.LayoutParams(-1, -2));
         scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
@@ -117,15 +117,15 @@ public final class NotebookPdfExportActivity extends NotebookDisplayActivity {
         LinearLayout buttons = new LinearLayout(this);
         buttons.setGravity(Gravity.CENTER_VERTICAL);
         save = new NotebookButton(this);
-        save.setTextSize(18);
+        save.setTextSize(14);
         save.setText("Save PDF");
         save.setOnClickListener(view -> saveOrRetry());
-        buttons.addView(save, new LinearLayout.LayoutParams(0, dp(60), 1));
+        buttons.addView(save, new LinearLayout.LayoutParams(0, dp(38), 1));
         done = new NotebookButton(this);
-        done.setTextSize(18);
+        done.setTextSize(14);
         done.setText("Cancel");
         done.setOnClickListener(view -> closeExport());
-        buttons.addView(done, new LinearLayout.LayoutParams(dp(120), dp(60)));
+        buttons.addView(done, new LinearLayout.LayoutParams(dp(120), dp(38)));
         root.addView(buttons, new LinearLayout.LayoutParams(-1, -2));
         setContentView(root);
     }

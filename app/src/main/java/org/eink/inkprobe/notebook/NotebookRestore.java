@@ -13,8 +13,8 @@ final class NotebookRestore {
         recover(library);
         NotebookCatalog catalog = new NotebookCatalog(library);
         NotebookCatalog.State state = catalog.load();
-        if (state.entries.size() >= NotebookCatalog.MAX_NOTEBOOKS) throw new IOException("Notebook library is full");
-        int id = state.entries.size() + 1;
+        int id = state.availableId();
+        if (id == 0) throw new IOException("Notebook library is full. Permanently delete a notebook from Trash to free space.");
         File parent = new File(library, "notebooks");
         if (!parent.isDirectory() && !parent.mkdirs()) throw new IOException("Cannot create notebook directory");
         File target = new File(parent, Integer.toString(id));
@@ -49,10 +49,13 @@ final class NotebookRestore {
             if (!UUID.fromString(token).toString().equals(token) || !NotebookCatalog.normalizedName(name).equals(name))
                 throw new IllegalArgumentException();
         } catch (IllegalArgumentException error) { throw new IOException("Invalid restore metadata", error); }
-        if (data.available() != 0 || id < 2 || id > NotebookCatalog.MAX_NOTEBOOKS) throw new IOException("Invalid restore target");
+        if (data.available() != 0 || id < 1 || id > NotebookCatalog.MAX_NOTEBOOKS) throw new IOException("Invalid restore target");
         NotebookCatalog catalog = new NotebookCatalog(library); NotebookCatalog.State state = catalog.load();
-        boolean published = state.entries.size() == id && state.entries.get(id - 1).name.equals(name);
-        if (state.entries.size() != id - 1 && !published) throw new IOException("Catalog changed during restore; files preserved");
+        boolean published = id <= state.entries.size() && state.entries.get(id - 1).name.equals(name)
+            && state.entries.get(id - 1).status == NotebookCatalog.ACTIVE;
+        boolean vacant = id == state.entries.size() + 1 || id <= state.entries.size()
+            && state.entries.get(id - 1).status == NotebookCatalog.PURGED;
+        if (!vacant && !published) throw new IOException("Catalog changed during restore; files preserved");
         File parent = new File(library, "notebooks");
         File staged = new File(parent, ".restore-" + token), target = new File(parent, Integer.toString(id));
         File source = target.exists() ? target : staged;
@@ -68,7 +71,8 @@ final class NotebookRestore {
         if (!target.exists() && !staged.renameTo(target)) throw new IOException("Cannot publish restored notebook");
         if (!published) {
             List<NotebookCatalog.Entry> entries = new ArrayList<>(state.entries);
-            entries.add(new NotebookCatalog.Entry(id, name));
+            if (id <= entries.size()) entries.set(id - 1, new NotebookCatalog.Entry(id, name));
+            else entries.add(new NotebookCatalog.Entry(id, name));
             catalog.save(entries, id);
         }
         catalog.sync();

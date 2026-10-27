@@ -4,6 +4,35 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## Scriflow 0.32.0-dev.1 compact bookshelf and management (2026-10-27)
+
+The requested update covers dense bookshelf/settings layouts, landscape list
+columns, independently configurable portrait/landscape grids, flat dialog
+borders, a top-left vertical menu, status-area Settings access on every main
+screen, folders and Trash, current-page insertion, dock order and Keep screen on.
+
+- Version 42 keeps the application ID and permanent signing identity. Catalog
+  format 2 adds folders/trash; version 1 remains readable. Page/backup formats
+  and the live native handwriting implementation are unchanged.
+- Real-file checks cover folder/trash persistence, restore, legacy-root and
+  nested-slot purge isolation, interrupted deletion/restart, reclaimed capacity,
+  backup recovery into reused slots, and read-only first-page previews.
+- Add-page regression checks cover legacy/managed middle insertion, selection,
+  dimensions, template, existing page bytes/identities, undo/redo and restart.
+- Android compilation/lint and host checks are automated validation. Keep screen
+  on uses only the resumed window flag; no wake lock or power-settings changes.
+- Completed: full host suite (including 54 new bookshelf safety assertions and
+  eight new page-insertion assertions), release lint/build, and signed APK
+  package/API/permission/component/certificate verification. Artifact:
+  `build/releases/scriflow-0.32.0-dev.1.apk` with an adjacent `.apk.sha256` file.
+
+No ADB device is connected. Physical checks remain pending: both orientations,
+thumbnail density/custom grids, flat dialogs, continued native pen performance,
+foreground timeout prevention, cover locking, Power-button sleep, app-background
+timeout and overnight battery use. The owner explicitly authorized commit, push
+and development-prerelease publication after the automated checks. This is
+publication authorization, not tablet acceptance. See [bookshelf settings](bookshelf-settings.md).
+
 ## Scriflow 0.31.0-dev.5 direct handwriting restoration (2026-10-27)
 
 The owner confirms dev.4 retains view history through rotation, but reports

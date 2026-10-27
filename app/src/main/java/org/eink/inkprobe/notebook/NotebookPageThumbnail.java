@@ -24,6 +24,9 @@ public final class NotebookPageThumbnail extends View {
     private Bitmap bitmap;
     private int pageNumber = 1, state = LOADING;
     private boolean current;
+    private boolean labelVisible = true;
+
+    void setLabelVisible(boolean visible) { labelVisible = visible; requestLayout(); invalidate(); }
 
     public NotebookPageThumbnail(Context context) {
         super(context, null, 0);
@@ -77,15 +80,15 @@ public final class NotebookPageThumbnail extends View {
     }
 
     @Override protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        int width = resolveSize(dp(180), widthMeasureSpec);
-        int height = Math.round(Math.max(1, width - dp(16)) * 1.2f) + dp(48);
+        int width = resolveSize(dp(100), widthMeasureSpec);
+        int height = Math.round(Math.max(1, width - dp(8)) * 1.2f) + dp(labelVisible ? 26 : 8);
         setMeasuredDimension(width, resolveSize(height, heightMeasureSpec));
     }
 
     @Override protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        float margin = dp(8);
-        float labelHeight = dp(32);
+        float margin = dp(4);
+        float labelHeight = dp(labelVisible ? 22 : 0);
         imageBounds.set(margin, margin, Math.max(margin + 1, getWidth() - margin),
             Math.max(margin + 1, getHeight() - labelHeight - margin));
         paint.setStyle(Paint.Style.FILL);
@@ -112,10 +115,11 @@ public final class NotebookPageThumbnail extends View {
         paint.setStrokeWidth(dp(current ? 3 : 1));
         paint.setColor(current ? Color.BLACK : 0xff999999);
         canvas.drawRect(imageBounds, paint);
+        if (!labelVisible) return;
         paint.setStyle(Paint.Style.FILL);
         paint.setColor(Color.BLACK);
         paint.setTextAlign(Paint.Align.CENTER);
-        paint.setTextSize(sp(14));
+        paint.setTextSize(sp(11));
         String label = "Page " + pageNumber + (current ? " · Current" : "");
         float available = Math.max(1, getWidth() - dp(8));
         float measured = paint.measureText(label);

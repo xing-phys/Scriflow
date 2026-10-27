@@ -6,6 +6,7 @@ import android.content.pm.ActivityInfo;
 
 /** App-wide preferences; document geometry is independent of screen rotation. */
 final class NotebookSettings {
+    enum BookshelfView { LIST, THUMBNAILS }
     enum Orientation {
         PORTRAIT("Portrait", ActivityInfo.SCREEN_ORIENTATION_PORTRAIT),
         LANDSCAPE("Landscape", ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE),
@@ -67,5 +68,51 @@ final class NotebookSettings {
     static void setPenWidthMode(Context context, NotebookPenConfig.WidthMode mode) {
         if (mode == null) throw new IllegalArgumentException("Missing pen width mode");
         preferences(context).edit().putString(PEN_WIDTH_MODE, mode.name()).apply();
+    }
+
+    static BookshelfView bookshelfView(Context context) {
+        return "THUMBNAILS".equals(preferences(context).getString("bookshelfView", "LIST"))
+            ? BookshelfView.THUMBNAILS : BookshelfView.LIST;
+    }
+
+    static void setBookshelfView(Context context, BookshelfView view) {
+        preferences(context).edit().putString("bookshelfView", view.name()).apply();
+    }
+
+    static boolean landscape(Context context) {
+        return context.getResources().getConfiguration().orientation
+            == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
+    }
+
+    static int bookshelfRows(Context context, boolean landscape) {
+        return boundedPreference(context, "shelfRows" + landscape, landscape ? 3 : 4, 1, 12);
+    }
+
+    static int bookshelfColumns(Context context, boolean landscape) {
+        return boundedPreference(context, "shelfColumns" + landscape, landscape ? 5 : 3, 1, 12);
+    }
+
+    static int pageColumns(Context context, boolean landscape) {
+        return boundedPreference(context, "pageColumns" + landscape, landscape ? 8 : 5, 2, 12);
+    }
+
+    static void setGridPreference(Context context, String kind, boolean landscape, int value) {
+        if (!kind.equals("shelfRows") && !kind.equals("shelfColumns") && !kind.equals("pageColumns"))
+            throw new IllegalArgumentException("Unknown grid preference");
+        if (value < (kind.equals("pageColumns") ? 2 : 1) || value > 12)
+            throw new IllegalArgumentException("Grid size is out of range");
+        preferences(context).edit().putInt(kind + landscape, value).apply();
+    }
+
+    static boolean keepScreenOn(Context context) {
+        return preferences(context).getBoolean("keepScreenOn", false);
+    }
+
+    static void setKeepScreenOn(Context context, boolean enabled) {
+        preferences(context).edit().putBoolean("keepScreenOn", enabled).apply();
+    }
+
+    private static int boundedPreference(Context context, String key, int fallback, int minimum, int maximum) {
+        return Math.max(minimum, Math.min(maximum, preferences(context).getInt(key, fallback)));
     }
 }

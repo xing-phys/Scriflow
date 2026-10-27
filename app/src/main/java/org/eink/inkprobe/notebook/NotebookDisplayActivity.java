@@ -2,6 +2,7 @@ package org.eink.inkprobe.notebook;
 
 import android.app.Activity;
 import android.content.pm.ActivityInfo;
+import android.content.Intent;
 import android.graphics.Point;
 import android.hardware.SensorManager;
 import android.os.Bundle;
@@ -10,6 +11,10 @@ import android.os.Looper;
 import android.os.SystemClock;
 import android.view.OrientationEventListener;
 import android.view.Display;
+import android.view.WindowManager;
+import android.view.Gravity;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 
 /** Foreground-only sensor rotation shared by all production notebook screens. */
 public abstract class NotebookDisplayActivity extends Activity implements NotebookDisplayState.Target {
@@ -19,6 +24,7 @@ public abstract class NotebookDisplayActivity extends Activity implements Notebo
     private final NotebookSensorRotation rotation = new NotebookSensorRotation();
     private OrientationEventListener orientationSensor;
     private boolean displayResumed, naturalLandscape;
+    private NotebookDeviceStatus headerStatus;
     private final Runnable rotateWhenSettled = () -> {
         if (!displayResumed || NotebookSettings.orientation(this) != NotebookSettings.Orientation.SENSOR) return;
         int angle = rotation.ready(SystemClock.uptimeMillis());
@@ -54,10 +60,14 @@ public abstract class NotebookDisplayActivity extends Activity implements Notebo
         super.onResume();
         displayState.attach(this);
         displayResumed = true; refreshDisplayOrientation();
+        refreshScreenOn();
+        if (headerStatus != null) headerStatus.start();
     }
 
     @Override protected void onPause() {
         displayResumed = false;
+        refreshScreenOn();
+        if (headerStatus != null) headerStatus.stop();
         orientationSensor.disable(); rotationHandler.removeCallbacks(rotateWhenSettled); rotation.reset();
         super.onPause();
     }
@@ -75,6 +85,32 @@ public abstract class NotebookDisplayActivity extends Activity implements Notebo
     }
 
     protected final boolean canUseOrientationSensor() { return orientationSensor.canDetectOrientation(); }
+
+    protected final NotebookDeviceStatus deviceSettingsButton() {
+        if (headerStatus == null) headerStatus = new NotebookDeviceStatus(this, () -> true);
+        return headerStatus;
+    }
+
+    protected final void addScreenHeader(LinearLayout root, TextView title) {
+        LinearLayout header = new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL);
+        int height = Math.round(36 * getResources().getDisplayMetrics().density);
+        title.setSingleLine(true); title.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        header.addView(title, new LinearLayout.LayoutParams(0, height, 1));
+        header.addView(deviceSettingsButton(), new LinearLayout.LayoutParams(-2, height));
+        root.addView(header);
+    }
+
+    protected void openAppSettings() {
+        if (this instanceof NotebookSettingsActivity) return;
+        startActivity(new Intent(this, NotebookSettingsActivity.class)); overridePendingTransition(0, 0);
+    }
+
+    protected final void refreshScreenOn() {
+        // A window hint only: never acquire a CPU wake lock or override cover/power-button sleep.
+        if (displayResumed && NotebookSettings.keepScreenOn(this))
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+    }
 
     protected final void setWritingContact(boolean down) {
         rotation.setWriting(down, SystemClock.uptimeMillis()); scheduleRotation();

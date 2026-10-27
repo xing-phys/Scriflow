@@ -22,45 +22,79 @@ public final class NotebookCatalog {
     public static final int MAX_NOTEBOOKS = 200;
     public static final int MAX_NAME_CODE_POINTS = 80;
     private static final int MAGIC = 0x4e424c31; // NBL1
-    private static final int VERSION = 1;
+    private static final int VERSION = 2;
     private static final int MAX_NAME_BYTES = MAX_NAME_CODE_POINTS * 4;
-    private static final int MAX_PAYLOAD_BYTES = 8 + MAX_NOTEBOOKS * (8 + MAX_NAME_BYTES);
+    private static final int MAX_PAYLOAD_BYTES = 16 + MAX_NOTEBOOKS * (28 + 2 * MAX_NAME_BYTES);
+    public static final int ACTIVE = 0, TRASH = 1, PURGING = 2, PURGED = 3;
+
+    public static final class Folder {
+        public final int id;
+        public final String name;
+        public Folder(int id, String name) {
+            if (id < 1) throw new IllegalArgumentException("Invalid folder ID");
+            this.id = id; this.name = normalizedName(name);
+        }
+        @Override public boolean equals(Object other) {
+            return other instanceof Folder && id == ((Folder) other).id && name.equals(((Folder) other).name);
+        }
+        @Override public int hashCode() { return 31 * id + name.hashCode(); }
+    }
 
     public static final class Entry {
         public final int id;
         public final String name;
+        public final int folderId, status;
 
         public Entry(int id, String name) {
+            this(id, name, 0, ACTIVE);
+        }
+
+        public Entry(int id, String name, int folderId, int status) {
             if (id < 1 || id > MAX_NOTEBOOKS) throw new IllegalArgumentException("Invalid notebook ID");
+            if (folderId < 0 || status < ACTIVE || status > PURGED)
+                throw new IllegalArgumentException("Invalid notebook location");
             this.id = id;
             this.name = normalizedName(name);
+            this.folderId = folderId; this.status = status;
         }
+
+        public Entry renamed(String value) { return new Entry(id, value, folderId, status); }
+        public Entry moved(int folder) { return new Entry(id, name, folder, status); }
+        public Entry withStatus(int value) { return new Entry(id, name, value == PURGED ? 0 : folderId, value); }
 
         @Override public boolean equals(Object other) {
             if (!(other instanceof Entry)) return false;
             Entry entry = (Entry) other;
-            return id == entry.id && name.equals(entry.name);
+            return id == entry.id && name.equals(entry.name) && folderId == entry.folderId && status == entry.status;
         }
 
-        @Override public int hashCode() { return 31 * id + name.hashCode(); }
+        @Override public int hashCode() { return 31 * (31 * (31 * id + name.hashCode()) + folderId) + status; }
     }
 
     public static final class State {
         public final List<Entry> entries;
         public final int selectedId;
+        public final List<Folder> folders;
 
-        private State(List<Entry> entries, int selectedId) {
+        private State(List<Entry> entries, int selectedId, List<Folder> folders) {
             this.entries = Collections.unmodifiableList(new ArrayList<Entry>(entries));
             this.selectedId = selectedId;
+            this.folders = Collections.unmodifiableList(new ArrayList<>(folders));
+        }
+
+        /** Reuse only fully purged slots. Trash still counts toward the library limit. */
+        public int availableId() {
+            for (Entry entry : entries) if (entry.status == PURGED) return entry.id;
+            return entries.size() < MAX_NOTEBOOKS ? entries.size() + 1 : 0;
         }
 
         @Override public boolean equals(Object other) {
             if (!(other instanceof State)) return false;
             State state = (State) other;
-            return selectedId == state.selectedId && entries.equals(state.entries);
+            return selectedId == state.selectedId && entries.equals(state.entries) && folders.equals(state.folders);
         }
 
-        @Override public int hashCode() { return 31 * entries.hashCode() + selectedId; }
+        @Override public int hashCode() { return 31 * (31 * entries.hashCode() + selectedId) + folders.hashCode(); }
     }
 
     public static final class CorruptCatalogException extends IOException {
@@ -86,7 +120,7 @@ public final class NotebookCatalog {
         File source = source();
         needsSnapshot = source == null || !source.equals(document);
         if (source == null) {
-            return state = new State(Collections.singletonList(new Entry(1, "My Notebook")), 1);
+            return state = new State(Collections.singletonList(new Entry(1, "My Notebook")), 1, Collections.emptyList());
         }
         try {
             return state = read(source);
@@ -104,7 +138,12 @@ public final class NotebookCatalog {
     /** Stable consecutive IDs permit renames, selection and appending one notebook at a time. */
     public State save(List<Entry> entries, int selectedId) throws IOException {
         requireReady();
-        State updated = checkedState(entries, selectedId);
+        return save(entries, selectedId, current().folders);
+    }
+
+    public State save(List<Entry> entries, int selectedId, List<Folder> folders) throws IOException {
+        requireReady();
+        State updated = checkedState(entries, selectedId, folders);
         int count = updated.entries.size();
         if (count != state.entries.size() && count != state.entries.size() + 1) {
             throw new IOException("Notebooks must be added one at a time");
@@ -192,21 +231,31 @@ public final class NotebookCatalog {
         if (state == null) throw new IllegalStateException("Load the notebook library before writing");
     }
 
-    private static State checkedState(List<Entry> entries, int selectedId) throws IOException {
+    private static State checkedState(List<Entry> entries, int selectedId, List<Folder> folders) throws IOException {
         if (entries == null || entries.isEmpty() || entries.size() > MAX_NOTEBOOKS
                 || selectedId < 1 || selectedId > entries.size()) throw new IOException("Invalid notebook library count or selection");
         List<Entry> copy = new ArrayList<Entry>(entries);
+        if (folders == null || folders.size() > MAX_NOTEBOOKS) throw new IOException("Invalid folder count");
+        java.util.Set<Integer> folderIds = new java.util.HashSet<>();
+        java.util.Set<String> names = new java.util.HashSet<>();
+        for (Folder folder : folders) {
+            if (folder == null || !folderIds.add(folder.id) || !names.add(folder.name.toLowerCase(java.util.Locale.ROOT)))
+                throw new IOException("Folder names and IDs must be unique");
+        }
         for (int i = 0; i < copy.size(); i++) {
             Entry entry = copy.get(i);
             if (entry == null || entry.id != i + 1) throw new IOException("Notebook IDs must remain consecutive and ordered");
+            if (entry.folderId != 0 && !folderIds.contains(entry.folderId)) throw new IOException("Notebook folder is missing");
         }
-        return new State(copy, selectedId);
+        return new State(copy, selectedId, folders);
     }
 
     private static State read(File source) throws IOException {
         try (RandomAccessFile file = new RandomAccessFile(source, "r")) {
             if (file.length() < 28 || file.length() > MAX_PAYLOAD_BYTES + 20L) throw new CorruptCatalogException("Incomplete or oversized notebook library");
-            if (file.readInt() != MAGIC || file.readInt() != VERSION) throw new CorruptCatalogException("Unsupported notebook library header");
+            if (file.readInt() != MAGIC) throw new CorruptCatalogException("Unsupported notebook library header");
+            int version = file.readInt();
+            if (version != 1 && version != VERSION) throw new CorruptCatalogException("Unsupported notebook library version");
             int length = file.readInt();
             if (length < 8 || length > MAX_PAYLOAD_BYTES || file.readInt() != ~length || file.length() != length + 20L) {
                 throw new CorruptCatalogException("Notebook library length check failed");
@@ -217,25 +266,29 @@ public final class NotebookCatalog {
             DataInputStream input = new DataInputStream(new ByteArrayInputStream(bytes));
             int count = input.readInt(), selected = input.readInt();
             if (count < 1 || count > MAX_NOTEBOOKS) throw new CorruptCatalogException("Invalid notebook count");
+            List<Folder> folders = new ArrayList<>();
+            if (version >= 2) {
+                int folderCount = input.readInt();
+                if (folderCount < 0 || folderCount > MAX_NOTEBOOKS) throw new CorruptCatalogException("Invalid folder count");
+                for (int i = 0; i < folderCount; i++) {
+                    int id = input.readInt(); String name = readName(input);
+                    try { folders.add(new Folder(id, name)); }
+                    catch (IllegalArgumentException error) { throw new CorruptCatalogException("Invalid folder"); }
+                }
+            }
             List<Entry> entries = new ArrayList<Entry>();
             for (int i = 0; i < count; i++) {
-                int id = input.readInt(), size = input.readInt();
-                if (size < 1 || size > MAX_NAME_BYTES || size > input.available()) throw new CorruptCatalogException("Invalid notebook name length");
-                byte[] encoded = new byte[size];
-                input.readFully(encoded);
-                String name;
+                int id = input.readInt(); String name = readName(input);
+                int folder = version >= 2 ? input.readInt() : 0;
+                int status = version >= 2 ? input.readInt() : ACTIVE;
                 try {
-                    name = StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
-                            .onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(encoded)).toString();
-                } catch (CharacterCodingException error) { throw new CorruptCatalogException("Invalid notebook name encoding"); }
-                try {
-                    Entry entry = new Entry(id, name);
+                    Entry entry = new Entry(id, name, folder, status);
                     if (!entry.name.equals(name)) throw new IllegalArgumentException();
                     entries.add(entry);
                 } catch (IllegalArgumentException error) { throw new CorruptCatalogException("Invalid notebook name or ID"); }
             }
             if (input.available() != 0) throw new CorruptCatalogException("Trailing notebook library data");
-            try { return checkedState(entries, selected); }
+            try { return checkedState(entries, selected, folders); }
             catch (IOException error) { throw new CorruptCatalogException("Invalid notebook library order or selection"); }
         }
     }
@@ -245,14 +298,34 @@ public final class NotebookCatalog {
         DataOutputStream data = new DataOutputStream(bytes);
         data.writeInt(state.entries.size());
         data.writeInt(state.selectedId);
+        data.writeInt(state.folders.size());
+        for (Folder folder : state.folders) {
+            data.writeInt(folder.id); writeName(data, folder.name);
+        }
         for (Entry entry : state.entries) {
-            byte[] name = entry.name.getBytes(StandardCharsets.UTF_8);
             data.writeInt(entry.id);
-            data.writeInt(name.length);
-            data.write(name);
+            writeName(data, entry.name);
+            data.writeInt(entry.folderId); data.writeInt(entry.status);
         }
         data.flush();
         return bytes.toByteArray();
+    }
+
+    private static void writeName(DataOutputStream data, String value) throws IOException {
+        byte[] name = value.getBytes(StandardCharsets.UTF_8);
+        data.writeInt(name.length); data.write(name);
+    }
+
+    private static String readName(DataInputStream input) throws IOException {
+        int size = input.readInt();
+        if (size < 1 || size > MAX_NAME_BYTES || size > input.available()) throw new CorruptCatalogException("Invalid name length");
+        byte[] encoded = new byte[size]; input.readFully(encoded);
+        try {
+            String name = StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(encoded)).toString();
+            if (!normalizedName(name).equals(name)) throw new IllegalArgumentException();
+            return name;
+        } catch (CharacterCodingException | IllegalArgumentException error) { throw new CorruptCatalogException("Invalid name encoding or text"); }
     }
 
     private static int checksum(byte[] bytes) {

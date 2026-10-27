@@ -6,6 +6,28 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## [0.32.0-dev.1](https://github.com/xing-phys/Scriflow/releases/tag/v0.32.0-dev.1) — Compact bookshelf and notebook management (2026-10-27)
+
+- Compact bookshelf text and row spacing, with two list columns in landscape.
+  Optional first-page thumbnails have independent portrait/landscape row and
+  column counts. Page overview columns are independently configurable too.
+- Persistent folders with create, rename, move and remove-folder actions.
+  Removing a folder keeps its notebooks at the bookshelf root.
+- Deleted notebooks go to Trash, with restore and confirmed permanent deletion.
+  Interrupted permanent deletion resumes safely; fully deleted slots can be
+  reused. Legacy root deletion preserves the library catalog and other books.
+- Compact Settings and a zoom grid with several presets per row. Dialogs and
+  popups use flat borders without Material shadows.
+- Move the vertical three-dot menu beside the zoom percentage. Put Bookshelf
+  last in the tool dock. The time/battery/Wi-Fi area opens Settings and appears
+  on the bookshelf, Settings, page overview and transfer screens.
+- The add-page tool inserts after the current page and selects the new page.
+- Add foreground-only Keep screen on, using Android's window hint. No CPU wake
+  lock, wake-up request, or system power-setting changes. Cover/power sleep and
+  physical display acceptance still require the MatePad; none is connected.
+- Read version-1 catalogs and write version 2 with folders/trash. Earlier APKs
+  cannot read the upgraded catalog. Page and editable-backup formats are unchanged.
+
 ## [0.31.0-dev.5](https://github.com/xing-phys/Scriflow/releases/tag/v0.31.0-dev.5) — Restore direct native handwriting (2026-10-27)
 
 - Remove dev.4's Java-driven second pen, per-sample surface transforms and

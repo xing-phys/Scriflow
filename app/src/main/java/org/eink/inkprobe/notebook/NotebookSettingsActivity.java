@@ -1,152 +1,172 @@
 package org.eink.inkprobe.notebook;
 
 import android.graphics.Color;
+import android.graphics.Typeface;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.InputType;
+import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import java.util.EnumMap;
 import java.util.Map;
 
-/** Static, immediately saved preferences shared by every notebook screen. */
+/** Compact, immediately saved preferences shared by every notebook screen. */
 public final class NotebookSettingsActivity extends NotebookDisplayActivity {
-    private NotebookButton pinchChoice;
-    private final Map<NotebookSettings.Orientation, NotebookButton> choices =
-        new EnumMap<>(NotebookSettings.Orientation.class);
-    private final Map<NotebookPenConfig.WidthMode, NotebookButton> widthChoices =
-        new EnumMap<>(NotebookPenConfig.WidthMode.class);
+    private NotebookButton pinchChoice, screenChoice;
+    private final Map<NotebookSettings.Orientation, NotebookButton> choices = new EnumMap<>(NotebookSettings.Orientation.class);
+    private final Map<NotebookPenConfig.WidthMode, NotebookButton> widthChoices = new EnumMap<>(NotebookPenConfig.WidthMode.class);
+    private final Map<NotebookSettings.BookshelfView, NotebookButton> shelfChoices = new EnumMap<>(NotebookSettings.BookshelfView.class);
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
         getWindow().setWindowAnimations(0);
-        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
-
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.WHITE);
-        root.setPadding(dp(24), dp(16), dp(24), dp(16));
-        LinearLayout header = new LinearLayout(this);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-        header.addView(label("Settings", 26), new LinearLayout.LayoutParams(0, dp(60), 1));
-        NotebookButton done = new NotebookButton(this);
-        done.setText("Done"); done.setTextSize(18);
-        done.setOnClickListener(view -> onBackPressed());
-        header.addView(done, new LinearLayout.LayoutParams(dp(96), dp(60)));
-        root.addView(header, new LinearLayout.LayoutParams(-1, -2));
-
-        ScrollView scroll = new ScrollView(this);
-        scroll.setBackgroundColor(Color.WHITE);
+        LinearLayout root = column(); root.setPadding(dp(12), dp(6), dp(12), dp(6));
+        LinearLayout header = row();
+        header.addView(label("Settings", 17), new LinearLayout.LayoutParams(0, dp(36), 1));
+        header.addView(button("Done", this::onBackPressed), new LinearLayout.LayoutParams(dp(56), dp(36)));
+        header.addView(deviceSettingsButton(), new LinearLayout.LayoutParams(-2, dp(32)));
+        root.addView(header);
+        ScrollView scroll = new ScrollView(this); scroll.setBackgroundColor(Color.WHITE);
         scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
-        scroll.setVerticalScrollBarEnabled(false);
-        LinearLayout body = new LinearLayout(this);
-        body.setOrientation(LinearLayout.VERTICAL);
-        TextView title = label("Screen orientation", 22);
-        title.setPadding(0, dp(20), 0, dp(12));
-        body.addView(title, new LinearLayout.LayoutParams(-1, -2));
-        TextView description = label("Choose how the app rotates. Your choice applies to the library, notes, backups, and PDF export.", 16);
-        description.setPadding(0, 0, 0, dp(20));
-        body.addView(description, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout body = column();
 
+        section(body, "Screen orientation");
+        LinearLayout orientationRow = row();
         for (NotebookSettings.Orientation orientation : NotebookSettings.Orientation.values()) {
-            NotebookButton button = new NotebookButton(this);
-            button.setTextSize(20);
-            button.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
-            button.setPadding(dp(12), 0, dp(12), 0);
-            button.setOnClickListener(view -> {
-                NotebookSettings.setOrientation(this, orientation);
-                refreshDisplayOrientation();
-                updateChoices();
+            NotebookButton choice = button("", () -> {
+                NotebookSettings.setOrientation(this, orientation); refreshDisplayOrientation(); updateChoices();
             });
-            choices.put(orientation, button);
-            body.addView(button, new LinearLayout.LayoutParams(-1, dp(68)));
-            View divider = new View(this); divider.setBackgroundColor(0xffbbbbbb);
-            body.addView(divider, new LinearLayout.LayoutParams(-1, dp(1)));
+            choices.put(orientation, choice); orientationRow.addView(choice, new LinearLayout.LayoutParams(0, dp(36), 1));
         }
-        TextView sensor = label(canUseOrientationSensor()
-            ? "Sensor detected. Hold the tablet at an angle to rotate; when it lies flat, the current direction stays. Rotation waits until you finish writing. No extra permission is needed."
-            : "Automatic rotation is unavailable: no orientation sensor was detected. Choose Portrait or Landscape instead.", 15);
-        sensor.setPadding(0, dp(20), 0, dp(24));
-        body.addView(sensor, new LinearLayout.LayoutParams(-1, -2));
-        body.addView(label("Touch gestures", 22), new LinearLayout.LayoutParams(-1, -2));
-        pinchChoice = new NotebookButton(this); pinchChoice.setTextSize(20);
-        pinchChoice.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
-        pinchChoice.setOnClickListener(view -> {
-            NotebookSettings.setPinchZoomEnabled(this, !NotebookSettings.pinchZoomEnabled(this));
-            updateChoices();
+        body.addView(orientationRow);
+        hint(body, canUseOrientationSensor() ? "Sensor mode keeps the current direction when flat and waits until writing ends."
+            : "No orientation sensor detected; choose Portrait or Landscape.");
+
+        section(body, "Bookshelf");
+        LinearLayout viewRow = row();
+        for (NotebookSettings.BookshelfView view : NotebookSettings.BookshelfView.values()) {
+            NotebookButton choice = button("", () -> { NotebookSettings.setBookshelfView(this, view); updateChoices(); });
+            shelfChoices.put(view, choice); viewRow.addView(choice, new LinearLayout.LayoutParams(0, dp(34), 1));
+        }
+        body.addView(viewRow);
+        hint(body, "List: one column in portrait, two in landscape. Thumbnail grid: choose rows and columns per screen.");
+        shelfGridRow(body, false); shelfGridRow(body, true);
+
+        section(body, "Page overview");
+        hint(body, "Number of page thumbnails in each row.");
+        LinearLayout pageRow = row();
+        pageRow.addView(label("Portrait", 13), new LinearLayout.LayoutParams(0, dp(36), 1));
+        pageRow.addView(number("pageColumns", false, NotebookSettings.pageColumns(this, false)), new LinearLayout.LayoutParams(dp(54), dp(34)));
+        TextView landscape = label("Landscape", 13); landscape.setPadding(dp(12), 0, 0, 0);
+        pageRow.addView(landscape, new LinearLayout.LayoutParams(0, dp(36), 1));
+        pageRow.addView(number("pageColumns", true, NotebookSettings.pageColumns(this, true)), new LinearLayout.LayoutParams(dp(54), dp(34)));
+        body.addView(pageRow);
+
+        section(body, "Screen");
+        screenChoice = button("", () -> {
+            NotebookSettings.setKeepScreenOn(this, !NotebookSettings.keepScreenOn(this)); refreshScreenOn(); updateChoices();
         });
-        body.addView(pinchChoice, new LinearLayout.LayoutParams(-1, dp(68)));
-        TextView palms = label("Finger navigation pauses while the pen is nearby and briefly after writing. For zoom, lift the pen away, place two fingers together, then pinch. You can turn pinch zoom off and use the percentage menu instead.", 15);
-        palms.setPadding(0, dp(12), 0, dp(24));
-        body.addView(palms, new LinearLayout.LayoutParams(-1, -2));
-        body.addView(label("Pen width when zooming", 22), new LinearLayout.LayoutParams(-1, -2));
+        body.addView(screenChoice, new LinearLayout.LayoutParams(-1, dp(34)));
+        hint(body, "Keep the screen on while Scriflow is open. The cover, Power button, and system sleep remain in control.");
+
+        section(body, "Touch gestures");
+        pinchChoice = button("", () -> {
+            NotebookSettings.setPinchZoomEnabled(this, !NotebookSettings.pinchZoomEnabled(this)); updateChoices();
+        });
+        body.addView(pinchChoice, new LinearLayout.LayoutParams(-1, dp(34)));
+        hint(body, "Lift the pen away before using two fingers. Zoom presets also work when pinch zoom is off.");
+
+        section(body, "Pen width when zooming");
         for (NotebookPenConfig.WidthMode mode : NotebookPenConfig.WidthMode.values()) {
-            NotebookButton button = new NotebookButton(this);
-            button.setTextSize(20);
-            button.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
-            button.setPadding(dp(12), 0, dp(12), 0);
-            button.setOnClickListener(view -> {
-                NotebookSettings.setPenWidthMode(this, mode);
-                updateChoices();
-            });
-            widthChoices.put(mode, button);
-            body.addView(button, new LinearLayout.LayoutParams(-1, dp(68)));
-            TextView explanation = label(mode == NotebookPenConfig.WidthMode.PAGE
-                ? "Fits the selected pen width to the page, using direct native handwriting. The native brush's pressure response can vary with zoom."
-                : "The pen keeps the same width on the screen while you write at any zoom. Completed strokes scale with the page.", 15);
-            explanation.setPadding(dp(12), 0, dp(12), dp(20));
-            body.addView(explanation, new LinearLayout.LayoutParams(-1, -2));
+            NotebookButton choice = button("", () -> { NotebookSettings.setPenWidthMode(this, mode); updateChoices(); });
+            widthChoices.put(mode, choice); body.addView(choice, new LinearLayout.LayoutParams(-1, dp(32)));
+            hint(body, mode == NotebookPenConfig.WidthMode.PAGE
+                ? "Fits the nib to the page. Native pressure response may vary with zoom."
+                : "Keeps the nib's screen width while writing. Saved strokes scale with the page.");
         }
-        scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
-        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        setContentView(root);
-        updateChoices();
+        scroll.addView(body); root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        setContentView(root); updateChoices();
     }
 
-    @Override protected void onResume() {
-        super.onResume();
-        updateChoices();
+    private void shelfGridRow(LinearLayout body, boolean landscape) {
+        LinearLayout line = row();
+        line.addView(label(landscape ? "Landscape" : "Portrait", 13), new LinearLayout.LayoutParams(0, dp(38), 1));
+        line.addView(label("Rows ", 12));
+        line.addView(number("shelfRows", landscape, NotebookSettings.bookshelfRows(this, landscape)), new LinearLayout.LayoutParams(dp(54), dp(34)));
+        line.addView(label("  Columns ", 12));
+        line.addView(number("shelfColumns", landscape, NotebookSettings.bookshelfColumns(this, landscape)), new LinearLayout.LayoutParams(dp(54), dp(34)));
+        body.addView(line);
     }
+
+    private EditText number(String kind, boolean landscape, int value) {
+        EditText field = new EditText(this, null, 0); field.setSingleLine(true);
+        field.setTextSize(13); field.setTextColor(Color.BLACK); field.setGravity(Gravity.CENTER);
+        field.setPadding(dp(4), 0, dp(4), 0); field.setBackground(NotebookUi.border(getResources().getDisplayMetrics().density));
+        field.setInputType(InputType.TYPE_CLASS_NUMBER); field.setSelectAllOnFocus(true); field.setText(String.valueOf(value));
+        field.setContentDescription((landscape ? "Landscape " : "Portrait ")
+            + (kind.equals("shelfRows") ? "bookshelf rows" : kind.equals("shelfColumns") ? "bookshelf columns" : "page overview columns"));
+        field.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { }
+            @Override public void afterTextChanged(Editable text) {
+                try {
+                    NotebookSettings.setGridPreference(NotebookSettingsActivity.this, kind, landscape, Integer.parseInt(text.toString()));
+                    field.setError(null);
+                } catch (IllegalArgumentException error) { field.setError(kind.equals("pageColumns") ? "Choose 2–12" : "Choose 1–12"); }
+            }
+        });
+        return field;
+    }
+
+    @Override protected void onResume() { super.onResume(); updateChoices(); }
 
     private void updateChoices() {
-        if (pinchChoice != null) {
-            boolean enabled = NotebookSettings.pinchZoomEnabled(this);
-            pinchChoice.setText("Two-finger zoom: " + (enabled ? "On" : "Off"));
-            pinchChoice.setSelected(enabled);
-            pinchChoice.setContentDescription("Two-finger zoom " + (enabled ? "on" : "off") + "; tap to change");
-        }
-        NotebookSettings.Orientation selected = NotebookSettings.orientation(this);
-        for (Map.Entry<NotebookSettings.Orientation, NotebookButton> entry : choices.entrySet()) {
-            boolean checked = selected == entry.getKey();
-            entry.getValue().setText((checked ? "●  " : "○  ") + entry.getKey().label);
-            entry.getValue().setSelected(checked);
-            entry.getValue().setContentDescription(entry.getKey().label + (checked ? ", selected" : ""));
-        }
-        NotebookPenConfig.WidthMode widthMode = NotebookSettings.penWidthMode(this);
-        for (Map.Entry<NotebookPenConfig.WidthMode, NotebookButton> entry : widthChoices.entrySet()) {
-            boolean checked = widthMode == entry.getKey();
-            String text = entry.getKey() == NotebookPenConfig.WidthMode.PAGE
-                ? "Fixed width on page (default)" : "Fixed width on screen";
-            entry.getValue().setText((checked ? "●  " : "○  ") + text);
-            entry.getValue().setSelected(checked);
-            entry.getValue().setContentDescription(text + (checked ? ", selected" : ""));
-        }
+        if (pinchChoice != null) pinchChoice.setText("Two-finger zoom: " + (NotebookSettings.pinchZoomEnabled(this) ? "On" : "Off"));
+        if (screenChoice != null) screenChoice.setText("Keep screen on: " + (NotebookSettings.keepScreenOn(this) ? "On" : "Off"));
+        for (Map.Entry<NotebookSettings.Orientation, NotebookButton> entry : choices.entrySet())
+            choose(entry.getValue(), entry.getKey() == NotebookSettings.orientation(this),
+                entry.getKey() == NotebookSettings.Orientation.SENSOR ? "Sensor" : entry.getKey().label);
+        for (Map.Entry<NotebookSettings.BookshelfView, NotebookButton> entry : shelfChoices.entrySet())
+            choose(entry.getValue(), entry.getKey() == NotebookSettings.bookshelfView(this),
+                entry.getKey() == NotebookSettings.BookshelfView.LIST ? "List" : "Thumbnails");
+        for (Map.Entry<NotebookPenConfig.WidthMode, NotebookButton> entry : widthChoices.entrySet())
+            choose(entry.getValue(), entry.getKey() == NotebookSettings.penWidthMode(this),
+                entry.getKey() == NotebookPenConfig.WidthMode.PAGE ? "Fixed width on page (default)" : "Fixed width on screen");
     }
 
+    private void choose(NotebookButton button, boolean selected, String text) {
+        button.setText((selected ? "● " : "○ ") + text); button.setSelected(selected);
+        button.setContentDescription(text + (selected ? ", selected" : ""));
+    }
+    private void section(LinearLayout body, String text) {
+        TextView heading = label(text, 14); heading.setTypeface(null, Typeface.BOLD);
+        heading.setPadding(0, dp(12), 0, dp(3)); body.addView(heading);
+    }
+    private void hint(LinearLayout body, String text) {
+        TextView hint = label(text, 12); hint.setPadding(0, dp(2), 0, dp(5)); body.addView(hint);
+    }
+    private LinearLayout column() {
+        LinearLayout layout = new LinearLayout(this); layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setBackgroundColor(Color.WHITE); return layout;
+    }
+    private LinearLayout row() {
+        LinearLayout layout = new LinearLayout(this); layout.setGravity(Gravity.CENTER_VERTICAL); return layout;
+    }
+    private NotebookButton button(String text, Runnable action) {
+        NotebookButton button = new NotebookButton(this); button.setText(text); button.setTextSize(13);
+        button.setGravity(Gravity.START | Gravity.CENTER_VERTICAL); button.setOnClickListener(view -> action.run()); return button;
+    }
     private TextView label(String text, int size) {
-        TextView view = new TextView(this);
-        view.setText(text); view.setTextSize(size); view.setTextColor(Color.BLACK);
-        return view;
+        TextView view = new TextView(this); view.setText(text); view.setTextSize(size); view.setTextColor(Color.BLACK);
+        view.setGravity(Gravity.CENTER_VERTICAL); return view;
     }
-
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
-
-    @Override public void onBackPressed() {
-        super.onBackPressed();
-        overridePendingTransition(0, 0);
-    }
+    @Override public void onBackPressed() { super.onBackPressed(); overridePendingTransition(0, 0); }
 }

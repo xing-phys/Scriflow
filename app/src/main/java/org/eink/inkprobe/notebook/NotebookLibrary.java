@@ -17,6 +17,7 @@ public final class NotebookLibrary {
     private final Map<Integer, NotebookBook> books = new HashMap<>();
     private NotebookCatalog.State state, durable;
     private List<NotebookCatalog.Entry> attemptedEntries;
+    private List<NotebookCatalog.Folder> attemptedFolders;
     private int attemptedSelection, bookId;
     private NotebookBook book;
     private IOException problem;
@@ -25,6 +26,7 @@ public final class NotebookLibrary {
     private static final class Pending {
         final int kind, selected;
         final List<NotebookCatalog.Entry> entries;
+        List<NotebookCatalog.Folder> folders;
         NotebookPaperSize paperSize;
         NotebookBook book;
         boolean ownsDirectory;
@@ -49,6 +51,8 @@ public final class NotebookLibrary {
     public boolean canRedoPageChange() { return book != null && book.canRedoPageChange(); }
     public NotebookScrollStore.State scrollPosition() { return book == null ? null : book.scrollPosition(); }
     public List<NotebookCatalog.Entry> entries() { return state == null ? Collections.emptyList() : state.entries; }
+    public List<NotebookCatalog.Folder> folders() { return state == null ? Collections.emptyList() : state.folders; }
+    public int availableNotebookId() { return state == null ? 0 : state.availableId(); }
     public int notebookId() { return book == null ? state == null ? 1 : state.selectedId : bookId; }
     public String notebookName() {
         return state == null ? "My Notebook" : state.entries.get(notebookId() - 1).name;
@@ -83,6 +87,7 @@ public final class NotebookLibrary {
             if (state == null) loadCatalogInitial();
             requireWritable();
             if (book != null) { book.load(); return; }
+            requireActive(state.selectedId);
             pending = new Pending(OPEN, state.entries, state.selectedId);
             finishPending();
         });
@@ -91,6 +96,7 @@ public final class NotebookLibrary {
     public void openNotebook(int id) throws IOException {
         execute(() -> {
             requireCatalog(); requireWritable(); requireId(id);
+            requireActive(id);
             if (book != null && bookId == id) { book.retry(); return; }
             pending = new Pending(OPEN, state.entries, id);
             finishPending();
@@ -103,12 +109,19 @@ public final class NotebookLibrary {
 
     /** New application notebooks choose physical paper before becoming visible in the catalog. */
     public void createNotebook(String name, NotebookPaperSize paperSize) throws IOException {
+        createNotebook(name, paperSize, 0);
+    }
+
+    public void createNotebook(String name, NotebookPaperSize paperSize, int folderId) throws IOException {
         execute(() -> {
             requireCatalog(); requireWritable();
-            if (state.entries.size() >= NotebookCatalog.MAX_NOTEBOOKS) throw new IOException("Notebook library is full");
-            int id = state.entries.size() + 1;
+            int id = state.availableId();
+            if (id == 0) throw new IOException("Notebook library is full. Permanently delete a notebook from Trash to free space.");
+            if (folderId != 0) folderIndex(folderId);
             List<NotebookCatalog.Entry> entries = new ArrayList<>(state.entries);
-            entries.add(new NotebookCatalog.Entry(id, name));
+            NotebookCatalog.Entry entry = new NotebookCatalog.Entry(id, name, folderId, NotebookCatalog.ACTIVE);
+            if (id <= entries.size()) entries.set(id - 1, entry); else entries.add(entry);
+            books.remove(id);
             pending = new Pending(CREATE, entries, id);
             pending.paperSize = paperSize;
             finishPending();
@@ -127,11 +140,156 @@ public final class NotebookLibrary {
     public void renameNotebook(int id, String name) throws IOException {
         execute(() -> {
             requireCatalog(); requireWritable(); requireId(id);
+            requireActive(id);
             List<NotebookCatalog.Entry> entries = new ArrayList<>(state.entries);
-            entries.set(id - 1, new NotebookCatalog.Entry(id, name));
+            entries.set(id - 1, entries.get(id - 1).renamed(name));
             pending = new Pending(RENAME, entries, state.selectedId);
             finishPending();
         });
+    }
+
+    public void createFolder(String name) throws IOException {
+        execute(() -> {
+            requireCatalog(); requireWritable();
+            if (state.folders.size() >= NotebookCatalog.MAX_NOTEBOOKS) throw new IOException("The bookshelf supports up to 200 folders");
+            String checkedName = checkedFolderName(name, 0);
+            int id = 1;
+            List<NotebookCatalog.Folder> folders = new ArrayList<>(state.folders);
+            for (NotebookCatalog.Folder folder : folders) id = Math.max(id, folder.id + 1);
+            folders.add(new NotebookCatalog.Folder(id, checkedName));
+            saveMetadata(state.entries, folders);
+        });
+    }
+
+    public void renameFolder(int id, String name) throws IOException {
+        execute(() -> {
+            requireCatalog(); requireWritable();
+            List<NotebookCatalog.Folder> folders = new ArrayList<>(state.folders);
+            int index = folderIndex(id);
+            folders.set(index, new NotebookCatalog.Folder(id, checkedFolderName(name, id))); saveMetadata(state.entries, folders);
+        });
+    }
+
+    /** Removing a folder keeps its notebooks and restores them to the bookshelf root. */
+    public void deleteFolder(int id) throws IOException {
+        execute(() -> {
+            requireCatalog(); requireWritable();
+            List<NotebookCatalog.Folder> folders = new ArrayList<>(state.folders);
+            folders.remove(folderIndex(id));
+            List<NotebookCatalog.Entry> entries = new ArrayList<>(state.entries);
+            for (int i = 0; i < entries.size(); i++) if (entries.get(i).folderId == id)
+                entries.set(i, entries.get(i).moved(0));
+            saveMetadata(entries, folders);
+        });
+    }
+
+    public void moveNotebook(int id, int folder) throws IOException {
+        execute(() -> {
+            requireCatalog(); requireWritable(); requireId(id); requireActive(id);
+            if (folder != 0) folderIndex(folder);
+            List<NotebookCatalog.Entry> entries = new ArrayList<>(state.entries);
+            entries.set(id - 1, entries.get(id - 1).moved(folder)); saveMetadata(entries, state.folders);
+        });
+    }
+
+    public void trashNotebook(int id) throws IOException { setTrash(id, true); }
+    public void restoreNotebook(int id) throws IOException { setTrash(id, false); }
+
+    private void setTrash(int id, boolean trash) throws IOException {
+        execute(() -> {
+            requireCatalog(); requireWritable(); requireId(id);
+            NotebookCatalog.Entry entry = state.entries.get(id - 1);
+            if (entry.status != (trash ? NotebookCatalog.ACTIVE : NotebookCatalog.TRASH))
+                throw new IOException("This notebook is not available for that action");
+            List<NotebookCatalog.Entry> entries = new ArrayList<>(state.entries);
+            entries.set(id - 1, entry.withStatus(trash ? NotebookCatalog.TRASH : NotebookCatalog.ACTIVE));
+            saveMetadata(entries, state.folders);
+        });
+    }
+
+    /** Durable purge intent precedes file removal, so an interrupted purge cannot be restored. */
+    public void permanentlyDeleteNotebook(int id) throws IOException {
+        execute(() -> {
+            requireCatalog(); requireWritable(); requireId(id);
+            NotebookCatalog.Entry entry = state.entries.get(id - 1);
+            if (entry.status != NotebookCatalog.TRASH && entry.status != NotebookCatalog.PURGING)
+                throw new IOException("Move this notebook to Trash before permanently deleting it");
+            if (entry.status == NotebookCatalog.TRASH) {
+                List<NotebookCatalog.Entry> entries = new ArrayList<>(state.entries);
+                entries.set(id - 1, entry.withStatus(NotebookCatalog.PURGING)); saveMetadata(entries, state.folders);
+            }
+            finishPurges();
+        });
+    }
+
+    /** A read-only first-page preview must never change the selected notebook. */
+    public NotebookPage previewNotebook(int id) throws IOException {
+        requireCatalog(); requireId(id); requireActive(id);
+        File target = bookDirectory(id);
+        NotebookIndex.State index = new NotebookIndex(target).load();
+        int slot = index.slots.get(0);
+        File first = slot == 1 ? target : new File(new File(target, "pages"), Integer.toString(slot));
+        if (!new File(first, "page.nbk").isFile() && !new File(first, "page.nbk.bak").isFile()
+                && !new File(first, "page.nbk.tmp").isFile()) throw new IOException("Notebook preview is unavailable");
+        return new NotebookStore(first).load();
+    }
+
+    public File notebookPdf(int id) { return new File(bookDirectory(id), "source.pdf"); }
+
+    private int folderIndex(int id) throws IOException {
+        for (int i = 0; i < state.folders.size(); i++) if (state.folders.get(i).id == id) return i;
+        throw new IOException("Folder is no longer available");
+    }
+
+    private String checkedFolderName(String name, int exceptId) throws IOException {
+        String checked = NotebookCatalog.normalizedName(name);
+        for (NotebookCatalog.Folder folder : state.folders)
+            if (folder.id != exceptId && folder.name.toLowerCase(java.util.Locale.ROOT).equals(checked.toLowerCase(java.util.Locale.ROOT)))
+                throw new IOException("A folder with this name already exists");
+        return checked;
+    }
+
+    private void saveMetadata(List<NotebookCatalog.Entry> entries, List<NotebookCatalog.Folder> folders) throws IOException {
+        int selected = state.selectedId;
+        if (entries.get(selected - 1).status != NotebookCatalog.ACTIVE)
+            for (NotebookCatalog.Entry entry : entries) if (entry.status == NotebookCatalog.ACTIVE) { selected = entry.id; break; }
+        pending = new Pending(RENAME, entries, selected); pending.folders = new ArrayList<>(folders);
+        finishPending();
+    }
+
+    private void finishPurges() throws IOException {
+        for (NotebookCatalog.Entry entry : new ArrayList<>(state.entries)) if (entry.status == NotebookCatalog.PURGING) {
+            books.remove(entry.id);
+            File target = bookDirectory(entry.id);
+            if (target.exists() && !target.equals(directory) && !target.toPath().toRealPath().toFile().equals(
+                    new File(new File(directory.toPath().toRealPath().toFile(), "notebooks"), Integer.toString(entry.id))))
+                throw new IOException("Unexpected notebook path; files preserved");
+            if (target.equals(directory)) {
+                // The first legacy notebook shares a root with the catalog and other books.
+                for (String name : new String[]{"page.nbk", "page.nbk.bak", "page.nbk.tmp", "page.created",
+                        "book.nbi", "book.nbi.bak", "book.nbi.tmp", "scroll.nbs", "scroll.nbs.bak", "scroll.nbs.tmp",
+                        "outline.nbo", "outline.nbo.bak", "outline.nbo.tmp", "source.pdf", "navigation.cache",
+                        "navigation.cache.tmp", "pages", "restore.owner"}) deleteFiles(new File(target, name));
+            } else deleteFiles(target);
+            List<NotebookCatalog.Entry> entries = new ArrayList<>(state.entries);
+            entries.set(entry.id - 1, new NotebookCatalog.Entry(entry.id, "Deleted notebook", 0, NotebookCatalog.PURGED));
+            saveMetadata(entries, state.folders);
+        }
+    }
+
+    private static void deleteFiles(File target) throws IOException {
+        if (java.nio.file.Files.isSymbolicLink(target.toPath())) throw new IOException("Unexpected notebook path; files preserved");
+        if (!target.exists()) return;
+        if (target.isDirectory()) {
+            File[] children = target.listFiles();
+            if (children == null) throw new IOException("Cannot inspect notebook files for deletion");
+            for (File child : children) {
+                if (java.nio.file.Files.isSymbolicLink(child.toPath()))
+                    throw new IOException("Unexpected notebook path; files preserved");
+                deleteFiles(child);
+            }
+        }
+        if (!target.delete()) throw new IOException("Cannot permanently delete notebook files. Retry to finish deleting.");
     }
 
     public void initializeSize(int width, int height) throws IOException { edit(() -> book.initializeSize(width, height)); }
@@ -217,6 +375,7 @@ public final class NotebookLibrary {
             if (book != null) book.retry();
             if (pending != null) finishPending();
             else state = disk;
+            finishPurges();
             problem = null;
         });
     }
@@ -226,10 +385,12 @@ public final class NotebookLibrary {
         state = durable = catalog.load();
         attemptedEntries = null; attemptedSelection = 0;
         problem = null;
+        finishPurges();
     }
 
     private void finishPending() throws IOException {
         Pending next = pending;
+        if (next.folders == null) next.folders = new ArrayList<>(state.folders);
         NotebookCatalog.State disk = catalog.load();
         if (!disk.equals(durable) && !matchesAttempt(disk)) {
             throw new IOException("Saved notebook names or selection differ from the open library; files were preserved.");
@@ -245,14 +406,15 @@ public final class NotebookLibrary {
             // Loading a cached book is a barrier; retry also checks it against its disk state.
             next.book.retry();
         }
-        attemptedEntries = next.entries; attemptedSelection = next.selected;
+        attemptedEntries = next.entries; attemptedSelection = next.selected; attemptedFolders = next.folders;
         NotebookCatalog.State saved;
-        if (sameTarget(durable, next.entries, next.selected)) saved = durable;
-        else saved = catalog.save(next.entries, next.selected);
+        if (sameTarget(durable, next.entries, next.selected, next.folders)) saved = durable;
+        else saved = catalog.save(next.entries, next.selected, next.folders);
         catalog.sync();
         state = durable = saved;
         attemptedEntries = null; attemptedSelection = 0;
         if (next.kind != RENAME) { book = next.book; bookId = next.selected; }
+        else if (book != null && state.entries.get(bookId - 1).status != NotebookCatalog.ACTIVE) { book = null; bookId = 0; }
         pending = null;
     }
 
@@ -299,7 +461,10 @@ public final class NotebookLibrary {
     }
 
     private File bookDirectory(int id) {
-        return id == 1 ? directory : new File(new File(directory, "notebooks"), Integer.toString(id));
+        File nested = new File(new File(directory, "notebooks"), Integer.toString(id));
+        // A reused legacy slot is created under notebooks/1; the library root stays metadata-only.
+        return id == 1 && !nested.exists() && (state == null || state.entries.get(0).status != NotebookCatalog.PURGED)
+            ? directory : nested;
     }
 
     private void requirePageFiles(int id) throws IOException {
@@ -311,15 +476,19 @@ public final class NotebookLibrary {
     }
 
     private boolean matchesAttempt(NotebookCatalog.State disk) {
-        return attemptedEntries != null && sameTarget(disk, attemptedEntries, attemptedSelection);
+        return attemptedEntries != null && sameTarget(disk, attemptedEntries, attemptedSelection, attemptedFolders);
     }
 
-    private static boolean sameTarget(NotebookCatalog.State state, List<NotebookCatalog.Entry> entries, int selected) {
-        return state != null && state.selectedId == selected && state.entries.equals(entries);
+    private static boolean sameTarget(NotebookCatalog.State state, List<NotebookCatalog.Entry> entries, int selected,
+                                      List<NotebookCatalog.Folder> folders) {
+        return state != null && state.selectedId == selected && state.entries.equals(entries) && state.folders.equals(folders);
     }
 
     private void requireCatalog() throws IOException { if (state == null) throw new IOException("Notebook library has not loaded"); }
     private void requireId(int id) throws IOException { if (id < 1 || id > state.entries.size()) throw new IOException("Notebook is out of range"); }
+    private void requireActive(int id) throws IOException {
+        if (state.entries.get(id - 1).status != NotebookCatalog.ACTIVE) throw new IOException("Choose a notebook from the bookshelf");
+    }
     private void requireWritable() throws IOException { if (problem != null) throw problem; }
 
     private void edit(Operation operation) throws IOException {

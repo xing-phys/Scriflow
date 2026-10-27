@@ -188,7 +188,10 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         saveState.setVisibility(View.GONE);
         deviceStatus = new NotebookDeviceStatus(this,
             () -> canEdit() && SystemClock.uptimeMillis() - lastInputAt >= 1000);
-        statusIslands = new NotebookStatusIslands(this, pageLabel, saveState, deviceStatus, (left, right) -> {
+        NotebookButton more = new NotebookButton(this); more.setText("⋮"); more.setTextSize(20);
+        more.setContentDescription("Page information, help and export PDF");
+        more.setOnClickListener(v -> pageInformation());
+        statusIslands = new NotebookStatusIslands(this, pageLabel, saveState, more, deviceStatus, (left, right) -> {
             if (notebookStatusBounds.equals(left) && deviceStatusBounds.equals(right)) return;
             notebookStatusBounds.set(left); deviceStatusBounds.set(right);
             updateOverlayBounds();
@@ -1327,13 +1330,32 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         final int request = generation;
         final int[] choice = {-1};
         final float[] percentages = {.25f, .5f, .75f, 1, 1.25f, 1.5f, 2, 3, 4};
-        List<String> labels = new ArrayList<>();
-        labels.add("Fit width"); labels.add("Fit height"); labels.add("Fit page");
-        for (float percentage : percentages) labels.add(Math.round(percentage * 100) + "%");
-        labels.add("App settings");
+        LinearLayout zoomControls = new LinearLayout(this); zoomControls.setOrientation(LinearLayout.VERTICAL);
+        zoomControls.setPadding(dp(12), dp(4), dp(12), dp(4));
+        String[] fits = {"Fit width", "Fit height", "Fit page"};
+        LinearLayout fitRow = new LinearLayout(this);
+        for (int i = 0; i < fits.length; i++) {
+            final int index = i;
+            NotebookButton fit = new NotebookButton(this); fit.setText(fits[i]); fit.setTextSize(13);
+            fit.setOnClickListener(v -> { choice[0] = index; viewMenu.dismiss(); });
+            fitRow.addView(fit, new LinearLayout.LayoutParams(0, dp(36), 1));
+        }
+        zoomControls.addView(fitRow);
+        for (int row = 0; row < percentages.length; row += 3) {
+            LinearLayout presetRow = new LinearLayout(this);
+            for (int i = row; i < Math.min(row + 3, percentages.length); i++) {
+                final int index = i;
+                NotebookButton preset = new NotebookButton(this);
+                preset.setText(Math.round(percentages[i] * 100) + "%"); preset.setTextSize(13);
+                preset.setOnClickListener(v -> { choice[0] = index + 3; viewMenu.dismiss(); });
+                presetRow.addView(preset, new LinearLayout.LayoutParams(0, dp(34), 1));
+            }
+            zoomControls.addView(presetRow);
+        }
         viewMenu = new AlertDialog.Builder(this)
-            .setTitle("Zoom · " + zoomLabel() + " (100% = fit width)")
-            .setItems(labels.toArray(new String[0]), (dialog, which) -> choice[0] = which)
+            .setTitle("Zoom · " + zoomLabel())
+            .setView(zoomControls)
+            .setNeutralButton("App settings", (dialog, which) -> choice[0] = percentages.length + 3)
             .setNegativeButton("Close", null).create();
         viewMenu.setOnDismissListener(dialog -> {
             viewMenu = null;
@@ -1362,7 +1384,20 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             });
         });
         showStaticDialog(viewMenu);
-        if (viewMenu.getListView() != null) viewMenu.getListView().setSelector(android.R.color.transparent);
+        if (viewMenu.getWindow() != null) viewMenu.getWindow().setLayout(
+            Math.min(dp(360), getResources().getDisplayMetrics().widthPixels - dp(24)), -2);
+    }
+
+    @Override protected void openAppSettings() {
+        if (!canEdit()) return;
+        pauseForEdit();
+        if (shownError != null) return;
+        final int request = generation;
+        session.load((loaded, error) -> {
+            if (!active || request != generation) return;
+            if (error != null) { showError(error); return; }
+            startActivity(new Intent(this, NotebookSettingsActivity.class)); overridePendingTransition(0, 0);
+        });
     }
 
     private void returnToLibrary() {
@@ -1720,7 +1755,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             if (error != null) { showError(error); return; }
             viewport = createViewport(viewport.width, viewport.height, viewport.pan);
             editing = false; scrolling = true; savePosition = true;
-            activePage = session.pageCount(); scrollY = viewport.pageScroll(activePage);
+            activePage = session.pageNumber(); scrollY = viewport.pageScroll(activePage);
             settleRead = true; ++viewportRevision;
             requestWindow();
         });
@@ -1801,7 +1836,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             + "\n" + current.strokes.size() + " strokes\n"
             + (session.error() != null ? "Some writing has not been saved."
                 : session.isSaving() ? "Saving your latest writing…" : "Your completed strokes are saved on this tablet.")
-            + "\n\nDrag with one finger to scroll and pan. Pinch with two fingers to zoom around their midpoint. Tap the notebook title or zoom percentage for Fit width, Fit height, Fit page, zoom presets, and App settings. New notes start at Fit width; 100% means Fit width. Write with the stylus. Tap the grid icon for thumbnails and page-number jumps. Use the left/right arrows for adjacent pages. The page-plus icon adds an empty page at the end. The paper icon changes this page’s Blank/Lined background. The books icon returns to your library."
+            + "\n\nDrag with one finger to scroll and pan. Pinch with two fingers to zoom around their midpoint. Tap the notebook title or zoom percentage for Fit width, Fit height, Fit page, zoom presets, and App settings. New notes start at Fit width; 100% means Fit width. Write with the stylus. Tap the grid icon for thumbnails and page-number jumps. Use the left/right arrows for adjacent pages. The page-plus icon inserts an empty page after the current page. The paper icon changes this page’s Blank/Lined background. The books icon returns to your library."
             + "\n\nEraser draws a temporary grey trail. Lift the pen to remove whole ink strokes touched by it, together with the trail. Tap the selected Eraser icon to adjust its width (4–240). Current eraser: " + NotebookWidthRange.ERASER.label(eraserWidth) + ". Each page remembers up to 100 Undo/Redo edits while the app process stays open."
             + "\n\nLasso draws a temporary dashed line. Lift the stylus to close the curve automatically. Drag inside with a finger or stylus to move the selected ink. Copy, Duplicate, Cut, Delete, and Done appear beside the region. Done or a tap outside clears the selection; tap the selected Lasso icon afterward for Paste or Select all. Copied ink stays inside Scriflow until the app restarts. Selection and movement stay on one page."
             + "\n\nNew writing or a successful edit clears Redo. Changing paper keeps your stroke history.";
@@ -1840,17 +1875,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     }
 
     private void showStaticDialog(AlertDialog dialog) {
-        dialog.create(); // Apply theme defaults before overriding their dim/fade attributes.
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-            dialog.getWindow().setDimAmount(0f);
-            dialog.getWindow().setWindowAnimations(0);
-        }
-        dialog.show();
-        for (int which : new int[]{AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE, AlertDialog.BUTTON_NEUTRAL}) {
-            Button button = dialog.getButton(which);
-            if (button != null) NotebookButton.makeStatic(button);
-        }
+        NotebookUi.show(dialog);
     }
 
     @Override protected void onPause() {

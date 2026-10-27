@@ -266,16 +266,16 @@ public final class NotebookBook {
         });
     }
 
-    /** Appends a blank page with the current paper/coordinate size; existing pages never move. */
+    /** Insert after the selected page, preserving paper geometry and stable page identities. */
     public void addPage() throws IOException {
         execute(() -> {
             requireWritable(); requireLoaded();
             if (count >= NotebookIndex.MAX_PAGES) throw new IOException("Notebook has reached its page limit");
             if (!current().isInitialized()) throw new IOException("The writing surface is not ready yet");
-            if (durableIndex.managed() || new File(slotDirectory(count + 1), "page.created").isFile()) {
+            if (selected < count || durableIndex.managed() || new File(slotDirectory(count + 1), "page.created").isFile()) {
                 // A first management edit can leave an unindexed staged slot after process
                 // death. Skip it without adopting its contents or blocking the legacy Add tool.
-                managePages(PageAction.INSERT_AFTER, selected, count); return;
+                managePages(PageAction.INSERT_AFTER, selected, selected); return;
             }
             navigation = new Navigation(count + 1, count + 1, true, current(), durableIndex);
             finishNavigation();

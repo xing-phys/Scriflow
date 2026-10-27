@@ -16,8 +16,28 @@ public final class NotebookPageManagementTest {
             moveWithoutRewritingInk(); duplicateInsertDeleteAndUndo(); singleRemainingPage();
             failedPublicationAndRetry(); abandonedAndUnexpectedSlots(); interruptedIndexRenames();
             invalidOperations(); indexValidation(); scrollGenerations(); backupAndLibrary(); randomizedOrder();
+            addToolInsertsAfterCurrentPage();
             System.out.println("NotebookPageManagement: " + assertions + " assertions passed (host JVM, real files).");
         } finally { for (File directory : directories) NotebookBackup.deleteTree(directory); }
+    }
+
+    private static void addToolInsertsAfterCurrentPage() throws Exception {
+        File root = directory(); NotebookBook book = ready(root, 3);
+        List<UUID> original = ids(book);
+        book.selectPage(1); book.setTemplate(NotebookPage.Template.LINED);
+        byte[] first = bytes(root, "page.nbk"), second = bytes(slot(root, 2), "page.nbk");
+        book.addPage(); UUID inserted = book.current().id;
+        equal(Arrays.asList(original.get(0), inserted, original.get(1), original.get(2)), ids(book), "add tool inserts behind current page in legacy book");
+        check(book.pageNumber() == 2 && book.current().strokes.isEmpty(), "inserted blank page becomes current");
+        check(book.current().template == NotebookPage.Template.LINED && book.current().width == 100 && book.current().height == 100,
+            "insertion inherits current page template and dimensions");
+        check(Arrays.equals(first, bytes(root, "page.nbk")) && Arrays.equals(second, bytes(slot(root, 2), "page.nbk")), "insertion never rewrites existing ink");
+        book.undoPageChange(); equal(original, ids(book), "page undo removes inserted page");
+        book.redoPageChange(); check(book.page(2).id.equals(inserted), "page redo restores inserted page identity");
+        NotebookBook reopened = new NotebookBook(root); reopened.load();
+        reopened.selectPage(2); reopened.addPage();
+        check(reopened.pageNumber() == 3 && reopened.page(4).id.equals(original.get(1)), "add tool inserts behind current page in managed book after restart");
+        check(reopened.page(5).id.equals(original.get(2)), "existing final page remains last");
     }
 
     private static void moveWithoutRewritingInk() throws Exception {

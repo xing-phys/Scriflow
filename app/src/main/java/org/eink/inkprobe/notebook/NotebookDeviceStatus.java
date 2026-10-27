@@ -58,6 +58,10 @@ final class NotebookDeviceStatus extends View {
         shown = state.publish(true); // Initial drawing precedes native pen enablement.
         connectivity = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
         updateDescription();
+        setOnClickListener(view -> {
+            if (context instanceof NotebookDisplayActivity) ((NotebookDisplayActivity) context).openAppSettings();
+        });
+        setFocusable(true);
     }
 
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
@@ -159,7 +163,8 @@ final class NotebookDeviceStatus extends View {
     private void updateDescription() {
         setContentDescription(shown.clock + ", battery "
             + (shown.battery < 0 ? "unavailable" : shown.battery + " percent")
-            + (shown.wifi < 0 ? ", Wi-Fi status unavailable" : shown.wifi == 1 ? ", Wi-Fi connected" : ", Wi-Fi disconnected"));
+            + (shown.wifi < 0 ? ", Wi-Fi status unavailable" : shown.wifi == 1 ? ", Wi-Fi connected" : ", Wi-Fi disconnected")
+            + "; tap to open settings");
     }
 
     @Override protected void onMeasure(int widthSpec, int heightSpec) {

@@ -26,14 +26,17 @@ final class NotebookStatusIslands {
             (view, l, t, r, b, oldL, oldT, oldR, oldB) -> position();
 
     NotebookStatusIslands(Activity activity, TextView pageLabel, TextView saveState,
-                          NotebookDeviceStatus deviceStatus, Listener listener) {
+                          NotebookButton more, NotebookDeviceStatus deviceStatus, Listener listener) {
         this.activity = activity;
         this.listener = listener;
         // Reserve digits for page changes so updating the counter never moves the ink clip.
         preferredLeftWidth = Math.max(dp(176), Math.min(dp(320),
-            (int) Math.ceil(pageLabel.getPaint().measureText(pageLabel.getText().toString())) + dp(64)));
+            (int) Math.ceil(pageLabel.getPaint().measureText(pageLabel.getText().toString())) + dp(96)));
         notebook = island();
-        notebook.addView(pageLabel, new LinearLayout.LayoutParams(-1, dp(24)));
+        LinearLayout top = new LinearLayout(activity); top.setGravity(Gravity.CENTER_VERTICAL);
+        top.addView(pageLabel, new LinearLayout.LayoutParams(0, dp(28), 1));
+        top.addView(more, new LinearLayout.LayoutParams(dp(28), dp(28)));
+        notebook.addView(top, new LinearLayout.LayoutParams(-1, -2));
         notebook.addView(saveState, new LinearLayout.LayoutParams(-1, dp(24)));
         device = island();
         device.addView(deviceStatus, new LinearLayout.LayoutParams(-2, dp(24)));
