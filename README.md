@@ -16,11 +16,11 @@ Development and physical testing target **MatePad Paper HMW-W09**, Android
 rendering use Huawei APIs already present on that firmware; no proprietary
 Huawei code is bundled. Other tablets and firmware versions are unverified.
 
-The latest public prerelease is **[Scriflow 0.31.0-dev.3](https://github.com/xing-phys/Scriflow/releases/tag/v0.31.0-dev.3)**,
-released on 2026-10-27 to fix the handwriting clipping error that paused writing
-in dev.2. It clips the drawing surface while preserving the complete pressure
-outline. It also includes the PDF export, zoom rendering, capture geometry,
-and large-PDF import/open improvements from dev.2,
+The latest public prerelease is **[Scriflow 0.31.0-dev.4](https://github.com/xing-phys/Scriflow/releases/tag/v0.31.0-dev.4)**,
+released on 2026-10-27 to retain link/outline view history through rotation and
+add page/screen pen width modes. Page width is the default; its native brush
+uses page-space input so zoom scales the finished geometry rather than changing
+pressure response. It includes the PDF and clipping fixes from dev.2/dev.3,
 retaining the same application ID and public signing certificate for in-place
 updates. Automated checks pass; tablet validation of these changes is pending.
 The core notebook features are implemented; broader use and
@@ -30,7 +30,8 @@ distinguish automated checks, publication authorization, and physical testing.
 
 ## Features
 
-- Native handwriting with adjustable pen thickness and pressure-preserving ink.
+- Native handwriting with adjustable pen thickness, page/screen width modes,
+  and pressure-preserving ink.
 - Multiple named notebooks, blank/lined pages, continuous finger scrolling,
   thumbnail overview, and direct page jumps.
 - A5 by default for new notes, standard paper sizes and custom dimensions,
@@ -55,8 +56,8 @@ makes no network requests. See [privacy and local storage](docs/privacy.md).
 
 ## Install and update
 
-Download the latest public **[Scriflow 0.31.0-dev.3 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.31.0-dev.3/scriflow-0.31.0-dev.3.apk)**
-from [GitHub Releases](https://github.com/xing-phys/Scriflow/releases/tag/v0.31.0-dev.3),
+Download the latest public **[Scriflow 0.31.0-dev.4 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.31.0-dev.4/scriflow-0.31.0-dev.4.apk)**
+from [GitHub Releases](https://github.com/xing-phys/Scriflow/releases/tag/v0.31.0-dev.4),
 where its file checksum and signing certificate fingerprint are recorded.
 Copy it to the supported tablet, open it with the tablet's file manager, and
 allow installation from that source when prompted.
@@ -97,7 +98,11 @@ direction icon to rotate them.
 Use **Import PDF** in the library to make a PDF notebook. The outline icon
 opens imported headings and lets you add your own; finger taps follow PDF links.
 Previous/next view icons return after link or outline jumps; ordinary scrolling,
-zoom, and page buttons do not create history. External links ask before opening
+zoom, and page buttons do not create history. Both stacks survive screen rotation.
+Settings offers **Fixed width on page** (default), so new writing keeps its width
+in the document across zoom, and **Fixed width on screen**, so the nib stays the
+same visible size while writing. Completed ink scales with the page in both modes.
+External links ask before opening
 another app. See [PDF notebooks](docs/pdf-import.md).
 The three-dot menu contains PDF export, save status, and **Reset tools**.
 Open **Settings** in the library, or tap the notebook title/percentage in the

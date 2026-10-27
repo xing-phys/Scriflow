@@ -4,7 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 
-/** App-wide display preferences; document geometry is independent of screen rotation. */
+/** App-wide preferences; document geometry is independent of screen rotation. */
 final class NotebookSettings {
     enum Orientation {
         PORTRAIT("Portrait", ActivityInfo.SCREEN_ORIENTATION_PORTRAIT),
@@ -19,6 +19,7 @@ final class NotebookSettings {
 
     private static final String PREFERENCES = "notebookSettings";
     private static final String ORIENTATION = "orientation";
+    private static final String PEN_WIDTH_MODE = "penWidthMode";
 
     private NotebookSettings() { }
 
@@ -54,5 +55,17 @@ final class NotebookSettings {
 
     static void setPinchZoomEnabled(Context context, boolean enabled) {
         preferences(context).edit().putBoolean("pinchZoom", enabled).apply();
+    }
+
+    static NotebookPenConfig.WidthMode penWidthMode(Context context) {
+        String stored = preferences(context).getString(PEN_WIDTH_MODE, NotebookPenConfig.WidthMode.PAGE.name());
+        for (NotebookPenConfig.WidthMode mode : NotebookPenConfig.WidthMode.values())
+            if (mode.name().equals(stored)) return mode;
+        return NotebookPenConfig.WidthMode.PAGE;
+    }
+
+    static void setPenWidthMode(Context context, NotebookPenConfig.WidthMode mode) {
+        if (mode == null) throw new IllegalArgumentException("Missing pen width mode");
+        preferences(context).edit().putString(PEN_WIDTH_MODE, mode.name()).apply();
     }
 }

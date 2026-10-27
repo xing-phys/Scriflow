@@ -67,7 +67,7 @@ public final class NotebookPage {
                        float captureScale, float captureWidth, Clip clip) {
             if (id == null) throw new IllegalArgumentException("Missing stroke ID");
             this.id = id;
-            if (penType < 0 || penType > 255 || !finite(width) || width <= 0 || (clip == null && width > 1024)
+            if (penType < 0 || penType > 255 || !finite(width) || width <= 0
                     || !finite(captureScale) || captureScale <= 0 || !finite(1f / captureScale)
                     || !finite(captureWidth) || captureWidth <= 0 || captureWidth > 1024
                     || !finite(width * captureScale)) {

@@ -1,5 +1,20 @@
 # Pen thickness and pressure
 
+Version 0.31.0-dev.4 adds **Settings → Pen width when zooming**:
+
+- **Fixed width on page** (default): width is measured in logical page units.
+  The native pressure brush receives page-space coordinates and an unchanged
+  width; only its finished drawing is scaled to the screen. New strokes written
+  at different zooms have the same page-space pressure behavior.
+- **Fixed width on screen**: width is measured in native screen pixels. The
+  original native handwriting path uses the same nib at every zoom; inverse
+  fitting preserves what was written when it is saved to the page.
+
+Both modes use the installed Huawei ballpoint with raw pressure and event
+timestamps. Settings changes affect future strokes. Existing writing retains
+its captured width and shape. See [capture geometry](ink-capture-scale.md) for
+the reason a zoom-dependent native nib changed pressure response.
+
 Version 0.21 uses the native pressure brush for scrolling, thumbnails, and PDF
 export, correcting the previous fixed-width rendering. A stored width is the
 brush setting; pressure can make visible ink thinner. Existing strokes already
@@ -19,8 +34,8 @@ number update while dragging. **Release to apply and close** the bar; tapping
 the track selects directly. An outside tap or Back cancels without changing
 the saved width. No additional confirmation button is needed.
 
-The range is **1.0 to 10.0** in **0.1 steps**, measured in stored page units
-rather than millimetres. **4.0** preserves the original default. All five choices
+The range is **1.0 to 10.0** in **0.1 steps**, measured in the selected page/screen
+units rather than millimetres. **4.0** preserves the original default. All five choices
 from 0.16 (1, 2, 4, 6, 10) restore unchanged, and intermediate widths now persist
 too. The existing `penWidth` preference is retained across notebooks and process
 restarts; invalid/out-of-range values fall back to 4.0. Selecting a width affects
@@ -60,13 +75,14 @@ and [child-touch cancellation](https://github.com/aosp-mirror/platform_framework
 support this callback sequence. This is source analysis and a reproduced event
 sequence, not a captured callback trace from the tablet.
 
-As in 0.16, the editor fits logical width to its composed viewport, and the
-native bridge calls `FBHandSurface.setAhwPen` with the corresponding width.
+Before dev.4, the editor fitted logical width to its composed viewport, and the
+native bridge called `FBHandSurface.setAhwPen` with the corresponding width.
+The two current routes are described above and in the capture-geometry note.
 Completed native tracks retain their recorded style. The completed-UP fallback
 captures immutable style at DOWN, so a later width selection cannot change the
 preceding stroke. No refresh flags, permissions, or proprietary code were added.
 
-## Verification
+## Historical slider verification (0.18)
 
 `./scripts/test.sh` passes **18,517 assertions**, including 43 completion checks
 for synchronous/deferred removal, duplicate cancellation, external dismissal,

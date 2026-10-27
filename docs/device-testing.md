@@ -4,6 +4,42 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## Scriflow 0.31.0-dev.4 rotation and pen modes (2026-10-27)
+
+The owner confirms dev.3 solved the clipping failure. They subsequently report
+that rotation loses previous/next view history, and that the pen's pressure
+response and width change after zoom. They explicitly request both pen width
+modes in Settings, with fixed width on the page as the default.
+
+- Artifact: `scriflow-0.31.0-dev.4.apk`, Android `versionCode` 40. The permanent
+  application ID, signing certificate and version-5 page format are retained.
+- Both navigation stacks now survive Activity recreation with notebook-scoped,
+  bounded state. Page UUIDs and logical anchors survive layout changes. Fitted
+  history views adapt to the new orientation; custom percentages remain exact.
+- Page mode keeps the installed native brush at the selected page-space width
+  and applies zoom to its finished framebuffer drawing. Screen mode keeps
+  direct native handwriting with a constant native-pixel nib. Raw pressure and
+  timestamps remain unchanged in both. Existing strokes retain captured geometry.
+- Cached firmware interfaces/disassembly support the new manual native page
+  brush: native input is not inverse-transformed by the surface matrix; global
+  exclusion clips precede that matrix; explicit physical dirty posting is
+  required; native track completion updates bookkeeping without a full redraw.
+- Host contracts execute production bridge methods with instrumented firmware
+  fixtures. They cover both width modes, four-pixel pressure threshold input,
+  zoom/orientation/PDF geometry, full timestamp precision, save/reopen/export,
+  surface-state restoration and dirty bounds, cancellation and invalid input.
+  These are not Huawei brush or live display emulation.
+- Full host suite: **168,181 assertions across 43 suites**, including 364 view
+  history checks, 53,265 pen policy/storage checks and 817 native bridge contract
+  checks. Debug/release lint and builds, signed artifact verification, and
+  native diagnostic Java/DEX compilation also pass.
+
+No tablet is connected. Physical verification of the new page-mode native bridge,
+pen latency, pressure feel, both rotation directions and export parity remains
+pending. Check Settings' default page mode first, then screen mode, using new
+strokes at several zooms on ordinary notes and PDFs. Do not downgrade over
+version-5 files or clear app storage to apply this update.
+
 ## Scriflow 0.31.0-dev.3 handwriting clipping hotfix (2026-10-27)
 
 The owner reported that writing in either ordinary or PDF notes displayed

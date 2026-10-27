@@ -6,6 +6,29 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## [0.31.0-dev.4](https://github.com/xing-phys/Scriflow/releases/tag/v0.31.0-dev.4) — Rotation history and pen width modes (2026-10-27)
+
+- Preserve both previous-view and next-view stacks across screen rotation,
+  scoped to the current notebook and stable page identities. Restore logical
+  view anchors; recompute fitted views for the new orientation while retaining
+  custom zoom percentages. Ordinary scrolling still creates no history entries.
+- Add Settings → Pen width when zooming, with **Fixed width on page** as the
+  default and **Fixed width on screen** as the alternative. Freeze each stroke's
+  width mode and scale at pen-down; changing settings never reshapes existing ink.
+- Keep Huawei's original ballpoint and raw pressure/timing. Page mode feeds
+  page-space samples to the installed native brush and scales its finished
+  framebuffer drawing, avoiding zoom-dependent pressure thresholds. Screen mode
+  retains direct native handwriting with a constant native nib width.
+- Preserve captured geometry for scrolling, reopening and vector PDF export.
+  Save accepted strokes before display cache work; discard partial manual pen
+  state during pause, tool changes, and surface recreation.
+- Advance versionCode to 40 with the same signing identity and version-5 page
+  format. Host suites pass, including rotation history, both width modes,
+  native bridge contracts and save/reopen/export. Debug/release lint and builds,
+  signed APK verification and native diagnostic compilation pass. The owner
+  confirms dev.3 solved the clipping failure. Physical
+  confirmation of this new native page-mode bridge remains pending.
+
 ## [0.31.0-dev.3](https://github.com/xing-phys/Scriflow/releases/tag/v0.31.0-dev.3) — Handwriting clipping hotfix (2026-10-27)
 
 - Fix “Cannot update notebook ink: Could not clip handwriting to its page,”

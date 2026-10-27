@@ -78,6 +78,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private boolean active, penDown, geometryPending, editing;
     private NotebookInk.Tool tool = NotebookInk.Tool.PEN;
     private float penWidth = NotebookPenConfig.DEFAULT_WIDTH;
+    private NotebookPenConfig.WidthMode penWidthMode = NotebookPenConfig.WidthMode.PAGE;
     private float eraserWidth = NotebookWidthRange.ERASER.defaultWidth;
     private NotebookWidthPopup widthPopup;
     private boolean verifyOnReady;
@@ -133,6 +134,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         });
         viewNotebookId = session.notebookId();
         if (saved != null && viewNotebookId == saved.getInt("viewNotebookId", -1)) {
+            viewHistory.restore(viewNotebookId, saved.getByteArray("viewHistory"));
             zoom = saved.getFloat("zoom", 1);
             if (!NotebookPage.finite(zoom) || zoom <= 0) zoom = 1;
             try { zoomFit = NotebookViewport.Fit.valueOf(saved.getString("zoomFit", "WIDTH")); }
@@ -240,6 +242,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
 
     @Override protected void onResume() {
         super.onResume();
+        penWidthMode = NotebookSettings.penWidthMode(this);
         if (session.notebookId() != viewNotebookId) {
             viewNotebookId = session.notebookId();
             zoom = 1; zoomFit = NotebookViewport.Fit.WIDTH; restoreCenter = false; viewport = null;
@@ -346,6 +349,11 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             });
             ink.setTool(tool);
             ink.setPenWidth(penWidth);
+            ink.setPenWidthMode(penWidthMode, (x, y) -> {
+                if (viewport == null) return 1f;
+                int target = viewport.pageAt(x, y, scrollY);
+                return viewport.scale(target > 0 ? target : activePage);
+            });
             ink.setEraserWidth(eraserWidth);
             updateOverlayBounds();
             canvas.addView(ink.view(), new FrameLayout.LayoutParams(-1, -1));
@@ -457,7 +465,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         try {
             ink.pauseForEdit();
             if (shownError != null) return;
-            ink.setPenWidth(fittedPenWidth());
+            ink.setPenWidth(penWidth);
             ink.setEraserWidth(fittedEraserWidth());
             ink.setSelectionMode(selectionOutline != null);
             updateOverlayBounds();
@@ -919,7 +927,8 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         lassoButton.setToolSelected(tool == NotebookInk.Tool.LASSO);
         lassoButton.setContentDescription(tool == NotebookInk.Tool.LASSO
             ? "Lasso selected; tap for selection actions and paste" : "Lasso: select and move ink");
-        penButton.setPenWidthPreview(fittedPenWidth());
+        penButton.setPenWidthPreview(penWidthMode == NotebookPenConfig.WidthMode.PAGE && viewport != null
+            ? penWidth * viewport.scale(activePage) : penWidth);
         penButton.setContentDescription("Pen, thickness " + NotebookPenConfig.label(penWidth)
             + (tool == NotebookInk.Tool.PEN ? "; tap for width slider" : "; select pen"));
         eraserButton.setContentDescription("Eraser, width " + NotebookWidthRange.ERASER.label(eraserWidth)
@@ -940,10 +949,6 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         updateControls();
     }
 
-    private float fittedPenWidth() {
-        return Math.min(1024, penWidth * (viewport == null ? 1f : viewport.scale(activePage)));
-    }
-
     private float fittedEraserWidth() {
         return Math.min(NotebookStore.MAX_DIMENSION,
             eraserWidth * (viewport == null ? 1f : viewport.scale(activePage)));
@@ -962,7 +967,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             mergeWindow();
             if (error != null) { showError(error); return; }
             widthPopup = new NotebookWidthPopup(this, range, erasing ? eraserWidth : penWidth,
-                viewport.scale(activePage), chosen -> {
+                erasing || penWidthMode == NotebookPenConfig.WidthMode.PAGE ? viewport.scale(activePage) : 1f, chosen -> {
                 widthPopup = null;
                 if (!active || request != generation) return;
                 if (chosen != null) {
@@ -971,7 +976,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                         ink.setEraserWidth(fittedEraserWidth());
                     } else {
                         penWidth = chosen;
-                        ink.setPenWidth(fittedPenWidth());
+                        ink.setPenWidth(penWidth);
                     }
                     getPreferences(MODE_PRIVATE).edit().putFloat(erasing ? "eraserWidth" : "penWidth", chosen).apply();
                 }
@@ -1410,9 +1415,8 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         pauseForEdit();
         if (shownError != null) return;
         clearSelection();
-        zoom = target.zoom;
-        try { zoomFit = NotebookViewport.Fit.valueOf(target.fit); }
-        catch (IllegalArgumentException ignored) { zoomFit = NotebookViewport.Fit.CUSTOM; }
+        zoomFit = target.fitMode();
+        zoom = target.zoomFor(viewport, number);
         viewport = viewport.withView(zoom, 0);
         viewport = viewport.withView(zoom, viewport.panForPoint(number, target.x, viewport.width / 2f));
         scrollY = viewport.scrollForPoint(number, target.y, viewport.height / 2f);
@@ -1803,8 +1807,8 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             + "\n\nLasso draws a temporary dashed line. Lift the stylus to close the curve automatically. Drag inside with a finger or stylus to move the selected ink. Copy, Duplicate, Cut, Delete, and Done appear beside the region. Done or a tap outside clears the selection; tap the selected Lasso icon afterward for Paste or Select all. Copied ink stays inside Scriflow until the app restarts. Selection and movement stay on one page."
             + "\n\nNew writing or a successful edit clears Redo. Changing paper keeps your stroke history.";
         message += "\n\nTap the dotted grip to collapse or expand the floating tools; drag it to move them, even when collapsed. The direction icon beside it switches between one row and one column. The thicker circle marks the selected tool. The page icon changes Blank/Lined paper; the grid opens the page overview."
-            + "\n\nThe outline icon opens the table of contents. Add headings at the current view; hold a heading or tap Edit headings to rename, move, or delete it. Imported PDF outlines are ready to use. Tap PDF links with one finger; writing with the stylus keeps annotating. The previous-view and next-view arrows restore your page, scroll position, horizontal pan, and zoom after a jump or gesture."
-            + "\n\nTap the selected Pen icon to open a small width slider. Slide the point and release to apply; tap outside or press Back to cancel. Current thickness: " + NotebookPenConfig.label(penWidth) + ". The small line below the pencil previews its width. New strokes use that width; existing writing keeps its original thickness."
+            + "\n\nThe outline icon opens the table of contents. Add headings at the current view; hold a heading or tap Edit headings to rename, move, or delete it. Imported PDF outlines are ready to use. Tap PDF links with one finger; writing with the stylus keeps annotating. The previous-view and next-view arrows restore your page, scroll position, horizontal pan, and zoom after a link or outline jump, including after screen rotation."
+            + "\n\nTap the selected Pen icon to open a small width slider. Slide the point and release to apply; tap outside or press Back to cancel. Current thickness: " + NotebookPenConfig.label(penWidth) + ". The small line below the pencil previews its width. Settings offers fixed width on the page (default) or fixed width on the screen while writing. Existing strokes keep their captured shape in either mode."
             + "\n\nExport PDF saves all pages in this notebook, including their paper backgrounds and handwriting.";
         final boolean[] exporting = {false};
         AlertDialog info = new AlertDialog.Builder(this).setTitle("This page")
@@ -1878,6 +1882,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     @Override protected void onSaveInstanceState(Bundle state) {
         captureViewCenter();
         state.putInt("viewNotebookId", viewNotebookId);
+        state.putByteArray("viewHistory", viewHistory.save(viewNotebookId));
         state.putFloat("zoom", zoom);
         state.putString("zoomFit", zoomFit.name());
         state.putBoolean("viewCenter", restoreCenter);

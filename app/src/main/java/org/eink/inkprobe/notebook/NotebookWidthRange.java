@@ -1,6 +1,6 @@
 package org.eink.inkprobe.notebook;
 
-/** Independent, remembered tool widths in logical page pixels. Eraser width is a diameter. */
+/** Remembered tool widths: pen uses its selected page/screen mode; eraser is a page-unit diameter. */
 final class NotebookWidthRange {
     static final NotebookWidthRange PEN = new NotebookWidthRange("Pen thickness", 1, 10, 4, 10);
     static final NotebookWidthRange ERASER = new NotebookWidthRange("Eraser width", 4, 240, 36, 1);

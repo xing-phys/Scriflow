@@ -11,11 +11,13 @@ import android.widget.TextView;
 import java.util.EnumMap;
 import java.util.Map;
 
-/** Static, immediately saved display choices shared by every notebook screen. */
+/** Static, immediately saved preferences shared by every notebook screen. */
 public final class NotebookSettingsActivity extends NotebookDisplayActivity {
     private NotebookButton pinchChoice;
     private final Map<NotebookSettings.Orientation, NotebookButton> choices =
         new EnumMap<>(NotebookSettings.Orientation.class);
+    private final Map<NotebookPenConfig.WidthMode, NotebookButton> widthChoices =
+        new EnumMap<>(NotebookPenConfig.WidthMode.class);
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
@@ -81,6 +83,24 @@ public final class NotebookSettingsActivity extends NotebookDisplayActivity {
         TextView palms = label("Finger navigation pauses while the pen is nearby and briefly after writing. For zoom, lift the pen away, place two fingers together, then pinch. You can turn pinch zoom off and use the percentage menu instead.", 15);
         palms.setPadding(0, dp(12), 0, dp(24));
         body.addView(palms, new LinearLayout.LayoutParams(-1, -2));
+        body.addView(label("Pen width when zooming", 22), new LinearLayout.LayoutParams(-1, -2));
+        for (NotebookPenConfig.WidthMode mode : NotebookPenConfig.WidthMode.values()) {
+            NotebookButton button = new NotebookButton(this);
+            button.setTextSize(20);
+            button.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
+            button.setPadding(dp(12), 0, dp(12), 0);
+            button.setOnClickListener(view -> {
+                NotebookSettings.setPenWidthMode(this, mode);
+                updateChoices();
+            });
+            widthChoices.put(mode, button);
+            body.addView(button, new LinearLayout.LayoutParams(-1, dp(68)));
+            TextView explanation = label(mode == NotebookPenConfig.WidthMode.PAGE
+                ? "New strokes keep the same width on the page at every zoom. At the same zoom, they match earlier strokes drawn with the same pen width."
+                : "The pen keeps the same width on the screen while you write at any zoom. Completed strokes scale with the page.", 15);
+            explanation.setPadding(dp(12), 0, dp(12), dp(20));
+            body.addView(explanation, new LinearLayout.LayoutParams(-1, -2));
+        }
         scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(root);
@@ -105,6 +125,15 @@ public final class NotebookSettingsActivity extends NotebookDisplayActivity {
             entry.getValue().setText((checked ? "●  " : "○  ") + entry.getKey().label);
             entry.getValue().setSelected(checked);
             entry.getValue().setContentDescription(entry.getKey().label + (checked ? ", selected" : ""));
+        }
+        NotebookPenConfig.WidthMode widthMode = NotebookSettings.penWidthMode(this);
+        for (Map.Entry<NotebookPenConfig.WidthMode, NotebookButton> entry : widthChoices.entrySet()) {
+            boolean checked = widthMode == entry.getKey();
+            String text = entry.getKey() == NotebookPenConfig.WidthMode.PAGE
+                ? "Fixed width on page (default)" : "Fixed width on screen";
+            entry.getValue().setText((checked ? "●  " : "○  ") + text);
+            entry.getValue().setSelected(checked);
+            entry.getValue().setContentDescription(text + (checked ? ", selected" : ""));
         }
     }
 

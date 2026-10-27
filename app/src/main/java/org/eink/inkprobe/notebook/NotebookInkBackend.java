@@ -10,6 +10,8 @@ import java.util.List;
 /** Editor/device boundary. Live input belongs to the backend; durable pages belong to the core. */
 public interface NotebookInkBackend {
     public enum Tool { PEN, ERASER, LASSO }
+    /** Logical page units to viewport pixels at the pen's starting position. */
+    public interface PenScale { float at(float x, float y); }
 
     /** Paints only the opaque paper/background of the current physical viewport. */
     public interface PaperRenderer {
@@ -40,7 +42,9 @@ public interface NotebookInkBackend {
     boolean isPenDown();
     void setTool(Tool tool);
     void setSelectionMode(boolean selected);
+    /** Nib width in the selected mode's units: logical page units or native screen pixels. */
     void setPenWidth(float width);
+    void setPenWidthMode(NotebookPenConfig.WidthMode mode, PenScale pageScale);
     void setEraserWidth(float width);
     void setOverlayBounds(Rect... bounds);
     void setPage(NotebookPage page);

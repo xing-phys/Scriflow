@@ -1,5 +1,47 @@
 # Pressure geometry across zoom, scrolling and PDF
 
+## Width modes in 0.31.0-dev.4
+
+Settings now offers fixed width on the page (default) and fixed width on the
+screen. The original Huawei ballpoint, pressure samples, and event times are
+retained. Merely preserving a zoom-scaled native nib was insufficient: a width
+of four page units became two native pixels at scale 0.5, disabling the native
+pressure rule, while the same selected width at scale 1 retained pressure.
+
+Page mode uses a separate installed `HandPen(type, true)` bound through
+`setSurfaceBoard(ISurface)`. AHW remains enabled with transparent ink for native
+sample capture and completion bookkeeping. At pen-down the editor chooses the
+page under the stylus and freezes its scale. Each sample reaches the visible
+brush in page coordinates, with unchanged pressure/time and selected width.
+The native framebuffer matrix scales the finished geometry; surface save/restore
+scopes that transform to each call. This uses the same brush as the source-scale
+0.21 correction rather than introducing a pressure curve.
+
+Static inspection of the cached firmware establishes that `applyMC` applies
+floating-window exclusion clips before the drawing matrix. AHW input itself is
+not inverse transformed by that matrix. The helper therefore transforms input
+explicitly and posts conservative physical dirty bounds: the native brush's
+automatic posts use untransformed bounds. No Java path, bitmap, or UI is rebuilt
+per MOVE. The bound paper cache receives the completed vector after its stroke
+has been handed to document saving; no extra full-surface redraw is posted then.
+Pause, tool changes, and surface recreation discard any partial manual pen.
+
+Screen mode keeps direct native AHW with an unchanged native-pixel nib width.
+`NotebookPenConfig.nativeInput` retains its exact native width even when inverse
+fitting floats cross the four-pixel boundary. Page mode instead retains the
+canonical selected brush width and inverse viewport capture scale. Both feed
+the same existing version-5 storage, replay, and vector PDF paths. Existing
+strokes are not reinterpreted when the setting changes.
+
+Host tests execute the actual mode/style and native bridge code with explicit
+firmware contract fixtures. They verify inverse coordinates, raw pressure/time,
+scoped matrices, physical bounds, cancellation/lifecycle assumptions, durable
+round trips, and export inputs. These fixtures do not emulate Huawei's brush or
+establish physical latency. The native headless diagnostic also covers both
+mode geometries; live framebuffer acceptance still requires the MatePad.
+
+## Captured geometry introduced in dev.2
+
 The 0.21 pressure-outline fix remains necessary, but scaling input samples and
 brush width before replay does not scale Huawei's resulting brush shape exactly.
 The firmware uses pixel-based pressure rules. Inspection of the previously
@@ -39,9 +81,10 @@ view scale. Restoration now paints the canonical outlines onto the existing
 owned viewport bitmap together with its paper and PDF background, while
 retaining transparent native tracks for firmware completion bookkeeping. Cached
 firmware inspection shows that the track renderer passes the complete ARGB
-color to `SkPaint::setColor`. Newly written ink still uses the original native
-low-latency surface; no path generation, bitmap painting, storage write or UI
-invalidation was added to pen MOVE callbacks.
+color to `SkPaint::setColor`. New writing uses the installed native brush on the
+same framebuffer surface, with the page/screen input routing described above;
+no Java path generation, bitmap painting, storage write or UI invalidation is
+added to pen MOVE callbacks.
 
 Page format 5 adds two floats per stroke, retaining all existing framing,
 checksums, points, identities, pressure and time values. Versions 1–4 remain
