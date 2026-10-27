@@ -180,7 +180,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         zoomBadge.setElevation(0f);
         saveState = new TextView(this);
         saveState.setSingleLine(true); saveState.setIncludeFontPadding(false);
-        saveState.setText("Not saved · Retry"); saveState.setTextSize(12); saveState.setTextColor(Color.BLACK);
+        saveState.setText("Writing paused · Retry"); saveState.setTextSize(12); saveState.setTextColor(Color.BLACK);
         saveState.setGravity(Gravity.CENTER_VERTICAL);
         saveState.setEllipsize(TextUtils.TruncateAt.END);
         saveState.setVisibility(View.GONE);
@@ -1740,17 +1740,19 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     }
     private void showError(IOException error) {
         shownError = error;
+        final boolean saveFailed = session.error() != null;
         if (selectionTools != null) selectionTools.hide();
         resetSelectionPreview();
         if (ink != null) ink.stop();
         if (floatingTools != null) floatingTools.hide();
         updateControls();
         main.removeCallbacks(updateSaveState);
+        saveState.setText(saveFailed ? "Not saved · Retry" : "Writing paused · Retry");
         saveState.setVisibility(View.VISIBLE);
         statusIslands.show(canvas);
         saveState.setOnClickListener(v -> {
             AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Couldn’t save the notebook")
+                .setTitle(saveFailed ? "Couldn’t save the notebook" : "Writing is paused")
                 .setMessage("Writing is paused. Your open pages are retained in memory.\n\n"
                     + (error == null ? "Please retry." : error.getMessage()))
                 .setNegativeButton("Keep open", null)

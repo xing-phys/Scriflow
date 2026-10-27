@@ -31,7 +31,20 @@ public final class NotebookStrokeRenderer {
         Path outline = path(stroke, cancelled);
         paint.setStyle(Paint.Style.FILL);
         paint.setColor(stroke.color);
-        canvas.drawPath(outline, paint);
+        if (stroke.clip == null) {
+            canvas.drawPath(outline, paint);
+            return;
+        }
+        // A native pressure outline can contain overlapping/self-crossing contours.
+        // Path.op may fail on those valid drawing paths. Clip the drawing surface
+        // instead: retain the complete brush geometry and never rewrite the path.
+        int saved = canvas.save();
+        try {
+            canvas.clipRect(stroke.clip.left, stroke.clip.top, stroke.clip.right, stroke.clip.bottom);
+            canvas.drawPath(outline, paint);
+        } finally {
+            canvas.restoreToCount(saved);
+        }
     }
 
     public static NotebookStrokeOutline outline(NotebookPage.Stroke stroke) {
@@ -47,6 +60,7 @@ public final class NotebookStrokeRenderer {
         return NotebookStrokeOutline.take(path.approximate(OUTLINE_ERROR), fill == Path.FillType.EVEN_ODD);
     }
 
+    /** Complete pressure geometry; transient viewport clipping belongs to draw(), not the path. */
     static Path path(NotebookPage.Stroke stroke, BooleanSupplier cancelled) {
         checkCancelled(cancelled);
         try {
@@ -75,12 +89,6 @@ public final class NotebookStrokeRenderer {
                 Matrix inverse = new Matrix();
                 inverse.setScale(1f / stroke.captureScale, 1f / stroke.captureScale);
                 owned.transform(inverse);
-            }
-            if (stroke.clip != null) {
-                Path clip = new Path();
-                clip.addRect(stroke.clip.left, stroke.clip.top, stroke.clip.right, stroke.clip.bottom, Path.Direction.CW);
-                if (!owned.op(clip, Path.Op.INTERSECT))
-                    throw new IllegalStateException("Could not clip handwriting to its page");
             }
             return owned;
         } catch (ReflectiveOperationException error) {

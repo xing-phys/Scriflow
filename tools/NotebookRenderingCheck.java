@@ -6,6 +6,7 @@ import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.pdf.PdfRenderer;
 import android.os.ParcelFileDescriptor;
@@ -15,7 +16,9 @@ import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CancellationException;
 import org.json.JSONObject;
 import org.json.JSONArray;
@@ -71,6 +74,7 @@ public final class NotebookRenderingCheck {
         result.put("parallelReplay", parallelReplay(page));
         result.put("captureScale", scaledReplay(directory, page, nativeReplay));
         result.put("transparentNativePlaceholders", transparentTracks(page));
+        result.put("viewportClipping", viewportClipping(directory, page));
         boolean passed = result.getJSONObject("nativeVsCanvas").getInt("outsideOnePixel") == 0
             && result.getJSONObject("nativeVsPdf").getInt("outsideOnePixel") == 0
             && Math.abs(result.getInt("nativeLightWidth") - result.getInt("pdfLightWidth")) <= 1
@@ -78,7 +82,8 @@ public final class NotebookRenderingCheck {
             && result.getInt("pdfHeavyWidth") > result.getInt("pdfLightWidth")
             && result.getBoolean("parallelReplay")
             && result.getJSONObject("captureScale").getBoolean("passed")
-            && result.getBoolean("transparentNativePlaceholders");
+            && result.getBoolean("transparentNativePlaceholders")
+            && result.getJSONObject("viewportClipping").getBoolean("passed");
         result.put("passed", passed);
         try (FileOutputStream output = new FileOutputStream(new File(directory, "result.json"))) {
             output.write(result.toString(2).getBytes(StandardCharsets.UTF_8));
@@ -205,6 +210,89 @@ public final class NotebookRenderingCheck {
         for (int y = 0; y < HEIGHT; y++) for (int x = 0; x < WIDTH; x++)
             if (bitmap.getPixel(x, y) != Color.WHITE) throw new IllegalStateException("Native transparent track repainted visible ink");
         bitmap.recycle(); return true;
+    }
+
+    /** Exercise actual composed viewport strokes; brush paths must never require Path.op. */
+    private static JSONObject viewportClipping(File directory, NotebookPage fixture) throws Exception {
+        List<NotebookPage.Stroke> strokes = new ArrayList<>(fixture.strokes);
+        strokes.add(stroke(24, point(0, 0, 140000, .3f), point(WIDTH, HEIGHT, 141000, 1),
+            point(0, HEIGHT, 142000, .4f), point(WIDTH, 0, 143000, .8f), point(0, 0, 144000, .3f)));
+        NotebookPage page = fixture.withStrokes(strokes);
+        Map<Integer, NotebookPage> pages = new LinkedHashMap<>();
+        pages.put(1, page); pages.put(2, page);
+        JSONArray checks = new JSONArray();
+        NotebookViewport edges = new NotebookViewport(2, WIDTH, HEIGHT, WIDTH, HEIGHT, 48, .8f, 0);
+        checks.put(clipCase(directory, "page-edges", edges.compose(pages, 0).strokes, true, true));
+        NotebookViewport zoom = new NotebookViewport(2, WIDTH, HEIGHT, WIDTH, HEIGHT, 48, 1.75f, 450);
+        checks.put(clipCase(directory, "offscreen-loop", zoom.compose(pages,
+            zoom.scrollForPoint(1, 1550, HEIGHT / 2f)).strokes, true, true));
+        NotebookPage.Stroke loop = page.strokes.get(page.strokes.size() - 2);
+        checks.put(clipCase(directory, "empty-clip", Arrays.asList(loop.inView(loop.width, loop.points,
+            loop.captureScale, 400, 400, 400, 900)), false, false));
+        checks.put(clipCase(directory, "offscreen-clip", Arrays.asList(loop.inView(loop.width, loop.points,
+            loop.captureScale, -400, -400, -100, -100)), false, false));
+        JSONObject result = new JSONObject(); result.put("checks", checks); result.put("passed", true);
+        return result;
+    }
+
+    private static JSONObject clipCase(File directory, String name, List<NotebookPage.Stroke> strokes,
+                                        boolean expectInk, boolean expectOffscreenSamples) throws Exception {
+        Bitmap expected = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888);
+        Bitmap actual = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888);
+        try {
+            expected.eraseColor(Color.WHITE); actual.eraseColor(Color.WHITE);
+            Canvas reference = new Canvas(expected), production = new Canvas(actual);
+            // Keep a pre-existing transform and clip, as the native paper renderer does.
+            for (Canvas canvas : new Canvas[]{reference, production}) {
+                canvas.translate(17, 23); canvas.scale(.91f, .87f);
+                canvas.clipRect(11, 19, WIDTH - 42, HEIGHT - 38);
+            }
+            Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            boolean offscreenSamples = false;
+            int vertices = 0;
+            for (NotebookPage.Stroke stroke : strokes) {
+                if (stroke.clip == null) throw new IllegalStateException("Missing composed viewport clip");
+                NotebookPage.Clip clip = stroke.clip;
+                for (NotebookPage.Point point : stroke.points)
+                    offscreenSamples |= point.x < clip.left || point.x > clip.right
+                        || point.y < clip.top || point.y > clip.bottom;
+                NotebookPage.Stroke full = new NotebookPage.Stroke(stroke.id, stroke.penType, stroke.width,
+                    stroke.color, stroke.points, stroke.captureScale, stroke.captureWidth);
+                Path fullPath = NotebookStrokeRenderer.path(full, () -> false);
+                float[] before = fullPath.approximate(.05f);
+                if (!Arrays.equals(before, NotebookStrokeRenderer.path(stroke, () -> false).approximate(.05f)))
+                    throw new IllegalStateException("Viewport clipping changed the full brush geometry: " + name);
+                vertices += NotebookStrokeRenderer.outline(stroke).vertexCount();
+                int saved = production.getSaveCount();
+                Rect bounds = production.getClipBounds();
+                float[] matrix = matrix(production);
+                NotebookStrokeRenderer.draw(production, stroke, paint);
+                if (saved != production.getSaveCount() || !bounds.equals(production.getClipBounds())
+                        || !Arrays.equals(matrix, matrix(production)))
+                    throw new IllegalStateException("Viewport draw leaked Canvas state: " + name);
+                if (!Arrays.equals(before, fullPath.approximate(.05f)))
+                    throw new IllegalStateException("Viewport draw changed the owned full path: " + name);
+                int checkpoint = reference.save();
+                try {
+                    reference.clipRect(clip.left, clip.top, clip.right, clip.bottom);
+                    paint.setStyle(Paint.Style.FILL); paint.setColor(stroke.color);
+                    reference.drawPath(fullPath, paint);
+                } finally { reference.restoreToCount(checkpoint); }
+            }
+            JSONObject result = compare(expected, actual);
+            if (strokes.isEmpty() || vertices == 0 || result.getInt("differentArgbPixels") != 0
+                    || (result.getInt("nativeInkPixels") > 0) != expectInk
+                    || expectOffscreenSamples && !offscreenSamples)
+                throw new IllegalStateException("Viewport clip regression: " + name + " " + result);
+            png(directory, "viewport-" + name + ".png", actual);
+            result.put("case", name); result.put("fullOutlineUnchanged", true);
+            result.put("canvasStateRestored", true); result.put("retainedOffscreenSamples", offscreenSamples);
+            result.put("passed", true); return result;
+        } finally { expected.recycle(); actual.recycle(); }
+    }
+
+    private static float[] matrix(Canvas canvas) {
+        float[] result = new float[9]; canvas.getMatrix().getValues(result); return result;
     }
 
     private static Bitmap paper(NotebookPage page) {

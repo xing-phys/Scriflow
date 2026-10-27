@@ -6,6 +6,24 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## [0.31.0-dev.3](https://github.com/xing-phys/Scriflow/releases/tag/v0.31.0-dev.3) — Handwriting clipping hotfix (2026-10-27)
+
+- Fix “Cannot update notebook ink: Could not clip handwriting to its page,”
+  which paused both ordinary and PDF notes after writing or restoring ink.
+  Replace the fallible boolean path intersection with a saved Canvas rectangle
+  clip. Retain complete pressure geometry and restore the caller's drawing state,
+  including when the visible clip is empty.
+- Distinguish a drawing pause from a storage failure in the status and error
+  dialog. Keep the existing retry and in-memory page retention.
+- Add a deterministic host regression that reproduces the exact dev.2 error
+  under failed path operations, plus raster clip/state checks and viewport-to-
+  storage tests for upgraded notes, new notes, and imported PDF notes. Extend
+  the native renderer diagnostic to exercise actual composed viewport clips.
+- Advance versionCode to 39 with the same signing identity and page format.
+  Host regressions, debug/release lint and APK builds, signed artifact checks,
+  and native diagnostic compilation pass. Physical tablet confirmation remains
+  pending; no tablet is connected.
+
 ## [0.31.0-dev.2](https://github.com/xing-phys/Scriflow/releases/tag/v0.31.0-dev.2) — PDF and ink regression fixes (2026-10-27)
 
 - Fix PDF export failing when PDFBox closed the caller's stream before its final

@@ -21,8 +21,14 @@ and capture scale together; pressure and event timestamps remain unchanged.
 Lasso moves, clipboard copies, page duplication, undo/redo and backups preserve
 the metadata.
 
-Viewport composition retains the complete original stroke samples and clips the
-finished vector to its visible page. Previously it clipped the sample sequence,
+Viewport composition retains the complete original stroke samples. The renderer
+draws the full finished vector under a saved `Canvas.clipRect` for its visible
+page, restoring the Canvas clip afterwards. Dev.2 used `Path.op(INTERSECT)` to
+rewrite the outline; the owner reported that this returned false on the tablet
+and stopped writing with “Could not clip handwriting to its page.” Dev.3 removes
+that boolean path operation entirely. Even an empty clip is a normal drawing
+case, not an error. Export and selection receive the complete outline and apply
+their own page clip. Earlier code clipped the sample sequence,
 which could replace the original DOWN with a later MOVE and change the brush's
 endpoint taper while scrolling. Native brush widths stay within the original
 supported range even for unusually broad legacy ink shown at high zoom.

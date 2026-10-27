@@ -18,6 +18,14 @@ is connected for this release either; physical acceptance remains pending.
 
 ## Before publishing
 
+**Scriflow 0.31.0-dev.3** (`versionCode` **39**) fixes the owner's blocking
+handwriting failure: “Cannot update notebook ink: Could not clip handwriting to
+its page.” Draw the complete pressure outline under a Canvas rectangle clip;
+remove the fallible boolean path intersection. Rendering errors use “Writing
+paused” rather than claiming storage failed. Continue the authorized signed APK
+prerelease workflow, with tablet acceptance pending. Staged files:
+`scriflow-0.31.0-dev.3.apk` and `scriflow-0.31.0-dev.3.apk.sha256`.
+
 **Scriflow 0.31.0-dev.2** (`versionCode` **38**) follows the owner's PDF testing
 feedback on 2026-10-27. It fixes export stream ownership, zoom display tiles,
 new-stroke capture geometry, navigation history, external-link confirmation,
@@ -107,8 +115,9 @@ build unsigned release APKs without possessing the permanent key.
 
 ## Version numbers
 
-The current source and public prerelease version is **0.31.0-dev.2**, with Android
-`versionCode` **38**, fixing PDF and ink regressions. **0.31.0-dev.1**
+The current source and public prerelease version is **0.31.0-dev.3**, with Android
+`versionCode` **39**, fixing the handwriting clipping failure from dev.2.
+**0.31.0-dev.2** (`versionCode` **38**) fixed PDF and ink regressions. **0.31.0-dev.1**
 (`versionCode` **37**) added PDF notebooks and outlines. The previous
 **0.30.0-dev.3** (`versionCode` **36**) synchronized screen direction across the app. Version
 **0.30.0-dev.2** (`versionCode` **35**) added page outlines, direct sensor rotation,
@@ -155,16 +164,16 @@ and [Android versioning](https://developer.android.com/studio/publish/versioning
    The helper runs release lint and assembly, copies the candidate privately,
    verifies those exact bytes and the configured signing certificate, then
    stages a versioned APK and SHA-256 checksum under
-   `build/releases/`. For this release these are `scriflow-0.31.0-dev.2.apk` and
-   `scriflow-0.31.0-dev.2.apk.sha256`. Debugging is disabled, diagnostic screens are
+   `build/releases/`. For this release these are `scriflow-0.31.0-dev.3.apk` and
+   `scriflow-0.31.0-dev.3.apk.sha256`. Debugging is disabled, diagnostic screens are
    absent from the manifest, and the library is the only exported component.
 
 4. Compare the printed signer certificate SHA-256 with the intended permanent
    certificate. For later builds, pin that known digest during verification:
 
    ```bash
-   python3 scripts/verify-apk.py build/releases/scriflow-0.31.0-dev.2.apk --certificate-sha256 YOUR_KNOWN_CERTIFICATE_SHA256
-   (cd build/releases && sha256sum -c scriflow-0.31.0-dev.2.apk.sha256)
+   python3 scripts/verify-apk.py build/releases/scriflow-0.31.0-dev.3.apk --certificate-sha256 YOUR_KNOWN_CERTIFICATE_SHA256
+   (cd build/releases && sha256sum -c scriflow-0.31.0-dev.3.apk.sha256)
    ```
 
    Substitute the current version and the actual known digest. The APK file's
@@ -232,6 +241,12 @@ Do not use raw private version-1 files as a portable migration format, downgrade
 an APK over version-2 pages, or assume a signature change preserves app data.
 
 ## Publish only after acceptance
+
+For **0.31.0-dev.3**, the owner explicitly requires fixing the blocking error
+reported after dev.2. This continues the authorized implementation/push/APK
+workflow. Verify the exact renderer under forced path-operation failure and
+save/reopen tests; publish as a development prerelease and disclose that no
+tablet is connected for physical confirmation.
 
 For **0.31.0-dev.2**, this is a follow-up correction within the owner's authorized
 implementation/push/APK workflow. Keep development status and the unverified

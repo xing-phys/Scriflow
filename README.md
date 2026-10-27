@@ -16,10 +16,11 @@ Development and physical testing target **MatePad Paper HMW-W09**, Android
 rendering use Huawei APIs already present on that firmware; no proprietary
 Huawei code is bundled. Other tablets and firmware versions are unverified.
 
-The latest public prerelease is **[Scriflow 0.31.0-dev.2](https://github.com/xing-phys/Scriflow/releases/tag/v0.31.0-dev.2)**,
-released on 2026-10-27 as a follow-up to the authorized PDF notebook update.
-It fixes PDF export, renders sharper PDF backgrounds at each zoom, retains new
-strokes' native capture geometry, and improves large-PDF import and opening,
+The latest public prerelease is **[Scriflow 0.31.0-dev.3](https://github.com/xing-phys/Scriflow/releases/tag/v0.31.0-dev.3)**,
+released on 2026-10-27 to fix the handwriting clipping error that paused writing
+in dev.2. It clips the drawing surface while preserving the complete pressure
+outline. It also includes the PDF export, zoom rendering, capture geometry,
+and large-PDF import/open improvements from dev.2,
 retaining the same application ID and public signing certificate for in-place
 updates. Automated checks pass; tablet validation of these changes is pending.
 The core notebook features are implemented; broader use and
@@ -54,8 +55,8 @@ makes no network requests. See [privacy and local storage](docs/privacy.md).
 
 ## Install and update
 
-Download the latest public **[Scriflow 0.31.0-dev.2 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.31.0-dev.2/scriflow-0.31.0-dev.2.apk)**
-from [GitHub Releases](https://github.com/xing-phys/Scriflow/releases/tag/v0.31.0-dev.2),
+Download the latest public **[Scriflow 0.31.0-dev.3 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.31.0-dev.3/scriflow-0.31.0-dev.3.apk)**
+from [GitHub Releases](https://github.com/xing-phys/Scriflow/releases/tag/v0.31.0-dev.3),
 where its file checksum and signing certificate fingerprint are recorded.
 Copy it to the supported tablet, open it with the tablet's file manager, and
 allow installation from that source when prompted.

@@ -4,6 +4,41 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## Scriflow 0.31.0-dev.3 handwriting clipping hotfix (2026-10-27)
+
+The owner reported that writing in either ordinary or PDF notes displayed
+“Not saved · Retry” and paused interaction. Their error dialog identifies
+“Cannot update notebook ink: Could not clip handwriting to its page.” This is
+the renderer's failed `Path.op(INTERSECT)` during viewport restoration, rather
+than evidence that the page store failed. Dev.3 removes this operation and draws
+the complete native outline under `Canvas.clipRect`, scoped with save/finally/
+restore. Empty clips remain normal. Rendering errors now display “Writing
+paused”; storage failures retain “Not saved.” Page format remains version 5.
+
+- Artifact: `scriflow-0.31.0-dev.3.apk`, Android `versionCode` 39.
+- APK SHA-256: recorded with the exact signed release asset.
+- Signer certificate SHA-256: `2cc5db316df82fecc6085ff53e67cbd64f29b412f01e9a5c19bf4b34e3821709`.
+- Release: [`v0.31.0-dev.3`](https://github.com/xing-phys/Scriflow/releases/tag/v0.31.0-dev.3).
+- Host renderer tests execute the production renderer with Java2D graphics and
+  firmware contract fixtures. They force boolean path operations to fail, compare
+  clipped pixels, verify empty clips and restored Canvas state even after draw
+  errors, and retain full capture geometry. These fixtures do not verify the
+  Huawei brush or Android rasterizer.
+- Save/reopen integration checks run the production viewport split through the
+  library/book/store with real files, covering version-4 migration, new notes,
+  staged PDF notes, six zoom levels, page borders/gaps, repeated appends, exact
+  samples/style/capture fields, preserved migration backups and source PDFs.
+- The native renderer diagnostic now compares composed viewport clips with
+  Canvas reference pixels, including loops, page edges, pan/scroll, offscreen
+  samples, and empty clips, and verifies drawing state restoration.
+- Verification passed: all host suites, debug/release lint and APK builds,
+  signed artifact identity/component checks, and native Java/DEX compilation.
+
+No tablet is connected. Native diagnostic compilation is checked; execution and
+physical confirmation of writing, scrolling, reopening and export on the supported
+MatePad remain pending. The owner's screenshot confirms the original failure;
+host fault injection verifies that this error path is removed.
+
 ## Scriflow 0.31.0-dev.2 PDF/ink fixes (2026-10-27)
 
 The owner tried dev.1 and reported blurred PDF text after zoom, failed PDF

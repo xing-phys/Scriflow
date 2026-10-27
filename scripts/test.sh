@@ -73,7 +73,7 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   tests/NotebookToolStripTest.java tests/NotebookGripGestureTest.java tests/NotebookDeviceStatusStateTest.java \
   tests/NotebookPenConfigTest.java tests/NotebookPenSliderTest.java \
   tests/NotebookPenSliderCloseTest.java tests/NotebookEraserTest.java tests/NotebookEraserCommitTest.java tests/NotebookFoundationTest.java \
-  tests/NotebookStrokeScaleTest.java
+  tests/NotebookStrokeScaleTest.java tests/NotebookViewportSaveTest.java
 java -ea -cp build/host-tests org.eink.inkprobe.CallbackTimingTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookStoreTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookEditsTest
@@ -114,4 +114,6 @@ java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookEraserCommitTes
 
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookFoundationTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookStrokeScaleTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookViewportSaveTest
+bash scripts/test-stroke-renderer.sh
 bash scripts/test-pdf-engine.sh
