@@ -1,44 +1,29 @@
 # Pressure geometry across zoom, scrolling and PDF
 
-## Width modes in 0.31.0-dev.4
+## Direct native input restored in 0.31.0-dev.5
 
-Settings now offers fixed width on the page (default) and fixed width on the
-screen. The original Huawei ballpoint, pressure samples, and event times are
-retained. Merely preserving a zoom-scaled native nib was insufficient: a width
-of four page units became two native pixels at scale 0.5, disabling the native
-pressure rule, while the same selected width at scale 1 retained pressure.
+Both width modes now use the pre-0.31 direct native AHW pipeline. Native code
+receives input, predicts and draws visible black ink. Java observes samples and
+hands completed strokes to asynchronous saving. There is no second pen, Java
+point feeding, per-sample surface transform/framebuffer post, or stroke-end
+bitmap rendering. See [the restoration record](native-writing-restoration.md).
 
-Page mode uses a separate installed `HandPen(type, true)` bound through
-`setSurfaceBoard(ISurface)`. AHW remains enabled with transparent ink for native
-sample capture and completion bookkeeping. At pen-down the editor chooses the
-page under the stylus and freezes its scale. Each sample reaches the visible
-brush in page coordinates, with unchanged pressure/time and selected width.
-The native framebuffer matrix scales the finished geometry; surface save/restore
-scopes that transform to each call. This uses the same brush as the source-scale
-0.21 correction rather than introducing a pressure curve.
+Page mode remains the default. It fits the selected width to the viewport before
+native input starts, using the same rule as 0.30.0-dev.3. Screen mode instead
+keeps the nib's visible width fixed in the composed viewport. Both record the
+actual native capture width and coordinate scale for later replay and export.
+Existing ink, including dev.4 strokes, retains its stored capture parameters.
 
-Static inspection of the cached firmware establishes that `applyMC` applies
-floating-window exclusion clips before the drawing matrix. AHW input itself is
-not inverse transformed by that matrix. The helper therefore transforms input
-explicitly and posts conservative physical dirty bounds: the native brush's
-automatic posts use untransformed bounds. No Java path, bitmap, or UI is rebuilt
-per MOVE. The bound paper cache receives the completed vector after its stroke
-has been handed to document saving; no extra full-surface redraw is posted then.
-Pause, tool changes, and surface recreation discard any partial manual pen.
+The native brush has pixel-dependent pressure and speed rules. Consequently,
+page fitting can change pressure response as zoom changes. Identical pressure
+response across zoom is unresolved and is no longer promised. Preserving native
+input and drawing latency takes priority over replacing the live pipeline.
 
-Screen mode keeps direct native AHW with an unchanged native-pixel nib width.
-`NotebookPenConfig.nativeInput` retains its exact native width even when inverse
-fitting floats cross the four-pixel boundary. Page mode instead retains the
-canonical selected brush width and inverse viewport capture scale. Both feed
-the same existing version-5 storage, replay, and vector PDF paths. Existing
-strokes are not reinterpreted when the setting changes.
-
-Host tests execute the actual mode/style and native bridge code with explicit
-firmware contract fixtures. They verify inverse coordinates, raw pressure/time,
-scoped matrices, physical bounds, cancellation/lifecycle assumptions, durable
-round trips, and export inputs. These fixtures do not emulate Huawei's brush or
-establish physical latency. The native headless diagnostic also covers both
-mode geometries; live framebuffer acceptance still requires the MatePad.
+Dev.4 attempted to normalize pressure with a separate native HandPen driven
+through Java callbacks, inverse coordinates, framebuffer transforms and explicit
+posts. The owner reported unbearable latency. That implementation and its
+synthetic API-contract tests have been removed; those tests never established
+physical writing performance.
 
 ## Captured geometry introduced in dev.2
 

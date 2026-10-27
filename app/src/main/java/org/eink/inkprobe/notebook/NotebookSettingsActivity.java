@@ -96,7 +96,7 @@ public final class NotebookSettingsActivity extends NotebookDisplayActivity {
             widthChoices.put(mode, button);
             body.addView(button, new LinearLayout.LayoutParams(-1, dp(68)));
             TextView explanation = label(mode == NotebookPenConfig.WidthMode.PAGE
-                ? "New strokes keep the same width on the page at every zoom. At the same zoom, they match earlier strokes drawn with the same pen width."
+                ? "Fits the selected pen width to the page, using direct native handwriting. The native brush's pressure response can vary with zoom."
                 : "The pen keeps the same width on the screen while you write at any zoom. Completed strokes scale with the page.", 15);
             explanation.setPadding(dp(12), 0, dp(12), dp(20));
             body.addView(explanation, new LinearLayout.LayoutParams(-1, -2));

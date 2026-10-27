@@ -56,9 +56,6 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
     private boolean penDown, failed, geometryReported, restoring;
     private int surfaceWidth, surfaceHeight, retries;
     private float penWidth = NotebookPenConfig.DEFAULT_WIDTH;
-    private NotebookPenConfig.WidthMode penWidthMode = NotebookPenConfig.WidthMode.SCREEN;
-    private PenScale penPageScale = (x, y) -> 1f;
-    private NotebookPagePen pagePen;
     private NotebookPenConfig.Style configuredStyle;
     private PointBuffer activePoints;
     private PointBuffer eraserPoints;
@@ -120,7 +117,6 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
         flushCompletedUps();
         enabled = false;
         activePoints = null;
-        pagePen = null;
         clearEraser();
         awaitingCommit.clear();
         nativeCommits.clear();
@@ -150,7 +146,6 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
             flushCompletedUps();
             if (failed) return;
             activePoints = null;
-            pagePen = null;
             clearLasso();
             clearEraser();
             awaitingCommit.clear();
@@ -266,19 +261,13 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
     /** Disposable diagnostics only. The notebook editor leaves this null. */
     void setSampleObserver(SampleObserver observer) { sampleObserver = observer; }
 
-    /** Selected nib width; its coordinate space is chosen by setPenWidthMode. */
+    /** Width uses this widget's page coordinates; the editor supplies its fitted width. */
     public void setPenWidth(float width) {
         if (!NotebookPage.finite(width) || width <= 0 || width > 1024)
             throw new IllegalArgumentException("Invalid pen width");
         if (!alive || failed || penWidth == width) return;
         requirePaused();
         penWidth = width;
-    }
-
-    @Override public void setPenWidthMode(NotebookPenConfig.WidthMode mode, PenScale pageScale) {
-        if (mode == null || pageScale == null) throw new IllegalArgumentException("Missing pen width mode");
-        requirePaused();
-        penWidthMode = mode; penPageScale = pageScale;
     }
 
     /** Diameter in widget/page coordinates, captured once at eraser-DOWN. */
@@ -350,7 +339,6 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
             if (failed) return;
             this.tool = tool;
             activePoints = null;
-            pagePen = null;
             clearEraser();
             clearLasso(); selectionStream.reset();
             awaitingCommit.clear();
@@ -430,13 +418,9 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
             int nativePen = tool == Tool.LASSO ? Class.forName("android.eink.view.HandPenConfig")
                 .getField("PEN_TYPE_DASH").getInt(null) : ballpoint;
             call(surface, "setAhwPen", new Class<?>[]{int.class, float.class, int.class},
-                nativePen, tool == Tool.PEN ? penWidth
-                    : (tool == Tool.LASSO ? LASSO_WIDTH : eraserWidth) * widthScale,
-                tool == Tool.ERASER ? NotebookEraserCommit.COLOR
-                    : tool == Tool.PEN && penWidthMode == NotebookPenConfig.WidthMode.PAGE ? Color.TRANSPARENT : Color.BLACK);
-            if (tool == Tool.PEN && penWidthMode == NotebookPenConfig.WidthMode.PAGE && pagePen == null)
-                pagePen = new NotebookPagePen(surface, ballpoint, surfaceWidth, surfaceHeight);
-            configuredStyle = NotebookPenConfig.nativeInput(ballpoint, penWidth, Color.BLACK, widthScale);
+                nativePen, (tool == Tool.LASSO ? LASSO_WIDTH : tool == Tool.PEN ? penWidth : eraserWidth) * widthScale,
+                tool == Tool.ERASER ? NotebookEraserCommit.COLOR : Color.BLACK);
+            configuredStyle = NotebookPenConfig.nativeInput(ballpoint, penWidth * widthScale, Color.BLACK, widthScale);
             call(view, "setState", new Class<?>[]{int.class},
                 view.getClass().getField("STATE_HADNWRITE").getInt(null));
             applyOverlayClip();
@@ -689,20 +673,12 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
         try {
             if (action == MotionEvent.ACTION_DOWN) {
                 if (configuredStyle == null) throw new IllegalStateException("Pen style has not been configured");
-                NotebookPenConfig.Style style = configuredStyle;
-                if (penWidthMode == NotebookPenConfig.WidthMode.PAGE) {
-                    float pageScale = penPageScale.at(x / scaleX, y / scaleY);
-                    style = NotebookPenConfig.pageInput(style.penType, penWidth, style.color, pageScale);
-                    pagePen.begin(penWidth, scaleX * pageScale, scaleY * pageScale);
-                }
-                activePoints = new PointBuffer(style);
+                activePoints = new PointBuffer(configuredStyle);
                 setPenDown(true);
             }
             if (activePoints != null) {
-                float capturedX = clamp(x / scaleX, page.width), capturedY = clamp(y / scaleY, page.height);
-                activePoints.add(capturedX, capturedY, time, pressure);
-                if (activePoints.style.pageInput)
-                    pagePen.point(action, capturedX * scaleX, capturedY * scaleY, time, pressure);
+                activePoints.add(clamp(x / scaleX, page.width), clamp(y / scaleY, page.height),
+                    time, pressure);
             }
             if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
                 if (activePoints != null) {
@@ -763,8 +739,8 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
                 } catch (Exception e) { fail("Cannot discard cancelled stroke", e); }
                 continue;
             }
-            if (completion.points.style.pageInput) stroke = completion.points.style.stroke(stroke.points);
-            publishCompleted(stroke, completion.points.style.pageInput);
+            completed.add(stroke);
+            listener.onStrokeComplete(stroke);
         }
     }
 
@@ -777,25 +753,12 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
                 Completion completion = awaitingCommit.removeFirst();
                 if (completion.cancelled) continue;
                 NotebookPage.Stroke stroke = completion.points.toStroke();
+                completed.add(stroke);
                 // Remove the token before notification so another pause cannot submit it twice.
                 // Input stays disabled until canonical restoration or widget replacement.
-                publishCompleted(stroke, completion.points.style.pageInput);
+                listener.onStrokeComplete(stroke);
             }
         } catch (Exception e) { fail("Cannot preserve completed pen input", e); }
-    }
-
-    private void publishCompleted(NotebookPage.Stroke stroke, boolean canonicalPagePen) {
-        completed.add(stroke);
-        // Retain the accepted edit in the document before any display/cache work can fail.
-        listener.onStrokeComplete(stroke);
-        if (!canonicalPagePen || paperBitmap == null || failed || !alive) return;
-        try {
-            // The manual native brush already drew into the active framebuffer. Keep
-            // the bound paper current for later redraws without repainting during input.
-            Canvas canvas = new Canvas(paperBitmap);
-            canvas.scale(scaleX, scaleY);
-            NotebookStrokeRenderer.draw(canvas, stroke, new Paint(Paint.ANTI_ALIAS_FLAG));
-        } catch (Exception error) { fail("Cannot retain completed notebook ink", error); }
     }
 
     private void restoreDocument() throws Exception {
@@ -975,7 +938,6 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
     @Override public void surfaceCreated(SurfaceHolder holder) { prepared = false; }
 
     @Override public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-        pagePen = null;
         boolean resume = wanted;
         stop();
         wanted = resume;

@@ -21,13 +21,19 @@ public final class NotebookPenConfigTest {
         delayedCompletionAndDurableEdits();
         fittedCaptureAndPdf();
         fixedScreenInputKeepsPhysicalNibAcrossViews();
-        fixedPageInputKeepsNormalizedPressureAcrossViews();
+        fixedPageInputKeepsNativeCaptureAcrossViews();
         tinyPdfKeepsTransientDisplayWidthOutOfStorage();
         System.out.println("NotebookPenConfig: " + assertions + " assertions passed (host JVM, real files).");
     }
 
     private static void selectionCompatibility() {
         near(4, NotebookPenConfig.DEFAULT_WIDTH, "updating preserves the former default width");
+        for (float width : WIDTHS) for (float scale : new float[]{.25f, .5f, 1, 1.125f, 2, 4}) {
+            near(Math.min(1024, width * scale), NotebookPenConfig.viewportWidth(width, NotebookPenConfig.WidthMode.PAGE, scale),
+                "page mode inherits the pre-0.31 native width fitting");
+            near(width, NotebookPenConfig.viewportWidth(width, NotebookPenConfig.WidthMode.SCREEN, scale),
+                "screen mode changes configuration only, not the live drawing pipeline");
+        }
         for (float width : WIDTHS)
             near(width, NotebookPenConfig.restore(width), "legacy and intermediate saved widths restore unchanged");
         for (float invalid : new float[]{0, -1, Float.NaN, Float.POSITIVE_INFINITY, .9f, 10.1f})
@@ -206,14 +212,16 @@ public final class NotebookPenConfigTest {
         } finally { deleteTree(directory); }
     }
 
-    private static void fixedPageInputKeepsNormalizedPressureAcrossViews() throws Exception {
-        NotebookPenConfig.Style down = NotebookPenConfig.pageInput(2, 4, BLACK, .5f);
+    private static void fixedPageInputKeepsNativeCaptureAcrossViews() throws Exception {
+        NotebookPenConfig.Style down = NotebookPenConfig.nativeInput(2,
+            NotebookPenConfig.viewportWidth(4, NotebookPenConfig.WidthMode.PAGE, .5f), BLACK, 1);
         NotebookPenConfig.Style next = NotebookPenConfig.nativeInput(2, 10, BLACK, 1);
-        check(down.pageInput && !next.pageInput, "page and screen styles select their own input pipeline");
+        check(down.captureWidth == 2 && next.captureWidth == 10,
+            "both width modes configure the same direct native pipeline before DOWN");
         NotebookPage.Stroke delayed = down.stroke(points(40, 100));
         near(2, delayed.width, "delayed page-mode completion keeps its DOWN-time screen width");
-        near(2, delayed.captureScale, "delayed page-mode completion keeps its DOWN-time canonical coordinate conversion");
-        near(4, delayed.captureWidth, "switching mode before completion cannot change the canonical brush width");
+        near(1, delayed.captureScale, "direct native input keeps its physical coordinate basis");
+        near(2, delayed.captureWidth, "switching mode before completion cannot change the captured native width");
 
         File directory = Files.createTempDirectory("page-nib-views-").toFile();
         List<NotebookViewport.Size> sizes = Arrays.asList(new NotebookViewport.Size(1200, 1800),
@@ -242,32 +250,32 @@ public final class NotebookPenConfigTest {
                             screenPoints.add(new NotebookPage.Point(left + point.x * pageScale,
                                 top + point.y * pageScale, point.time, point.pressure));
                         for (float pageWidth : WIDTHS) {
-                            NotebookPenConfig.Style style = NotebookPenConfig.pageInput(2, pageWidth, BLACK, pageScale);
-                            check(style.pageInput, "fixed-page width always requests the canonical input pipeline");
+                            float nativeWidth = NotebookPenConfig.viewportWidth(pageWidth, NotebookPenConfig.WidthMode.PAGE, pageScale);
+                            NotebookPenConfig.Style style = NotebookPenConfig.nativeInput(2, nativeWidth, BLACK, 1);
                             near(pageWidth * pageScale, style.width, "page nib preview follows the paper's display scale");
-                            near(1f / pageScale, style.captureScale, "only coordinates are inversely transformed before brush input");
-                            check(Float.floatToIntBits(style.captureWidth) == Float.floatToIntBits(pageWidth),
-                                "zoom never changes the native brush width or its pressure threshold");
+                            near(1, style.captureScale, "AHW receives physical samples without Java coordinate transforms");
+                            check(Float.floatToIntBits(style.captureWidth) == Float.floatToIntBits(nativeWidth),
+                                "capture records the actual fitted width sent to native AHW");
                             NotebookPage.Stroke captured = style.stroke(screenPoints);
                             Map<Integer, List<NotebookPage.Stroke>> split = view.splitStroke(captured, scroll);
                             check(split.size() == 1 && split.containsKey(number),
-                                "canonical input belongs to its mixed-size page in both orientations");
+                                "native input belongs to its mixed-size page in both orientations");
                             NotebookPage.Stroke saved = split.get(number).get(0);
                             near(pageWidth, saved.width, "new strokes have the same page width at every zoom and orientation");
-                            near(1, saved.captureScale, "stored canonical brush coordinates are normalized to the page");
-                            check(Float.floatToIntBits(saved.captureWidth) == Float.floatToIntBits(pageWidth),
-                                "stored canonical width remains exact at the four-pixel pressure boundary");
+                            near(pageScale, saved.captureScale, "the original physical input basis survives inverse page fitting");
+                            check(Float.floatToIntBits(saved.captureWidth) == Float.floatToIntBits(nativeWidth),
+                                "stored native width remains exact at the four-pixel pressure boundary");
                             NotebookPage source = NotebookPage.empty().withSize(size.width, size.height).withStroke(saved);
                             for (int sample = 0; sample < logicalPoints.size(); sample++) {
                                 NotebookPage.Point original = logicalPoints.get(sample), stored = saved.points.get(sample);
-                                near(original.x, stored.x * saved.captureScale, "canonical x is independent of capture zoom");
-                                near(original.y, stored.y * saved.captureScale, "canonical y is independent of capture zoom");
+                                near(original.x, stored.x, "logical x is independent of capture zoom");
+                                near(original.y, stored.y, "logical y is independent of capture zoom");
                                 check(Float.floatToIntBits(original.pressure) == Float.floatToIntBits(stored.pressure),
-                                    "fixed-page mode passes the original pressure to the same canonical brush");
+                                    "fixed-page mode retains the pressure observed by native AHW");
                                 check(original.time == stored.time, "fixed-page mode preserves brush timing");
-                                near(firmwareWidth(pageWidth, original.pressure),
+                                near(firmwareWidth(nativeWidth, original.pressure) / pageScale,
                                     firmwareWidth(saved.captureWidth, stored.pressure) / saved.captureScale,
-                                    "normalized pressure-rule result is independent of capture zoom and orientation");
+                                    "replay retains the actual native result without promising zoom-invariant pressure");
                             }
                             // Existing ink follows paper scaling when subsequently viewed elsewhere.
                             for (float displayZoom : new float[]{.5f, 2}) {
@@ -277,10 +285,10 @@ public final class NotebookPenConfigTest {
                                     display.pageScroll(number)).strokes.get(0);
                                 near(pageWidth * display.scale(number), shown.width,
                                     "completed page-mode ink scales with the paper after capture");
-                                near(1f / display.scale(number), shown.captureScale,
-                                    "display changes transform the finished canonical geometry");
-                                check(Float.floatToIntBits(shown.captureWidth) == Float.floatToIntBits(pageWidth),
-                                    "scroll and display zoom never change the canonical pressure brush");
+                                near(pageScale / display.scale(number), shown.captureScale,
+                                    "display changes transform the captured native geometry");
+                                check(Float.floatToIntBits(shown.captureWidth) == Float.floatToIntBits(nativeWidth),
+                                    "scroll and display zoom never reconfigure the captured brush");
                             }
                             document.append(saved); expected.add(saved);
                         }
@@ -300,7 +308,7 @@ public final class NotebookPenConfigTest {
         NotebookPdf.write(new ByteArrayOutputStream(), title, pages.size(), number -> pages.get(number - 1),
             null, stroke -> {
                 check(stroke == expected.get(rendered[0]++),
-                    "PDF receives the exact reopened canonical width, raw pressure and timing");
+                    "PDF receives the exact reopened captured width, raw pressure and timing");
                 return NotebookOutlineFixture.outline(stroke);
             });
         check(rendered[0] == expected.size(), "PDF exports every mixed-size stroke without changing its brush input");
@@ -308,33 +316,27 @@ public final class NotebookPenConfigTest {
 
     private static void tinyPdfKeepsTransientDisplayWidthOutOfStorage() throws Exception {
         NotebookViewport view = new NotebookViewport(1, 1, 2, 1400, 1000, 24);
-        NotebookPenConfig.Style style = NotebookPenConfig.pageInput(2, 10, BLACK, view.scale(1));
-        near(14000, style.width, "a tiny PDF page can have a display width above the native nib limit");
-        near(10, style.captureWidth, "tiny-page fitting keeps the actual native brush within its supported width");
-        NotebookPage.Stroke captured = style.stroke(Arrays.asList(
-            new NotebookPage.Point(140, 140, 10, .1f), new NotebookPage.Point(280, 280, 20, 1)));
-        NotebookPage.Stroke logical = view.splitStroke(captured, 0).get(1).get(0);
-        near(10, logical.width, "inverse fitting restores the selected durable page width");
-        near(1, logical.captureScale, "tiny-page brush input normalizes to logical coordinates");
-        near(10, logical.captureWidth, "tiny-page inversion preserves the exact native nib");
-        File directory = Files.createTempDirectory("tiny-pdf-nib-").toFile();
+        float width = NotebookPenConfig.viewportWidth(10, NotebookPenConfig.WidthMode.PAGE, view.scale(1));
+        near(1024, width, "native AHW keeps its existing maximum width for unusually small PDF pages");
+        near(10, NotebookPenConfig.viewportWidth(10, NotebookPenConfig.WidthMode.SCREEN, view.scale(1)),
+            "screen mode avoids fitting the nib to tiny PDF geometry");
+        NotebookPage.Stroke input = NotebookPenConfig.nativeInput(2, width, BLACK, 1).stroke(
+            Collections.singletonList(new NotebookPage.Point(700, 700, 1000, .5f)));
+        NotebookPage.Stroke saved = view.splitStroke(input, 0).get(1).get(0);
+        File directory = Files.createTempDirectory("native-width-limit-").toFile();
         try {
-            NotebookStore.initializePdfImport(directory, 1, 2, 1);
-            NotebookDocument document = new NotebookDocument(directory); document.load(); document.append(logical);
-            NotebookPage loaded = new NotebookStore(directory).load();
-            assertStrokes(Collections.singletonList(logical), loaded);
-            check(loaded.pdfPage == 1 && loaded.width == 1 && loaded.height == 2,
-                "tiny-page save retains the original PDF page reference and geometry");
-            NotebookPage shown = view.compose(Collections.singletonMap(1, loaded), 0);
-            near(14000, shown.strokes.get(0).width, "restored tiny-page ink remains representable at high display scale");
-            for (NotebookPage transientPage : Arrays.asList(
-                    NotebookPage.empty().withSize(view.width, view.height).withStroke(captured), shown)) {
-                boolean rejected = false;
-                try { NotebookStore.writeSnapshot(new ByteArrayOutputStream(), transientPage); }
-                catch (IOException expected) { rejected = true; }
-                check(rejected, "transient broad display geometry cannot replace durable logical-page ink");
-            }
-            assertPdfInputs(Collections.singletonList(loaded), "Tiny PDF canonical nib");
+            NotebookStore store = new NotebookStore(directory); store.load(); store.initializePdfPage(1, 2, 1);
+            store.appendStroke(saved);
+            NotebookPage reopened = new NotebookStore(directory).load();
+            near(1024f / 1400, reopened.strokes.get(0).width, "inverse fitting retains the capped native nib");
+            near(1024, reopened.strokes.get(0).captureWidth, "exact native width survives reopening");
+            check(reopened.pdfPage == 1, "native fitting does not modify the PDF background association");
+            NotebookPage composed = view.compose(Collections.singletonMap(1, reopened), 0);
+            near(1024, composed.strokes.get(0).width, "restoration uses the width that was actually written");
+            boolean rejected = false;
+            try { NotebookStore.writeSnapshot(new ByteArrayOutputStream(), composed); }
+            catch (IOException expected) { rejected = true; }
+            check(rejected, "viewport-only geometry cannot replace durable page ink");
         } finally { deleteTree(directory); }
     }
 

@@ -1,19 +1,19 @@
 # Pen thickness and pressure
 
-Version 0.31.0-dev.4 adds **Settings → Pen width when zooming**:
+Version 0.31.0-dev.5 restores direct native handwriting for both choices in
+**Settings → Pen width when zooming**:
 
-- **Fixed width on page** (default): width is measured in logical page units.
-  The native pressure brush receives page-space coordinates and an unchanged
-  width; only its finished drawing is scaled to the screen. New strokes written
-  at different zooms have the same page-space pressure behavior.
-- **Fixed width on screen**: width is measured in native screen pixels. The
-  original native handwriting path uses the same nib at every zoom; inverse
-  fitting preserves what was written when it is saved to the page.
+- **Fixed width on page** (default): fit the selected logical width to the
+  viewport before enabling the native pen, as in 0.30.0-dev.3. The native brush's
+  pressure response can vary across zoom; identical response is unresolved.
+- **Fixed width on screen**: configure a fixed nib width in the composed screen
+  viewport. Completed ink retains what was written and scales with the page
+  afterward.
 
-Both modes use the installed Huawei ballpoint with raw pressure and event
-timestamps. Settings changes affect future strokes. Existing writing retains
-its captured width and shape. See [capture geometry](ink-capture-scale.md) for
-the reason a zoom-dependent native nib changed pressure response.
+Both modes use the original direct native AHW pipeline. The separate pen driven
+from Java callbacks in dev.4 caused unacceptable delay and has been deleted.
+Changing settings affects future strokes; stored capture geometry remains
+unchanged. See [direct handwriting restoration](native-writing-restoration.md).
 
 Version 0.21 uses the native pressure brush for scrolling, thumbnails, and PDF
 export, correcting the previous fixed-width rendering. A stored width is the

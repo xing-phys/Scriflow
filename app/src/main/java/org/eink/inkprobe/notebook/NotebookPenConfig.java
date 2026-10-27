@@ -23,14 +23,18 @@ final class NotebookPenConfig {
         return NotebookWidthRange.PEN.label(width);
     }
 
+    /** Select the native AHW width before input starts; neither mode adds drawing to callbacks. */
+    static float viewportWidth(float selected, WidthMode mode, float pageScale) {
+        if (mode == null || !NotebookPage.finite(selected) || selected <= 0
+                || !NotebookPage.finite(pageScale) || pageScale <= 0)
+            throw new IllegalArgumentException("Invalid pen fitting");
+        return mode == WidthMode.SCREEN ? Math.min(1024, selected)
+            : (float) Math.min(1024d, (double) selected * pageScale);
+    }
+
     /** Map an unchanged native nib into the current surface coordinates, without fitting it to paper. */
     static Style nativeInput(int penType, float nativeWidth, int color, float pixelsPerUnit) {
         return new Style(penType, nativeWidth / pixelsPerUnit, color, pixelsPerUnit, nativeWidth);
-    }
-
-    /** Canonical page-space brush; zoom transforms its finished geometry, never its pressure input. */
-    static Style pageInput(int penType, float pageWidth, int color, float viewportScale) {
-        return new Style(penType, pageWidth * viewportScale, color, 1f / viewportScale, pageWidth, true);
     }
 
     /** One style object belongs to a stroke even if the next stroke uses another width. */
@@ -39,7 +43,6 @@ final class NotebookPenConfig {
         final float width;
         final float captureScale;
         final float captureWidth;
-        final boolean pageInput;
         Style(int penType, float width, int color) {
             this(penType, width, color, 1f);
         }
@@ -47,9 +50,6 @@ final class NotebookPenConfig {
             this(penType, width, color, captureScale, width * captureScale);
         }
         private Style(int penType, float width, int color, float captureScale, float captureWidth) {
-            this(penType, width, color, captureScale, captureWidth, false);
-        }
-        private Style(int penType, float width, int color, float captureScale, float captureWidth, boolean pageInput) {
             if (penType < 0 || penType > 255 || !NotebookPage.finite(width)
                     || width <= 0 || !NotebookPage.finite(captureScale) || captureScale <= 0
                     || !NotebookPage.finite(width * captureScale) || width * captureScale > 1024
@@ -57,7 +57,6 @@ final class NotebookPenConfig {
                 throw new IllegalArgumentException("Invalid pen style");
             this.penType = penType; this.width = width; this.color = color;
             this.captureScale = captureScale; this.captureWidth = captureWidth;
-            this.pageInput = pageInput;
         }
         NotebookPage.Stroke stroke(List<NotebookPage.Point> points) {
             return new NotebookPage.Stroke(penType, width, color, points, captureScale, captureWidth);

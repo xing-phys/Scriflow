@@ -348,12 +348,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                 }
             });
             ink.setTool(tool);
-            ink.setPenWidth(penWidth);
-            ink.setPenWidthMode(penWidthMode, (x, y) -> {
-                if (viewport == null) return 1f;
-                int target = viewport.pageAt(x, y, scrollY);
-                return viewport.scale(target > 0 ? target : activePage);
-            });
+            ink.setPenWidth(fittedPenWidth());
             ink.setEraserWidth(eraserWidth);
             updateOverlayBounds();
             canvas.addView(ink.view(), new FrameLayout.LayoutParams(-1, -1));
@@ -465,7 +460,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         try {
             ink.pauseForEdit();
             if (shownError != null) return;
-            ink.setPenWidth(penWidth);
+            ink.setPenWidth(fittedPenWidth());
             ink.setEraserWidth(fittedEraserWidth());
             ink.setSelectionMode(selectionOutline != null);
             updateOverlayBounds();
@@ -927,8 +922,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         lassoButton.setToolSelected(tool == NotebookInk.Tool.LASSO);
         lassoButton.setContentDescription(tool == NotebookInk.Tool.LASSO
             ? "Lasso selected; tap for selection actions and paste" : "Lasso: select and move ink");
-        penButton.setPenWidthPreview(penWidthMode == NotebookPenConfig.WidthMode.PAGE && viewport != null
-            ? penWidth * viewport.scale(activePage) : penWidth);
+        penButton.setPenWidthPreview(fittedPenWidth());
         penButton.setContentDescription("Pen, thickness " + NotebookPenConfig.label(penWidth)
             + (tool == NotebookInk.Tool.PEN ? "; tap for width slider" : "; select pen"));
         eraserButton.setContentDescription("Eraser, width " + NotebookWidthRange.ERASER.label(eraserWidth)
@@ -947,6 +941,11 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         ink.setTool(selected);
         if (redraw) { editing = false; installViewport(); }
         updateControls();
+    }
+
+    private float fittedPenWidth() {
+        return NotebookPenConfig.viewportWidth(penWidth, penWidthMode,
+            viewport == null ? 1f : viewport.scale(activePage));
     }
 
     private float fittedEraserWidth() {
@@ -976,7 +975,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                         ink.setEraserWidth(fittedEraserWidth());
                     } else {
                         penWidth = chosen;
-                        ink.setPenWidth(penWidth);
+                        ink.setPenWidth(fittedPenWidth());
                     }
                     getPreferences(MODE_PRIVATE).edit().putFloat(erasing ? "eraserWidth" : "penWidth", chosen).apply();
                 }

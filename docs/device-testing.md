@@ -4,7 +4,40 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## Scriflow 0.31.0-dev.5 direct handwriting restoration (2026-10-27)
+
+The owner confirms dev.4 retains view history through rotation, but reports
+unbearable writing delay. The manual page-mode bridge was not an acceptable
+replacement for the direct native AHW implementation optimized before 0.31.
+Its host contract checks did not establish writing latency or physical pen feel.
+
+- Artifact: `scriflow-0.31.0-dev.5.apk`, Android `versionCode` 41. Same app ID,
+  release key and version-5 storage; existing notes and PDFs are preserved.
+- `NotebookInk.point`, `nativeCommit`, `drainCommits`, `flushCompletedUps` and
+  `attach` are compared verbatim with `f40ef50` (`0.30.0-dev.3`). Live pen
+  configuration again selects black native ink, with the original pen type,
+  accepted tools, down-event handling, AHW enablement and width-fitting rule.
+- Remove `NotebookPagePen`, Java point feeding, per-sample matrix/framebuffer
+  posts, and the completed-stroke bitmap update from callbacks. Completed-ink
+  geometry work remains in paused restoration, previews and export.
+- Both width settings use direct AHW. Page width stays the default, using the
+  original native fitting; identical pressure behavior across zoom is unresolved
+  and is no longer promised. Stored capture parameters remain authoritative.
+- Keep the rotation-history fix and PDF features. Host tests cover direct width
+  fitting, raw pressure/time, captured geometry, durability, export and history.
+- Verification completed: full host regression suite, debug/release Android lint
+  and builds, signed APK metadata/certificate checks, and API-29 diagnostic
+  compilation. Both APKs were inspected to confirm the removed second-pen class
+  is absent.
+
+No tablet is connected. Source equivalence and build checks verify removal of
+the regressed live path, not a physical latency measurement. Physical writing
+acceptance on the supported MatePad remains pending.
+
 ## Scriflow 0.31.0-dev.4 rotation and pen modes (2026-10-27)
+
+Later feedback rejects its writing latency; dev.5 removes the manual bridge.
+The following records describe the checks made before that device feedback.
 
 The owner confirms dev.3 solved the clipping failure. They subsequently report
 that rotation loses previous/next view history, and that the pen's pressure

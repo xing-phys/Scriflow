@@ -6,7 +6,26 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## [0.31.0-dev.5](https://github.com/xing-phys/Scriflow/releases/tag/v0.31.0-dev.5) — Restore direct native handwriting (2026-10-27)
+
+- Remove dev.4's Java-driven second pen, per-sample surface transforms and
+  framebuffer posts, and stroke-end bitmap rendering. Both width modes now use
+  Huawei's direct native AHW input, prediction and visible drawing path.
+- Restore the point observer, native commit handler, commit matching, pause
+  flush and listener attachment verbatim from `0.30.0-dev.3` (`f40ef50`). Keep
+  exact capture-width/scale metadata for completed-stroke replay and PDF export.
+- Keep page width as the default, using the pre-0.31 native width-fitting rule;
+  screen width remains optional. Withdraw the claim that direct native page
+  mode has identical pressure response at every zoom. Settings states this limit.
+- Keep the rotation-history fix, PDF import/export, existing ink and page format
+  5. Increase versionCode to 41 with the same application ID and release key.
+  Host/build checks verify the restoration; physical latency remains unmeasured
+  because the tablet is not connected.
+
 ## [0.31.0-dev.4](https://github.com/xing-phys/Scriflow/releases/tag/v0.31.0-dev.4) — Rotation history and pen width modes (2026-10-27)
+
+Superseded by dev.5 after the owner reported unacceptable writing delay in the
+manual page-mode pipeline. The rotation-history fix is retained in dev.5.
 
 - Preserve both previous-view and next-view stacks across screen rotation,
   scoped to the current notebook and stable page identities. Restore logical

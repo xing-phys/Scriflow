@@ -4,16 +4,13 @@
 set -euo pipefail
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
+rm -rf build/renderer-tests
 mkdir -p build/renderer-tests
 javac -encoding UTF-8 -source 8 -target 8 -classpath build/host-tests -d build/renderer-tests \
   tests/renderer-support/android/graphics/*.java \
   tests/renderer-support/android/view/MotionEvent.java \
   tests/renderer-support/android/eink/view/*.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookStrokeRenderer.java \
-  app/src/main/java/org/eink/inkprobe/notebook/NotebookPagePen.java \
-  tests/NotebookStrokeRendererTest.java \
-  tests/NotebookPagePenTest.java
+  tests/NotebookStrokeRendererTest.java
 java -Djava.awt.headless=true -ea -cp build/renderer-tests:build/host-tests \
   org.eink.inkprobe.notebook.NotebookStrokeRendererTest
-java -Djava.awt.headless=true -ea -cp build/renderer-tests:build/host-tests \
-  org.eink.inkprobe.notebook.NotebookPagePenTest

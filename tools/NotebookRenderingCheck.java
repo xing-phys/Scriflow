@@ -73,7 +73,6 @@ public final class NotebookRenderingCheck {
         result.put("outlineLifetimeAndCancellation", reuseAndCancellation(page));
         result.put("parallelReplay", parallelReplay(page));
         result.put("captureScale", scaledReplay(directory, page, nativeReplay));
-        result.put("penWidthModes", widthModes(directory));
         result.put("transparentNativePlaceholders", transparentTracks(page));
         result.put("viewportClipping", viewportClipping(directory, page));
         boolean passed = result.getJSONObject("nativeVsCanvas").getInt("outsideOnePixel") == 0
@@ -83,7 +82,6 @@ public final class NotebookRenderingCheck {
             && result.getInt("pdfHeavyWidth") > result.getInt("pdfLightWidth")
             && result.getBoolean("parallelReplay")
             && result.getJSONObject("captureScale").getBoolean("passed")
-            && result.getJSONObject("penWidthModes").getBoolean("passed")
             && result.getBoolean("transparentNativePlaceholders")
             && result.getJSONObject("viewportClipping").getBoolean("passed");
         result.put("passed", passed);
@@ -201,104 +199,6 @@ public final class NotebookRenderingCheck {
             checks.put(check); bitmap.recycle();
         }
         JSONObject result = new JSONObject(); result.put("checks", checks); result.put("passed", passed); return result;
-    }
-
-    /**
-     * Native pressure-outline check for new writing in both width modes. PAGE
-     * inputs follow the production style/viewport conversion, then return to one
-     * logical zoom for comparison. SCREEN keeps the raw native width and is
-     * compared in its writing pixels. No live framebuffer surface is opened.
-     */
-    private static JSONObject widthModes(File directory) throws Exception {
-        final int size = 320;
-        JSONArray checks = new JSONArray(); boolean passed = true;
-        for (float width : new float[]{.5f, 1, 3.7f, 4, 6, 10}) {
-            NotebookPage canonical = widthModeFixture(size, width);
-            Bitmap pageReference = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
-            pageReference.eraseColor(Color.WHITE); reference(new Canvas(pageReference), canonical);
-            for (float writingZoom : new float[]{.25f, .5f, 1, 1.125f, 1.5f, 2, 4}) {
-                NotebookViewport viewport = new NotebookViewport(1, size, size, size, size, 0, writingZoom,
-                    Math.max(0, size * (writingZoom - 1) / 2));
-                float scroll = viewport.scrollForPoint(1, size / 2f, size / 2f);
-                List<NotebookPage.Stroke> pageStrokes = new ArrayList<>(), screenStrokes = new ArrayList<>();
-                List<NotebookPage.Stroke> nativeScreen = new ArrayList<>();
-                boolean metadata = true;
-                for (NotebookPage.Stroke stroke : canonical.strokes) {
-                    ArrayList<NotebookPage.Point> physical = new ArrayList<>();
-                    for (NotebookPage.Point point : stroke.points)
-                        physical.add(point(viewport.pageLeft(1) + point.x * viewport.scale(1),
-                            viewport.pageTop(1, scroll) + point.y * viewport.scale(1), point.time, point.pressure));
-                    NotebookPage.Stroke pageInput = NotebookPenConfig.pageInput(2, width, Color.BLACK,
-                        viewport.scale(1)).stroke(physical);
-                    // The screen surface in the real editor is one physical pixel per viewport unit.
-                    NotebookPage.Stroke screenInput = NotebookPenConfig.nativeInput(2, width, Color.BLACK, 1).stroke(physical);
-                    NotebookPage.Stroke savedPage = onePiece(viewport, pageInput, scroll);
-                    NotebookPage.Stroke savedScreen = onePiece(viewport, screenInput, scroll);
-                    pageStrokes.add(savedPage); screenStrokes.add(savedScreen);
-                    nativeScreen.add(new NotebookPage.Stroke(2, width, Color.BLACK, physical));
-                    metadata &= Math.abs(savedPage.width - width) < .00001f
-                        && Math.abs(savedPage.captureScale - 1) < .000001f
-                        && savedPage.captureWidth == width
-                        && savedScreen.captureWidth == width
-                        && savedScreen.captureScale == viewport.scale(1)
-                        && Math.abs(savedScreen.width * viewport.scale(1) - width) < .00001f;
-                }
-                Bitmap pageActual = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
-                Bitmap screenReference = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
-                Bitmap screenActual = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
-                try {
-                    pageActual.eraseColor(Color.WHITE); screenReference.eraseColor(Color.WHITE); screenActual.eraseColor(Color.WHITE);
-                    Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-                    for (NotebookPage.Stroke stroke : pageStrokes) NotebookStrokeRenderer.draw(new Canvas(pageActual), stroke, paint);
-                    reference(new Canvas(screenReference), canonical.withStrokes(nativeScreen));
-                    Canvas projected = new Canvas(screenActual);
-                    projected.translate(viewport.pageLeft(1), viewport.pageTop(1, scroll));
-                    projected.scale(viewport.scale(1), viewport.scale(1));
-                    for (NotebookPage.Stroke stroke : screenStrokes) NotebookStrokeRenderer.draw(projected, stroke, paint);
-                    // Include faint subpixel-width ink instead of treating a half-pixel nib as blank.
-                    JSONObject pageComparison = compare(pageReference, pageActual, 240), screenComparison = compare(screenReference, screenActual, 240);
-                    boolean casePassed = metadata && pageComparison.getInt("nativeNonWhitePixels") > 0
-                        && pageComparison.getInt("actualNonWhitePixels") > 0 && pageComparison.getInt("outsideOnePixel") == 0
-                        && screenComparison.getInt("nativeNonWhitePixels") > 0 && screenComparison.getInt("actualNonWhitePixels") > 0
-                        && screenComparison.getInt("outsideOnePixel") == 0;
-                    JSONObject check = new JSONObject(); check.put("selectedWidth", width); check.put("writingZoom", writingZoom);
-                    check.put("captureMetadataCorrect", metadata); check.put("pageNormalizedNativeComparison", pageComparison);
-                    check.put("screenRawNativeComparison", screenComparison); check.put("passed", casePassed);
-                    checks.put(check); passed &= casePassed;
-                    if (width == 4 || !casePassed) {
-                        png(directory, "page-width-" + width + "-zoom-" + writingZoom + ".png", pageActual);
-                        png(directory, "screen-width-" + width + "-zoom-" + writingZoom + ".png", screenActual);
-                    }
-                } finally { pageActual.recycle(); screenReference.recycle(); screenActual.recycle(); }
-            }
-            pageReference.recycle();
-        }
-        JSONObject result = new JSONObject(); result.put("checks", checks); result.put("passed", passed);
-        result.put("pageComparedAtSameLogicalZoom", true); result.put("screenComparedInRawWritingPixels", true);
-        result.put("livePagePenSurfaceTested", false); result.put("physicalPenInputTested", false);
-        return result;
-    }
-
-    private static NotebookPage.Stroke onePiece(NotebookViewport viewport, NotebookPage.Stroke input, float scroll) {
-        Map<Integer, List<NotebookPage.Stroke>> split = viewport.splitStroke(input, scroll);
-        if (split.size() != 1 || split.get(1) == null || split.get(1).size() != 1)
-            throw new IllegalStateException("Width-mode fixture crossed its visible page");
-        return split.get(1).get(0);
-    }
-
-    /** Straight, curved, light/heavy and changing-pressure paths remain fully visible through 400% zoom. */
-    private static NotebookPage widthModeFixture(int size, float width) {
-        List<NotebookPage.Stroke> strokes = new ArrayList<>();
-        for (int row = 0; row < 4; row++) {
-            List<NotebookPage.Point> points = new ArrayList<>();
-            for (int i = 0; i <= 64; i++) {
-                float pressure = row == 0 ? .1f : row == 1 ? .5f : row == 2 ? 1 : .05f + .95f * i / 64;
-                float y = 136 + row * 16 + (row == 3 ? 3 * (float) Math.sin(i * Math.PI / 16) : 0);
-                points.add(point(136 + .75f * i, y, 200000 + row * 10000 + i * 8, pressure));
-            }
-            strokes.add(new NotebookPage.Stroke(2, width, Color.BLACK, points));
-        }
-        return NotebookPage.empty().withSize(size, size).withStrokes(strokes);
     }
 
     private static boolean transparentTracks(NotebookPage page) throws Exception {
@@ -422,21 +322,13 @@ public final class NotebookRenderingCheck {
     }
 
     private static JSONObject compare(Bitmap reference, Bitmap actual) throws Exception {
-        return compare(reference, actual, 128);
-    }
-
-    private static JSONObject compare(Bitmap reference, Bitmap actual, int threshold) throws Exception {
-        int width = reference.getWidth(), height = reference.getHeight();
-        if (actual.getWidth() != width || actual.getHeight() != height) throw new IllegalArgumentException("Bitmap dimensions differ");
-        int[] a=new int[width*height],b=new int[width*height];
-        reference.getPixels(a,0,width,0,0,width,height);actual.getPixels(b,0,width,0,0,width,height);
-        int exact=0,mask=0,outside=0,referenceInk=0,referenceNonWhite=0,actualNonWhite=0;
-        for(int y=0;y<height;y++)for(int x=0;x<width;x++) {
-            int i=y*width+x;
+        int[] a=new int[WIDTH*HEIGHT],b=new int[WIDTH*HEIGHT];
+        reference.getPixels(a,0,WIDTH,0,0,WIDTH,HEIGHT);actual.getPixels(b,0,WIDTH,0,0,WIDTH,HEIGHT);
+        int exact=0,mask=0,outside=0,referenceInk=0;
+        for(int y=0;y<HEIGHT;y++)for(int x=0;x<WIDTH;x++) {
+            int i=y*WIDTH+x;
             if(a[i]!=b[i])exact++;
-            if((a[i]&0xffffff)!=0xffffff)referenceNonWhite++;
-            if((b[i]&0xffffff)!=0xffffff)actualNonWhite++;
-            boolean first=(a[i]&255)<threshold,second=(b[i]&255)<threshold;
+            boolean first=black(a[i]),second=black(b[i]);
             if(first)referenceInk++;
             if(first!=second) {
                 mask++;
@@ -444,15 +336,14 @@ public final class NotebookRenderingCheck {
                 boolean nearby=false;
                 for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++) {
                     int xx=x+dx,yy=y+dy;
-                    if(xx>=0&&xx<width&&yy>=0&&yy<height&&(target[yy*width+xx]&255)<threshold)nearby=true;
+                    if(xx>=0&&xx<WIDTH&&yy>=0&&yy<HEIGHT&&black(target[yy*WIDTH+xx]))nearby=true;
                 }
                 if(!nearby)outside++;
             }
         }
         JSONObject result=new JSONObject();result.put("differentArgbPixels",exact);
         result.put("differentThresholdPixels",mask);result.put("outsideOnePixel",outside);
-        result.put("nativeInkPixels",referenceInk);result.put("nativeNonWhitePixels",referenceNonWhite);
-        result.put("actualNonWhitePixels",actualNonWhite);result.put("inkThreshold",threshold);return result;
+        result.put("nativeInkPixels",referenceInk);return result;
     }
 
     private static boolean black(int color) { return (color&255)<128; }

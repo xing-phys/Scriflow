@@ -16,12 +16,12 @@ Development and physical testing target **MatePad Paper HMW-W09**, Android
 rendering use Huawei APIs already present on that firmware; no proprietary
 Huawei code is bundled. Other tablets and firmware versions are unverified.
 
-The latest public prerelease is **[Scriflow 0.31.0-dev.4](https://github.com/xing-phys/Scriflow/releases/tag/v0.31.0-dev.4)**,
-released on 2026-10-27 to retain link/outline view history through rotation and
-add page/screen pen width modes. Page width is the default; its native brush
-uses page-space input so zoom scales the finished geometry rather than changing
-pressure response. It includes the PDF and clipping fixes from dev.2/dev.3,
-retaining the same application ID and public signing certificate for in-place
+The latest public prerelease is **[Scriflow 0.31.0-dev.5](https://github.com/xing-phys/Scriflow/releases/tag/v0.31.0-dev.5)**,
+released on 2026-10-27 to restore direct native handwriting after dev.4's severe
+latency regression. The live callbacks and native pen configuration are restored
+from `0.30.0-dev.3`; the Java-driven second pen is removed. Rotation history,
+PDF support and captured-ink geometry are retained, with the same application
+ID and public signing certificate for in-place
 updates. Automated checks pass; tablet validation of these changes is pending.
 The core notebook features are implemented; broader use and
 long-session performance still need feedback.
@@ -56,8 +56,8 @@ makes no network requests. See [privacy and local storage](docs/privacy.md).
 
 ## Install and update
 
-Download the latest public **[Scriflow 0.31.0-dev.4 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.31.0-dev.4/scriflow-0.31.0-dev.4.apk)**
-from [GitHub Releases](https://github.com/xing-phys/Scriflow/releases/tag/v0.31.0-dev.4),
+Download the latest public **[Scriflow 0.31.0-dev.5 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.31.0-dev.5/scriflow-0.31.0-dev.5.apk)**
+from [GitHub Releases](https://github.com/xing-phys/Scriflow/releases/tag/v0.31.0-dev.5),
 where its file checksum and signing certificate fingerprint are recorded.
 Copy it to the supported tablet, open it with the tablet's file manager, and
 allow installation from that source when prompted.
@@ -99,9 +99,11 @@ Use **Import PDF** in the library to make a PDF notebook. The outline icon
 opens imported headings and lets you add your own; finger taps follow PDF links.
 Previous/next view icons return after link or outline jumps; ordinary scrolling,
 zoom, and page buttons do not create history. Both stacks survive screen rotation.
-Settings offers **Fixed width on page** (default), so new writing keeps its width
-in the document across zoom, and **Fixed width on screen**, so the nib stays the
-same visible size while writing. Completed ink scales with the page in both modes.
+Settings offers **Fixed width on page** (default), using native width fitting,
+and **Fixed width on screen**, keeping the nib's screen size while writing.
+Both use direct native AHW. Page mode's native pressure response can vary with
+zoom; identical pressure behavior across zoom is unresolved. Completed ink
+retains its captured geometry in both modes.
 External links ask before opening
 another app. See [PDF notebooks](docs/pdf-import.md).
 The three-dot menu contains PDF export, save status, and **Reset tools**.
