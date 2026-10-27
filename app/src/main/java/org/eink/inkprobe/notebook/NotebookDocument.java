@@ -13,6 +13,7 @@ public final class NotebookDocument {
     private final NotebookStore store;
     private NotebookEdits editor;
     private NotebookPage durablePage, attemptedPage;
+    private NotebookPage transferTarget;
     private IOException problem;
     private boolean loadAttempted;
 
@@ -22,6 +23,37 @@ public final class NotebookDocument {
     public IOException error() { return problem; }
     public boolean canUndo() { return editor != null && editor.canUndo(); }
     public boolean canRedo() { return editor != null && editor.canRedo(); }
+    Object undoLink() { return editor == null ? null : editor.undoLink(); }
+    Object redoLink() { return editor == null ? null : editor.redoLink(); }
+    NotebookPage historyTarget(boolean forward) { return editor == null ? null : editor.historyTarget(forward); }
+
+    /** Validate both participants before publishing the durable two-page intent. */
+    void validateLinked(NotebookPage before, NotebookPage after, Object link, int historyStep) throws IOException {
+        requireEditor(); requireWritable();
+        if (!samePage(current(), before) || !samePage(before.withStrokes(after.strokes), after))
+            throw new IOException("The selected page changed; move the ink again");
+        if (historyStep != 0 && ((historyStep < 0 ? undoLink() : redoLink()) != link
+                || !samePage(historyTarget(historyStep > 0), after)))
+            throw new IOException("Undo the other page's later edits before changing this move");
+    }
+
+    /** No I/O: the book has already journaled and validated both targets. */
+    void stageLinked(NotebookPage after, Object link, int historyStep) {
+        if (historyStep < 0) editor.undo();
+        else if (historyStep > 0) editor.redo();
+        else editor.replaceLinked(after, link);
+        transferTarget = after;
+        // Queued pen-UPs may still enter memory, but cannot write over a pending transfer.
+        problem = new IOException("Finish saving the cross-page move before writing to this page");
+    }
+
+    /** Acknowledge the journal result without discarding history or later queued pen-UPs. */
+    void completeLinked() throws IOException {
+        if (transferTarget == null) return;
+        NotebookPage disk = store.load();
+        if (!samePage(disk, transferTarget)) throw new IOException("Saved cross-page move differs from its target; files were preserved");
+        store.sync(); acknowledged(disk); transferTarget = null; problem = null;
+    }
 
     /** Validates a cached page against disk without syncing, publishing or losing its history. */
     public void validateDisk() throws IOException {
@@ -142,6 +174,7 @@ public final class NotebookDocument {
      */
     public void retry() throws IOException {
         execute(() -> {
+            if (transferTarget != null) throw new IOException("The book must finish its cross-page move before retrying this page");
             if (editor == null) {
                 loadAttempted = true;
                 loadInitial();

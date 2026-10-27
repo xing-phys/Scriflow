@@ -18,7 +18,9 @@ reading position. **+ Folder** creates a folder at the bookshelf root; use its
 **Trash** holds deleted notebooks. Its **⋮** menu restores a notebook to its
 folder, or permanently deletes its pages and imported PDF after confirmation.
 Permanent deletion frees a notebook slot. See [bookshelf settings](bookshelf-settings.md)
-for configurable list/thumbnail layouts and storage compatibility.
+for configurable list/thumbnail layouts and storage compatibility. Settings
+uses **− / +** buttons to change portrait/landscape row and column counts;
+there is no number field or keyboard to open.
 
 Tap **Quick A5 note** to create and open an A5 notebook immediately with an
 automatic name. **+ Notebook** opens the named creation form.
@@ -67,9 +69,11 @@ applies when physically turning the tablet. Screen rotation rebuilds the
 writing surface without changing stored page dimensions.
 
 Finger navigation is ignored while the pen hovers nearby, during writing,
-and for 0.6 seconds after the last pen contact or hover exit. Lift the pen away
-before using your fingers. A rejected resting hand must lift before it can
-start navigation. Broad contacts and gestures with more than two fingers are
+and for **200 ms (0.2 seconds)** after the last pen contact/hover event, including
+hover exit. Continuing to hold the pen near the screen keeps finger navigation
+blocked. Lift it away before using your fingers. This palm-rejection delay
+does not delay closing a lasso outline on lift. A rejected resting
+hand must lift before it can start navigation. Broad contacts and gestures with more than two fingers are
 also rejected when the device reports them.
 
 For pinch zoom, place both fingers within 0.35 seconds, then deliberately
@@ -109,7 +113,8 @@ or enter a number beside **Go to page** and tap **Go**. **Close** or Android
 Back returns to the exact previous scroll position when the page order is
 unchanged. Thumbnails load as you browse; opening the overview does not edit pages.
 Settings → Page overview sets portrait and landscape columns separately (defaults:
-5 and 8). The bookshelf has separate row/column preferences.
+5 and 8). Use **− / +** beside each count. The bookshelf has separate
+row/column preferences.
 
 Choose **Manage**, then tap a page for its actions. You can also hold a thumbnail
 to open the same actions while browsing:
@@ -159,8 +164,11 @@ no ripple or pressed inversion; the page stays writable outside the tools.
 
 Tap the **already-selected Pen icon** to open a small width slider beside it.
 Drag left for thinner or right for thicker strokes. A sample line and number
-preview the width. **Release to apply and close**; tap outside or press Back to
-cancel. Tapping the track selects a width directly.
+preview the width. **Release to apply; the slider stays open.** Adjust it again
+as needed, then touch outside or press Back to close while keeping the last
+applied value. Cancelling an unfinished adjustment restores that last value.
+Beginning a stroke outside the bar closes it and accepts the first stroke.
+Tapping the track selects a width directly.
 
 Widths run from **1.0 to 10.0**, in 0.1 steps; the original default is **4.0**.
 The setting is remembered across sessions and notebooks. A line beneath the
@@ -172,16 +180,20 @@ recorded pressure shape.
 
 Choose **Eraser**, move the stylus across writing, then lift it to remove every
 touched stroke. A temporary **grey trail** follows the erasing path through
-the native handwriting engine. After the erase completes, the touched ink and
-trail disappear together. Erasing removes whole strokes rather than portions.
+the native handwriting engine at the selected constant diameter. Its width
+stays the same at light and heavy pressure. After the erase completes, the
+touched ink and trail disappear together. Erasing removes whole strokes rather
+than portions, so the rest of a touched stroke can disappear beyond the trail.
 
 Tap the **already-selected Eraser icon** for its width slider: **4–240** in
-steps of 1, with **36** as the default diameter. It is independent of pen width
-and remembered across sessions. A wide eraser can reach page edges from the
+steps of 1, with **36** as the default diameter. Like the Pen bar, it remains
+open after applying a value. It is independent of pen width and remembered
+across sessions. A wide eraser can reach page edges from the
 gap between pages. A no-hit gesture clears only the trail; cancelling leaves
-the ink intact. Very fast passes at the maximum width can show visible lag;
-normal width-36 erasing has been physically verified on the target tablet.
-Choose **Pen** to resume writing.
+the ink intact. Very fast passes at the maximum width can show visible lag.
+Native offscreen checks verify the corrected constant-width brush geometry;
+the current build's optical latency and physical pen feel still need tablet
+acceptance. Choose **Pen** to resume writing.
 
 **Undo/Redo** retains up to 100 writing or erase actions **per page** within
 the current app process. It survives leaving and returning while the process
@@ -193,16 +205,26 @@ preserves it. Changing paper leaves stroke history available.
 
 Choose **Lasso** and circle the strokes you want. A native dashed line follows
 the stylus. **Lift to visibly close the curve**, including a final edge back to
-its start when you leave a gap. Strokes whose entire centreline lies inside it
-are selected. A stroke crossing the boundary stays unselected. Selection
+its start when you leave a gap. A whole stroke is selected when any part of its
+centreline enters or touches the closed region, including crossing its boundary. Selection
 works on one page at a time; it does not cut strokes into pieces.
 
+The outline closes on the next input-queue turn after stylus lift, without the
+former wait of up to 256 ms for a native saved-track notification. Selection
+calculation and page restoration may still take processing time; this is not
+a guarantee of zero optical delay.
+
 A small action bar appears beside the region with its selected stroke count.
-**Drag anywhere inside the curve with a finger or the stylus** to move the ink;
-its preview follows your movement. Lift to save the move. Movement stops at
-page edges and keeps the strokes together. There is no separate Move command.
+**Drag anywhere inside the curve with a finger or the stylus** to move the ink.
+The floating group follows your pointer across page edges. Hold near the top or
+bottom screen edge to scroll through more pages, then lift over the destination.
+The strokes stay together at their original logical size. On release the group
+is fitted wholly inside the destination page. A page too small for the complete
+group rejects the move; ink is not clipped or reduced to fit.
 The nearby actions are:
 
+- **Move…** targets any page by number and places the group near its centre,
+  including pages too far away to drag to conveniently.
 - **Duplicate** makes an offset copy and selects it.
 - **Copy** keeps the selected ink on Scriflow's private clipboard.
 - **Cut** copies, then removes the selection; **Delete** removes it directly.
@@ -216,18 +238,30 @@ After Done, tap the already-selected Lasso icon for these additional actions:
   clipboard. Paste is offered when copied ink fits the destination page.
 - **Select all on this page** selects its ink and shows the action bar.
 
-If the curve encloses no complete strokes, it stays visible with **No strokes
-selected**. Tap Done or outside it, then draw around the complete ink strokes.
-While a region is active, a finger inside moves it. Clear the selection before
-finger scrolling. Change tools, navigate to another page, or press Back to clear
-the selection. Undo/Redo also clears it. Each completed move, duplicate,
-cut, paste, or delete is one undoable action on its page and saves automatically.
-Selecting, copying, and deselecting do not change history or saved notes. Existing
-pressure, thickness, colour, and sample timing are retained.
+If the region touches no strokes, it stays visible with **No strokes
+selected**. Tap Done or outside it, then draw a region that overlaps the desired ink.
+While a region is active, a finger inside moves it. Done or a tap outside clears
+it for ordinary scrolling; a two-finger navigation gesture also clears it.
+Change tools, navigate to another page, or press Back to clear the selection.
+Back or cancellation during a drag discards the unfinished move. Undo/Redo also
+clears the region. Selecting, copying, and deselecting do not change history or
+saved notes. Existing pressure, thickness, colour, stroke identity and sample
+timing are retained by a move; duplicate/paste creates independent stroke IDs.
 
-The owner confirmed that the updated interaction works well in 0.29.0-dev.2
-and accepted the signed APK for release. See the [device record](device-testing.md)
-for the scope of that feedback and automated checks.
+A cross-page move is one linked **Undo/Redo** action on both pages. Undoing it
+from either page restores both sides together. If either page has later edits,
+undo those first. A completed same-page move, duplicate, cut, paste or delete
+uses ordinary per-page history. These histories remain process-local.
+
+Cross-page saves use a recovery journal so an interrupted save is completed on
+retry or restart without losing the moved group. This recovery survives process
+death; the Undo/Redo history itself does not. Source selection still begins on
+one page: drawing a polygon across page boundaries does not select several
+pages at once.
+
+Earlier lasso interaction was accepted in 0.29.0-dev.2. That feedback does not
+establish physical acceptance of these new cross-page controls or closure timing.
+See the [device record](device-testing.md) for current testing and limits.
 
 ## Status and display refresh
 

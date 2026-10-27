@@ -14,7 +14,7 @@ import java.util.EnumMap;
 
 /** Nonmodal, static selection actions above the native surface. Paper remains touchable. */
 final class NotebookSelectionTools {
-    enum Action { COPY, DUPLICATE, CUT, DELETE, DONE }
+    enum Action { COPY, DUPLICATE, MOVE, CUT, DELETE, DONE }
     interface Listener { void onAction(Action action); }
     private final Context context;
     private final LinearLayout content;
@@ -32,7 +32,7 @@ final class NotebookSelectionTools {
         status.setGravity(Gravity.CENTER); status.setSingleLine(true);
         content.addView(status, new LinearLayout.LayoutParams(-1, dp(30)));
         LinearLayout row = new LinearLayout(context);
-        String[] labels = {"Copy", "Duplicate", "Cut", "Delete", "Done"};
+        String[] labels = {"Copy", "Duplicate", "Move…", "Cut", "Delete", "Done"};
         for (Action action : Action.values()) {
             NotebookButton button = new NotebookButton(context); button.setText(labels[action.ordinal()]);
             button.setTextSize(14); button.setSingleLine(true);

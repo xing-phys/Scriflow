@@ -22,7 +22,7 @@ public final class NotebookLassoTest {
         NotebookPage page = page(dot, inside, crossing, outside);
         List<NotebookPage.Point> square = path(10, 10, 60, 10, 60, 60, 10, 60);
         NotebookLasso.Selection selected = NotebookLasso.select(page, square);
-        check(selected.strokes.equals(Arrays.asList(dot, inside)), "only fully enclosed strokes; sparse crossing excluded");
+        check(selected.strokes.equals(Arrays.asList(dot, inside, crossing)), "partial overlap selects the whole stroke");
         List<NotebookPage.Point> reversed = new ArrayList<>(square); Collections.reverse(reversed);
         check(NotebookLasso.select(page, reversed).strokes.equals(selected.strokes), "orientation independent");
         check(NotebookLasso.select(page, path(10, 10, 60, 10, 60, 60, 10, 60, 10, 10)).strokes.equals(selected.strokes), "explicit closure");
@@ -30,13 +30,31 @@ public final class NotebookLassoTest {
         check(NotebookLasso.select(page, path(0, 0, 40, 40, 80, 80)).isEmpty(), "line cannot select");
         check(NotebookLasso.select(page(stroke(10, 10, 60, 10)), square).strokes.size() == 1, "boundary stroke included");
         List<NotebookPage.Point> concave = path(0, 0, 80, 0, 80, 80, 60, 80, 60, 20, 20, 20, 20, 80, 0, 80);
-        check(NotebookLasso.select(page(stroke(10, 60, 70, 60)), concave).isEmpty(), "sparse segment across concavity excluded");
-        check(NotebookLasso.select(page(stroke(10, 40, 30, 0, 70, 40)), concave).isEmpty(), "exit through polygon vertex excluded");
+        check(NotebookLasso.select(page(stroke(10, 60, 70, 60)), concave).strokes.size() == 1, "partly inside concave region selects the whole stroke");
+        check(NotebookLasso.select(page(stroke(10, 40, 30, 0, 70, 40)), concave).strokes.size() == 1, "stroke may enter and leave through polygon vertices");
         check(NotebookLasso.select(page(stroke(10, 10, 70, 10)), concave).strokes.size() == 1, "inside concave region");
         List<NotebookPage.Point> bow = path(0, 0, 80, 80, 0, 80, 80, 0);
         check(NotebookLasso.select(page(stroke(40, 10), stroke(40, 70), stroke(5, 40)), bow).strokes.size() == 2,
             "self crossing uses even-odd fill");
         check(NotebookLasso.select(page(stroke(20, 20, 20, 20)), square).strokes.size() == 1, "zero-length segments");
+        check(NotebookLasso.select(page(stroke(0, 35, 90, 35)), square).strokes.size() == 1,
+            "crossing with both sample endpoints outside is selected");
+        check(NotebookLasso.select(page(stroke(0, 10, 90, 10)), square).strokes.size() == 1,
+            "collinear overlap with the lasso boundary is selected");
+        check(NotebookLasso.select(page(stroke(0, 0, 10, 10)), square).strokes.size() == 1,
+            "touching only a polygon vertex is selected");
+        check(NotebookLasso.select(page(stroke(0, 11, 11, 0)), square).isEmpty(),
+            "overlapping bounding boxes alone do not select an outside stroke");
+        check(NotebookLasso.select(page(stroke(0, 30, 9, 30)), square).isEmpty(),
+            "stroke ending before the lasso is not selected");
+        check(NotebookLasso.select(page(stroke(30, 40, 50, 40)), concave).isEmpty(),
+            "stroke wholly in a concave cutout is not selected");
+        check(NotebookLasso.select(page(stroke(0, 0, 90, 0, 90, 90, 0, 90, 0, 0)), square).isEmpty(),
+            "surrounding the lasso without touching its region is not overlap");
+        NotebookPage.Stroke partial = stroke(0, 35, 90, 35);
+        NotebookLasso.Selection whole = NotebookLasso.select(page(partial), square);
+        check(whole.strokes.get(0) == partial && whole.bounds.left == 0 && whole.bounds.right == 90,
+            "partial contact retains the entire original stroke, not a clipped fragment");
         check(NotebookLasso.select(page, square).bounds.contains(20, 20, 0), "selection bounds");
     }
 

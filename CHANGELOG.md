@@ -6,6 +6,59 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## [0.32.0](https://github.com/xing-phys/Scriflow/releases/tag/v0.32.0) — First stable release (2026-10-27)
+
+- Publish the first stable GitHub release, incorporating all changes through
+  the locally tested 0.32.0-dev.4 candidate. Increase versionCode to 46 and
+  retain the permanent signing key, app ID and existing data formats.
+- Include native handwriting, paper sizes and zoom, sensor rotation, PDF
+  import/annotation/export, outlines, editable backups, page management and
+  per-page undo/redo from the earlier prereleases.
+- Include compact bookshelf/Settings layouts, portrait/landscape thumbnail
+  grids, folders and recoverable Trash, flat dialog borders, status-area
+  Settings access, current-page insertion and foreground-only Keep screen on.
+- Fix folder/Trash taps, replace grid number fields with −/+ controls, match
+  the eraser preview width, and keep width sliders open across adjustments.
+- Select whole strokes on any lasso overlap and move selections across pages
+  with recoverable saves and paired undo/redo. Fix input restoration after
+  dropping a selection and remove artificial lasso-completion polling.
+- Reduce the finger-navigation quiet period to 200 ms after pen contact/hover.
+  Physical support remains limited to the tested MatePad Paper firmware;
+  cover-lock/battery and sustained-use validation are still incomplete.
+
+## 0.32.0-dev.4 — Partial-overlap lasso selection (2026-10-27, local test candidate)
+
+- Select the whole stroke when any part of its centreline enters or touches
+  the closed lasso region, including sparse segments with both endpoints outside.
+- Reduce the finger-navigation quiet period after pen contact/hover from
+  600 ms to 200 ms. Active pen contact/hover still blocks finger navigation.
+- Keep the application/signing identity and existing data formats; versionCode 45.
+
+## 0.32.0-dev.3 — Resume input after cross-page lasso moves (2026-10-27, local test candidate)
+
+- Fix a paused editor after dropping a lasso selection onto another page. Keep
+  viewport restoration pending while the asynchronous page/PDF window loads,
+  so its completion reinstalls the viewport and resumes native input.
+- Add a regression executing the production Activity callbacks with queued page
+  reads, including stale reads, PDF readiness, generation changes and save errors.
+- No page/catalog format or handwriting-brush changes.
+
+## 0.32.0-dev.2 — Touch and lasso fixes (2026-10-27, local test candidate)
+
+- Replace bookshelf/page-grid numeric fields with bounded −/+ controls.
+- Keep bookshelf cell controls stable during grid relayout and use valid positive
+  item IDs. Fix folder opening/management and the first Trash item's menu.
+- Match the eraser's grey trail to its constant-width hit-test brush.
+- Keep pen/eraser width sliders open across adjustments; outside input closes
+  them without deliberately consuming the first writing gesture.
+- Move selected ink between pages by dragging, edge scrolling, or Move… . Use a
+  recoverable two-page transaction and paired undo/redo; preserve stroke geometry.
+- Remove the lasso's artificial 16 × 16 ms completion polling. The separate
+  600 ms finger-navigation guard after pen contact/hover remains unchanged.
+- Host regressions, Android build/lint and native eraser diagnostics pass.
+  Hands-on UI/gesture acceptance is left to the owner; no automation success
+  is claimed for the firmware-incompatible UI harness.
+
 ## [0.32.0-dev.1](https://github.com/xing-phys/Scriflow/releases/tag/v0.32.0-dev.1) — Compact bookshelf and notebook management (2026-10-27)
 
 - Compact bookshelf text and row spacing, with two list columns in landscape.

@@ -25,6 +25,8 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookStore.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookEdits.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookLasso.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookInkTransfer.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookSelectionMove.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookLassoGesture.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookLassoCompletion.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookSelectionDrag.java \
@@ -58,6 +60,7 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   tests/CallbackTimingTest.java tests/NotebookStoreTest.java \
   tests/NotebookEditsTest.java tests/NotebookDocumentTest.java tests/NotebookLassoTest.java \
   tests/NotebookLassoInteractionTest.java \
+  tests/NotebookSelectionMoveTest.java tests/NotebookInkTransferTest.java tests/NotebookEditRestoreTest.java \
   tests/NotebookIndexTest.java tests/NotebookBookTest.java \
   tests/NotebookPageManagementTest.java \
   tests/NotebookPdfModelTest.java \
@@ -79,6 +82,9 @@ java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookStoreTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookEditsTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookLassoTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookLassoInteractionTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookSelectionMoveTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookInkTransferTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookEditRestoreTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookDocumentTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookIndexTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookBookTest

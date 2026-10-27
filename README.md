@@ -6,7 +6,7 @@
 
 Scriflow brings together *scribe*, *script*, and *scribble* with *flow*: a quiet
 place to draft, calculate, work through a derivation, and follow an idea. It is
-an early-stage notebook app for the **Huawei MatePad Paper**, formerly named
+a notebook app for the **Huawei MatePad Paper**, formerly named
 **Scribblow**.
 
 ## Compatibility and status
@@ -16,16 +16,18 @@ Development and physical testing target **MatePad Paper HMW-W09**, Android
 rendering use Huawei APIs already present on that firmware; no proprietary
 Huawei code is bundled. Other tablets and firmware versions are unverified.
 
-The latest public prerelease is **[Scriflow 0.32.0-dev.1](https://github.com/xing-phys/Scriflow/releases/tag/v0.32.0-dev.1)**,
-released on 2026-10-27. It adds a compact bookshelf and Settings, configurable
-portrait/landscape thumbnail grids, folders and Trash, current-page insertion,
-and foreground-only Keep screen on. See [bookshelf and screen settings](docs/bookshelf-settings.md).
+The latest stable release is **[Scriflow 0.32.0](https://github.com/xing-phys/Scriflow/releases/tag/v0.32.0)**,
+released on 2026-10-27. This first formal release includes native handwriting,
+PDF notebooks and export, compact bookshelf/Settings layouts, configurable
+portrait/landscape thumbnail grids, folders and Trash, and Keep screen on.
+It includes all fixes through 0.32.0-dev.4: reliable folder/Trash controls,
+−/+ grid settings, persistent width sliders, cross-page lasso movement with
+paired undo/redo, partial-overlap selection, and a 200 ms finger-navigation
+quiet period. See [bookshelf settings](docs/bookshelf-settings.md) and [lasso](docs/lasso.md).
 The application ID and permanent signing certificate are retained for in-place
-updates. Automated checks pass; no tablet is connected, so physical display,
-handwriting, cover-lock and battery validation remain pending. The direct native
-handwriting restored in 0.31.0-dev.5 is retained.
-The core notebook features are implemented; broader use and
-long-session performance still need feedback.
+updates. Development builds were installed and used on the owner's tablet;
+automated regressions and native eraser checks pass. Other hardware/firmware,
+cover-lock/battery behavior and long-session performance remain unverified.
 The [changelog](CHANGELOG.md) summarizes changes; [device records](docs/device-testing.md)
 distinguish automated checks, publication authorization, and physical testing.
 
@@ -41,8 +43,9 @@ distinguish automated checks, publication authorization, and physical testing.
 - Two-finger zoom, a percentage indicator, and fit width/height/page choices.
 - Portrait, landscape, or automatic sensor rotation from Settings.
 - Adjustable whole-stroke eraser with a temporary grey trail, plus undo/redo.
-- Native dashed lasso to select whole strokes, move, duplicate, copy/cut/paste,
-  or delete them, with a closed region, nearby actions, and finger/stylus dragging.
+- Native dashed lasso to select whole strokes on any overlap, move them across
+  pages, duplicate, copy/cut/paste, or delete them, with nearby actions and
+  finger/stylus dragging.
 - Manage pages from the overview: reorder, duplicate, insert blank pages, delete,
   and undo/redo page changes.
 - Automatic saving of completed strokes and editable restoration after reopening.
@@ -58,8 +61,8 @@ makes no network requests. See [privacy and local storage](docs/privacy.md).
 
 ## Install and update
 
-Download the latest public **[Scriflow 0.32.0-dev.1 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.32.0-dev.1/scriflow-0.32.0-dev.1.apk)**
-from [GitHub Releases](https://github.com/xing-phys/Scriflow/releases/tag/v0.32.0-dev.1),
+Download the signed **[Scriflow 0.32.0 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.32.0/scriflow-0.32.0.apk)**
+from [GitHub Releases](https://github.com/xing-phys/Scriflow/releases/tag/v0.32.0),
 where its file checksum and signing certificate fingerprint are recorded.
 Copy it to the supported tablet, open it with the tablet's file manager, and
 allow installation from that source when prompted.

@@ -2,7 +2,8 @@
 
 Tap the time/battery/Wi-Fi area at the top right to open Settings. It is also
 visible on the bookshelf, Settings, page overview, and PDF/backup screens.
-Settings saves each valid change immediately.
+Settings saves each change immediately. Row and column counts use **− / +**
+buttons beside the current value; no keyboard or editable number field is needed.
 
 ## Dense lists and thumbnail grids
 
@@ -19,6 +20,10 @@ continues by scrolling for more notebooks. Rows and columns are independent:
 | Bookshelf thumbnail rows | 4 | 3 | 1–12 |
 | Bookshelf thumbnail columns | 3 | 5 | 1–12 |
 | Page overview columns | 5 | 8 | 2–12 |
+
+Use the **− / +** controls in each orientation's row to change these counts.
+A control stops at its minimum or maximum. Portrait and landscape values remain
+independent when rotating or returning from Settings.
 
 First-page previews read the notebook's displayed first page, including its PDF
 background. They do not open/select that notebook or change its saved position.
@@ -66,6 +71,20 @@ The add-page tool inserts immediately after the current page, then selects it.
 It inherits paper size/template and preserves the identities of existing pages.
 Middle insertion uses the existing managed-page order and its undo/redo history.
 
+Pen and Eraser width bars stay open after releasing an adjustment. Release saves
+the value; adjust again, touch outside, press Back, or begin writing outside to
+close the bar while keeping the last applied width.
+
+A Lasso selection starts on one page, then can be dragged to another page. Hold
+near the top or bottom edge to scroll, or choose **Move…** to target any page.
+The complete group must fit; ink is not clipped or shrunk to fit a smaller page.
+See [lasso movement and recovery](lasso.md).
+
+Finger scrolling/zoom is blocked while the pen is down or hovering nearby, and
+for **200 ms (0.2 seconds)** after its last contact/hover event. Lift the pen
+away before using fingers. This palm-rejection interval is
+separate from closing the lasso outline on stylus lift.
+
 **Keep screen on** defaults to Off. When On, only resumed app Activities set
 Android's `FLAG_KEEP_SCREEN_ON`; pausing clears it immediately. This uses no
 CPU wake lock, wake-up request, polling service, lock-screen bypass, or change to
@@ -79,5 +98,7 @@ MatePad cover locking and physical power consumption still need tablet checks.
 The host suite includes real-file folder/trash/restore checks, safe legacy and
 nested-slot purges, interruption/restart recovery, capacity reclamation, backup
 restore into purged slots, preview isolation, and middle-page insertion.
-Android builds and lint check compilation/API use. These do not establish
+Control checks also target first-row folder/Trash actions, keyboard-free
+steppers and repeated width adjustments. Android builds and lint check
+compilation/API use. These do not establish
 physical e-ink appearance, stylus latency, cover locking, or battery behavior.

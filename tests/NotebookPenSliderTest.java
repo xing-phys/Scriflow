@@ -10,6 +10,7 @@ public final class NotebookPenSliderTest {
         widthsAndRememberedChoices();
         dragAndCancel();
         contactOwnership();
+        repeatedAdjustmentsWithoutClosing();
         placementAtEdges();
         variedWindows();
         System.out.println("NotebookPenSlider: " + assertions + " assertions passed (width, contacts and placement).");
@@ -77,6 +78,31 @@ public final class NotebookPenSliderTest {
         tools = box(8, 60, 48, 532); pen = box(14, 146, 36, 36);
         bar = place(702, 900, pen, tools, true);
         check(bar.left >= tools.right() + 6, "left vertical strip opens right");
+    }
+
+    private static void repeatedAdjustmentsWithoutClosing() {
+        for (NotebookWidthRange range : new NotebookWidthRange[]{NotebookWidthRange.PEN, NotebookWidthRange.ERASER}) {
+            NotebookPenSliderState slider = new NotebookPenSliderState(range, range.defaultWidth);
+            float first = range.atFraction(.7f), second = range.atFraction(.35f);
+            slider.begin(1, true, .2f);
+            near(first, slider.end(1, .7f, false), "first release applies without retiring slider state");
+            slider.begin(1, true, .1f);
+            check(slider.end(1, .1f, true) == null, "cancelled second adjustment applies no width");
+            near(first, slider.width(), "cancellation restores the last applied width rather than the opening width");
+            slider.begin(2, true, .9f); slider.lift(2, .35f);
+            check(slider.active(), "multi-contact adjustment keeps its contact barrier after primary lift");
+            near(second, slider.end(3, 0, false), "later gesture applies its frozen primary choice");
+            slider.begin(1, false, 1);
+            check(slider.end(1, 1, false) == null, "an outside cancellation never reapplies a previous width");
+            near(second, slider.width(), "an outside contact preserves the latest completed choice");
+            slider.choose(range.maximum + range.step);
+            near(range.maximum, slider.width(), "accessibility increment clamps at the upper endpoint without closing");
+            slider.begin(1, true, .5f);
+            try { slider.choose(range.minimum); throw new AssertionError("Accessibility replaced an active touch"); }
+            catch (IllegalStateException expected) { assertions++; }
+            slider.cancel(); slider.end(1, .5f, false);
+            near(range.maximum, slider.width(), "cancelled contact restores the latest accessibility choice");
+        }
     }
 
     private static void variedWindows() {

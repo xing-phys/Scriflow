@@ -1,8 +1,9 @@
 # Eraser width and native grey trail — 0.20
 
 Select Eraser, then tap its selected icon again to open the compact width bar.
-Drag or tap its track, then release to apply and close. Tap outside or press
-Back to cancel. The existing popup-removal cancellation fix is shared by both
+Drag or tap its track, then release to apply. The bar stays open for further
+adjustments. Start writing, tap outside, or press Back to close; the last applied
+width is retained. The existing popup-removal cancellation fix is shared by both
 tools. The strip's size, orientation toggle, and movement stay the same.
 
 | Tool | Width range | Step | Default |
@@ -25,7 +26,29 @@ removed ink; Redo removes it again. A no-hit gesture clears only the trail.
 Cancellation discards the partial gesture and restores the unedited page.
 The grey trail is never a saved stroke, history entry, or PDF element.
 
-## Native preview — 0.20
+## Constant-width correction — 2026-10-27
+
+The grey preview now uses the firmware's `PEN_TYPE_SIMPLE` brush. The hit-test
+continues to use the chosen full diameter, with the same page/screen fitting.
+The earlier `PEN_TYPE_YUANZHUBI` preview was pressure-sensitive: at a configured
+36 pixels it drew only 18, 22 and 27 pixels at pressures 0.05, 0.25 and 0.5,
+respectively, reaching the full 36 pixels at pressure 1. This made the visible
+trail narrower than the eraser's effective disk at light pressure.
+
+Synthetic offscreen raster checks on the connected MatePad verify that SIMPLE
+renders the configured width at 4, 9, 36, 120 and 240 pixels for all four tested
+pressures. Run `./scripts/check-tool-brush.sh` to repeat those 40 comparisons;
+results go to `artifacts/native-tool-brush/result.json`. The check never opens
+a display Surface or notebook files. The disposable native-eraser screen also
+checks the actual live AHW brush type/width/color and temporary track type.
+These checks establish native brush geometry and configuration, not optical
+latency. Erasing still removes whole touched ink strokes, so the rest of a
+touched stroke disappears beyond the grey trail as before.
+
+The live handwriting Pen keeps its original pressure-sensitive native brush.
+There is no per-MOVE application drawing or change to pen callbacks.
+
+## Native preview — 0.20 (historical)
 
 Version 0.19 used Android touch sampling, a 16 ms Canvas batch, and regional
 framebuffer invalidation for the grey trail. The user confirmed the feature

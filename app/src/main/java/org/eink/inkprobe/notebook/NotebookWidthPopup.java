@@ -16,23 +16,38 @@ import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.PopupWindow;
 import android.widget.SeekBar;
 
-/** Only the small bar is painted; a transparent input shield protects paused native ink. */
+/** A persistent compact bar; outside input keeps its original stream in the editor window. */
 final class NotebookWidthPopup {
-    interface Listener { void onClosed(Float chosenWidth); }
+    interface Listener {
+        boolean onContactStart();
+        void onWidthChanged(float width);
+        void onContactEnd();
+        void onClosed();
+        void onBoundsChanged(Rect bounds);
+    }
 
     private final Activity activity;
     private final SliderView content;
     private final PopupWindow popup;
     private final NotebookPenSliderClose closing;
     private final NotebookWidthRange range;
+    private final Listener listener;
+    private final Rect bounds = new Rect();
+    private boolean cancelAfterContact;
 
     NotebookWidthPopup(Activity activity, NotebookWidthRange range, float width, float pageScale, Listener listener) {
-        this.activity = activity; this.range = range;
+        this.activity = activity; this.range = range; this.listener = listener;
         content = new SliderView(width, pageScale);
         // Keep the editor's fullscreen/focus state. Back is handled by its Activity.
         popup = new PopupWindow(content, 0, 0, false);
         popup.setTouchable(true);
-        popup.setOutsideTouchable(false);
+        // WATCH_OUTSIDE_TOUCH reports an outside DOWN without stealing it from the page.
+        popup.setOutsideTouchable(true);
+        popup.setTouchModal(false);
+        popup.setTouchInterceptor((view, event) -> {
+            if (event.getActionMasked() != MotionEvent.ACTION_OUTSIDE) return false;
+            finish(null); return true;
+        });
         popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         popup.setInputMethodMode(PopupWindow.INPUT_METHOD_NOT_NEEDED);
         popup.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING);
@@ -41,8 +56,8 @@ final class NotebookWidthPopup {
         popup.setAnimationStyle(0);
         popup.setEnterTransition(null); popup.setExitTransition(null);
         popup.setElevation(0f);
-        closing = new NotebookPenSliderClose(this::dismissWindow, listener::onClosed);
-        popup.setOnDismissListener(closing::dismissed);
+        closing = new NotebookPenSliderClose(this::dismissWindow, ignored -> listener.onClosed());
+        popup.setOnDismissListener(this::windowDismissed);
     }
 
     void show(View canvas, View pen, Rect tools, boolean vertical) {
@@ -62,24 +77,36 @@ final class NotebookWidthPopup {
             new NotebookPenSliderLayout.Box(button.left, button.top, Math.max(1, button.width()), Math.max(1, button.height())),
             new NotebookPenSliderLayout.Box(palette.left, palette.top, Math.max(1, palette.width()), Math.max(1, palette.height())),
             vertical, dp(224), dp(48), dp(6), dp(8));
-        content.bar.set(bar.left, bar.top, bar.right(), bar.bottom());
-        popup.setWidth(canvas.getWidth()); popup.setHeight(canvas.getHeight());
-        try { popup.showAtLocation(canvas, Gravity.TOP | Gravity.LEFT, origin[0], origin[1]); }
+        content.bar.set(0, 0, bar.width, bar.height);
+        bounds.set(origin[0] + bar.left, origin[1] + bar.top, origin[0] + bar.right(), origin[1] + bar.bottom());
+        // Install the native-ink hole before this window becomes visible.
+        listener.onBoundsChanged(new Rect(bounds));
+        popup.setWidth(bar.width); popup.setHeight(bar.height);
+        try { popup.showAtLocation(canvas, Gravity.TOP | Gravity.LEFT, bounds.left, bounds.top); }
         catch (RuntimeException error) { finish(null); }
     }
 
     /** User cancellation waits for the last contact before returning native handwriting. */
     void cancel() {
-        if (content.state.active()) content.state.cancel();
+        if (content.state.active()) { cancelAfterContact = true; content.state.cancel(); }
         else finish(null);
     }
 
     /** Lifecycle shutdown already disables input, so it can dismiss immediately. */
     void dismiss() { finish(null); }
 
+    Rect bounds() { return new Rect(bounds); }
+
     private void finish(Float width) { closing.finish(width); }
     private void dismissWindow() {
-        if (popup.isShowing()) popup.dismiss(); else closing.dismissed();
+        if (popup.isShowing()) popup.dismiss(); else windowDismissed();
+    }
+    private void windowDismissed() {
+        content.endContact();
+        if (!bounds.isEmpty()) {
+            bounds.setEmpty(); listener.onBoundsChanged(new Rect());
+        }
+        closing.dismissed();
     }
     private int dp(float value) { return Math.round(value * activity.getResources().getDisplayMetrics().density); }
 
@@ -88,6 +115,7 @@ final class NotebookWidthPopup {
         final RectF bar = new RectF();
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final float pageScale;
+        private boolean contactAccepted;
 
         SliderView(float width, float pageScale) {
             super(activity, null, 0);
@@ -107,7 +135,7 @@ final class NotebookWidthPopup {
         private float fraction(float x) { return (x - railLeft()) / Math.max(1f, railRight() - railLeft()); }
         private void describe() {
             setContentDescription(range.name + " " + range.label(state.width())
-                + "; slide to adjust, release to apply");
+                + "; slide to adjust, release to apply; touch outside to close");
         }
 
         @Override protected void onDraw(Canvas canvas) {
@@ -147,7 +175,8 @@ final class NotebookWidthPopup {
             int action = event.getActionMasked(), changed = event.getActionIndex();
             float before = state.width();
             if (action == MotionEvent.ACTION_DOWN) {
-                state.begin(event.getPointerId(0), bar.contains(event.getX(), event.getY()), fraction(event.getX()));
+                contactAccepted = listener.onContactStart();
+                state.begin(event.getPointerId(0), contactAccepted && bar.contains(event.getX(), event.getY()), fraction(event.getX()));
             } else if (action == MotionEvent.ACTION_MOVE) {
                 int index = event.findPointerIndex(state.pointer());
                 if (index >= 0) state.move(state.pointer(), fraction(event.getX(index)));
@@ -155,8 +184,11 @@ final class NotebookWidthPopup {
             } else if (action == MotionEvent.ACTION_POINTER_UP) {
                 state.lift(event.getPointerId(changed), fraction(event.getX(changed)));
             } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
-                finish(state.end(event.getPointerId(changed), fraction(event.getX(changed)),
-                    action == MotionEvent.ACTION_CANCEL));
+                Float chosen = state.end(event.getPointerId(changed), fraction(event.getX(changed)),
+                    action == MotionEvent.ACTION_CANCEL);
+                if (chosen != null) listener.onWidthChanged(chosen);
+                endContact();
+                if (cancelAfterContact) finish(null);
             }
             if (before != state.width()) {
                 describe();
@@ -164,6 +196,12 @@ final class NotebookWidthPopup {
                 invalidate((int) bar.left - 1, (int) bar.top - 1, (int) bar.right + 1, (int) bar.bottom + 1);
             }
             return true;
+        }
+
+        void endContact() {
+            if (!contactAccepted) return;
+            contactAccepted = false;
+            listener.onContactEnd();
         }
 
         @Override public CharSequence getAccessibilityClassName() { return SeekBar.class.getName(); }
@@ -185,8 +223,11 @@ final class NotebookWidthPopup {
             } else if (action == AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) width = state.width() + range.step;
             else if (action == AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) width = state.width() - range.step;
             else return super.performAccessibilityAction(action, args);
-            if (!state.active() && NotebookPage.finite(width))
-                finish(range.atFraction((width - range.minimum) / (range.maximum - range.minimum)));
+            if (state.active() || !NotebookPage.finite(width) || !listener.onContactStart()) return false;
+            state.choose(width);
+            listener.onWidthChanged(state.width());
+            listener.onContactEnd();
+            describe(); invalidate();
             return true;
         }
     }

@@ -4,6 +4,74 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## Scriflow 0.32.0 first stable release (2026-10-27)
+
+The owner requests the first formal GitHub release after testing the local
+development candidates on the connected MatePad Paper. VersionCode 46 promotes
+the functionality of dev.4 without further app-behavior or data-format changes.
+The permanent application ID and signing certificate are retained.
+
+- Full host regressions, debug/release lint and both contributor builds pass.
+  Debug and unsigned release APK verification passes. The signed release build
+  is verified against the pinned permanent certificate.
+- Publish `v0.32.0` as a normal GitHub release marked Latest, with
+  `scriflow-0.32.0.apk`, its SHA-256 checksum and compatibility/update notes.
+- Prior development APKs were installed and tested by the owner; this release
+  authorization is not a record that every physical acceptance checkbox passed.
+  Cover-lock/battery behavior, sustained use, maximum practical notebook size
+  and other hardware/firmware remain unverified.
+
+## Scriflow 0.32.0-dev.4 lasso overlap and navigation delay (2026-10-27)
+
+VersionCode 45 selects whole strokes on any centreline contact with the closed
+lasso region and reduces the finger-navigation quiet period to 200 ms. Active
+pen contact/hover continues to block finger gestures.
+
+- Full host suite passes, including 76 lasso assertions for partial overlap,
+  sparse crossings, boundary/vertex touches, concave cutouts, outside misses
+  and whole-stroke identity. The 153 input-policy assertions check rejection
+  at 199 ms and recovery at 200 ms, with ongoing pen protection retained.
+- Release lint/build and signed APK metadata/certificate verification pass.
+  Artifact: `build/releases/scriflow-0.32.0-dev.4.apk` with its adjacent checksum.
+- In-place ADB installation succeeds on the connected MatePad Paper HMW-W09.
+  Package inspection confirms dev.4/versionCode 45; bookshelf launch succeeds.
+  Hands-on lasso selection and finger timing acceptance remain with the owner.
+
+## Scriflow 0.32.0-dev.3 lasso-restoration fix (2026-10-27)
+
+The owner reports a stuck editor after moving a lasso across pages. ADB capture
+shows the editor active with its lasso outline, no save-error banner, and idle
+main/writer threads. Inspection identifies a missing restoration-pending state:
+finishEdit starts a page read without setting scrolling, so the read callback
+can return without installing the viewport or resuming native input.
+
+Set restoration pending before installing the edited viewport. The targeted
+regression executes the production completion/read callbacks under queued reads
+and covers cross-page, same-page, stale/in-flight reads, PDF waits, background
+activities and save failures. VersionCode 44 keeps the app/signing identity and
+existing data formats. Hands-on repeat of the original gesture remains pending.
+
+## Scriflow 0.32.0-dev.2 bugfix candidate (2026-10-27)
+
+VersionCode 43 retains the permanent app ID, signing identity and page/catalog
+formats. The connected device is MatePad Paper HMW-W09.
+
+- Full host suite passes, including 4,076 cross-page placement/edge-scroll
+  assertions, 85 real-file transfer/history/recovery assertions, and 627 slider
+  assertions. Debug QA build and lint pass.
+- A synthetic native brush check on the tablet confirms all 40 measurements:
+  SIMPLE renders the configured widths 4/9/36/120/240 across four pressures;
+  the former pressure-sensitive ballpoint rendered a width-36 trail as 18–27
+  pixels at light/medium pressure. The isolated native eraser self-test confirms
+  the running AHW brush is SIMPLE at width 36, with temporary ink unsaved and
+  surface/paper identity retained.
+- Original folder failure was observed. Updated Settings steppers were inspected
+  through direct ADB UI capture. The custom UiAutomation launch harness was not
+  reliable on this firmware and did not complete; its checks are not passed.
+- Owner will perform hands-on folder/Trash, slider, lasso closure, cross-page
+  movement/edge-scroll and paired-undo checks. Physical pen latency and display
+  appearance have not been established by the synthetic checks.
+
 ## Scriflow 0.32.0-dev.1 compact bookshelf and management (2026-10-27)
 
 The requested update covers dense bookshelf/settings layouts, landscape list

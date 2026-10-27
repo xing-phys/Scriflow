@@ -116,6 +116,12 @@ final class NotebookSession {
         submit(() -> selected[0] = document.editSelectionOnPage(id, selection, action, dx, dy),
             (page, error) -> callback.complete(selected[0], error));
     }
+    void moveSelection(int source, int destination, NotebookLasso.Selection selection, float centerX, float centerY,
+            LassoCallback callback) {
+        final NotebookLasso.Selection[] selected = {null};
+        submit(() -> selected[0] = document.moveSelection(source, destination, selection, centerX, centerY),
+            (page, error) -> callback.complete(selected[0], error));
+    }
     void paste(int id, float x, float y, LassoCallback callback) {
         final NotebookLasso.Clipboard source = clipboard;
         final NotebookLasso.Selection[] selected = {null};

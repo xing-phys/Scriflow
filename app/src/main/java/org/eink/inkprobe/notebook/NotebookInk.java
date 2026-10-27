@@ -45,8 +45,8 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
     private final NotebookLassoGesture lassoGesture = new NotebookLassoGesture();
     private final NotebookLassoGesture nativeLassoGesture = new NotebookLassoGesture();
     private final NotebookLassoCompletion lassoCompletion = new NotebookLassoCompletion();
-    private int lassoPointer = -1, lassoSettleFrames;
-    private boolean selectionMode, replaceWidget;
+    private int lassoPointer = -1;
+    private boolean selectionMode;
     private final Runnable finishLasso = this::finishLassoAfterInput;
     private Object surface, pointListener, editListener;
     private Bitmap paperBitmap;
@@ -161,7 +161,7 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
      * requests a fresh widget when native input or surface geometry cannot safely be reused.
      */
     public boolean applyEditPage(NotebookPage page) {
-        if (!alive || failed || replaceWidget) return false;
+        if (!alive || failed) return false;
         if (page == null) throw new IllegalArgumentException("Missing page");
         if (wanted || enabled || penDown) throw new IllegalStateException("Pause before editing the page");
         if (page.width != this.page.width || page.height != this.page.height) {
@@ -416,7 +416,12 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
             int ballpoint = Class.forName("android.eink.view.HandPenConfig")
                 .getField("PEN_TYPE_YUANZHUBI").getInt(null);
             int nativePen = tool == Tool.LASSO ? Class.forName("android.eink.view.HandPenConfig")
-                .getField("PEN_TYPE_DASH").getInt(null) : ballpoint;
+                .getField("PEN_TYPE_DASH").getInt(null)
+                : tool == Tool.ERASER ? Class.forName("android.eink.view.HandPenConfig")
+                    .getField("PEN_TYPE_SIMPLE").getInt(null) : ballpoint;
+            // The eraser hit-test is a constant-diameter disk. Ballpoint pressure
+            // shrank its grey preview (36 px became 18 px at light pressure), so
+            // use the firmware's constant-width brush for this temporary tool only.
             call(surface, "setAhwPen", new Class<?>[]{int.class, float.class, int.class},
                 nativePen, (tool == Tool.LASSO ? LASSO_WIDTH : tool == Tool.PEN ? penWidth : eraserWidth) * widthScale,
                 tool == Tool.ERASER ? NotebookEraserCommit.COLOR : Color.BLACK);
@@ -578,18 +583,20 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
     private void completeLassoInput(List<NotebookPage.Point> path, boolean nativeSamples) throws Exception {
         if (!lassoCompletion.offer(path, nativeSamples)) return;
         call(surface, "setAutoHandWrite", new Class<?>[]{boolean.class}, false);
-        setPenDown(false); lassoSettleFrames = 0; view.postDelayed(finishLasso, 16);
+        setPenDown(false);
+        // Let the current UP/observer callback return, then close the region on the
+        // next queue turn. Dashed brushes can omit their track notification entirely;
+        // they must not hold the selection behind sixteen display-frame polls.
+        view.post(finishLasso);
     }
 
     private void finishLassoAfterInput() {
         if (!alive || failed || !lassoCompletion.isPending()) return;
         try {
-            if (Boolean.TRUE.equals(get(view, "isReceivingTrack"))) {
-                if (++lassoSettleFrames < 16) { view.postDelayed(finishLasso, 16); return; }
-                // Some dashed brushes do not settle a saved track. Retire their accumulator
-                // through the editor's existing widget-replacement path, preserving selection.
-                replaceWidget = true;
-            }
+            // The closed region does not need a native saved track. Once hit testing
+            // finishes, applyEditPage checks the accumulator again and refuses reuse
+            // if it is still receiving; the Activity then replaces that widget safely.
+            // A track that settles meanwhile can reuse its existing Surface normally.
             List<NotebookPage.Point> path = lassoCompletion.take();
             listener.onLassoGesture(path);
         } catch (Exception error) { fail("Cannot complete lasso selection", error); }

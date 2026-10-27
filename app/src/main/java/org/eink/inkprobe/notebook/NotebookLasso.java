@@ -87,7 +87,7 @@ public final class NotebookLasso {
         return Collections.unmodifiableList(translated);
     }
 
-    /** Auto-close the outline. Every centreline segment must be inside (boundary included). */
+    /** Auto-close the outline. Any centreline contact selects the entire stroke, including boundary touches. */
     public static Selection select(NotebookPage page, List<NotebookPage.Point> polygon) {
         if (page == null || polygon == null) throw new IllegalArgumentException("Missing lasso/page");
         for (NotebookPage.Point point : polygon) if (point == null) throw new IllegalArgumentException("Missing lasso point");
@@ -97,14 +97,14 @@ public final class NotebookLasso {
         for (NotebookPage.Point p : polygon) { l = Math.min(l, p.x); t = Math.min(t, p.y); r = Math.max(r, p.x); b = Math.max(b, p.y); }
         for (NotebookPage.Stroke stroke : page.strokes) {
             Bounds bounds = new Bounds(Collections.singletonList(stroke));
-            if (bounds.left < l || bounds.right > r || bounds.top < t || bounds.bottom > b) continue;
-            boolean inside = true;
-            for (int i = 0; i < stroke.points.size() && inside; i++) {
+            if (bounds.right < l || bounds.left > r || bounds.bottom < t || bounds.top > b) continue;
+            boolean touches = false;
+            for (int i = 0; i < stroke.points.size() && !touches; i++) {
                 NotebookPage.Point p = stroke.points.get(i);
-                inside = contains(polygon, p.x, p.y);
-                if (inside && i > 0) inside = segmentInside(polygon, stroke.points.get(i - 1), p);
+                touches = contains(polygon, p.x, p.y);
+                if (!touches && i > 0) touches = segmentTouches(polygon, stroke.points.get(i - 1), p);
             }
-            if (inside) selected.add(stroke);
+            if (touches) selected.add(stroke);
         }
         return new Selection(page.id, selected);
     }
@@ -115,6 +115,20 @@ public final class NotebookLasso {
         Bounds b = selection.bounds;
         return translated(selection.strokes, clamp(dx, -b.left, page.width - b.right),
             clamp(dy, -b.top, page.height - b.bottom), copy);
+    }
+
+    /** Reposition existing ink on another page without changing its identities or captured style. */
+    static List<NotebookPage.Stroke> relocated(Selection selection, NotebookPage source,
+                                              NotebookPage destination, float centerX, float centerY) {
+        selection.validate(source);
+        if (selection.isEmpty()) return Collections.emptyList();
+        if (!destination.isInitialized()) throw new IllegalArgumentException("The destination page is not ready");
+        Bounds bounds = selection.bounds;
+        if (bounds.right - bounds.left > destination.width || bounds.bottom - bounds.top > destination.height)
+            throw new IllegalArgumentException("Selected ink is larger than the destination page");
+        return translated(selection.strokes,
+            clamp(centerX - (bounds.left + bounds.right) / 2, -bounds.left, destination.width - bounds.right),
+            clamp(centerY - (bounds.top + bounds.bottom) / 2, -bounds.top, destination.height - bounds.bottom), false);
     }
 
     private static List<NotebookPage.Stroke> translated(List<NotebookPage.Stroke> strokes, float dx, float dy, boolean copy) {
@@ -156,25 +170,29 @@ public final class NotebookLasso {
         return inside;
     }
 
-    /** Split at polygon intersections, including vertices; check all open intervals. */
-    private static boolean segmentInside(List<NotebookPage.Point> polygon, NotebookPage.Point a, NotebookPage.Point b) {
+    /** Sparse segments can cross the region even when neither recorded endpoint lies inside it. */
+    private static boolean segmentTouches(List<NotebookPage.Point> polygon, NotebookPage.Point a, NotebookPage.Point b) {
         double dx = b.x - a.x, dy = b.y - a.y;
-        if (dx == 0 && dy == 0) return true;
-        List<Double> cuts = new ArrayList<>(); cuts.add(0.0); cuts.add(1.0);
         for (int i = 0, j = polygon.size() - 1; i < polygon.size(); j = i++) {
             NotebookPage.Point c = polygon.get(j), d = polygon.get(i);
-            double ex = d.x - c.x, ey = d.y - c.y, det = cross(dx, dy, ex, ey);
-            if (Math.abs(det) < 1e-10) continue;
-            double t = cross(c.x - a.x, c.y - a.y, ex, ey) / det;
-            double u = cross(c.x - a.x, c.y - a.y, dx, dy) / det;
-            if (t > 0 && t < 1 && u >= 0 && u <= 1) cuts.add(t);
+            double ex = d.x - c.x, ey = d.y - c.y;
+            double ac = cross(dx, dy, c.x - a.x, c.y - a.y);
+            double ad = cross(dx, dy, d.x - a.x, d.y - a.y);
+            double ca = cross(ex, ey, a.x - c.x, a.y - c.y);
+            double cb = cross(ex, ey, b.x - c.x, b.y - c.y);
+            if ((ac > 0 && ad < 0 || ac < 0 && ad > 0)
+                    && (ca > 0 && cb < 0 || ca < 0 && cb > 0)) return true;
+            if (Math.abs(ac) < 0.00001 && onSegment(c, a, b)
+                    || Math.abs(ad) < 0.00001 && onSegment(d, a, b)
+                    || Math.abs(ca) < 0.00001 && onSegment(a, c, d)
+                    || Math.abs(cb) < 0.00001 && onSegment(b, c, d)) return true;
         }
-        Collections.sort(cuts);
-        for (int i = 1; i < cuts.size(); i++) {
-            double t = (cuts.get(i - 1) + cuts.get(i)) / 2;
-            if (!contains(polygon, a.x + dx * t, a.y + dy * t)) return false;
-        }
-        return true;
+        return false;
+    }
+
+    private static boolean onSegment(NotebookPage.Point p, NotebookPage.Point a, NotebookPage.Point b) {
+        return p.x >= Math.min(a.x, b.x) && p.x <= Math.max(a.x, b.x)
+            && p.y >= Math.min(a.y, b.y) && p.y <= Math.max(a.y, b.y);
     }
     private static double cross(double ax, double ay, double bx, double by) { return ax * by - ay * bx; }
 }

@@ -159,6 +159,8 @@ public final class NotebookSelfTestActivity extends Activity implements Notebook
             near((Float) call(surface, "getAhwPenWidth"), fittedWidth, "Native eraser width differs");
             require((Integer) call(surface, "getAhwPenColor") == NotebookEraserCommit.COLOR,
                 "Native eraser color differs");
+            require((Integer) call(surface, "getAhwPenType") == Class.forName("android.eink.view.HandPenConfig")
+                .getField("PEN_TYPE_SIMPLE").getInt(null), "Native eraser must use a constant-width brush");
             require(emittedStrokes.isEmpty(), "Grey preview emitted a saved pen stroke");
             verifyNativePage(expected);
             if (editSurface == null) {
@@ -169,6 +171,7 @@ public final class NotebookSelfTestActivity extends Activity implements Notebook
             JSONObject result = eraserResult == null ? baseResult() : eraserResult;
             result.put("passed", true);
             result.put("nativeEraserTest", true);
+            result.put("constantWidthNativeBrush", true);
             result.put("autoHandWrite", true);
             result.put("logicalWidth", testEraserWidth);
             result.put("nativeWidth", fittedWidth);
@@ -220,6 +223,8 @@ public final class NotebookSelfTestActivity extends Activity implements Notebook
             require(tracks.size() == expected.strokes.size() + 1, "Temporary native track missing");
             NotebookPage.Stroke preview = tracks.get(tracks.size() - 1);
             near(preview.width, testEraserWidth, "Temporary native track width differs");
+            require(preview.penType == Class.forName("android.eink.view.HandPenConfig")
+                .getField("PEN_TYPE_SIMPLE").getInt(null), "Temporary eraser track must retain the constant-width brush");
             require(preview.color == NotebookEraserCommit.COLOR, "Temporary native track is not grey");
             near(radius * 2, testEraserWidth, "Erase footprint differs from native width");
             NotebookEdits edits = new NotebookEdits(expected);

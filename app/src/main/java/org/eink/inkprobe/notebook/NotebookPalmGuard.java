@@ -2,7 +2,7 @@ package org.eink.inkprobe.notebook;
 
 /** Pen proximity and recent writing outrank finger navigation. No model edits or timers. */
 final class NotebookPalmGuard {
-    static final long QUIET_MS = 600;
+    static final long QUIET_MS = 200;
     private boolean hovering, penDown;
     private long lastPen = Long.MIN_VALUE;
 

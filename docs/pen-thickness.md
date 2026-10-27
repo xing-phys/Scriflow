@@ -30,9 +30,12 @@ opens below a horizontal toolbar or beside a vertical one, using the opposite
 side when necessary near the screen edge.
 
 Slide the point left/right to adjust the width. Its small stroke sample and
-number update while dragging. **Release to apply and close** the bar; tapping
-the track selects directly. An outside tap or Back cancels without changing
-the saved width. No additional confirmation button is needed.
+number update while dragging. **Release to apply; the bar stays open.** You can
+adjust it repeatedly without reopening it. Tapping the track selects directly.
+An outside touch or Back closes the bar and keeps the last applied width;
+cancelling an unfinished adjustment restores that last applied value. Starting
+to write outside the bar closes it and accepts that first stroke normally.
+No additional confirmation button is needed.
 
 The range is **1.0 to 10.0** in **0.1 steps**, measured in the selected page/screen
 units rather than millimetres. **4.0** preserves the original default. All five choices
@@ -45,12 +48,18 @@ thumbnails, and PDF export. No file format change is required.
 
 ## Native integration
 
-Opening the bar pauses handwriting and waits behind completed-stroke saves.
-A transparent popup above the native surface paints only the compact bar. Its
-input shield covers the writing area, consuming outside contacts until their
-final UP. The slider tracks one pointer; other fingers cannot change its width.
-If that pointer lifts first, its value freezes until the remaining contacts
-lift. Back during contact also waits before dismissing. An Activity pause closes
+Opening the bar briefly pauses handwriting and waits behind completed-stroke
+saves, then writing resumes with the bar visible. The popup occupies only its
+compact bounds, which are excluded from native ink. It does not place an input
+shield over the writing area: outside contacts continue to the editor while
+closing the bar, so a new stroke need not be repeated.
+
+Contact with the slider pauses native writing until the adjustment ends. The
+slider tracks one pointer; other fingers cannot change its width. If that
+pointer lifts first, its value freezes until the remaining contacts lift. A
+successful release applies and saves the value, resumes native writing, and
+leaves the bar open. Back during contact waits for contact completion before
+closing and cancels only the unfinished adjustment. An Activity pause closes
 the popup immediately with native input already disabled.
 
 Only the bar is invalidated while adjusting. There is no page, toolbar, or
@@ -66,10 +75,11 @@ locking its result. A removal-generated CANCEL could reenter `finish(null)` and
 deliver cancellation instead of the released width. The old completion code
 reproduces the reported 6.0-to-1.0 failure in the host test.
 
-The completion coordinator now locks its first decision before calling window
-removal and delivers it exactly once. Later removal-generated cancellation or
-duplicate dismissal cannot replace it; an actual outside/Back/system cancellation
-before release still leaves the width unchanged. Android 10's
+The close coordinator introduced in 0.18 locks its first decision before calling
+window removal and delivers it exactly once. Later removal-generated cancellation
+or duplicate dismissal cannot replace it. In the current persistent bar, each
+completed adjustment becomes the baseline for the next one; closing or cancelling
+a later unfinished adjustment keeps that most recently applied width. Android 10's
 [popup removal order](https://github.com/aosp-mirror/platform_frameworks_base/blob/android-10.0.0_r47/core/java/android/widget/PopupWindow.java#L1875-L1984)
 and [child-touch cancellation](https://github.com/aosp-mirror/platform_frameworks_base/blob/android-10.0.0_r47/core/java/android/view/ViewGroup.java#L2722-L2739)
 support this callback sequence. This is source analysis and a reproduced event
@@ -99,16 +109,20 @@ The slider is visually inspected in a rendered layout illustration using the
 production placement code and vector symbols. This is not an Android screenshot.
 The APK builds offline for API 29 with the existing signing key.
 
-Tablet acceptance remains necessary:
+Tablet checks for the current persistent bar remain necessary:
 
-1. Install `build/ink-notebook-0.18.apk` over the existing app; do not uninstall.
-2. Starting from the previous width, select 1.0 and release. Reopen the slider:
-   it should show 1.0. Repeat at 10.0, then at an intermediate width. Write dots
-   and curves after each selection; new strokes should have different widths.
+1. Install the current development APK with the matching signing identity over
+   the existing app; do not uninstall.
+2. Starting from the previous width, select 1.0 and release. Confirm the bar stays
+   open at 1.0. Adjust it again to 10.0, then to an intermediate width. Close and
+   reopen it to check the last applied value. Write dots and curves after each
+   selection; new strokes should have different widths.
    Existing strokes should retain their own widths. Check after an app restart too.
-3. Tap outside or press Back while open. Confirm the previous width remains and
-   no extra stroke appears. Try two fingers and confirm input resumes only once
-   both lift, using the original controlling finger's final value.
+3. Tap outside or press Back while open. Confirm the most recently applied
+   width remains. With the bar open, begin a new stroke
+   outside it and confirm the first stroke is accepted once. Try two fingers and
+   confirm input resumes only once both lift, using the original controlling
+   finger's final value.
 4. Move the toolbar near each screen edge and switch its orientation. The bar
    should remain visible and reachable, with static toolbar buttons during drag.
 5. Check reopening, scrolling, Eraser, Undo/Redo, and PDF export with mixed widths.

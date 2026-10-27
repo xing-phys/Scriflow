@@ -30,9 +30,16 @@ public final class NotebookBook {
     private boolean loadAttempted, loaded;
     private Navigation navigation;
     private PageChange pageChange;
+    private InkMove pendingInk;
     private final Deque<NotebookIndex.State> pageUndo = new ArrayDeque<>();
     private final Deque<NotebookIndex.State> pageRedo = new ArrayDeque<>();
     private NotebookScrollStore.State position, durablePosition, attemptedPosition, targetPosition;
+
+    /** One token is present at the corresponding history position of both participating pages. */
+    private static final class InkMove {
+        final int sourceSlot, destinationSlot;
+        InkMove(int sourceSlot, int destinationSlot) { this.sourceSlot = sourceSlot; this.destinationSlot = destinationSlot; }
+    }
 
     private static final class Navigation {
         final int target, count;
@@ -69,8 +76,8 @@ public final class NotebookBook {
 
     public NotebookPage current() { return document == null ? null : document.current(); }
     public IOException error() { return problem; }
-    public boolean canUndo() { return document != null && document.canUndo(); }
-    public boolean canRedo() { return document != null && document.canRedo(); }
+    public boolean canUndo() { return canChangeInkHistory(document, false); }
+    public boolean canRedo() { return canChangeInkHistory(document, true); }
     public int pageNumber() { return selected; }
     public int pageCount() { return count; }
     public NotebookScrollStore.State scrollPosition() { return position; }
@@ -176,7 +183,7 @@ public final class NotebookBook {
         return result[0];
     }
     public boolean undoOnPage(int number) throws IOException {
-        final boolean[] result = {false}; execute(() -> result[0] = targetDocument(number, false).undo()); return result[0];
+        return changeInkHistory(number, false);
     }
     public NotebookLasso.Selection editSelectionOnPage(int number, NotebookLasso.Selection selection,
             NotebookLasso.Action action, float dx, float dy) throws IOException {
@@ -191,16 +198,99 @@ public final class NotebookBook {
         return result[0];
     }
     public boolean redoOnPage(int number) throws IOException {
-        final boolean[] result = {false}; execute(() -> result[0] = targetDocument(number, false).redo()); return result[0];
+        return changeInkHistory(number, true);
     }
     public void setPageTemplate(int number, NotebookPage.Template template) throws IOException {
         execute(() -> targetDocument(number, false).setTemplate(template));
     }
     public boolean canUndoOnPage(int number) throws IOException {
-        final boolean[] result = {false}; execute(() -> result[0] = targetDocument(number, false).canUndo()); return result[0];
+        final boolean[] result = {false}; execute(() -> result[0] = canChangeInkHistory(targetDocument(number, false), false)); return result[0];
     }
     public boolean canRedoOnPage(int number) throws IOException {
-        final boolean[] result = {false}; execute(() -> result[0] = targetDocument(number, false).canRedo()); return result[0];
+        final boolean[] result = {false}; execute(() -> result[0] = canChangeInkHistory(targetDocument(number, false), true)); return result[0];
+    }
+
+    /** Transfer one selected group with a durable two-page journal and linked undo/redo. */
+    public NotebookLasso.Selection moveSelection(int sourceNumber, int destinationNumber,
+            NotebookLasso.Selection selection, float centerX, float centerY) throws IOException {
+        final NotebookLasso.Selection[] moved = {null};
+        execute(() -> {
+            requireLoaded(); requireWritable(); requirePageNumber(sourceNumber); requirePageNumber(destinationNumber);
+            if (selection == null) throw new IOException("Select ink before moving it");
+            NotebookDocument source = targetDocument(sourceNumber, true);
+            NotebookDocument destination = targetDocument(destinationNumber, true);
+            selection.validate(source.current());
+            if (selection.isEmpty()) { moved[0] = new NotebookLasso.Selection(destination.current().id, java.util.Collections.emptyList()); return; }
+            if (sourceNumber == destinationNumber) {
+                NotebookLasso.Bounds bounds = selection.bounds;
+                moved[0] = source.editSelection(selection, NotebookLasso.Action.MOVE,
+                    centerX - (bounds.left + bounds.right) / 2, centerY - (bounds.top + bounds.bottom) / 2);
+                return;
+            }
+            retryDocuments();
+            NotebookPage beforeSource = source.current(), beforeDestination = destination.current();
+            List<NotebookPage.Stroke> transferred = NotebookLasso.relocated(selection, beforeSource, beforeDestination, centerX, centerY);
+            java.util.Set<NotebookPage.Stroke> selected = new java.util.HashSet<>(selection.strokes);
+            List<NotebookPage.Stroke> kept = new ArrayList<>();
+            for (NotebookPage.Stroke stroke : beforeSource.strokes) if (!selected.contains(stroke)) kept.add(stroke);
+            List<NotebookPage.Stroke> combined = new ArrayList<>(beforeDestination.strokes); combined.addAll(transferred);
+            InkMove link = new InkMove(storageSlot(sourceNumber), storageSlot(destinationNumber));
+            publishInkMove(link, beforeSource, beforeSource.withStrokes(kept), beforeDestination,
+                beforeDestination.withStrokes(combined), 0);
+            moved[0] = new NotebookLasso.Selection(destination.current().id, transferred);
+        });
+        return moved[0];
+    }
+
+    private boolean canChangeInkHistory(NotebookDocument target, boolean forward) {
+        if (target == null || !(forward ? target.canRedo() : target.canUndo())) return false;
+        Object token = forward ? target.redoLink() : target.undoLink();
+        if (!(token instanceof InkMove)) return true;
+        InkMove move = (InkMove) token;
+        if (durableIndex == null || !durableIndex.slots.contains(move.sourceSlot) || !durableIndex.slots.contains(move.destinationSlot)) return false;
+        NotebookDocument source = documents.get(move.sourceSlot), destination = documents.get(move.destinationSlot);
+        return source != null && destination != null && (forward ? source.redoLink() : source.undoLink()) == token
+            && (forward ? destination.redoLink() : destination.undoLink()) == token;
+    }
+
+    private boolean changeInkHistory(int number, boolean forward) throws IOException {
+        final boolean[] changed = {false};
+        execute(() -> {
+            NotebookDocument target = targetDocument(number, false);
+            Object token = forward ? target.redoLink() : target.undoLink();
+            if (!(token instanceof InkMove)) { changed[0] = forward ? target.redo() : target.undo(); return; }
+            if (!canChangeInkHistory(target, forward)) return;
+            requireWritable(); retryDocuments();
+            InkMove move = (InkMove) token;
+            NotebookDocument source = documents.get(move.sourceSlot), destination = documents.get(move.destinationSlot);
+            publishInkMove(move, source.current(), source.historyTarget(forward), destination.current(),
+                destination.historyTarget(forward), forward ? 1 : -1);
+            changed[0] = true;
+        });
+        return changed[0];
+    }
+
+    private void publishInkMove(InkMove move, NotebookPage sourceBefore, NotebookPage sourceAfter,
+            NotebookPage destinationBefore, NotebookPage destinationAfter, int historyStep) throws IOException {
+        NotebookDocument source = documents.get(move.sourceSlot), destination = documents.get(move.destinationSlot);
+        source.validateLinked(sourceBefore, sourceAfter, move, historyStep);
+        destination.validateLinked(destinationBefore, destinationAfter, move, historyStep);
+        if (historyStep < 0) {
+            // Undo moves ink in the opposite direction: restore its receiving page first.
+            NotebookInkTransfer.prepare(directory, move.destinationSlot, move.sourceSlot,
+                destinationBefore, destinationAfter, sourceBefore, sourceAfter);
+        } else NotebookInkTransfer.prepare(directory, move.sourceSlot, move.destinationSlot,
+            sourceBefore, sourceAfter, destinationBefore, destinationAfter);
+        pendingInk = move;
+        source.stageLinked(sourceAfter, move, historyStep); destination.stageLinked(destinationAfter, move, historyStep);
+        finishInkMove();
+    }
+
+    private void finishInkMove() throws IOException {
+        NotebookInkTransfer.recover(directory);
+        if (pendingInk == null) return;
+        documents.get(pendingInk.sourceSlot).completeLinked(); documents.get(pendingInk.destinationSlot).completeLinked();
+        pendingInk = null;
     }
 
     /** Save once on a completed finger gesture; this never publishes the page-selection index. */
@@ -245,13 +335,13 @@ public final class NotebookBook {
 
     public boolean undo() throws IOException {
         final boolean[] changed = {false};
-        edit(() -> changed[0] = document.undo());
+        edit(() -> changed[0] = changeInkHistory(selected, false));
         return changed[0];
     }
 
     public boolean redo() throws IOException {
         final boolean[] changed = {false};
-        edit(() -> changed[0] = document.redo());
+        edit(() -> changed[0] = changeInkHistory(selected, true));
         return changed[0];
     }
 
@@ -352,6 +442,7 @@ public final class NotebookBook {
                 loadInitial();
                 return;
             }
+            if (pendingInk != null || NotebookInkTransfer.pending(directory)) finishInkMove();
             NotebookIndex.State disk = index.load();
             if (pageChange != null) {
                 if (!disk.equals(pageChange.before) && !disk.equals(pageChange.after))
@@ -372,6 +463,7 @@ public final class NotebookBook {
     }
 
     private void loadInitial() throws IOException {
+        NotebookInkTransfer.recover(directory);
         NotebookIndex.State state = index.load();
         durableIndex = state;
         selected = state.selectedPage;

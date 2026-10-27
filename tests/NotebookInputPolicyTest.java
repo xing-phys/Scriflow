@@ -20,15 +20,16 @@ public final class NotebookInputPolicyTest {
         guard.hover(true, 100);
         check(guard.rejectFingers(100000, false), "stationary nearby pen blocks touch even without more hover moves");
         guard.hover(false, 100000);
-        check(guard.rejectFingers(100599, false), "quiet period after hover exit");
-        check(!guard.rejectFingers(100600, false), "intentional navigation recovers after quiet period");
+        check(guard.rejectFingers(100199, false), "quiet period after hover exit");
+        check(!guard.rejectFingers(100200, false), "intentional navigation recovers after quiet period");
+        check(!guard.rejectFingers(100201, false), "navigation remains allowed after 200 ms");
         guard.penContact(true, 101000);
         check(guard.rejectFingers(200000, false), "long pen contact never times out");
         guard.penContact(false, 200000);
-        check(guard.rejectFingers(200599, false), "resting hand remains suppressed between strokes");
+        check(guard.rejectFingers(200199, false), "resting hand remains suppressed between strokes");
         guard.penSeen(200500);
-        check(guard.rejectFingers(201099, false), "Android pen sample renews protection before native callback");
-        check(!guard.rejectFingers(201100, false), "quiet period ends exactly once");
+        check(guard.rejectFingers(200699, false), "Android pen sample renews protection before native callback");
+        check(!guard.rejectFingers(200700, false), "quiet period ends exactly once");
         check(guard.rejectFingers(201200, true), "broad palm is rejected without a pen");
     }
 

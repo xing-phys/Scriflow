@@ -1,8 +1,8 @@
 package org.eink.inkprobe.notebook;
 
-/** Own one slider pointer, applying a choice only after every contact has lifted. */
+/** Own each slider gesture; completed choices become the baseline for the next adjustment. */
 final class NotebookPenSliderState {
-    private final float original;
+    private float committed;
     private final NotebookWidthRange range;
     private float width;
     private int pointer = -1;
@@ -10,7 +10,7 @@ final class NotebookPenSliderState {
 
     NotebookPenSliderState(float original) { this(NotebookWidthRange.PEN, original); }
     NotebookPenSliderState(NotebookWidthRange range, float original) {
-        this.range = range; this.original = width = range.restore(original);
+        this.range = range; this.committed = width = range.restore(original);
     }
     float width() { return width; }
     int pointer() { return pointer; }
@@ -18,7 +18,7 @@ final class NotebookPenSliderState {
 
     void begin(int id, boolean inside, float fraction) {
         active = true; accepted = inside; pointer = inside ? id : -1;
-        width = original;
+        width = committed;
         move(id, fraction);
     }
     void move(int id, float fraction) {
@@ -30,10 +30,16 @@ final class NotebookPenSliderState {
         if (id == pointer) pointer = -1;
     }
     void cancel() { accepted = false; pointer = -1; }
+    void choose(float chosenWidth) {
+        if (active) throw new IllegalStateException("Finish the slider contact before applying an accessibility choice");
+        committed = width = range.atFraction((chosenWidth - range.minimum) / (range.maximum - range.minimum));
+    }
     Float end(int id, float fraction, boolean cancelled) {
         if (!active) return null;
         move(id, fraction);
         Float choice = accepted && !cancelled ? width : null;
+        if (choice != null) committed = width;
+        else width = committed;
         active = false; accepted = false; pointer = -1;
         return choice;
     }

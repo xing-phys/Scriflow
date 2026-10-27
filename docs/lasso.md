@@ -1,112 +1,144 @@
-# Lasso selection — 0.29.0-dev.2
+# Lasso selection and cross-page movement
 
 The Lasso tool retains the native AHW drawing path. The supported firmware
-exposes `HandPenConfig.PEN_TYPE_DASH`; Lasso
-selects that brush at a fixed 2.5 viewport-pixel width in black. Pen and eraser
-retain their existing settings. No manual waveform override is introduced.
+exposes `HandPenConfig.PEN_TYPE_DASH`; Lasso selects that brush at a fixed
+2.5 viewport-pixel width in black. Normal Pen input keeps its direct native
+pipeline. No manual waveform override is introduced.
 
 During MOVE, the firmware draws the trail and the adapter captures primitive
-coordinates. There is no application Canvas drawing, invalidation, hit testing,
-history command, or file write. Native samples and standard Android pointer
-samples are captured independently; either observer's UP can complete selection.
+coordinates. There is no application Canvas drawing, hit testing, history command
+or file write for each lasso sample. Native samples and standard Android pointer
+samples are captured independently; either observer's UP can finish the region.
 When both arrive before restoration, native sample geometry is preferred, and
 cancellation from either observer wins. Android historical samples are included.
-No native edit/track-commit notification is required. This replaces dev.1's
-eraser-style completion gate, which made selection depend on a saved-track event.
+A native saved-track/edit notification is not required.
 
-After UP, native input is disabled and a short bounded check lets the widget's
-private track accumulator settle (16 ms steps, at most 16 checks). A persistently
-unsettled widget is retired through the existing replacement path; the selection
-and its original outline survive that replacement. The temporary native dash is
-never added to completed ink. Pause and tool changes discard partial gestures.
+After UP, native input is disabled and completion runs on the next input-queue
+turn, after the observer callback returns. The former 16 ms polling loop, which
+could wait up to 256 ms, is removed. The closed outline can be shown while the
+serialized writer calculates the selected strokes. Before restoring canonical
+ink, the existing native-accumulator check still refuses to reuse an unsettled
+widget; the editor replaces it safely while retaining the selection. The
+temporary native dash never becomes completed or saved ink. This removes an
+artificial wait; it does not establish zero processing or optical latency.
 
-Hit testing runs on the serialized document writer after UP. The polygon closes
-explicitly by appending the start coordinate, and the visible outline uses that
-same closed path. Hit testing uses an even-odd interior with its boundary included. Whole
-stroke centrelines must be enclosed. Segment intersections are checked, including
-sparse segments crossing concave regions; checking sample vertices alone would
-select those incorrectly. Collinear/empty gestures select nothing. Broad bounds
-reject distant strokes first. Selection currently targets the page where the
-gesture first touches paper; it does not span pages. A path entirely in a gap
-uses the centered page for empty-selection feedback.
+## Selecting a region
 
-The original closed curve stays visible, including when no whole strokes were
-selected. It is composed into the native widget's owned viewport background,
-separately from page/PDF/thumbnail rendering. A small nonmodal window beside the
-region displays the stroke count and Copy, Duplicate, Cut, Delete and Done.
-It stays within the viewport and avoids the main palette when space allows.
-An empty region says "No strokes selected"; only Done is actionable.
+The polygon closes explicitly by appending its first coordinate. The visible
+outline and hit testing use that same closed path. Hit testing uses an even-odd
+interior with the boundary included. Any centreline contact with the region
+selects the whole stroke. Segment intersections catch crossings even when both
+recorded endpoints lie outside, including concave regions and boundary touches. Collinear/empty
+gestures select nothing, and broad bounds reject distant strokes first.
 
-While the region exists, AHW stays disabled and its owned Android pointer stream
-handles both fingers and stylus. A pointer starting inside the curve moves the
-group. Old Android contacts from the lasso itself are ignored if native lift
-arrived first; an accepted drag still receives its UP/CANCEL while input is
-paused. Paper and unselected ink are cached in a bitmap, and pressure outlines of
-selected strokes are generated once at drag start. MOVE translates those cached
-paths and the closed outline, coalescing surface posts to a 32 ms interval. No
-native brush replay, hit testing or storage write occurs per drag MOVE. No frame
-timer runs while stationary. UP commits one shared offset clamped to the page;
-CANCEL, extra contacts, Back or Activity pause discard an unfinished move.
+Selection starts on the page first touched by the gesture. A polygon spanning
+several pages does not select ink from several pages at once. A path entirely
+in a gap uses the centred page for empty-selection feedback. The resulting
+single-page group can subsequently move to any page in the notebook.
 
-Done or a tap outside clears the region. Clear it before finger scrolling or
-drawing another lasso. With no region active, tapping the selected Lasso icon
-offers Paste and Select all. There are no marching ants, modal Move step, or
-manual display-waveform changes.
+The original curve remains visible even when no strokes were selected.
+It is composed separately from saved page/PDF/thumbnail ink. A small nonmodal
+window beside the region shows its stroke count and **Move…**, Copy, Duplicate,
+Cut, Delete and Done. It stays within the viewport and avoids the main palette
+when space allows. An empty region says "No strokes selected"; only Done is
+available.
+
+## Moving across pages
+
+While the region exists, AHW stays disabled and its Android pointer stream
+handles fingers and stylus. Starting inside the curve moves the group. Old
+contacts from drawing the lasso itself cannot start a drag, and an accepted
+pointer still receives UP/CANCEL while native input is paused.
+
+The group floats under its original grab point without stopping at source-page
+edges. Its logical dimensions and pressure geometry stay intact; its screen
+scale follows the destination paper's fitted scale. Hold near the top or bottom
+edge to scroll through further pages. Edge scrolling uses a bounded ramp every
+40 ms while needed. It stops when the pointer leaves the edge band, reaches a
+document boundary, or the drag ends.
+
+Selected native pressure paths are cached once for the drag. Nearby page
+backgrounds are cached with the selected source strokes excluded; high zoom
+uses bounded viewport rendering. Pointer previews and asynchronous page/PDF
+loads update the visible background without writing document data per MOVE.
+
+Lift over a destination to save the move. The nearest page is used when the
+pointer lies in a page gap. The shared offset fits the complete group inside
+that page; it does not clip strokes or shrink them to fit. A destination smaller
+than the selected group's bounds rejects the move and retains the original ink.
+CANCEL, Back or Activity pause discards an unfinished move. Additional contacts
+cannot accidentally commit a jump; a two-finger navigation gesture clears the
+selection and hands over to navigation.
+
+**Move…** offers an alternative for distant destinations. Choose a page number,
+using the number controls, and move the group to that page's centre. The same
+complete-group size check applies. Done or a tap outside clears the region for
+ordinary scrolling or drawing another lasso. With no region active, tapping the
+selected Lasso icon offers Paste and Select all.
+
+Finger navigation and finger dragging still obey palm rejection: they are
+blocked while the pen is down/hovering and for **200 ms (0.2 seconds)** after the last pen
+contact/hover event, including hover exit. Continuing to hover keeps them
+blocked. This interval is independent of closing the lasso on UP.
+
+## Saving, recovery and history
 
 `NotebookLasso` holds immutable selection/clipboard snapshots. Edits reject a
-selection from another page or a changed stroke snapshot. Move retains object
-IDs and original stroke order; duplicate/paste creates new IDs. Copy preserves
-the original samples even if the source later moves or is deleted. The clipboard
-stays in the process-wide session and is neither persisted nor shared with Android
-apps. Paste does not scale ink to fit a smaller page.
+selection from another page or a changed stroke snapshot. Moving keeps stroke
+IDs, pressure, timing, colour and captured width/scale; duplicate/paste creates
+new IDs. Copy preserves the original samples even if the source later moves or
+is deleted. The private clipboard lasts only for the app process and is not
+shared with Android apps. Paste does not scale ink to fit a smaller page.
 
-`NotebookEdits`, `NotebookDocument`, `NotebookBook`, `NotebookLibrary`, and
-`NotebookSession` route each edit through the existing per-page history and
-validated snapshot publication/retry path. No schema or migration is needed.
-No-op moves preserve redo. Clipboard/select operations do not create history
-entries or write page data. Navigation, tool changes, Back, and history
-actions clear selection; Activity pause also clears it.
+A same-page move uses the existing per-page save/history path. A cross-page
+move validates both participants and publishes a recovery journal before
+changing either saved page. The receiving page is saved before the outgoing
+copy is removed. Interrupted publication is completed on retry or process
+restart, preserving the entire moved group. Unexpected page changes or a corrupt
+journal fail closed instead of overwriting unrelated writing. This is recovery
+from application interruption, not a claim of hardware power-loss durability.
 
-## Verification
+One cross-page move is one linked Undo/Redo action on both pages. Undoing from
+either participant restores both sides together; redo reapplies both. Later
+edits on either page must be undone first, so a linked action cannot overwrite
+newer writing. The pairing follows stable page slots through page reordering.
+Undo/Redo history remains process-local, with the existing per-page limit;
+the recovery journal survives process death, but editing history does not.
 
-`./scripts/test.sh` includes lasso geometry, dots, boundary contact, sparse
-concavity crossings, self-crossing loops, move clamping, pressure/time/ID
-preservation, stale selections, grouped undo/redo, fresh/repeated copy IDs,
-oversized clipboard rejection, cross-page commands, exact disk preservation
-on selection, reopening, and failed-delete recovery with retained history.
-`NotebookLassoInteractionTest` also exercises explicit closure without native
-commit callbacks, both pointer observer orders, native-sample preference,
-cancellation precedence, capture reuse/growth, finger/stylus pointer ownership,
-late/paused-stream delivery, tap jitter, mixed-contact cancellation, drag previews without disk changes,
-one-edit release, outline/ink offsets, empty feedback and bounded action placement.
-The eraser retains its separate temporary-track ordering regressions.
+No-op same-page moves preserve redo. Selecting, copying and deselecting do not
+change history or saved files. Navigation, tool changes, Back and history actions
+clear the selection; Activity pause clears it too. No page or editable-backup
+format migration is required for cross-page movement.
 
-Host tests, standalone APK build, Gradle debug/release assembly, and lint passed
-on 2026-10-26. The owner reported smooth native dashes and working page management
-in dev.1, but unusable selection after lift. After testing the signed dev.2 APK,
-the owner confirmed that it works well and authorized release. This general
-acceptance does not establish measured drag latency or individual results for
-every operation; see the [device record](device-testing.md).
+## Verification and tablet acceptance
 
-## Tablet acceptance
+Host tests cover lasso geometry, dots, boundaries, sparse concavity crossings,
+explicit closure without native saved-track notifications, both observer orders,
+cancellation precedence, stale/paused pointer streams and preview isolation.
+Cross-page geometry checks include mixed paper sizes, zoom, pan, page gaps,
+grab anchoring, distant destinations, oversized rejection and bounded edge
+scrolling. Real-file transfer checks cover identities/styles, paired history,
+intervening edits, page reordering, retained queued ink, interrupted publication
+and restart recovery.
 
-1. Install the development APK as an update with the matching signing identity.
-   Use a disposable test page and preserve backups of important notes.
-2. Write several strokes, including a dot, a long line, and pressure variation.
-   Circle a subset in Lasso, deliberately leaving a gap at the end. Confirm the
-   curve visibly closes on lift and shows nearby actions. Crossing strokes stay
-   unselected. Circle blank space and confirm the closed empty region gives feedback.
-3. Drag inside the curve using a finger, then the stylus. Confirm the preview
-   follows movement and the group lands together,
-   clamps at all page edges, and retains thickness/pressure appearance. Check
-   Undo/Redo restores the whole action in one step.
-4. Duplicate, copy, cut, delete, and paste. Copy before moving/deleting the source;
-   paste onto another page and notebook. Repeated paste must produce independent
-   ink. Undo separately on source and destination pages.
-5. Tap outside, then scroll; switch tools/pages, press Back, and background/resume
-   during a partial lasso. Confirm no dashed trail is saved or exported, no
-   unfinished move changes ink, and writing resumes with the previous pen width.
-   Add a second contact during a drag and verify cancellation without a jump.
-6. Check blank/lined paper, horizontal/vertical tool strips, tool movement, and
-   immediate switching between writing, lasso and scrolling. Physical acceptance
-   must assess lag, ghosting, flashes, and stalls on the supported firmware.
+Earlier lasso interaction was accepted on the tablet in 0.29.0-dev.2. That
+historical feedback does not establish physical acceptance of current cross-page
+movement, edge-scrolling performance or closure timing. Automated/synthetic
+checks do not measure tip-to-display latency or prove the absence of optical
+refresh artifacts. See the [device record](device-testing.md) for current results.
+
+On disposable notes, check:
+
+1. Draw open-ended loops around lines and dots. Confirm the curve closes on
+   lift; crossing strokes remain unselected and empty regions give feedback.
+2. Drag with both stylus and finger across adjacent pages, page gaps, and pages
+   of different sizes/zoom. Hold at both screen edges to reach distant pages.
+3. Try Move… to a distant page, a group that exactly fits, and a destination too
+   small for the group. Confirm no clipping, lost ink or silent scaling.
+4. Cancel during a drag, add a second contact, press Back, and background/resume.
+   No unfinished preview should change saved ink.
+5. Undo/Redo from either participant, including after later ink edits. Close and
+   reopen, then inspect PDF/backup output to confirm the saved destination.
+6. Compare blank/lined/PDF backgrounds and dense notes for lag, flashes, ghosting
+   and stalls. Repeat immediate writing, erasing and navigation with normal pen
+   pressure; live handwriting must keep its established native path.

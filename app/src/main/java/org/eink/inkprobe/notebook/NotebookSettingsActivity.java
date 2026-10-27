@@ -3,13 +3,9 @@ package org.eink.inkprobe.notebook;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
-import android.text.Editable;
-import android.text.InputType;
-import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
-import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -63,10 +59,10 @@ public final class NotebookSettingsActivity extends NotebookDisplayActivity {
         hint(body, "Number of page thumbnails in each row.");
         LinearLayout pageRow = row();
         pageRow.addView(label("Portrait", 13), new LinearLayout.LayoutParams(0, dp(36), 1));
-        pageRow.addView(number("pageColumns", false, NotebookSettings.pageColumns(this, false)), new LinearLayout.LayoutParams(dp(54), dp(34)));
+        pageRow.addView(number("pageColumns", false, NotebookSettings.pageColumns(this, false)), new LinearLayout.LayoutParams(dp(104), dp(34)));
         TextView landscape = label("Landscape", 13); landscape.setPadding(dp(12), 0, 0, 0);
         pageRow.addView(landscape, new LinearLayout.LayoutParams(0, dp(36), 1));
-        pageRow.addView(number("pageColumns", true, NotebookSettings.pageColumns(this, true)), new LinearLayout.LayoutParams(dp(54), dp(34)));
+        pageRow.addView(number("pageColumns", true, NotebookSettings.pageColumns(this, true)), new LinearLayout.LayoutParams(dp(104), dp(34)));
         body.addView(pageRow);
 
         section(body, "Screen");
@@ -99,30 +95,41 @@ public final class NotebookSettingsActivity extends NotebookDisplayActivity {
         LinearLayout line = row();
         line.addView(label(landscape ? "Landscape" : "Portrait", 13), new LinearLayout.LayoutParams(0, dp(38), 1));
         line.addView(label("Rows ", 12));
-        line.addView(number("shelfRows", landscape, NotebookSettings.bookshelfRows(this, landscape)), new LinearLayout.LayoutParams(dp(54), dp(34)));
+        line.addView(number("shelfRows", landscape, NotebookSettings.bookshelfRows(this, landscape)), new LinearLayout.LayoutParams(dp(104), dp(34)));
         line.addView(label("  Columns ", 12));
-        line.addView(number("shelfColumns", landscape, NotebookSettings.bookshelfColumns(this, landscape)), new LinearLayout.LayoutParams(dp(54), dp(34)));
+        line.addView(number("shelfColumns", landscape, NotebookSettings.bookshelfColumns(this, landscape)), new LinearLayout.LayoutParams(dp(104), dp(34)));
         body.addView(line);
     }
 
-    private EditText number(String kind, boolean landscape, int value) {
-        EditText field = new EditText(this, null, 0); field.setSingleLine(true);
-        field.setTextSize(13); field.setTextColor(Color.BLACK); field.setGravity(Gravity.CENTER);
-        field.setPadding(dp(4), 0, dp(4), 0); field.setBackground(NotebookUi.border(getResources().getDisplayMetrics().density));
-        field.setInputType(InputType.TYPE_CLASS_NUMBER); field.setSelectAllOnFocus(true); field.setText(String.valueOf(value));
-        field.setContentDescription((landscape ? "Landscape " : "Portrait ")
-            + (kind.equals("shelfRows") ? "bookshelf rows" : kind.equals("shelfColumns") ? "bookshelf columns" : "page overview columns"));
-        field.addTextChangedListener(new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
-            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { }
-            @Override public void afterTextChanged(Editable text) {
-                try {
-                    NotebookSettings.setGridPreference(NotebookSettingsActivity.this, kind, landscape, Integer.parseInt(text.toString()));
-                    field.setError(null);
-                } catch (IllegalArgumentException error) { field.setError(kind.equals("pageColumns") ? "Choose 2–12" : "Choose 1–12"); }
-            }
+    private LinearLayout number(String kind, boolean landscape, int value) {
+        final int minimum = kind.equals("pageColumns") ? 2 : 1;
+        final int[] current = {value};
+        String name = (landscape ? "Landscape " : "Portrait ")
+            + (kind.equals("shelfRows") ? "bookshelf rows" : kind.equals("shelfColumns") ? "bookshelf columns" : "page overview columns");
+        LinearLayout control = row(); control.setPadding(dp(1), dp(1), dp(1), dp(1));
+        control.setBackground(NotebookUi.border(getResources().getDisplayMetrics().density));
+        TextView number = label(String.valueOf(value), 13); number.setGravity(Gravity.CENTER);
+        NotebookButton decrease = button("−", () -> { });
+        NotebookButton increase = button("+", () -> { });
+        decrease.setTextSize(18); increase.setTextSize(18);
+        decrease.setGravity(Gravity.CENTER); increase.setGravity(Gravity.CENTER);
+        decrease.setContentDescription("Decrease " + name); increase.setContentDescription("Increase " + name);
+        Runnable update = () -> {
+            number.setText(String.valueOf(current[0])); number.setContentDescription(name + ": " + current[0]);
+            decrease.setAvailable(current[0] > minimum); increase.setAvailable(current[0] < 12);
+        };
+        decrease.setOnClickListener(view -> {
+            if (current[0] <= minimum) return;
+            NotebookSettings.setGridPreference(this, kind, landscape, --current[0]); update.run();
         });
-        return field;
+        increase.setOnClickListener(view -> {
+            if (current[0] >= 12) return;
+            NotebookSettings.setGridPreference(this, kind, landscape, ++current[0]); update.run();
+        });
+        control.addView(decrease, new LinearLayout.LayoutParams(dp(32), -1));
+        control.addView(number, new LinearLayout.LayoutParams(0, -1, 1));
+        control.addView(increase, new LinearLayout.LayoutParams(dp(32), -1));
+        update.run(); return control;
     }
 
     @Override protected void onResume() { super.onResume(); updateChoices(); }

@@ -270,6 +270,17 @@ public final class NotebookLibrary {
                         "book.nbi", "book.nbi.bak", "book.nbi.tmp", "scroll.nbs", "scroll.nbs.bak", "scroll.nbs.tmp",
                         "outline.nbo", "outline.nbo.bak", "outline.nbo.tmp", "source.pdf", "navigation.cache",
                         "navigation.cache.tmp", "pages", "restore.owner"}) deleteFiles(new File(target, name));
+                File[] children = target.listFiles();
+                if (children == null) throw new IOException("Cannot inspect notebook transaction files for deletion");
+                for (File child : children) {
+                    String name = child.getName();
+                    if (name.equals(NotebookInkTransfer.PENDING)) { deleteFiles(child); continue; }
+                    String suffix = name.startsWith("ink-transfer.staging-") ? name.substring("ink-transfer.staging-".length())
+                        : name.startsWith("ink-transfer.completed-") ? name.substring("ink-transfer.completed-".length()) : "";
+                    try {
+                        if (java.util.UUID.fromString(suffix).toString().equals(suffix)) deleteFiles(child);
+                    } catch (IllegalArgumentException ignored) { /* Unrelated root files are preserved. */ }
+                }
             } else deleteFiles(target);
             List<NotebookCatalog.Entry> entries = new ArrayList<>(state.entries);
             entries.set(entry.id - 1, new NotebookCatalog.Entry(entry.id, "Deleted notebook", 0, NotebookCatalog.PURGED));
@@ -334,6 +345,12 @@ public final class NotebookLibrary {
             NotebookLasso.Action action, float dx, float dy) throws IOException {
         final NotebookLasso.Selection[] result = {null};
         edit(() -> result[0] = book.editSelectionOnPage(number, selection, action, dx, dy));
+        return result[0];
+    }
+    public NotebookLasso.Selection moveSelection(int source, int destination, NotebookLasso.Selection selection,
+            float centerX, float centerY) throws IOException {
+        final NotebookLasso.Selection[] result = {null};
+        edit(() -> result[0] = book.moveSelection(source, destination, selection, centerX, centerY));
         return result[0];
     }
     public NotebookLasso.Selection pasteOnPage(int number, NotebookLasso.Clipboard clipboard,

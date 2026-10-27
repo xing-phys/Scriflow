@@ -39,7 +39,7 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
     private GridView rows;
     private TextView path;
     private NotebookButton trashButton, folderButton;
-    private int currentFolder, thumbnailHeight;
+    private int currentFolder, thumbnailHeight, shelfRevision;
     private boolean inTrash, thumbnails;
     private final List<Object> items = new ArrayList<>();
     private final ShelfAdapter adapter = new ShelfAdapter();
@@ -97,6 +97,14 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         rows.setSelector(new ColorDrawable(Color.TRANSPARENT)); rows.setDrawSelectorOnTop(false);
         rows.setHorizontalSpacing(dp(6)); rows.setVerticalSpacing(dp(2));
         rows.setOverScrollMode(View.OVER_SCROLL_NEVER); rows.setScrollingCacheEnabled(false);
+        rows.setDefaultFocusHighlightEnabled(false);
+        rows.setOnItemClickListener((parent, view, position, id) -> {
+            if (position >= 0 && position < items.size()) openShelfItem(items.get(position));
+        });
+        rows.setOnItemLongClickListener((parent, view, position, id) -> {
+            if (position >= 0 && position < items.size()) manageShelfItem(items.get(position));
+            return true;
+        });
         rows.setOnScrollListener(new AbsListView.OnScrollListener() {
             @Override public void onScrollStateChanged(AbsListView view, int state) { schedulePreviews(); }
             @Override public void onScroll(AbsListView view, int first, int visible, int total) { schedulePreviews(); }
@@ -145,7 +153,7 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
     }
 
     private void render() {
-        clearPreviews(); items.clear();
+        clearPreviews(); items.clear(); ++shelfRevision;
         if (currentFolder != 0 && !hasFolder(currentFolder)) currentFolder = 0;
         thumbnails = !inTrash && NotebookSettings.bookshelfView(this) == NotebookSettings.BookshelfView.THUMBNAILS;
         int columns = thumbnails ? NotebookSettings.bookshelfColumns(this, NotebookSettings.landscape(this))
@@ -282,51 +290,109 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         thumbnail.setContentDescription("Open notebook " + entry.name);
     }
 
+    private void openShelfItem(Object item) {
+        if (!canAct()) return;
+        if (item instanceof NotebookCatalog.Folder) navigate(((NotebookCatalog.Folder) item).id, false);
+        else if (item instanceof NotebookCatalog.Entry) {
+            NotebookCatalog.Entry entry = (NotebookCatalog.Entry) item;
+            if (entry.status == NotebookCatalog.ACTIVE) openNotebook(entry.id); else notebookActions(entry);
+        }
+    }
+
+    private void manageShelfItem(Object item) {
+        if (!canAct()) return;
+        if (item instanceof NotebookCatalog.Folder) folderActions((NotebookCatalog.Folder) item);
+        else if (item instanceof NotebookCatalog.Entry) notebookActions((NotebookCatalog.Entry) item);
+    }
+
+    /** Rebind data without replacing pressed children when GridView relays out its first cell. */
+    private final class ShelfCell extends LinearLayout {
+        final int type;
+        private final LinearLayout title;
+        private final NotebookButton nameButton, menu;
+        private final View preview;
+        private int boundRevision = -1;
+
+        ShelfCell(int type) {
+            super(NotebookLibraryActivity.this);
+            this.type = type;
+            setOrientation(LinearLayout.VERTICAL); setBackgroundColor(Color.WHITE);
+            setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
+            if (type == 1) {
+                TextView image = label("", 13); image.setGravity(Gravity.CENTER);
+                image.setBackground(NotebookUi.border(getResources().getDisplayMetrics().density)); preview = image;
+            } else if (type == 2) {
+                NotebookPageThumbnail image = new NotebookPageThumbnail(NotebookLibraryActivity.this);
+                image.setLabelVisible(false); preview = image;
+            } else preview = null;
+            if (preview != null) {
+                preview.setOnClickListener(v -> openShelfItem(getTag()));
+                preview.setOnLongClickListener(v -> { manageShelfItem(getTag()); return true; });
+                addView(preview, new LinearLayout.LayoutParams(-1, 0, 1));
+            }
+            title = new LinearLayout(NotebookLibraryActivity.this); title.setGravity(Gravity.CENTER_VERTICAL);
+            nameButton = button("", () -> openShelfItem(getTag()));
+            nameButton.setSingleLine(true); nameButton.setEllipsize(TextUtils.TruncateAt.END);
+            nameButton.setGravity(Gravity.START | Gravity.CENTER_VERTICAL); nameButton.setTextSize(type == 0 ? 14 : 12);
+            nameButton.setOnLongClickListener(v -> { manageShelfItem(getTag()); return true; });
+            title.addView(nameButton, new LinearLayout.LayoutParams(0, -1, 1));
+            menu = button("⋮", () -> manageShelfItem(getTag())); menu.setTextSize(18);
+            title.addView(menu, new LinearLayout.LayoutParams(dp(30), -1));
+            addView(title, new LinearLayout.LayoutParams(-1, type == 0 ? 0 : dp(28), type == 0 ? 1 : 0));
+            if (type == 0) {
+                View line = new View(NotebookLibraryActivity.this); line.setBackgroundColor(0xffcccccc);
+                addView(line, new LinearLayout.LayoutParams(-1, dp(1)));
+            }
+        }
+
+        void bind(Object item) {
+            int height = type == 0 ? dp(40) : thumbnailHeight > 0 ? thumbnailHeight : dp(96);
+            ViewGroup.LayoutParams parameters = getLayoutParams();
+            if (getTag() == item && boundRevision == shelfRevision && parameters != null && parameters.height == height) return;
+            setTag(item); boundRevision = shelfRevision;
+            if (parameters == null) setLayoutParams(new AbsListView.LayoutParams(-1, height));
+            else if (parameters.height != height) { parameters.height = height; setLayoutParams(parameters); }
+            boolean folder = item instanceof NotebookCatalog.Folder;
+            String name = folder ? ((NotebookCatalog.Folder) item).name : ((NotebookCatalog.Entry) item).name;
+            String shown = (folder && type == 0 ? "▸ " : "") + name;
+            if (!shown.contentEquals(nameButton.getText())) nameButton.setText(shown);
+            nameButton.setContentDescription((folder ? "Open folder " : inTrash ? "Manage deleted notebook " : "Open notebook ") + name);
+            menu.setContentDescription("Manage " + (folder ? "folder " : "notebook ") + name);
+            if (type != 0) {
+                LinearLayout.LayoutParams titleLayout = (LinearLayout.LayoutParams) title.getLayoutParams();
+                int titleHeight = Math.min(dp(28), Math.max(1, height / 3));
+                if (titleLayout.height != titleHeight) { titleLayout.height = titleHeight; title.setLayoutParams(titleLayout); }
+                if (folder) {
+                    int count = 0;
+                    for (NotebookCatalog.Entry entry : session.entries())
+                        if (entry.folderId == ((NotebookCatalog.Folder) item).id && entry.status == NotebookCatalog.ACTIVE) count++;
+                    TextView image = (TextView) preview;
+                    String summary = "Folder\n" + count + " notebooks";
+                    if (!summary.contentEquals(image.getText())) image.setText(summary);
+                    image.setContentDescription("Open folder " + name);
+                } else bindPreview((NotebookPageThumbnail) preview, (NotebookCatalog.Entry) item);
+            }
+        }
+    }
+
     private final class ShelfAdapter extends BaseAdapter {
         @Override public int getCount() { return items.size(); }
         @Override public Object getItem(int position) { return items.get(position); }
+        @Override public boolean hasStableIds() { return true; }
         @Override public long getItemId(int position) {
             Object item = items.get(position);
-            return item instanceof NotebookCatalog.Folder ? -((NotebookCatalog.Folder) item).id : ((NotebookCatalog.Entry) item).id;
+            return item instanceof NotebookCatalog.Folder ? 2L * ((NotebookCatalog.Folder) item).id + 1
+                : 2L * ((NotebookCatalog.Entry) item).id;
+        }
+        @Override public int getViewTypeCount() { return 3; }
+        @Override public int getItemViewType(int position) {
+            return !thumbnails ? 0 : items.get(position) instanceof NotebookCatalog.Folder ? 1 : 2;
         }
         @Override public View getView(int position, View recycled, ViewGroup parent) {
-            Object item = items.get(position);
-            boolean folder = item instanceof NotebookCatalog.Folder;
-            String name = folder ? ((NotebookCatalog.Folder) item).name : ((NotebookCatalog.Entry) item).name;
-            Runnable open = () -> {
-                if (folder) navigate(((NotebookCatalog.Folder) item).id, false);
-                else if (inTrash) notebookActions((NotebookCatalog.Entry) item);
-                else openNotebook(((NotebookCatalog.Entry) item).id);
-            };
-            Runnable manage = () -> { if (folder) folderActions((NotebookCatalog.Folder) item); else notebookActions((NotebookCatalog.Entry) item); };
-            LinearLayout cell = recycled instanceof LinearLayout ? (LinearLayout) recycled : new LinearLayout(NotebookLibraryActivity.this);
-            cell.removeAllViews(); cell.setOrientation(LinearLayout.VERTICAL); cell.setBackgroundColor(Color.WHITE); cell.setTag(item);
-            cell.setLayoutParams(new AbsListView.LayoutParams(-1, thumbnails ? thumbnailHeight > 0 ? thumbnailHeight : dp(96) : dp(40)));
-            if (thumbnails) {
-                View preview;
-                if (folder) {
-                    int count = 0;
-                    for (NotebookCatalog.Entry entry : session.entries()) if (entry.folderId == ((NotebookCatalog.Folder) item).id && entry.status == NotebookCatalog.ACTIVE) count++;
-                    TextView image = label("Folder\n" + count + " notebooks", 13); image.setGravity(Gravity.CENTER);
-                    image.setBackground(NotebookUi.border(getResources().getDisplayMetrics().density)); preview = image;
-                } else {
-                    NotebookPageThumbnail image = new NotebookPageThumbnail(NotebookLibraryActivity.this); image.setLabelVisible(false);
-                    bindPreview(image, (NotebookCatalog.Entry) item); preview = image;
-                }
-                preview.setOnClickListener(v -> open.run()); preview.setOnLongClickListener(v -> { manage.run(); return true; });
-                cell.addView(preview, new LinearLayout.LayoutParams(-1, 0, 1));
-            }
-            LinearLayout title = new LinearLayout(NotebookLibraryActivity.this); title.setGravity(Gravity.CENTER_VERTICAL);
-            NotebookButton nameButton = button((folder && !thumbnails ? "▸ " : "") + name, open);
-            nameButton.setSingleLine(true); nameButton.setEllipsize(TextUtils.TruncateAt.END);
-            nameButton.setGravity(Gravity.START | Gravity.CENTER_VERTICAL); nameButton.setTextSize(thumbnails ? 12 : 14);
-            nameButton.setOnLongClickListener(v -> { manage.run(); return true; });
-            title.addView(nameButton, new LinearLayout.LayoutParams(0, -1, 1));
-            NotebookButton menu = button("⋮", manage); menu.setTextSize(18); menu.setContentDescription("Manage " + (folder ? "folder " : "notebook ") + name);
-            title.addView(menu, new LinearLayout.LayoutParams(dp(30), -1));
-            cell.addView(title, new LinearLayout.LayoutParams(-1, thumbnails ? Math.min(dp(28), Math.max(1, thumbnailHeight / 3)) : 0, thumbnails ? 0 : 1));
-            if (!thumbnails) { View line = new View(NotebookLibraryActivity.this); line.setBackgroundColor(0xffcccccc); cell.addView(line, new LinearLayout.LayoutParams(-1, dp(1))); }
-            schedulePreviews(); return cell;
+            int type = getItemViewType(position);
+            ShelfCell cell = recycled instanceof ShelfCell && ((ShelfCell) recycled).type == type
+                ? (ShelfCell) recycled : new ShelfCell(type);
+            cell.bind(items.get(position)); schedulePreviews(); return cell;
         }
     }
 
