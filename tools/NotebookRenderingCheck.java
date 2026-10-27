@@ -18,6 +18,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 import org.json.JSONObject;
+import org.json.JSONArray;
 
 /** Headless firmware regression: synthetic geometry only; never opens a notebook or a display surface. */
 public final class NotebookRenderingCheck {
@@ -68,12 +69,16 @@ public final class NotebookRenderingCheck {
         result.put("pdfHeavyWidth", band(pdfBitmap, 600, 210));
         result.put("outlineLifetimeAndCancellation", reuseAndCancellation(page));
         result.put("parallelReplay", parallelReplay(page));
+        result.put("captureScale", scaledReplay(directory, page, nativeReplay));
+        result.put("transparentNativePlaceholders", transparentTracks(page));
         boolean passed = result.getJSONObject("nativeVsCanvas").getInt("outsideOnePixel") == 0
             && result.getJSONObject("nativeVsPdf").getInt("outsideOnePixel") == 0
             && Math.abs(result.getInt("nativeLightWidth") - result.getInt("pdfLightWidth")) <= 1
             && Math.abs(result.getInt("nativeHeavyWidth") - result.getInt("pdfHeavyWidth")) <= 1
             && result.getInt("pdfHeavyWidth") > result.getInt("pdfLightWidth")
-            && result.getBoolean("parallelReplay");
+            && result.getBoolean("parallelReplay")
+            && result.getJSONObject("captureScale").getBoolean("passed")
+            && result.getBoolean("transparentNativePlaceholders");
         result.put("passed", passed);
         try (FileOutputStream output = new FileOutputStream(new File(directory, "result.json"))) {
             output.write(result.toString(2).getBytes(StandardCharsets.UTF_8));
@@ -150,6 +155,56 @@ public final class NotebookRenderingCheck {
             for (java.util.concurrent.Future<Boolean> job : jobs) if (!job.get(30, java.util.concurrent.TimeUnit.SECONDS)) return false;
             return true;
         } finally { pool.shutdownNow(); }
+    }
+
+    /** Same physical native input, stored at several logical page scales and exported again. */
+    private static JSONObject scaledReplay(File directory, NotebookPage nativePage, Bitmap reference) throws Exception {
+        JSONArray checks = new JSONArray(); boolean passed = true;
+        for (float captureScale : new float[]{.5f, .75f, 1.125f, 1.5f, 2f}) {
+            List<NotebookPage.Stroke> logical = new ArrayList<>();
+            for (NotebookPage.Stroke stroke : nativePage.strokes) {
+                List<NotebookPage.Point> points = new ArrayList<>();
+                for (NotebookPage.Point p : stroke.points)
+                    points.add(point(p.x / captureScale, p.y / captureScale, p.time, p.pressure));
+                logical.add(new NotebookPage.Stroke(stroke.penType, stroke.width / captureScale,
+                    stroke.color, points, captureScale, stroke.width));
+            }
+            NotebookPage page = NotebookPage.empty().withSize(Math.round(WIDTH / captureScale),
+                (int) Math.ceil(HEIGHT / captureScale)).withStrokes(logical);
+            Bitmap bitmap = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888);
+            Canvas canvas = new Canvas(bitmap); canvas.drawColor(Color.WHITE); canvas.scale(captureScale, captureScale);
+            Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            for (NotebookPage.Stroke stroke : page.strokes) NotebookStrokeRenderer.draw(canvas, stroke, paint);
+            JSONObject check = new JSONObject(); check.put("captureScale", captureScale);
+            check.put("canvas", compare(reference, bitmap));
+            File pdf = new File(directory, "capture-scale-" + captureScale + ".pdf");
+            try (FileOutputStream output = new FileOutputStream(pdf)) {
+                NotebookPdf.write(output, "Capture-space pressure regression", 1, number -> page, null,
+                    NotebookStrokeRenderer::outline);
+            }
+            bitmap.eraseColor(Color.WHITE);
+            try (ParcelFileDescriptor descriptor = ParcelFileDescriptor.open(pdf, ParcelFileDescriptor.MODE_READ_ONLY);
+                    PdfRenderer renderer = new PdfRenderer(descriptor); PdfRenderer.Page pdfPage = renderer.openPage(0)) {
+                Matrix matrix = new Matrix(); matrix.setScale((float) (WIDTH / 595.2756), (float) (WIDTH / 595.2756));
+                pdfPage.render(bitmap, null, matrix, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+            }
+            check.put("pdf", compare(reference, bitmap));
+            passed &= check.getJSONObject("canvas").getInt("outsideOnePixel") == 0
+                && check.getJSONObject("pdf").getInt("outsideOnePixel") == 0;
+            checks.put(check); bitmap.recycle();
+        }
+        JSONObject result = new JSONObject(); result.put("checks", checks); result.put("passed", passed); return result;
+    }
+
+    private static boolean transparentTracks(NotebookPage page) throws Exception {
+        List<NotebookPage.Stroke> tracks = new ArrayList<>();
+        for (NotebookPage.Stroke stroke : page.strokes)
+            tracks.add(new NotebookPage.Stroke(stroke.penType, stroke.width, Color.TRANSPARENT, stroke.points));
+        Bitmap bitmap = paper(page);
+        reference(new Canvas(bitmap), page.withStrokes(tracks));
+        for (int y = 0; y < HEIGHT; y++) for (int x = 0; x < WIDTH; x++)
+            if (bitmap.getPixel(x, y) != Color.WHITE) throw new IllegalStateException("Native transparent track repainted visible ink");
+        bitmap.recycle(); return true;
     }
 
     private static Bitmap paper(NotebookPage page) {

@@ -15,6 +15,9 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookTasks.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookTransform.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPage.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookPageCatalog.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookPdfTiles.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookPdfStaging.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookOutline.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookViewHistory.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookLinkTapGesture.java \
@@ -58,6 +61,10 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   tests/NotebookIndexTest.java tests/NotebookBookTest.java \
   tests/NotebookPageManagementTest.java \
   tests/NotebookPdfModelTest.java \
+  tests/NotebookPdfTilesTest.java \
+  tests/NotebookPageCatalogTest.java \
+  tests/NotebookPdfStagingTest.java \
+  tests/NotebookViewHistoryTest.java \
   tests/NotebookLinkTapGestureTest.java \
   tests/NotebookCatalogTest.java tests/NotebookLibraryTest.java tests/NotebookPaperSizeTest.java \
   tests/NotebookViewportTest.java tests/NotebookViewportZoomTest.java tests/NotebookScrollStoreTest.java \
@@ -65,7 +72,8 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   tests/NotebookPdfTest.java tests/NotebookOutlineFixture.java tests/NotebookStrokeOutlineTest.java tests/NotebookOverlayClipTest.java \
   tests/NotebookToolStripTest.java tests/NotebookGripGestureTest.java tests/NotebookDeviceStatusStateTest.java \
   tests/NotebookPenConfigTest.java tests/NotebookPenSliderTest.java \
-  tests/NotebookPenSliderCloseTest.java tests/NotebookEraserTest.java tests/NotebookEraserCommitTest.java tests/NotebookFoundationTest.java
+  tests/NotebookPenSliderCloseTest.java tests/NotebookEraserTest.java tests/NotebookEraserCommitTest.java tests/NotebookFoundationTest.java \
+  tests/NotebookStrokeScaleTest.java
 java -ea -cp build/host-tests org.eink.inkprobe.CallbackTimingTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookStoreTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookEditsTest
@@ -76,6 +84,10 @@ java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookIndexTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookBookTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPageManagementTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPdfModelTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPdfTilesTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPageCatalogTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPdfStagingTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookViewHistoryTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookLinkTapGestureTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookCatalogTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookLibraryTest
@@ -101,4 +113,5 @@ java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookEraserTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookEraserCommitTest
 
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookFoundationTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookStrokeScaleTest
 bash scripts/test-pdf-engine.sh

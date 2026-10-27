@@ -31,9 +31,11 @@ public final class NotebookPdfEngineTest {
         check(asset.pages.size() == 2, "Two PDF source pages");
         check(asset.title.equals("Original PDF title"), "Title metadata imported");
         check(asset.pages.get(0).width == 480 && asset.pages.get(0).height == 720, "Rotated crop logical dimensions");
-        check(asset.pages.get(0).links.size() == 4, "Named, numeric, URI and Named-action links imported; malformed link ignored");
-        check(asset.pages.get(0).links.get(3).targetPage == 2, "Named NextPage action resolves relative to source page");
-        NotebookPdfAsset.Link internal = asset.pages.get(0).links.get(0);
+        List<NotebookPdfAsset.Link> links = NotebookPdfEngine.links(source, 1);
+        check(links.size() == 4, "Named, numeric, URI and Named-action links imported lazily; malformed link ignored");
+        check(links.get(3).targetPage == 2, "Named NextPage action resolves relative to source page");
+        check(links == NotebookPdfEngine.links(source, 1), "Repeated visible-page link lookup reuses parsed annotations");
+        NotebookPdfAsset.Link internal = links.get(0);
         check(internal.targetPage == 2 && Math.abs(internal.fraction - .5) < .000001, "Named FitH destination resolved");
         check(Math.abs(internal.left) < .000001 && Math.abs(internal.top) < .000001
             && Math.abs(internal.right - 20f / 240) < .000001
@@ -119,6 +121,10 @@ public final class NotebookPdfEngineTest {
             throw new AssertionError("PDF pages must not export with a missing source"); }
         catch (IOException expected) { check(expected.getMessage().contains("original PDF source"), "Missing source fails closed rather than exporting only ink"); }
         rotations(directory);
+        metadataCache(directory, source, asset);
+        largePdf(directory);
+        malformedAnnotations(directory);
+        NotebookPdfEngine.closeNavigation();
         File encrypted = new File(directory, "encrypted.pdf");
         try (PDDocument document = new PDDocument()) {
             document.addPage(new PDPage());
@@ -147,13 +153,17 @@ public final class NotebookPdfEngineTest {
     }
 
     private static void export(File output, File source, List<NotebookPage> pages, List<NotebookOutline.Entry> outline) throws IOException {
-        try (OutputStream stream = new FileOutputStream(output)) {
+        try (FileOutputStream raw = new FileOutputStream(output);
+                BufferedOutputStream stream = new BufferedOutputStream(raw, 65536)) {
             NotebookPdfEngine.write(stream, source, "Notebook title", pages.size(), number -> pages.get(number - 1), null,
                 stroke -> {
                     float x = stroke.points.get(0).x, y = stroke.points.get(0).y;
                     return new NotebookStrokeOutline(new float[] {0, x, y, .25f, x + 70, y,
                         .5f, x + 70, y + 8, .75f, x, y + 8, 1, x, y}, false);
                 }, outline);
+            // This is the Android export transaction: PDFBox must leave our stream/FD open.
+            stream.flush(); raw.getFD().sync();
+            check(raw.getFD().valid(), "PDF export preserves caller stream ownership for flush and fsync");
         }
     }
 
@@ -235,10 +245,102 @@ public final class NotebookPdfEngineTest {
             for (int i = 0; i < 4; i++) check(last(streams(document.getPage(i))).contains(transforms[i]),
                 "Crop and rotation " + (i * 90) + " vector transform");
         }
-        NotebookPdfAsset.Link upside = metadata.pages.get(2).links.get(0), left = metadata.pages.get(3).links.get(0);
+        NotebookPdfAsset.Link upside = NotebookPdfEngine.links(original, 3).get(0), left = NotebookPdfEngine.links(original, 4).get(0);
         check(Math.abs(upside.left - 8f / 9) < .000001 && upside.top == 0, "Rotation180 link geometry");
         check(Math.abs(left.left - 11f / 12) < .000001 && Math.abs(left.top - 8f / 9) < .000001,
             "Rotation270 link geometry");
+    }
+
+    private static void metadataCache(File directory, File source, NotebookPdfAsset asset) throws IOException {
+        NotebookPdfAsset cached = NotebookPdfMetadata.read(source);
+        check(cached != null && cached.pages.size() == asset.pages.size() && cached.outline.size() == asset.outline.size(),
+            "Geometry and outline persisted independently of Android/process lifetime");
+        check(cached.pages.get(0).width == 480 && cached.outline.get(1).title.equals("Chapter two"),
+            "Metadata cache retains rotated geometry and nested outline");
+        File cache = NotebookPdfMetadata.file(source);
+        try (RandomAccessFile file = new RandomAccessFile(cache, "rw")) {
+            file.seek(file.length() - 1); int b = file.read(); file.seek(file.length() - 1); file.write(b ^ 1);
+        }
+        check(NotebookPdfMetadata.read(source) == null, "Corrupt disposable metadata rejected");
+        NotebookPdfMetadata.write(source, asset);
+        long originalTime = source.lastModified();
+        check(source.setLastModified(originalTime + 2000), "Test source timestamp changed");
+        check(NotebookPdfMetadata.read(source) == null, "Source changes invalidate derived metadata");
+        check(source.setLastModified(originalTime), "Test source timestamp restored");
+        check(NotebookPdfMetadata.read(source) != null, "Unchanged immutable source can reuse cached metadata");
+    }
+
+    private static void largePdf(File directory) throws IOException {
+        File source = new File(directory, "large-source.pdf");
+        try (PDDocument document = new PDDocument()) {
+            List<PDPage> pages = new ArrayList<>();
+            StringBuilder vector = new StringBuilder("q\n");
+            for (int i = 0; i < 1100; i++) vector.append("0 0 m 1 1 l S\n");
+            byte[] drawing = vector.append("Q\n").toString().getBytes(StandardCharsets.US_ASCII);
+            for (int i = 0; i < 600; i++) {
+                PDPage page = new PDPage(); document.addPage(page); pages.add(page);
+                page.setContents(new PDStream(document, new ByteArrayInputStream(drawing)));
+            }
+            // A bad annotation collection on an offscreen page must not make import/open decode it.
+            COSArray brokenAnnotations = new COSArray(); brokenAnnotations.add(COSInteger.get(99));
+            pages.get(599).getCOSObject().setItem(COSName.ANNOTS, brokenAnnotations);
+            PDAnnotationLink link = new PDAnnotationLink(); link.setRectangle(new PDRectangle(20, 30, 40, 20));
+            PDPageFitDestination destination = new PDPageFitDestination(); destination.setPage(pages.get(598));
+            link.setDestination(destination); pages.get(0).setAnnotations(Collections.singletonList(link));
+            PDDocumentOutline outline = new PDDocumentOutline();
+            PDOutlineItem heading = new PDOutlineItem(); heading.setTitle("Near the end"); heading.setDestination(pages.get(598));
+            outline.addLast(heading); document.getDocumentCatalog().setDocumentOutline(outline); document.save(source);
+        }
+        check(source.length() > 8L * 1024 * 1024, "Large fixture includes over 8 MiB of original vector content");
+        long start = System.nanoTime(); NotebookPdfAsset asset = NotebookPdfEngine.inspect(source);
+        long inspected = System.nanoTime();
+        check(asset.pages.size() == 600 && asset.outline.get(0).pdfPage == 599,
+            "600-page import reads geometry and outline without decoding offscreen annotation collections");
+        check(NotebookPdfEngine.links(source, 1).get(0).targetPage == 599,
+            "Lazy links resolve distant page objects through preindexed page identities");
+        List<NotebookPdfAsset.Link> first = NotebookPdfEngine.links(source, 1);
+        for (int page = 2; page <= 32; page++) NotebookPdfEngine.links(source, page);
+        check(first != NotebookPdfEngine.links(source, 1), "Visited page link cache remains bounded");
+        List<NotebookPdfAsset.Link> beforeClose = NotebookPdfEngine.links(source, 1);
+        NotebookPdfEngine.closeNavigation();
+        check(beforeClose != NotebookPdfEngine.links(source, 1), "Closing navigation drops reader and page link cache");
+        check(NotebookPdfEngine.links(source, 600).isEmpty(), "Malformed offscreen annotation array cannot disable navigation");
+        NotebookPdfAsset cached = NotebookPdfMetadata.read(source);
+        check(cached != null && cached.pages.size() == 600, "600-page reopen metadata available without reparsing source");
+        System.out.println("600-page, " + source.length() / (1024 * 1024) + " MiB geometry/outline index: "
+            + (inspected - start) / 1000000 + " ms");
+    }
+
+    private static void malformedAnnotations(File directory) throws IOException {
+        File source = new File(directory, "malformed-annotations.pdf"), output = new File(directory, "malformed-annotations-export.pdf");
+        try (PDDocument document = new PDDocument()) {
+            PDPage first = new PDPage(), second = new PDPage(); document.addPage(first); document.addPage(second);
+            PDAnnotationLink uri = new PDAnnotationLink(); uri.setRectangle(new PDRectangle(20, 30, 40, 20));
+            PDActionURI action = new PDActionURI(); action.setURI("https://example.org/valid"); uri.setAction(action);
+            PDAnnotationLink broken = new PDAnnotationLink(); broken.getCOSObject().setItem(COSName.RECT, COSInteger.get(1));
+            PDAnnotationLink internal = new PDAnnotationLink(); internal.setRectangle(new PDRectangle(80, 30, 40, 20));
+            PDPageFitDestination destination = new PDPageFitDestination(); destination.setPage(second); internal.setDestination(destination);
+            COSArray annotations = new COSArray();
+            annotations.add(uri); annotations.add(COSInteger.get(99)); annotations.add(broken); annotations.add(internal);
+            first.getCOSObject().setItem(COSName.ANNOTS, annotations);
+            document.save(source);
+        }
+        byte[] original = Files.readAllBytes(source.toPath());
+        NotebookPdfAsset asset = NotebookPdfEngine.inspect(source);
+        List<NotebookPdfAsset.Link> links = NotebookPdfEngine.links(source, 1);
+        check(links.size() == 2 && links.get(0).uri.equals("https://example.org/valid") && links.get(1).targetPage == 2,
+            "Malformed annotation entries skipped independently while valid URI and internal links remain active");
+        NotebookPage first = page(asset.pages.get(0), 1).withStroke(stroke(30, 40, 0xff000000));
+        NotebookPage duplicate = page(asset.pages.get(0), 1);
+        export(output, source, Arrays.asList(first, duplicate, page(asset.pages.get(1), 2)), Collections.emptyList());
+        try (PDDocument document = PDDocument.load(output)) {
+            for (int page = 0; page < 2; page++) {
+                COSArray retained = document.getPage(page).getCOSObject().getCOSArray(COSName.ANNOTS);
+                check(retained.size() == 4 && ((COSInteger) retained.getObject(1)).intValue() == 99,
+                    "Original and duplicated PDF pages retain unsupported original annotation entries in export");
+            }
+        }
+        check(Arrays.equals(original, Files.readAllBytes(source.toPath())), "Malformed source annotations remain byte-for-byte untouched");
     }
 
     private static List<String> streams(PDPage page) throws IOException {

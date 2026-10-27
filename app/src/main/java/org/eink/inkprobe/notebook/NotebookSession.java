@@ -319,9 +319,14 @@ final class NotebookSession {
         Map<Integer, Integer> sources = new LinkedHashMap<>();
         List<NotebookViewport.Size> sizes = new ArrayList<>();
         boolean complete = true;
+        List<NotebookPageCatalog.Entry> metadata;
+        try { metadata = document.navigationMetadata(); }
+        catch (IOException failure) { metadata = Collections.emptyList(); complete = false; }
         for (int number = 1; number <= document.pageCount(); number++) {
             try {
-                NotebookPage item = document.previewPage(number);
+                if (metadata.size() != document.pageCount()) throw new IOException("Navigation metadata unavailable");
+                NotebookPageCatalog.Entry item = metadata.get(number - 1);
+                if (item == null) throw new IOException("Page navigation metadata unavailable");
                 ids.put(number, item.id); numbers.put(item.id, number);
                 sizes.add(new NotebookViewport.Size(Math.max(1, item.width), Math.max(1, item.height)));
                 if (item.pdfPage > 0 && !sources.containsKey(item.pdfPage)) sources.put(item.pdfPage, number);

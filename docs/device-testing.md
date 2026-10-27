@@ -4,6 +4,50 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## Scriflow 0.31.0-dev.2 PDF/ink fixes (2026-10-27)
+
+The owner tried dev.1 and reported blurred PDF text after zoom, failed PDF
+export, live/replayed ink width differences on both notes and PDFs, unwanted
+scroll/page entries in view history, direct external-link launch, and slow
+import/open of an approximately 8 MiB, 600-page PDF. These are device feedback,
+not measurements or acceptance of the follow-up fixes.
+
+- Artifact: `scriflow-0.31.0-dev.2.apk`, Android `versionCode` 38.
+- APK SHA-256: recorded with the exact signed release asset.
+- Signer certificate SHA-256: `2cc5db316df82fecc6085ff53e67cbd64f29b412f01e9a5c19bf4b34e3821709`.
+- Release: [`v0.31.0-dev.2`](https://github.com/xing-phys/Scriflow/releases/tag/v0.31.0-dev.2).
+- Automated verification: **31,012 assertions across 40 suites**; debug/release
+  lint and APK builds; standalone app and native diagnostic compilation.
+- PDF regression tests now use an actual output file and verify that export
+  leaves its stream open for final flush and sync. Source PDF resources,
+  malformed/valid links, duplication, outlines, and all rotations remain covered.
+- 4,621 tile geometry checks cover rendering at current zoom, visible-region
+  bounds, cache keys, and pixel budgets; 18 history checks restrict entries to
+  links/outlines. 95 ink geometry checks cover exact width/scale, the native
+  four-pixel rounding threshold, full-stroke clipping, copies, persistence,
+  backward reads, and bit-exact disk conflict detection.
+- 1,216 navigation checks include a 600-page import; 37 parallel staging checks
+  cover ordering and joining every writer before failure/interruption cleanup.
+  Every page retains a durability sync and the index is published once.
+- Host-only observations: durable staging of 600 empty PDF-backed note pages
+  took about 0.56–0.63 s with four writers versus about 1.2 s sequentially.
+  A separate actual 600-page, >8 MiB vector PDF geometry/outline scan took
+  22–24 ms. Cached book metadata opened below the timer's 1 ms resolution with
+  warm OS caches. These separate figures exclude provider/UI/native rendering
+  costs and are **not MatePad import or opening timings**.
+
+No tablet was connected. Sharp tile rendering, external-link confirmation,
+native restored-ink appearance, five-scale pressure/PDF comparisons, transparent
+native bookkeeping tracks, pen latency, and actual import/open timing still need
+the supported MatePad. Use fresh synthetic strokes at several zooms on a blank
+note and PDF, then scroll, erase/undo/redo, reopen, and export both with and
+without outlines. Ordinary scrolling/page actions should leave link history alone.
+
+Version 5 retains native capture scale and exact width for new strokes. Older
+strokes keep their existing parameters; their unrecorded capture scale cannot
+be reconstructed reliably. Files are not rewritten on open. In-app PDF text
+selection remains unimplemented; source/export PDF text is retained.
+
 ## Scriflow 0.31.0-dev.1 PDF notebooks (2026-10-26)
 
 The owner explicitly requested PDF import with original-preserving vector ink

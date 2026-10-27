@@ -143,7 +143,7 @@ public final class NotebookBackup {
             }
             if (zip.getNextEntry() != null) throw new IOException("Unexpected backup entry");
             NotebookIndex index = new NotebookIndex(staging); index.load();
-            for (int countSoFar = 1; countSoFar <= count; countSoFar++) index.save(countSoFar, 1);
+            index.initializeImported(count);
             check(cancelled); complete = true;
             return new Restored(staging, name, count);
         } finally { if (!complete) deleteTree(staging); }

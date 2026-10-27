@@ -16,9 +16,10 @@ Development and physical testing target **MatePad Paper HMW-W09**, Android
 rendering use Huawei APIs already present on that firmware; no proprietary
 Huawei code is bundled. Other tablets and firmware versions are unverified.
 
-The latest public prerelease is **[Scriflow 0.31.0-dev.1](https://github.com/xing-phys/Scriflow/releases/tag/v0.31.0-dev.1)**,
-released on 2026-10-26 with the owner's explicit authorization. It adds PDF
-notebooks, preserved source PDF export, editable outlines, and view history,
+The latest public prerelease is **[Scriflow 0.31.0-dev.2](https://github.com/xing-phys/Scriflow/releases/tag/v0.31.0-dev.2)**,
+released on 2026-10-27 as a follow-up to the authorized PDF notebook update.
+It fixes PDF export, renders sharper PDF backgrounds at each zoom, retains new
+strokes' native capture geometry, and improves large-PDF import and opening,
 retaining the same application ID and public signing certificate for in-place
 updates. Automated checks pass; tablet validation of these changes is pending.
 The core notebook features are implemented; broader use and
@@ -53,8 +54,8 @@ makes no network requests. See [privacy and local storage](docs/privacy.md).
 
 ## Install and update
 
-Download the latest public **[Scriflow 0.31.0-dev.1 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.31.0-dev.1/scriflow-0.31.0-dev.1.apk)**
-from [GitHub Releases](https://github.com/xing-phys/Scriflow/releases/tag/v0.31.0-dev.1),
+Download the latest public **[Scriflow 0.31.0-dev.2 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.31.0-dev.2/scriflow-0.31.0-dev.2.apk)**
+from [GitHub Releases](https://github.com/xing-phys/Scriflow/releases/tag/v0.31.0-dev.2),
 where its file checksum and signing certificate fingerprint are recorded.
 Copy it to the supported tablet, open it with the tablet's file manager, and
 allow installation from that source when prompted.
@@ -72,9 +73,11 @@ key is retained, so the Scriflow rename can update the released Scribblow app
 in place without moving notebooks. If Android rejects an update because its
 signature differs, stop and follow the [signing migration instructions](docs/releasing.md#moving-from-a-development-key).
 **Uninstalling the app or clearing app storage deletes its private notes.**
-Version 0.31 writes version-4 pages with optional PDF backgrounds and version-2
-editable backups including PDF assets and outlines; older APKs cannot read these
-new formats. Version 0.30 added optional physical paper dimensions. Opening an existing page
+Version 0.31-dev.2 writes version-5 pages retaining the exact native width and
+capture scale of new strokes; older APKs cannot read these pages. Existing page
+versions 1–4 remain readable and are not rewritten on open. Old strokes' capture
+scale was never recorded and cannot be recovered reliably. Version-2 editable
+backups include PDF assets and outlines. Version 0.30 added physical paper dimensions. Opening an existing page
 keeps its stored coordinates and previous PDF printing scale.
 Version 0.29 introduces a version-2 page-order index
 when page management is first used; earlier APKs cannot open that managed book.
@@ -92,7 +95,9 @@ six-dot grip to move the tools, tap it to collapse/expand them, or use the
 direction icon to rotate them.
 Use **Import PDF** in the library to make a PDF notebook. The outline icon
 opens imported headings and lets you add your own; finger taps follow PDF links.
-Previous/next view icons return after navigation. See [PDF notebooks](docs/pdf-import.md).
+Previous/next view icons return after link or outline jumps; ordinary scrolling,
+zoom, and page buttons do not create history. External links ask before opening
+another app. See [PDF notebooks](docs/pdf-import.md).
 The three-dot menu contains PDF export, save status, and **Reset tools**.
 Open **Settings** in the library, or tap the notebook title/percentage in the
 editor for zoom controls and **App settings**. Choose portrait, landscape, or

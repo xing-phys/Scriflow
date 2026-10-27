@@ -4,6 +4,8 @@ import android.app.Activity;
 import android.content.pm.ApplicationInfo;
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.graphics.Canvas;
+import android.graphics.Paint;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.util.Log;
@@ -291,6 +293,8 @@ public final class NotebookSelfTestActivity extends Activity implements Notebook
             require(restored.penType == original.penType, "Pen type changed");
             require(restored.color == original.color, "Pen color changed");
             near(restored.width, original.width, "Pen width changed");
+            near(restored.captureScale, original.captureScale, "Native input scale changed");
+            near(restored.captureWidth, original.captureWidth, "Native brush width changed");
             require(restored.points.size() == original.points.size(), "Point count changed");
             for (int point = 0; point < restored.points.size(); point++) {
                 NotebookPage.Point after = restored.points.get(point);
@@ -380,7 +384,7 @@ public final class NotebookSelfTestActivity extends Activity implements Notebook
         require(!ink.isReady(), "Editor resumed before explicit start");
         verifyEditIdentities();
         verifyNativePage(updated);
-        verifyPaper(updated.template);
+        verifyPaper(updated);
     }
 
     private void verifyEditIdentities() throws Exception {
@@ -538,10 +542,11 @@ public final class NotebookSelfTestActivity extends Activity implements Notebook
     }
 
     private JSONObject verifyPaper() throws Exception {
-        return verifyPaper(template);
+        return verifyPaper(expected);
     }
 
-    private JSONObject verifyPaper(NotebookPage.Template expectedTemplate) throws Exception {
+    private JSONObject verifyPaper(NotebookPage page) throws Exception {
+        NotebookPage.Template expectedTemplate = page.template;
         Object picture = call(ink.view, "getSurfacePicture");
         Bitmap bitmap = (Bitmap) call(picture, "getBitmap");
         JSONObject result = new JSONObject();
@@ -560,8 +565,27 @@ public final class NotebookSelfTestActivity extends Activity implements Notebook
             require(Color.alpha(pixel) == 255, "Paper is not opaque");
             if (pixel != Color.WHITE) nonWhite++;
         }
-        if (expectedTemplate == NotebookPage.Template.BLANK) require(nonWhite == 0, "Blank paper contains ruling");
-        else require(nonWhite > 0 && nonWhite < bitmap.getHeight() / 3, "Lined ruling not found on white paper");
+        // The owned bitmap now includes canonical completed ink. Verify the complete
+        // composition, so a blank template can contain handwriting in this column.
+        Bitmap reference = Bitmap.createBitmap(bitmap.getWidth(), bitmap.getHeight(), Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(reference); canvas.drawColor(Color.WHITE);
+        float sx = (float) bitmap.getWidth() / page.width, sy = (float) bitmap.getHeight() / page.height;
+        if (expectedTemplate == NotebookPage.Template.LINED) {
+            Paint rule = new Paint(); rule.setColor(Color.rgb(210, 210, 210));
+            rule.setStrokeWidth(Math.max(1f, (float) Math.sqrt((double) sx * sy)));
+            for (float y = 72; y < page.height; y += 72) canvas.drawLine(0, y * sy, bitmap.getWidth(), y * sy, rule);
+        }
+        canvas.scale(sx, sy); Paint inkPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        for (NotebookPage.Stroke stroke : page.strokes) NotebookStrokeRenderer.draw(canvas, stroke, inkPaint);
+        int[] actual = new int[bitmap.getWidth()], wanted = new int[bitmap.getWidth()];
+        try {
+            for (int y = 0; y < bitmap.getHeight(); y++) {
+                bitmap.getPixels(actual, 0, actual.length, 0, y, actual.length, 1);
+                reference.getPixels(wanted, 0, wanted.length, 0, y, wanted.length, 1);
+                require(Arrays.equals(actual, wanted), "Canonical paper/ink bitmap differs at row " + y);
+            }
+        } finally { reference.recycle(); }
+        result.put("canonicalPaperAndInkMatch", true);
         result.put("representation", "bitmap");
         result.put("width", bitmap.getWidth());
         result.put("height", bitmap.getHeight());

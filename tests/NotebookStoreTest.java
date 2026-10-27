@@ -171,9 +171,9 @@ public final class NotebookStoreTest {
         byte[] invalidWidth = payload.clone();
         putInt(invalidWidth, 17, Integer.MAX_VALUE);
         byte[] invalidTemplate = payload.clone();
-        invalidTemplate[26] = 100;
+        invalidTemplate[30] = 100;
         byte[] invalidCount = payload.clone();
-        putInt(invalidCount, 27, Integer.MAX_VALUE);
+        putInt(invalidCount, 31, Integer.MAX_VALUE);
         byte[] invalidType = payload.clone();
         invalidType[0] = 99;
         for (byte[] malformed : new byte[][] {invalidWidth, invalidTemplate, invalidCount, invalidType}) {
@@ -192,10 +192,14 @@ public final class NotebookStoreTest {
         int recordSize = intAt(full, recordStart);
         byte[] strokePayload = Arrays.copyOfRange(full, recordStart + 8, recordStart + 8 + recordSize);
         byte[] nan = strokePayload.clone();
-        putInt(nan, 33, Float.floatToIntBits(Float.NaN));
+        putInt(nan, 41, Float.floatToIntBits(Float.NaN));
         byte[] negativePressure = strokePayload.clone();
-        putInt(negativePressure, 49, Float.floatToIntBits(-1));
-        for (byte[] malformed : new byte[][] {nan, negativePressure}) {
+        putInt(negativePressure, 57, Float.floatToIntBits(-1));
+        byte[] invalidScale = strokePayload.clone();
+        putInt(invalidScale, 29, Float.floatToIntBits(Float.NaN));
+        byte[] invalidNativeWidth = strokePayload.clone();
+        putInt(invalidNativeWidth, 33, Float.floatToIntBits(Float.POSITIVE_INFINITY));
+        for (byte[] malformed : new byte[][] {nan, negativePressure, invalidScale, invalidNativeWidth}) {
             ByteArrayOutputStream combined = new ByteArrayOutputStream();
             combined.write(good);
             combined.write(record(malformed));
@@ -312,7 +316,7 @@ public final class NotebookStoreTest {
         equal(2, reopened.strokes.size(), "release fixture supports edit then append");
         sameStroke(stroke(20), reopened.strokes.get(0));
         sameStroke(stroke(30), reopened.strokes.get(1));
-        equal(4, intAt(bytes(directory, "page.nbk"), 4), "editing atomically migrates to version 4");
+        equal(5, intAt(bytes(directory, "page.nbk"), 4), "editing atomically migrates to version 5");
     }
 
     private static void editSnapshotAndContinuedWriting() throws Exception {
@@ -470,7 +474,7 @@ public final class NotebookStoreTest {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         DataOutputStream output = new DataOutputStream(bytes);
         output.writeInt(0x4e424b31);
-        output.writeInt(3);
+        output.writeInt(5);
         output.write(record(payload));
         return bytes.toByteArray();
     }
@@ -500,6 +504,8 @@ public final class NotebookStoreTest {
         equal(expected.penType, actual.penType, "pen type retained");
         equal(expected.color, actual.color, "pen color retained");
         equal(Float.floatToIntBits(expected.width), Float.floatToIntBits(actual.width), "pen width retained exactly");
+        equal(Float.floatToIntBits(expected.captureScale), Float.floatToIntBits(actual.captureScale), "native input scale retained exactly");
+        equal(Float.floatToIntBits(expected.captureWidth), Float.floatToIntBits(actual.captureWidth), "native brush width retained exactly");
         equal(expected.points.size(), actual.points.size(), "stroke point count retained");
         for (int i = 0; i < expected.points.size(); i++) {
             NotebookPage.Point a = expected.points.get(i), b = actual.points.get(i);

@@ -125,7 +125,7 @@ public final class NotebookLasso {
             List<NotebookPage.Point> points = new ArrayList<>();
             for (NotebookPage.Point p : stroke.points) points.add(new NotebookPage.Point(p.x + dx, p.y + dy, p.time, p.pressure));
             result.add(new NotebookPage.Stroke(copy ? UUID.randomUUID() : stroke.id,
-                stroke.penType, stroke.width, stroke.color, points));
+                stroke.penType, stroke.width, stroke.color, points, stroke.captureScale, stroke.captureWidth));
         }
         return result;
     }

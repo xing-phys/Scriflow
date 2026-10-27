@@ -27,7 +27,9 @@ For PDFs, choose **Import PDF** in the library. Each PDF becomes a separate
 notebook with editable handwriting and its own retained source file. Finger
 taps follow PDF links; the stylus writes over them. Open **Outline** to navigate
 imported bookmarks or add, edit, and remove your own headings. **Previous view**
-and **Next view** return after jumps while restoring zoom and position.
+and **Next view** return after link or outline jumps while restoring zoom and
+position. Scrolling, zooming, and page controls do not enter that history.
+Web links show their target and ask before opening the browser.
 See [PDF notebooks](pdf-import.md) for export preservation, backups, and limits.
 
 New notes open at **Fit width**. Pinch with **two fingers** to zoom in or out;

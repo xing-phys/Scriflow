@@ -1,5 +1,9 @@
 # Consistent pressure rendering - 0.21
 
+For the later zoom-related regression and capture-space correction, see
+[Pressure geometry across zoom, scrolling and PDF](ink-capture-scale.md).
+The device results below describe the original 0.21 checks at source scale 1.
+
 The saved notebook is a vector model, not a copied image of the low-latency
 layer. Each stroke already stores its nominal brush width, pen type, color,
 coordinates, pressure and event times. Live writing and native restoration use

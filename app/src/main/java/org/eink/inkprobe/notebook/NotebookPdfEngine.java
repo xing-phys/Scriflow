@@ -23,7 +23,6 @@ import com.tom_roush.pdfbox.pdmodel.interactive.action.PDAction;
 import com.tom_roush.pdfbox.pdmodel.interactive.action.PDActionGoTo;
 import com.tom_roush.pdfbox.pdmodel.interactive.action.PDActionURI;
 import com.tom_roush.pdfbox.pdmodel.interactive.action.PDActionNamed;
-import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotation;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationLink;
 import com.tom_roush.pdfbox.pdmodel.interactive.documentnavigation.destination.*;
 import com.tom_roush.pdfbox.pdmodel.interactive.documentnavigation.outline.*;
@@ -31,11 +30,15 @@ import com.tom_roush.pdfbox.util.Matrix;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.FilterOutputStream;
 import java.util.*;
 
 /** PDF backgrounds and navigation, plus lossless source-content / vector-ink composition. */
 public final class NotebookPdfEngine {
     private static final int METADATA_CACHE_SIZE = 3;
+    private static volatile File scratchDirectory;
+    /** One lazy navigation reader; only pages being viewed have their annotations decoded. */
+    private static Navigation navigation;
     private static final Map<String, NotebookPdfAsset> metadata =
         new LinkedHashMap<String, NotebookPdfAsset>(4, .75f, true) {
             @Override protected boolean removeEldestEntry(Map.Entry<String, NotebookPdfAsset> entry) {
@@ -49,6 +52,7 @@ public final class NotebookPdfEngine {
 
     public static void initialize(Context context) {
         PDFBoxResourceLoader.init(context.getApplicationContext());
+        scratchDirectory = context.getCacheDir();
     }
 
     public static NotebookPdfAsset inspect(Context context, File source) throws IOException {
@@ -63,8 +67,14 @@ public final class NotebookPdfEngine {
             NotebookPdfAsset cached = metadata.get(key);
             if (cached != null) return cached;
         }
+        NotebookPdfAsset persisted = NotebookPdfMetadata.read(source);
+        if (persisted != null) {
+            synchronized (metadata) { metadata.put(key, persisted); }
+            return persisted;
+        }
         try (PDDocument document = open(source)) {
-            NotebookPdfAsset result = inspect(document);
+            NotebookPdfAsset result = inspect(new Navigation(document));
+            NotebookPdfMetadata.write(source, result);
             synchronized (metadata) { metadata.put(key, result); }
             return result;
         }
@@ -72,9 +82,32 @@ public final class NotebookPdfEngine {
 
     public static List<NotebookPdfAsset.Link> links(Context context, File source, int pdfPage)
             throws IOException {
-        NotebookPdfAsset asset = inspect(context, source);
-        if (pdfPage < 1 || pdfPage > asset.pages.size()) throw new IOException("The PDF page is unavailable");
-        return asset.pages.get(pdfPage - 1).links;
+        initialize(context);
+        return links(source, pdfPage);
+    }
+
+    static synchronized List<NotebookPdfAsset.Link> links(File source, int pdfPage) throws IOException {
+        String key = source.getCanonicalPath() + ':' + source.length() + ':' + source.lastModified();
+        if (navigation == null || !key.equals(navigation.key)) {
+            if (navigation != null) { navigation.document.close(); navigation = null; }
+            PDDocument document = open(source);
+            try { navigation = new Navigation(document, key); }
+            catch (IOException | RuntimeException failure) { document.close(); throw failure; }
+        }
+        if (pdfPage < 1 || pdfPage > navigation.pages.size()) throw new IOException("The PDF page is unavailable");
+        List<NotebookPdfAsset.Link> cached = navigation.links.get(pdfPage);
+        if (cached == null) {
+            cached = Collections.unmodifiableList(readLinks(navigation, pdfPage));
+            navigation.links.put(pdfPage, cached);
+        }
+        return cached;
+    }
+
+    /** Drops the optional reader when an editor is closed; caches never own source content. */
+    public static synchronized void closeNavigation() {
+        if (navigation != null) try { navigation.document.close(); }
+        catch (IOException ignored) { /* Read-only best-effort resource release. */ }
+        finally { navigation = null; }
     }
 
     /** Bounded bitmap for display only. The bitmap never enters an exported PDF. */
@@ -99,7 +132,9 @@ public final class NotebookPdfEngine {
 
     private static PDDocument open(File file) throws IOException {
         try {
-            PDDocument document = PDDocument.load(file, MemoryUsageSetting.setupMixed(8 * 1024 * 1024));
+            MemoryUsageSetting memory = MemoryUsageSetting.setupMixed(8 * 1024 * 1024);
+            if (scratchDirectory != null) memory.setTempDir(scratchDirectory);
+            PDDocument document = PDDocument.load(file, memory);
             if (document.isEncrypted()) {
                 document.close();
                 throw new IOException("Password-protected PDFs are not supported. Import an unlocked copy.");
@@ -110,13 +145,34 @@ public final class NotebookPdfEngine {
         }
     }
 
-    private static NotebookPdfAsset inspect(PDDocument document) throws IOException {
-        int count = document.getNumberOfPages();
+    private static final class Navigation {
+        final PDDocument document;
+        final String key;
+        final List<PDPage> pages = new ArrayList<>();
+        final Map<COSDictionary, Integer> pageNumbers = new IdentityHashMap<>();
+        final Map<Integer, List<NotebookPdfAsset.Link>> links =
+            new LinkedHashMap<Integer, List<NotebookPdfAsset.Link>>(16, .75f, true) {
+                @Override protected boolean removeEldestEntry(Map.Entry<Integer, List<NotebookPdfAsset.Link>> e) {
+                    return size() > 12;
+                }
+            };
+        Navigation(PDDocument document) throws IOException { this(document, ""); }
+        Navigation(PDDocument document, String key) throws IOException {
+            this.document = document; this.key = key;
+            int count = document.getNumberOfPages();
+            if (count < 1 || count > NotebookIndex.MAX_PAGES) throw new IOException("The PDF has an unsupported page count");
+            for (PDPage page : document.getPages()) {
+                pageNumbers.put(page.getCOSObject(), pages.size()); pages.add(page);
+            }
+        }
+    }
+
+    private static NotebookPdfAsset inspect(Navigation navigation) throws IOException {
+        PDDocument document = navigation.document;
+        int count = navigation.pages.size();
         if (count < 1 || count > NotebookIndex.MAX_PAGES) throw new IOException("The PDF has an unsupported page count");
         List<NotebookPdfAsset.Page> pages = new ArrayList<>(count);
-        int pageNumber = 0;
-        for (PDPage page : document.getPages()) {
-            pageNumber++;
+        for (PDPage page : navigation.pages) {
             PDRectangle crop = page.getCropBox();
             if (!(crop.getWidth() > 0) || !(crop.getHeight() > 0)
                     || !Float.isFinite(crop.getWidth()) || !Float.isFinite(crop.getHeight())
@@ -126,11 +182,31 @@ public final class NotebookPdfEngine {
             boolean sideways = rotation(page) % 180 != 0;
             int width = dimension((sideways ? crop.getHeight() : crop.getWidth()) * 2),
                 height = dimension((sideways ? crop.getWidth() : crop.getHeight()) * 2);
-            List<NotebookPdfAsset.Link> links = new ArrayList<>();
-            for (PDAnnotation annotation : page.getAnnotations()) {
-                try {
-                if (!(annotation instanceof PDAnnotationLink)) continue;
-                PDAnnotationLink link = (PDAnnotationLink) annotation;
+            pages.add(new NotebookPdfAsset.Page(width, height));
+        }
+        List<NotebookPdfAsset.Heading> headings = new ArrayList<>();
+        PDDocumentOutline outline = document.getDocumentCatalog().getDocumentOutline();
+        if (outline != null) readOutline(navigation, outline.getFirstChild(), 0, headings,
+            Collections.newSetFromMap(new IdentityHashMap<COSDictionary, Boolean>()));
+        String title = document.getDocumentInformation().getTitle();
+        if (title != null && title.length() > NotebookOutline.MAX_TITLE_LENGTH)
+            title = title.substring(0, NotebookOutline.MAX_TITLE_LENGTH);
+        return new NotebookPdfAsset(title == null ? "" : title.trim(), pages, headings);
+    }
+
+    private static List<NotebookPdfAsset.Link> readLinks(Navigation navigation, int pageNumber) throws IOException {
+        PDDocument document = navigation.document;
+        PDPage page = navigation.pages.get(pageNumber - 1);
+        List<NotebookPdfAsset.Link> links = new ArrayList<>();
+        COSBase value = page.getCOSObject().getDictionaryObject(COSName.ANNOTS);
+        if (!(value instanceof COSArray)) return links;
+        COSArray annotations = (COSArray) value;
+        for (int i = 0; i < annotations.size(); i++) {
+            try {
+                COSBase item = annotations.getObject(i);
+                if (!(item instanceof COSDictionary)
+                        || !"Link".equals(((COSDictionary) item).getNameAsString(COSName.SUBTYPE))) continue;
+                PDAnnotationLink link = new PDAnnotationLink((COSDictionary) item);
                 PDRectangle box = link.getRectangle();
                 if (box == null) continue;
                 PDAction action = link.getAction();
@@ -142,7 +218,7 @@ public final class NotebookPdfEngine {
                 }
                 Destination destination = action instanceof PDActionNamed
                     ? namedDestination(document, (PDActionNamed) action, pageNumber)
-                    : destination(document, action instanceof PDActionGoTo
+                    : destination(navigation, action instanceof PDActionGoTo
                         ? ((PDActionGoTo) action).getDestination() : link.getDestination());
                 if ((uri == null || uri.trim().isEmpty()) && destination == null) continue;
                 float[] a = displayPoint(page, box.getLowerLeftX(), box.getLowerLeftY()),
@@ -153,18 +229,11 @@ public final class NotebookPdfEngine {
                 if (!(left < right) || !(top < bottom)) continue;
                 links.add(new NotebookPdfAsset.Link(left, top, right, bottom,
                     destination == null ? 0 : destination.page, destination == null ? 0 : destination.fraction, uri));
-                } catch (IOException | IllegalArgumentException malformedLink) {
-                    // A broken source annotation is retained for export; other links remain usable.
-                }
+            } catch (IOException | RuntimeException malformedLink) {
+                // A broken source annotation is retained for export; other links remain usable.
             }
-            pages.add(new NotebookPdfAsset.Page(width, height, links));
         }
-        List<NotebookPdfAsset.Heading> headings = new ArrayList<>();
-        PDDocumentOutline outline = document.getDocumentCatalog().getDocumentOutline();
-        if (outline != null) readOutline(document, outline.getFirstChild(), 0, headings,
-            Collections.newSetFromMap(new IdentityHashMap<COSDictionary, Boolean>()));
-        String title = document.getDocumentInformation().getTitle();
-        return new NotebookPdfAsset(title == null ? "" : title.trim(), pages, headings);
+        return links;
     }
 
     private static int dimension(float size) throws IOException {
@@ -173,13 +242,13 @@ public final class NotebookPdfEngine {
         return Math.max(1, Math.round(size));
     }
 
-    private static void readOutline(PDDocument document, PDOutlineItem item, int depth,
+    private static void readOutline(Navigation navigation, PDOutlineItem item, int depth,
             List<NotebookPdfAsset.Heading> entries, Set<COSDictionary> visited) throws IOException {
         while (item != null && entries.size() < NotebookOutline.MAX_ENTRIES && visited.size() < 50000) {
             if (!visited.add(item.getCOSObject())) return;
             PDAction action = item.getAction();
             Destination target = null;
-            try { target = destination(document, action instanceof PDActionGoTo
+            try { target = destination(navigation, action instanceof PDActionGoTo
                 ? ((PDActionGoTo) action).getDestination() : item.getDestination()); }
             catch (IOException | IllegalArgumentException malformedDestination) { }
             String title = item.getTitle();
@@ -191,7 +260,7 @@ public final class NotebookPdfEngine {
                     entries.add(new NotebookPdfAsset.Heading(title, target.page, depth, target.fraction));
             }
             if (depth < NotebookOutline.MAX_DEPTH)
-                readOutline(document, item.getFirstChild(), depth + 1, entries, visited);
+                readOutline(navigation, item.getFirstChild(), depth + 1, entries, visited);
             item = item.getNextSibling();
         }
     }
@@ -211,15 +280,17 @@ public final class NotebookPdfEngine {
         }
     }
 
-    private static Destination destination(PDDocument document, PDDestination destination) throws IOException {
+    private static Destination destination(Navigation navigation, PDDestination destination) throws IOException {
+        PDDocument document = navigation.document;
         if (destination instanceof PDNamedDestination)
             destination = document.getDocumentCatalog().findNamedDestinationPage((PDNamedDestination) destination);
         if (!(destination instanceof PDPageDestination)) return null;
         PDPageDestination target = (PDPageDestination) destination;
-        int number = target.getPage() == null ? target.getPageNumber()
-            : document.getPages().indexOf(target.getPage());
+        Integer resolved = target.getPage() == null ? target.getPageNumber()
+            : navigation.pageNumbers.get(target.getPage().getCOSObject());
+        int number = resolved == null ? -1 : resolved;
         if (number < 0 || number >= document.getNumberOfPages()) return null;
-        PDPage page = document.getPage(number);
+        PDPage page = navigation.pages.get(number);
         float left = page.getCropBox().getLowerLeftX(), top = page.getCropBox().getUpperRightY();
         boolean explicit = false;
         if (target instanceof PDPageXYZDestination) {
@@ -272,7 +343,7 @@ public final class NotebookPdfEngine {
             return;
         }
         try (PDDocument document = open(original)) {
-            NotebookPdfAsset originalMetadata = inspect(document);
+            NotebookPdfAsset originalMetadata = inspect(new Navigation(document));
             List<PDPage> originalPages = new ArrayList<>();
             for (PDPage page : document.getPages()) {
                 // Freeze inherited values before replacing the page tree or detaching a page.
@@ -309,20 +380,25 @@ public final class NotebookPdfEngine {
             }
             if (!unchangedOutline(originalMetadata.outline, originalPages, pages, outputPages, outline))
                 setOutline(document, pages, outputPages, outline);
-            document.save(output);
+            save(document, output);
         }
     }
 
     private static PDPage duplicate(PDPage original) throws IOException {
         PDPage result = new PDPage(new COSDictionary(original.getCOSObject()));
         // Independent annotation dictionaries keep each duplicate's /P reference correct.
-        COSArray annotations = new COSArray();
-        for (PDAnnotation annotation : original.getAnnotations()) {
-            COSDictionary copy = new COSDictionary(annotation.getCOSObject());
-            copy.setItem(COSName.P, result);
-            annotations.add(copy);
+        COSBase originalAnnotations = original.getCOSObject().getDictionaryObject(COSName.ANNOTS);
+        if (originalAnnotations instanceof COSArray) {
+            COSArray source = (COSArray) originalAnnotations, annotations = new COSArray();
+            for (int i = 0; i < source.size(); i++) {
+                COSBase annotation = source.getObject(i);
+                if (annotation instanceof COSDictionary) {
+                    COSDictionary copy = new COSDictionary((COSDictionary) annotation);
+                    copy.setItem(COSName.P, result); annotations.add(copy);
+                } else annotations.add(source.get(i)); // Preserve even unsupported/malformed source entries.
+            }
+            result.getCOSObject().setItem(COSName.ANNOTS, annotations);
         }
-        result.getCOSObject().setItem(COSName.ANNOTS, annotations);
         return result;
     }
 
@@ -522,7 +598,7 @@ public final class NotebookPdfEngine {
             throws IOException {
         if (outline == null || outline.isEmpty()) { NotebookPdf.write(output, name, count, source, progress, ink); return; }
         // Use a bounded disk staging file rather than retaining all vector content in heap.
-        File staging = File.createTempFile("scriflow-outline-", ".pdf");
+        File staging = File.createTempFile("scriflow-outline-", ".pdf", scratchDirectory);
         List<NotebookPage> pages = new ArrayList<>(count);
         try {
             try (java.io.FileOutputStream file = new java.io.FileOutputStream(staging)) {
@@ -534,8 +610,18 @@ public final class NotebookPdfEngine {
             try (PDDocument document = open(staging)) {
                 List<PDPage> pdfPages = new ArrayList<>();
                 for (PDPage page : document.getPages()) pdfPages.add(page);
-                setOutline(document, pages, pdfPages, outline); document.save(output);
+                setOutline(document, pages, pdfPages, outline); save(document, output);
             }
         } finally { staging.delete(); }
+    }
+
+    /** PDFBox closes its destination. The caller still owns flush, fsync, and final publication. */
+    private static void save(PDDocument document, OutputStream output) throws IOException {
+        document.save(new FilterOutputStream(output) {
+            @Override public void write(byte[] bytes, int offset, int length) throws IOException {
+                out.write(bytes, offset, length);
+            }
+            @Override public void close() throws IOException { flush(); }
+        });
     }
 }

@@ -12,9 +12,12 @@ Adding or inserting a blank page creates ordinary writing paper; duplicating a
 PDF page retains its PDF background and copies its ink.
 
 Tap a PDF link with a finger. Internal links navigate within the notebook;
-web links open through an installed browser. Dragging continues to scroll and
+web links show a confirmation with their target before opening an installed
+browser. Dragging continues to scroll and
 the stylus continues to write over links. Use **Previous view** and **Next
 view** to return after following a reference or jumping to an outline entry.
+Scrolling, panning, zooming, page arrows, overview page jumps, and adding pages
+do not create history entries or clear an existing forward path.
 Internal GoTo and named destinations, web/URI links, and standard PDF page
 navigation actions are supported. Remote-file, embedded-file, and JavaScript
 actions remain in exported PDFs but are not activated inside the notebook.
@@ -36,7 +39,7 @@ deleted from the note cannot navigate to a visible page in that note.
 
 Use **Backup** for an editable `.inkbook`: the original PDF bytes, ink, page
 order, and note outline are included. Restore creates a separate notebook.
-Backups remain unencrypted. This version writes page snapshots version 4 and
+Backups remain unencrypted. This version writes page snapshots version 5 and
 backup archives version 2; it reads earlier formats, but earlier app versions
 cannot read these new files. Keep independent backups before updating.
 
@@ -45,8 +48,24 @@ an unlocked copy. Large PDF memory use, picker behavior, PDF ink restoration,
 and sustained stylus performance require testing on the supported tablet.
 
 Implementation: `NotebookPdfEngine` inspects and exports with PDFBox Android;
-Android's `PdfRenderer` supplies display backgrounds. The immutable `source.pdf`
+Android's `PdfRenderer` rasterizes visible 512-pixel tiles at the current zoom.
+The renderer and current page stay open between tiles; this display cache never
+replaces or rasterizes the original source PDF. A bitmap-only source page still
+has the resolution of its original image. In-app text selection is not yet
+implemented; exported PDF text remains selectable in a PDF reader.
+The immutable `source.pdf`
 is stored with each PDF notebook, and page snapshots reference its one-based
 source page. `NotebookOutline` stores checksummed, atomic outline metadata
 with page UUID destinations. Rendering, import, and export run outside live
 pen callbacks. No network or broad storage permission is added.
+
+Imports publish one index for the full page count and avoid duplicate page
+syncs. Up to four workers create independent staged page files; each file is
+synced, and all writers finish before publication or cleanup. A checksummed,
+disposable `navigation.cache` supplies page geometry and
+UUIDs without decoding every stroke on open; `source.pdf.metadata` caches PDF
+geometry and outline metadata. Link annotations load only for viewed pages.
+Cache damage causes a rebuild and cannot replace missing or damaged ink.
+Completed ink retains the durability barriers used by normal note saves.
+See [ink capture geometry](ink-capture-scale.md) for new-stroke consistency and
+the limit of historical files that never stored their original capture scale.

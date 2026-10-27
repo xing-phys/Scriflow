@@ -26,13 +26,20 @@ final class NotebookPenConfig {
     static final class Style {
         final int penType, color;
         final float width;
+        final float captureScale;
         Style(int penType, float width, int color) {
+            this(penType, width, color, 1f);
+        }
+        Style(int penType, float width, int color, float captureScale) {
             if (penType < 0 || penType > 255 || !NotebookPage.finite(width)
-                    || width <= 0 || width > 1024) throw new IllegalArgumentException("Invalid pen style");
+                    || width <= 0 || width > 1024 || !NotebookPage.finite(captureScale) || captureScale <= 0
+                    || !NotebookPage.finite(width * captureScale) || width * captureScale > 1024)
+                throw new IllegalArgumentException("Invalid pen style");
             this.penType = penType; this.width = width; this.color = color;
+            this.captureScale = captureScale;
         }
         NotebookPage.Stroke stroke(List<NotebookPage.Point> points) {
-            return new NotebookPage.Stroke(penType, width, color, points);
+            return new NotebookPage.Stroke(penType, width, color, points, captureScale);
         }
     }
 }

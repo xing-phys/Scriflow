@@ -42,8 +42,6 @@ import java.util.LinkedHashMap;
 import java.util.HashSet;
 import java.util.UUID;
 import java.util.Collections;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /** Durable notebook pages, native pen ink, and document-level editing. */
 public final class NotebookActivity extends NotebookDisplayActivity {
@@ -95,7 +93,6 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private final NotebookPinchGesture pinchIntent = new NotebookPinchGesture();
     private boolean pinchAllowed, gestureEngaged;
     private NotebookViewport gestureStartViewport;
-    private NotebookViewHistory.State gestureStartView;
     private float gestureStartScroll, gestureStartZoom;
     private NotebookViewport.Fit gestureStartFit;
     private boolean selectionViewportGesture, selectionMixed;
@@ -114,21 +111,26 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private long viewportRevision;
     private NotebookScrollStore.State reopenPosition;
     private NotebookPageOverview overview;
-    private AlertDialog outlineMenu, outlineChild;
+    private AlertDialog outlineMenu, outlineChild, externalLinkMenu;
     private final NotebookViewHistory viewHistory = new NotebookViewHistory();
     private final NotebookLinkTapGesture linkTap = new NotebookLinkTapGesture();
     private int writingRevision;
-    private final ExecutorService pdfWorker = Executors.newSingleThreadExecutor();
-    private final Map<Integer, Bitmap> pdfBackgrounds = new LinkedHashMap<>();
-    private final Map<Integer, List<NotebookPdfAsset.Link>> pdfLinks = new LinkedHashMap<>();
-    private final HashSet<Integer> pdfLoading = new HashSet<>();
-    private volatile java.util.Set<Integer> pdfWanted = Collections.emptySet();
+    private NotebookPdfBackgrounds pdfBackgrounds;
     private final Runnable previewFrame = this::drawPreview;
     private final Runnable updateSaveState = this::showSaveState;
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
         session = NotebookSession.get(this);
+        pdfBackgrounds = new NotebookPdfBackgrounds(this, new NotebookPdfBackgrounds.Listener() {
+            @Override public void changed() {
+                if (!active || shownError != null) return;
+                tiles.clear();
+                if (dragging) schedulePreview();
+                else if (scrolling) installViewport();
+            }
+            @Override public void failed(IOException error) { if (active) showError(error); }
+        });
         viewNotebookId = session.notebookId();
         if (saved != null && viewNotebookId == saved.getInt("viewNotebookId", -1)) {
             zoom = saved.getFloat("zoom", 1);
@@ -224,6 +226,8 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         previousButton = floatingTools.button(NotebookFloatingTools.Action.PREVIOUS);
         nextButton = floatingTools.button(NotebookFloatingTools.Action.NEXT);
         addButton = floatingTools.button(NotebookFloatingTools.Action.ADD_PAGE);
+        floatingTools.button(NotebookFloatingTools.Action.VIEW_BACK).setContentDescription("Return to previous link or outline view");
+        floatingTools.button(NotebookFloatingTools.Action.VIEW_FORWARD).setContentDescription("Go forward to next link or outline view");
         penButton = floatingTools.button(NotebookFloatingTools.Action.PEN);
         eraserButton = floatingTools.button(NotebookFloatingTools.Action.ERASER);
         lassoButton = floatingTools.button(NotebookFloatingTools.Action.LASSO);
@@ -379,89 +383,21 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             width, height, dp(12), zoom, pan);
     }
 
-    /** PDF pixels are prepared off the input thread before native handwriting resumes. */
+    /** Prepare only visible screen-resolution PDF regions before native handwriting resumes. */
     private boolean preparePdfBackgrounds() {
         File source = session.pdfSource();
-        if (source == null || viewport == null) return true;
-        HashSet<Integer> retained = new HashSet<>();
-        List<Integer> wantedPages = wantedPages();
-        for (int id : wantedPages) {
-            NotebookPage current = pages.get(id);
-            if (current != null && current.pdfPage > 0) retained.add(current.pdfPage);
-        }
-        pdfWanted = Collections.unmodifiableSet(retained);
-        for (int id : wantedPages) {
+        if (viewport == null) return true;
+        List<NotebookPdfTiles.Tile> visible = new ArrayList<>();
+        HashSet<Integer> sourcePages = new HashSet<>();
+        if (source != null) for (int id : viewport.visiblePages(scrollY)) {
             NotebookPage current = pages.get(id);
             if (current == null || current.pdfPage == 0) continue;
-            final int sourcePage = current.pdfPage;
-            if (pdfBackgrounds.containsKey(sourcePage) || !pdfLoading.add(sourcePage)) continue;
-            final int request = generation;
-            // Bound every decoded page even at extreme zoom. The source and export stay vector.
-            float scale = Math.min(2560f / Math.max(current.width, current.height),
-                Math.min(2f * viewport.width / current.width,
-                    (float) Math.sqrt(Math.min(3_000_000d, 6_000_000d / wantedPages.size())
-                        / ((double) current.width * current.height))));
-            final int width = Math.max(1, Math.round(current.width * scale));
-            final int height = Math.max(1, Math.round(current.height * scale));
-            pdfWorker.execute(() -> {
-                if (request != generation) return;
-                if (!pdfWanted.contains(sourcePage)) {
-                    main.post(() -> {
-                        if (!active || request != generation) return;
-                        pdfLoading.remove(sourcePage);
-                        if (scrolling && !dragging) installViewport();
-                    });
-                    return;
-                }
-                Bitmap rendered = null;
-                List<NotebookPdfAsset.Link> links = Collections.emptyList();
-                IOException failure = null;
-                try {
-                    rendered = NotebookPdfEngine.render(source, sourcePage, width, height);
-                    links = NotebookPdfEngine.links(getApplicationContext(), source, sourcePage);
-                } catch (IOException | RuntimeException error) {
-                    failure = new IOException("Could not display source PDF page " + sourcePage, error);
-                }
-                final Bitmap result = rendered;
-                final List<NotebookPdfAsset.Link> pageLinks = links;
-                final IOException error = failure;
-                main.post(() -> {
-                    if (!active || request != generation) {
-                        if (result != null) result.recycle();
-                        return;
-                    }
-                    pdfLoading.remove(sourcePage);
-                    if (error != null) {
-                        if (result != null) result.recycle();
-                        showError(error); return;
-                    }
-                    boolean wanted = false;
-                    for (int requestedId : wantedPages()) {
-                        NotebookPage candidate = pages.get(requestedId);
-                        if (candidate != null && candidate.pdfPage == sourcePage) wanted = true;
-                    }
-                    if (wanted) {
-                        pdfBackgrounds.put(sourcePage, result);
-                        pdfLinks.put(sourcePage, pageLinks);
-                        tiles.clear();
-                    } else result.recycle();
-                    if (dragging) schedulePreview();
-                    else if (scrolling) installViewport();
-                });
-            });
+            sourcePages.add(current.pdfPage);
+            visible.addAll(NotebookPdfTiles.visible(current.pdfPage,
+                current.width * (double) viewport.scale(id), current.height * (double) viewport.scale(id),
+                viewport.pageLeft(id), viewport.pageTop(id, scrollY), viewport.width, viewport.height));
         }
-        java.util.Iterator<Map.Entry<Integer, Bitmap>> old = pdfBackgrounds.entrySet().iterator();
-        while (old.hasNext()) {
-            Map.Entry<Integer, Bitmap> item = old.next();
-            if (!retained.contains(item.getKey())) {
-                item.getValue().recycle(); pdfLinks.remove(item.getKey()); old.remove();
-            }
-        }
-        for (int id : viewport.visiblePages(scrollY)) {
-            NotebookPage current = pages.get(id);
-            if (current != null && current.pdfPage > 0 && !pdfBackgrounds.containsKey(current.pdfPage)) return false;
-        }
-        return true;
+        return pdfBackgrounds.prepare(source, visible, sourcePages);
     }
 
     private List<Integer> wantedPages() {
@@ -687,10 +623,6 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                 zoom = gestureStartZoom; zoomFit = gestureStartFit;
                 tiles.clear(); ++viewportRevision; updatePageLabel();
             }
-            if (gestureEngaged && moved && action == MotionEvent.ACTION_UP && gestureStartView != null
-                    && !gestureStartView.equals(currentView()))
-                viewHistory.record(gestureStartView);
-            gestureStartView = null;
             gestureStartViewport = null;
             dragging = false; fingerId = -1;
             zoomBadge.dismiss();
@@ -718,7 +650,6 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private void rememberGestureStart() {
         gestureStartViewport = viewport; gestureStartScroll = scrollY;
         gestureStartZoom = zoom; gestureStartFit = zoomFit;
-        gestureStartView = currentView();
     }
 
     private boolean engageNavigation() {
@@ -770,6 +701,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private void drawPreview() {
         if (!active || !dragging || !gestureEngaged || viewport == null || shownError != null) return;
         try {
+            preparePdfBackgrounds();
             if (preview == null) preview = Bitmap.createBitmap(viewport.width, viewport.height, Bitmap.Config.RGB_565);
             Canvas drawing = new Canvas(preview);
             drawing.drawColor(Color.WHITE);
@@ -787,7 +719,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                 int height = Math.max(1, (int) Math.ceil(current.height * viewport.scale(id)));
                 // A pinch changes scale every frame; render into the reused viewport bitmap
                 // instead of repeatedly allocating and discarding page-sized tiles.
-                if (!pinching && width <= viewport.width * 2 && height <= viewport.height * 2
+                if (current.pdfPage == 0 && !pinching && width <= viewport.width * 2 && height <= viewport.height * 2
                         && (long) width * height <= (long) viewport.width * viewport.height * 2) {
                     Bitmap tile = tiles.get(id);
                     if (tile == null) {
@@ -845,11 +777,8 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         drawing.drawColor(Color.WHITE);
         Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         if (current.pdfPage > 0) {
-            Bitmap background = pdfBackgrounds.get(current.pdfPage);
-            if (background != null && !background.isRecycled()) {
-                paint.setFilterBitmap(true);
-                drawing.drawBitmap(background, null, new RectF(0, 0, current.width, current.height), paint);
-            } else {
+            paint.setFilterBitmap(true);
+            if (!pdfBackgrounds.draw(drawing, current.pdfPage, current.width, current.height, paint)) {
                 paint.setColor(0xff555555); paint.setTextSize(Math.max(16, current.width / 40f));
                 drawing.drawText("Loading PDF page…", 20, 45, paint);
             }
@@ -1416,14 +1345,12 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                     return;
                 }
                 if (which >= 0) {
-                    NotebookViewHistory.State outgoing = currentView();
                     zoomFit = which == 0 ? NotebookViewport.Fit.WIDTH
                         : which == 1 ? NotebookViewport.Fit.HEIGHT
                         : which == 2 ? NotebookViewport.Fit.PAGE : NotebookViewport.Fit.CUSTOM;
                     float target = which < 3 ? viewport.fittedZoom(zoomFit, activePage) : percentages[which - 3];
                     zoomAt(target, viewport.width / 2f, viewport.height / 2f, viewport.width / 2f, viewport.height / 2f);
                     if (which == 1 || which == 2) scrollY = viewport.pageScroll(activePage);
-                    if (outgoing != null && !outgoing.equals(currentView())) viewHistory.record(outgoing);
                     savePosition = true;
                 }
                 editing = false; scrolling = true;
@@ -1467,9 +1394,9 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             (viewport.height / 2f - viewport.pageTop(id, scrollY)) / viewport.scale(id), zoom, zoomFit.name());
     }
 
-    private void rememberView() {
+    private void rememberView(NotebookViewHistory.Navigation navigation) {
         NotebookViewHistory.State state = currentView();
-        if (state != null) viewHistory.record(state);
+        if (state != null) viewHistory.record(state, navigation);
     }
 
     private void changeViewHistory(boolean forward) {
@@ -1495,9 +1422,9 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         requestWindow();
     }
 
-    private void jumpToLocation(int target, double fraction) {
+    private void jumpToLocation(int target, double fraction, NotebookViewHistory.Navigation navigation) {
         float destination = viewport.scrollForPoint(target, (float) fraction * viewport.pageHeight(target), 0);
-        if (scrollY != destination || viewport.pan != 0) rememberView();
+        if (scrollY != destination || viewport.pan != 0) rememberView(navigation);
         clearSelection();
         viewport = viewport.withView(zoom, 0);
         scrollY = destination;
@@ -1512,7 +1439,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         int number = viewport.pageAt(x, y, scrollY);
         NotebookPage current = pages.get(number);
         if (current == null || current.pdfPage == 0) return false;
-        List<NotebookPdfAsset.Link> links = pdfLinks.get(current.pdfPage);
+        List<NotebookPdfAsset.Link> links = pdfBackgrounds.links(current.pdfPage);
         if (links == null) return false;
         float localX = (x - viewport.pageLeft(number)) / (viewport.scale(number) * current.width);
         float localY = (y - viewport.pageTop(number, scrollY)) / (viewport.scale(number) * current.height);
@@ -1525,7 +1452,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                     return true;
                 }
                 pauseForEdit();
-                if (shownError == null) jumpToLocation(target, link.fraction);
+                if (shownError == null) jumpToLocation(target, link.fraction, NotebookViewHistory.Navigation.PDF_LINK);
                 return true;
             }
             if (link.uri != null && !link.uri.isEmpty()) {
@@ -1539,25 +1466,38 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                 }
                 pauseForEdit();
                 if (shownError != null) return true;
-                try { startActivity(new Intent(Intent.ACTION_VIEW, uri)); }
-                catch (ActivityNotFoundException | SecurityException error) {
-                    Toast.makeText(this, "No app is available to open this link", Toast.LENGTH_SHORT).show();
-                }
-                editing = false;
-                if (active) { ink.start(); updateControls(); scheduleSaveState(); }
+                confirmExternalLink(uri);
                 return true;
             }
         }
         return false;
     }
 
-    /** Input has already been paused; the window read precedes native restoration. */
-    private void jumpToPage(int target) {
-        jumpToPage(target, true);
+    private void confirmExternalLink(Uri uri) {
+        final int request = generation;
+        final boolean[] open = {false};
+        String scheme = uri.getScheme();
+        boolean web = "https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme);
+        AlertDialog dialog = new AlertDialog.Builder(this)
+            .setTitle(web ? "Open link in browser?" : "Open link in another app?")
+            .setMessage(uri.toString())
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Open", (choice, which) -> open[0] = true).create();
+        externalLinkMenu = dialog;
+        dialog.setOnDismissListener(closed -> {
+            if (externalLinkMenu == dialog) externalLinkMenu = null;
+            if (!active || request != generation || shownError != null) return;
+            editing = false; ink.start(); updateControls(); scheduleSaveState();
+            if (open[0]) try { startActivity(new Intent(Intent.ACTION_VIEW, uri)); }
+            catch (ActivityNotFoundException | SecurityException error) {
+                Toast.makeText(this, "No app is available to open this link", Toast.LENGTH_SHORT).show();
+            }
+        });
+        showStaticDialog(dialog);
     }
 
-    private void jumpToPage(int target, boolean remember) {
-        if (remember && scrollY != viewport.pageScroll(target)) rememberView();
+    /** Input has already been paused; the window read precedes native restoration. */
+    private void jumpToPage(int target) {
         clearSelection();
         editing = false; scrolling = true; savePosition = true;
         scrollY = viewport.pageScroll(target); activePage = target;
@@ -1588,7 +1528,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                     pages.clear(); viewportBuffer.clear(); tiles.clear();
                     viewHistory.clear();
                     viewport = createViewport(viewport.width, viewport.height, viewport.pan);
-                    jumpToPage(dialog.chosenPage() > 0 ? dialog.chosenPage() : session.pageNumber(), false);
+                    jumpToPage(dialog.chosenPage() > 0 ? dialog.chosenPage() : session.pageNumber());
                 } else if (dialog.chosenPage() > 0) jumpToPage(dialog.chosenPage());
                 else {
                     // Browsing changed no document or viewport state. Reuse the paused
@@ -1655,7 +1595,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             if (!active || request != generation || shownError != null) return;
             NotebookOutline.Entry entry = destination[0];
             int number = entry == null ? 0 : session.pageNumber(entry.pageId);
-            if (number > 0) jumpToLocation(number, entry.fraction);
+            if (number > 0) jumpToLocation(number, entry.fraction, NotebookViewHistory.Navigation.OUTLINE);
             else { editing = false; installViewport(); }
         });
         refresh.run(); showStaticDialog(dialog);
@@ -1775,7 +1715,6 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         session.addPage(activePage, (updated, error) -> {
             if (!active || request != generation) return;
             if (error != null) { showError(error); return; }
-            rememberView();
             viewport = createViewport(viewport.width, viewport.height, viewport.pan);
             editing = false; scrolling = true; savePosition = true;
             activePage = session.pageCount(); scrollY = viewport.pageScroll(activePage);
@@ -1924,6 +1863,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         if (viewMenu != null) { viewMenu.dismiss(); viewMenu = null; }
         if (outlineChild != null) { outlineChild.dismiss(); outlineChild = null; }
         if (outlineMenu != null) { outlineMenu.dismiss(); outlineMenu = null; }
+        if (externalLinkMenu != null) { externalLinkMenu.dismiss(); externalLinkMenu = null; }
         if (floatingTools != null) floatingTools.hide();
         if (overview != null) { overview.dismiss(); overview = null; }
         if (widthPopup != null) { widthPopup.dismiss(); widthPopup = null; }
@@ -1950,9 +1890,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         clearSelection(); resetSelectionPreview();
         dragging = false; pinching = false; gestureEngaged = false; gestureStartViewport = null;
         selectionViewportGesture = false;
-        linkTap.cancel(); pdfLoading.clear(); pdfWanted = Collections.emptySet();
-        for (Bitmap background : pdfBackgrounds.values()) background.recycle();
-        pdfBackgrounds.clear(); pdfLinks.clear();
+        linkTap.cancel(); pdfBackgrounds.clear();
         if (zoomBadge != null) zoomBadge.dismiss();
         penDown = false;
         if (floatingTools != null) floatingTools.hide();
@@ -1961,7 +1899,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     }
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
     @Override protected void onDestroy() {
-        pdfWorker.shutdownNow();
+        pdfBackgrounds.close();
         if (statusIslands != null) statusIslands.hide();
         if (floatingTools != null) floatingTools.dispose();
         if (selectionTools != null) selectionTools.hide();

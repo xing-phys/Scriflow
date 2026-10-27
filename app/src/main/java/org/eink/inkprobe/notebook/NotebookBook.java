@@ -21,6 +21,7 @@ public final class NotebookBook {
     private List<NotebookOutline.Entry> outline = java.util.Collections.emptyList();
     private NotebookScrollStore scroll;
     private final Map<Integer, NotebookDocument> documents = new HashMap<>();
+    private Map<Integer, NotebookPageCatalog.Entry> metadataCache;
     private NotebookIndex.State durableIndex;
     private int attemptedCount, attemptedSelection;
     private int selected = 1, count = 1;
@@ -77,6 +78,40 @@ public final class NotebookBook {
     public boolean canRedoPageChange() { return !pageRedo.isEmpty(); }
     public File sourcePdf() { File source = new File(directory, "source.pdf"); return source.isFile() ? source : null; }
     public List<NotebookOutline.Entry> outline() { return outline; }
+
+    /** One compact cache read on cold open; no scan of every page's handwriting. */
+    public List<NotebookPageCatalog.Entry> navigationMetadata() throws IOException {
+        requireLoaded();
+        if (metadataCache == null) metadataCache = new HashMap<>(NotebookPageCatalog.load(directory));
+        List<NotebookPageCatalog.Entry> result = new ArrayList<>(count);
+        Map<Integer, NotebookPageCatalog.Entry> active = new java.util.LinkedHashMap<>();
+        boolean changed = false;
+        for (int number = 1; number <= count; number++) {
+            int slot = storageSlot(number);
+            try {
+                NotebookPageCatalog.Entry entry = metadataCache.get(slot);
+                NotebookDocument cached = documents.get(slot);
+                if (cached != null && cached.current() != null) {
+                    NotebookPageCatalog.Entry fresh = NotebookPageCatalog.Entry.of(cached.current());
+                    if (entry == null || !entry.id.equals(fresh.id) || entry.width != fresh.width
+                            || entry.height != fresh.height || entry.pdfPage != fresh.pdfPage) {
+                        entry = fresh; changed = true;
+                    }
+                }
+                if (entry == null) {
+                    requirePageFiles(number);
+                    entry = new NotebookStore(pageDirectory(number)).metadata(); changed = true;
+                }
+                if ((count > 1 || durableIndex.managed()) && entry.width == 0) throw new IOException("Saved page has no dimensions");
+                metadataCache.put(slot, entry); active.put(slot, entry); result.add(entry);
+            } catch (IOException failure) {
+                // A damaged offscreen page must not prevent opening or editing healthy pages.
+                result.add(null);
+            }
+        }
+        if (changed) NotebookPageCatalog.save(directory, active);
+        return java.util.Collections.unmodifiableList(result);
+    }
 
     /** UUID destinations remain valid when pages are reordered and can reappear after undo. */
     public int pageNumber(java.util.UUID id) throws IOException {
@@ -273,7 +308,8 @@ public final class NotebookBook {
                 slot = availableSlot(nextSlot); nextSlot = slot + 1;
                 List<NotebookPage.Stroke> strokes = new ArrayList<>();
                 if (action == PageAction.DUPLICATE) for (NotebookPage.Stroke stroke : original.strokes)
-                    strokes.add(new NotebookPage.Stroke(stroke.penType, stroke.width, stroke.color, stroke.points));
+                    strokes.add(new NotebookPage.Stroke(stroke.penType, stroke.width, stroke.color, stroke.points,
+                        stroke.captureScale, stroke.captureWidth));
                 created = NotebookPage.empty().withSize(original.width, original.height)
                     .withPaperSize(original.paperSize).withTemplate(original.template).withStrokes(strokes);
                 if (action == PageAction.DUPLICATE) created = created.withPdfPage(original.pdfPage);
@@ -346,6 +382,7 @@ public final class NotebookBook {
         // No edit can have been accepted until initial load completes, so discard a failed initial
         // candidate and validate repaired files afresh (including an invalid empty snapshot).
         documents.clear();
+        metadataCache = null;
         document = documentFor(selected);
         if (count > 1 || state.managed()) requirePageFiles(selected);
         if (document.error() == null) document.load(); else document.retry();

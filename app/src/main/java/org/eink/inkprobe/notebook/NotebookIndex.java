@@ -95,6 +95,14 @@ public final class NotebookIndex {
         return state;
     }
 
+    /** Initialize a fully staged, unpublished import with one index write rather than N appends. */
+    public State initializeImported(int count) throws IOException {
+        requireReady(); validate(count, 1);
+        if (document.exists() || backup.exists() || temporary.exists())
+            throw new IOException("Imported notebook index already exists; files were preserved");
+        return publish(new State(count, 1));
+    }
+
     /** Legacy append/navigation entry point; existing books retain v1 until a management edit. */
     public State save(int pageCount, int selectedPage) throws IOException {
         requireReady();

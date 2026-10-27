@@ -19,8 +19,8 @@ import java.util.zip.CRC32;
  * Single-writer page store. Call only from a serialized background worker, never pen callbacks.
  * A synced, checksummed record commits each completed stroke without rewriting previous points.
  * Size/template changes and stroke edits publish an atomic snapshot and retain the previous file
- * as a backup. Legacy reads are non-mutating; the first edit atomically migrates to version 4,
- * which retains IDs, optional physical paper dimensions and source PDF page identity.
+ * as a backup. Legacy reads are non-mutating; the first edit atomically migrates to version 5,
+ * which also retains the native input scale needed for faithful pressure geometry.
  */
 public final class NotebookStore {
     public static final int MAX_POINTS_PER_STROKE = 200000;
@@ -29,7 +29,7 @@ public final class NotebookStore {
     public static final int MAX_DIMENSION = 32768;
 
     private static final int MAGIC = 0x4e424b31; // NBK1
-    private static final int VERSION = 4;
+    private static final int VERSION = 5;
     private static final int SNAPSHOT = 1, APPEND_STROKE = 2;
     private static final int MAX_RECORD_BYTES = 32 * 1024 * 1024;
     private static final long MAX_FILE_BYTES = 64L * 1024 * 1024;
@@ -51,6 +51,58 @@ public final class NotebookStore {
         document = new File(directory, "page.nbk");
         backup = new File(directory, "page.nbk.bak");
         temporary = new File(directory, "page.nbk.tmp");
+    }
+
+    /** One snapshot and one durability barrier per staged page, without duplicate syncs or renames. */
+    public static NotebookPage initializePdfImport(File directory, int width, int height, int sourcePage) throws IOException {
+        validateDimensions(width, height, false); validatePdfPage(width, height, sourcePage);
+        if (sourcePage < 1) throw new IOException("Missing PDF source page");
+        if (!directory.isDirectory() && !directory.mkdirs()) throw new IOException("Cannot create staged PDF page");
+        File file = new File(directory, "page.nbk");
+        if (file.exists() || new File(directory, "page.nbk.bak").exists() || new File(directory, "page.nbk.tmp").exists())
+            throw new IOException("Staged PDF page already exists; files were preserved");
+        NotebookPage page = NotebookPage.empty().withSize(width, height).withPdfPage(sourcePage);
+        if (!file.createNewFile()) throw new IOException("Cannot create staged PDF page");
+        boolean complete = false;
+        try (FileOutputStream output = new FileOutputStream(file)) {
+            writeSnapshot(output, page); output.getFD().sync(); complete = true;
+        } finally { if (!complete) file.delete(); }
+        return page;
+    }
+
+    /** Reads only immutable identity/geometry, without allocating or decoding saved ink samples. */
+    public NotebookPageCatalog.Entry metadata() throws IOException {
+        File source = document.exists() ? document : backup.exists() ? backup : temporary.exists() ? temporary : null;
+        if (source == null) return new NotebookPageCatalog.Entry(legacyId(directory), 0, 0, 0);
+        try (RandomAccessFile input = new RandomAccessFile(source, "r")) {
+            if (input.length() < 20 || input.length() > MAX_FILE_BYTES || input.readInt() != MAGIC)
+                throw corrupt("Invalid notebook metadata header");
+            int version = input.readInt();
+            if (version < 1 || version > VERSION) throw corrupt("Unsupported notebook version " + version);
+            int size = input.readInt();
+            if (size <= 0 || size > MAX_RECORD_BYTES || input.readInt() != ~size || input.length() < 20L + size)
+                throw corrupt("Invalid notebook metadata length");
+            int headerLength = Math.min(size, 64);
+            byte[] header = new byte[headerLength]; input.readFully(header);
+            DataInputStream fields = new DataInputStream(new ByteArrayInputStream(header));
+            if (fields.readUnsignedByte() != SNAPSHOT) throw corrupt("Missing page snapshot");
+            UUID id = version >= 2 ? readId(fields) : legacyId(directory);
+            int width = fields.readInt(), height = fields.readInt();
+            validateDimensions(width, height, true);
+            if (version >= 3) {
+                int physical = fields.readUnsignedByte();
+                if (physical > 1) throw corrupt("Invalid physical page metadata");
+                if (physical == 1) validatePaperSize(width, height, NotebookPaperSize.custom(fields.readDouble(), fields.readDouble()));
+            }
+            int pdfPage = version >= 4 ? fields.readInt() : 0;
+            validatePdfPage(width, height, pdfPage);
+            // The cache is advisory, but do not derive it from corrupt snapshot bytes.
+            CRC32 crc = new CRC32(); crc.update(header);
+            byte[] buffer = new byte[8192]; int remaining = size - headerLength;
+            while (remaining > 0) { int length = Math.min(buffer.length, remaining); input.readFully(buffer, 0, length); crc.update(buffer, 0, length); remaining -= length; }
+            if (input.readInt() != (int) crc.getValue()) throw corrupt("Notebook metadata checksum failed");
+            return new NotebookPageCatalog.Entry(id, width, height, pdfPage);
+        } catch (IllegalArgumentException failure) { throw new CorruptDocumentException("Invalid notebook metadata", failure); }
     }
 
     /** Fully corrupt files are left untouched. Only an incomplete final journal record is ignored. */
@@ -374,6 +426,8 @@ public final class NotebookStore {
         int penType = input.readInt();
         float width = input.readFloat();
         int color = input.readInt();
+        float captureScale = state.version >= 5 ? input.readFloat() : 1f;
+        float captureWidth = state.version >= 5 ? input.readFloat() : width;
         int count = input.readInt();
         if (count < 1 || count > MAX_POINTS_PER_STROKE || (long) count * POINT_BYTES > input.available()) {
             throw corrupt("Invalid stroke point count");
@@ -382,7 +436,7 @@ public final class NotebookStore {
         for (int i = 0; i < count; i++) {
             points.add(new NotebookPage.Point(input.readFloat(), input.readFloat(), input.readLong(), input.readFloat()));
         }
-        return new NotebookPage.Stroke(id, penType, width, color, points);
+        return new NotebookPage.Stroke(id, penType, width, color, points, captureScale, captureWidth);
     }
 
     private static void validateDimensions(int width, int height, boolean allowEmpty) throws IOException {
@@ -409,6 +463,8 @@ public final class NotebookStore {
 
     private static void validateStroke(int width, int height, NotebookPage.Stroke stroke) throws IOException {
         if (stroke == null) throw new IllegalArgumentException("Missing stroke");
+        if (stroke.clip != null || stroke.width > 1024)
+            throw corrupt("Viewport-only stroke cannot be stored");
         if (width <= 0 || height <= 0) throw corrupt("Stroke in unsized notebook");
         for (NotebookPage.Point point : stroke.points) {
             if (point.x < 0 || point.y < 0 || point.x > width || point.y > height) {
@@ -450,6 +506,8 @@ public final class NotebookStore {
         output.writeInt(stroke.penType);
         output.writeFloat(stroke.width);
         output.writeInt(stroke.color);
+        output.writeFloat(stroke.captureScale);
+        output.writeFloat(stroke.captureWidth);
         output.writeInt(stroke.points.size());
         for (NotebookPage.Point point : stroke.points) {
             output.writeFloat(point.x);

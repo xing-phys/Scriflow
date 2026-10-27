@@ -7,6 +7,7 @@ import java.util.UUID;
 
 /** Process-local browser-style view history, independent of ink undo and durable scroll state. */
 public final class NotebookViewHistory {
+    public enum Navigation { PDF_LINK, OUTLINE, SCROLL, PAN, ZOOM, PAGE_BUTTON, PAGE_OVERVIEW, ADD_PAGE }
     private static final int LIMIT = 100;
     private final Deque<State> back = new ArrayDeque<>(), forward = new ArrayDeque<>();
 
@@ -27,9 +28,14 @@ public final class NotebookViewHistory {
         @Override public int hashCode() { return Objects.hash(pageId, x, y, zoom, fit); }
     }
 
-    /** Capture the outgoing view immediately before a user follows a destination. */
+    /** Capture the outgoing view only for a PDF link or outline jump. Scrolling, zoom, and ordinary page changes do not record. */
     public void record(State current) {
         require(current); push(back, current); forward.clear();
+    }
+    /** A central policy keeps normal reading movements out of link/outline return history. */
+    public void record(State current, Navigation navigation) {
+        if (navigation == null) throw new IllegalArgumentException("Missing navigation cause");
+        if (navigation == Navigation.PDF_LINK || navigation == Navigation.OUTLINE) record(current);
     }
     public boolean canBack() { return !back.isEmpty(); }
     public boolean canForward() { return !forward.isEmpty(); }

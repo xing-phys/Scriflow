@@ -89,8 +89,10 @@ public final class NotebookViewportZoomTest {
         NotebookPage source = page(100, 200, original);
         NotebookPage display = view.compose(Collections.singletonMap(1, source), 0);
         check(display.strokes.size() == 1, "broad legacy ink still composes at high zoom");
-        near(1024, display.strokes.get(0).width, "native display width capped within supported range");
-        near(1024, source.strokes.get(0).width, "defensive display cap keeps durable legacy width unchanged");
+        near(8192, display.strokes.get(0).width, "canonical vector retains broad legacy width at high zoom");
+        near(1024, display.strokes.get(0).width * display.strokes.get(0).captureScale,
+            "native outline replay stays within the original supported brush width");
+        near(1024, source.strokes.get(0).width, "display fitting keeps durable legacy width unchanged");
         endpoint(display.strokes.get(0), 0, 200, 240, 42, .75f);
     }
 

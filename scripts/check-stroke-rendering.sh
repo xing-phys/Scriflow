@@ -6,7 +6,7 @@ ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 [[ -f build/scriflow-debug.apk ]] || { echo 'Run ./scripts/build.sh first.' >&2; exit 1; }
 rm -rf build/render-check/classes build/render-check/dex
-mkdir -p build/render-check/classes build/render-check/dex artifacts/consistent-ink-0.22
+mkdir -p build/render-check/classes build/render-check/dex artifacts/consistent-ink-scale
 javac -encoding UTF-8 -source 8 -target 8 -classpath ".tools/platform-29/android.jar:build/classes" \
   -d build/render-check/classes tools/NotebookRenderingCheck.java
 python3 - <<'PY'
@@ -27,5 +27,5 @@ adb -d push build/render-check/check.jar "$REMOTE/check.jar" >/dev/null
 adb -d push build/scriflow-debug.apk "$REMOTE/app.apk" >/dev/null
 STATUS=0
 adb -d shell "CLASSPATH=$REMOTE/check.jar:$REMOTE/app.apk app_process /system/bin org.eink.inkprobe.notebook.NotebookRenderingCheck $REMOTE/output" || STATUS=$?
-adb -d pull "$REMOTE/output/." artifacts/consistent-ink-0.22/ >/dev/null
+adb -d pull "$REMOTE/output/." artifacts/consistent-ink-scale/ >/dev/null
 exit "$STATUS"

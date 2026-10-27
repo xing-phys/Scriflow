@@ -18,11 +18,9 @@ public final class NotebookPdfAsset {
 
     public static final class Page {
         public final int width, height;
-        public final List<Link> links;
 
-        Page(int width, int height, List<Link> links) {
-            this.width = width; this.height = height; this.links = immutable(links);
-        }
+        /** Geometry only; links are decoded lazily through NotebookPdfEngine.links. */
+        Page(int width, int height) { this.width = width; this.height = height; }
     }
 
     public static final class Link {

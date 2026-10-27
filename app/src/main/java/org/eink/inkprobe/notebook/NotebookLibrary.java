@@ -56,6 +56,10 @@ public final class NotebookLibrary {
 
     public File currentDirectory() { return bookDirectory(notebookId()); }
     public File sourcePdf() { return book == null ? null : book.sourcePdf(); }
+    public List<NotebookPageCatalog.Entry> navigationMetadata() throws IOException {
+        if (book == null) throw new IOException("No notebook is open");
+        return book.navigationMetadata();
+    }
     public List<NotebookOutline.Entry> outline() throws IOException {
         if (book == null) throw new IOException("No notebook is open");
         return book.outline();

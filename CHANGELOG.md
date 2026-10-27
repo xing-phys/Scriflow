@@ -6,6 +6,32 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## [0.31.0-dev.2](https://github.com/xing-phys/Scriflow/releases/tag/v0.31.0-dev.2) — PDF and ink regression fixes (2026-10-27)
+
+- Fix PDF export failing when PDFBox closed the caller's stream before its final
+  flush and file sync, affecting imported PDFs and notes with outlines.
+- Replace enlarged fixed-resolution previews with visible PDF tiles rendered
+  at the current zoom. Retain the native PDF renderer and current page; bound
+  cached pixels and avoid queues of obsolete scroll/zoom renders.
+- Retain new strokes' native capture scale and exact native brush width, replay
+  their original pressure geometry, and clip completed vectors rather than
+  restarting the brush at the visible screen edge. Use the same completed
+  outlines for restored writing, scrolling, thumbnails, selection, and export.
+- Write version-5 pages with backward reads of versions 1–4. Preserve older
+  strokes and their files on open; missing historical capture scale cannot be
+  inferred reliably. First edits retain the earlier file as a backup.
+- Record previous/next views only for internal link and outline jumps. Scrolling,
+  zooming, and ordinary page navigation leave this history alone. Confirm an
+  external link's target before opening a browser or another app.
+- Import each PDF page once with one durability sync and publish the page index
+  once. Use four bounded page writers and wait for all before publication or
+  cleanup. Cache compact page geometry/identities and PDF outlines; load links lazily
+  with one retained reader. Avoid decoding every saved stroke while opening.
+- Advance versionCode to 38 with the same application ID and signing identity.
+  31,012 host assertions across 40 suites, both lint/build variants, standalone
+  app and native diagnostic compilation pass. Host performance records are separate from pending
+  native handwriting, visual sharpness, and timing checks on the tablet.
+
 ## [0.31.0-dev.1](https://github.com/xing-phys/Scriflow/releases/tag/v0.31.0-dev.1) — PDF notebooks and outlines (2026-10-26)
 
 - Import a PDF as a separate editable notebook through the system file picker.

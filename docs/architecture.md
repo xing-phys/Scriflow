@@ -32,6 +32,12 @@ Android-independent so future device support does not require a new document for
 
 ## Durable identities and migration
 
+Version 0.31-dev.2 adds version-5 strokes with capture scale and exact native
+width, keeping pressure geometry independent of the current zoom. Reads of
+versions 1–4 remain non-mutating. See [ink capture geometry](ink-capture-scale.md).
+Disposable navigation/PDF metadata caches avoid opening every page or parsing
+every annotation on startup; source files remain authoritative.
+
 Version 0.31 adds version-4 snapshots with a source PDF page reference, durable
 UUID-based outlines, and version-2 editable backups containing the unchanged
 source PDF. Earlier formats remain readable. See [PDF notebooks](pdf-import.md)

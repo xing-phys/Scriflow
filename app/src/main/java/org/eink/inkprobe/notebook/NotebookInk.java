@@ -180,7 +180,6 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
             restored = false;
             restoring = true;
             try {
-                if (!samePaper) paintPaper(paperBitmap);
                 replaceNativeTracks();
                 restored = true;
                 previewVisible = false;
@@ -407,7 +406,6 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
             widthScale = (float) Math.sqrt((double) scaleX * scaleY);
             if (!restored) restoreDocument();
             else if (previewVisible || paperDirty || eraserPreviewVisible) {
-                if (paperDirty) paintPaper(paperBitmap);
                 replaceNativeTracks();
                 previewVisible = false;
             }
@@ -422,7 +420,7 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
             call(surface, "setAhwPen", new Class<?>[]{int.class, float.class, int.class},
                 nativePen, (tool == Tool.LASSO ? LASSO_WIDTH : tool == Tool.PEN ? penWidth : eraserWidth) * widthScale,
                 tool == Tool.ERASER ? NotebookEraserCommit.COLOR : Color.BLACK);
-            configuredStyle = new NotebookPenConfig.Style(ballpoint, penWidth, Color.BLACK);
+            configuredStyle = new NotebookPenConfig.Style(ballpoint, penWidth, Color.BLACK, widthScale);
             call(view, "setState", new Class<?>[]{int.class},
                 view.getClass().getField("STATE_HADNWRITE").getInt(null));
             applyOverlayClip();
@@ -766,13 +764,19 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
     private void restoreDocument() throws Exception {
         restoring = true;
         try {
-            Bitmap background = Bitmap.createBitmap(surfaceWidth, surfaceHeight, Bitmap.Config.ARGB_8888);
-            background.setDensity(Bitmap.DENSITY_NONE);
+            Bitmap background = paperBitmap;
+            boolean bind = background == null || background.isRecycled()
+                || background.getWidth() != surfaceWidth || background.getHeight() != surfaceHeight;
+            if (bind) {
+                background = Bitmap.createBitmap(surfaceWidth, surfaceHeight, Bitmap.Config.ARGB_8888);
+                background.setDensity(Bitmap.DENSITY_NONE);
+            }
             paintPaper(background);
-            // bindBitmap and setTrackList redraw synchronously on a prepared native surface.
-            call(get(view, "getSurfacePicture"), "bindBitmap", new Class<?>[]{Bitmap.class}, background);
+            // Reuse the already bound bitmap after cancellation; repaint and track
+            // replacement then reach the display together in one native post.
+            if (bind) call(get(view, "getSurfacePicture"), "bindBitmap", new Class<?>[]{Bitmap.class}, background);
             paperBitmap = background;
-            replaceNativeTracks();
+            replaceNativeTracks(false);
             restored = true;
             previewVisible = false;
         } finally { restoring = false; }
@@ -785,20 +789,32 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
             int checkpoint = canvas.save();
             try { paperRenderer.draw(canvas, bitmap.getWidth(), bitmap.getHeight()); }
             finally { canvas.restoreToCount(checkpoint); }
-            paperDirty = false;
-            return;
-        }
-        if (page.template == NotebookPage.Template.LINED) {
+        } else if (page.template == NotebookPage.Template.LINED) {
             Paint rule = new Paint();
             rule.setColor(Color.rgb(210, 210, 210));
             rule.setStrokeWidth(Math.max(1f, widthScale));
             for (float y = 72; y < page.height; y += 72)
                 canvas.drawLine(0, y * scaleY, surfaceWidth, y * scaleY, rule);
         }
+        // Completed ink has one canonical vector outline. The native track helper
+        // regenerates its brush at the current viewport scale, which changes width
+        // due to native pixel rounding. Paint those outlines together with the paper;
+        // the native widget still owns low-latency ink for each newly written stroke.
+        int checkpoint = canvas.save();
+        try {
+            canvas.scale(scaleX, scaleY);
+            Paint ink = new Paint(Paint.ANTI_ALIAS_FLAG);
+            for (NotebookPage.Stroke stroke : completed) NotebookStrokeRenderer.draw(canvas, stroke, ink);
+        } finally { canvas.restoreToCount(checkpoint); }
         paperDirty = false;
     }
 
     private void replaceNativeTracks() throws Exception {
+        replaceNativeTracks(true);
+    }
+
+    private void replaceNativeTracks(boolean repaint) throws Exception {
+        if (repaint && paperBitmap != null) paintPaper(paperBitmap);
         ArrayList<Object> tracks = new ArrayList<>();
         Object creator = get(view, "getHWTrackCreator");
         Method createPoint = creator.getClass().getMethod("createHWPoint",
@@ -828,10 +844,12 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
             left = Math.min(left, x); top = Math.min(top, y);
             right = Math.max(right, x); bottom = Math.max(bottom, y);
         }
-        float width = stroke.width * widthScale;
+        float width = Math.min(1024, stroke.width * widthScale);
         // Match HWTrackHelper.calcBounds: conservative padding is one complete pen width.
         RectF bounds = new RectF(left - width, top - width, right + width, bottom + width);
-        return invoke(creator, createTrack, stroke.penType, width, stroke.color, 0L, points, bounds);
+        // Transparent placeholders keep the firmware's track bookkeeping and later
+        // commit count intact. Their visible vector ink is on the owned paper bitmap.
+        return invoke(creator, createTrack, stroke.penType, width, Color.TRANSPARENT, 0L, points, bounds);
     }
 
     private NotebookPage.Stroke readTrack(Object track) throws Exception {
@@ -845,15 +863,23 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
             points.add(new NotebookPage.Point(clamp(x.getFloat(point) / scaleX, page.width),
                 clamp(y.getFloat(point) / scaleY, page.height), time.getLong(point), pressure.getFloat(point)));
         }
-        return new NotebookPage.Stroke((Integer) get(track, "getPenType"),
-            (Float) get(track, "getPenWidth") / widthScale,
-            (Integer) get(track, "getPenColor"), points);
+        float nativeWidth = (Float) get(track, "getPenWidth");
+        return new NotebookPage.Stroke((Integer) get(track, "getPenType"), nativeWidth / widthScale,
+            (Integer) get(track, "getPenColor"), points, widthScale, nativeWidth);
     }
 
-    /** Readback of this owned native widget, used by the disposable restoration check. */
+    /** Native sample readback plus canonical style, used by the disposable restoration check. */
     public List<NotebookPage.Stroke> snapshotNativeStrokes() throws Exception {
         ArrayList<NotebookPage.Stroke> result = new ArrayList<>();
-        for (Object track : (List<?>) get(view, "getTrackList")) result.add(readTrack(track));
+        for (Object track : (List<?>) get(view, "getTrackList")) {
+            NotebookPage.Stroke read = readTrack(track);
+            if (read.color == Color.TRANSPARENT && result.size() < completed.size()) {
+                NotebookPage.Stroke saved = completed.get(result.size());
+                read = new NotebookPage.Stroke(saved.id, saved.penType, saved.width, saved.color,
+                    read.points, saved.captureScale, saved.captureWidth);
+            }
+            result.add(read);
+        }
         return Collections.unmodifiableList(result);
     }
 

@@ -53,30 +53,26 @@ final class NotebookPdfImport {
                     }
                     output.getFD().sync();
                 }
-                message = "Reading PDF pages, links, and outline…"; changed();
+                message = "Reading PDF page sizes and outline…"; changed();
                 NotebookPdfAsset asset = NotebookPdfEngine.inspect(context, original);
                 if (asset.pages.isEmpty() || asset.pages.size() > NotebookIndex.MAX_PAGES)
                     throw new IOException("PDF import supports 1–" + NotebookIndex.MAX_PAGES + " pages");
-                List<UUID> pageIds = new ArrayList<>();
-                for (int i = 0; i < asset.pages.size(); i++) {
-                    NotebookPdfAsset.Page source = asset.pages.get(i);
-                    File pageDirectory = NotebookBackup.pageDirectory(staging, i + 1);
-                    NotebookStore store = new NotebookStore(pageDirectory); store.load();
-                    NotebookPage page = store.initializePdfPage(source.width, source.height, i + 1);
-                    store.sync(); pageIds.add(page.id);
-                }
+                List<NotebookViewport.Size> sizes = new ArrayList<>(asset.pages.size());
+                for (NotebookPdfAsset.Page source : asset.pages)
+                    sizes.add(new NotebookViewport.Size(source.width, source.height));
+                List<NotebookPage> pages = NotebookPdfStaging.pages(staging, sizes);
                 NotebookIndex index = new NotebookIndex(staging); index.load();
-                for (int count = 1; count <= pageIds.size(); count++) index.save(count, 1);
-                index.sync();
+                index.initializeImported(pages.size());
+                NotebookPageCatalog.seed(staging, pages);
                 List<NotebookOutline.Entry> headings = new ArrayList<>();
                 for (NotebookPdfAsset.Heading heading : asset.outline) {
-                    if (heading.pdfPage >= 1 && heading.pdfPage <= pageIds.size())
-                        headings.add(new NotebookOutline.Entry(heading.title, pageIds.get(heading.pdfPage - 1),
+                    if (heading.pdfPage >= 1 && heading.pdfPage <= pages.size())
+                        headings.add(new NotebookOutline.Entry(heading.title, pages.get(heading.pdfPage - 1).id,
                             heading.fraction, heading.depth));
                 }
                 NotebookOutline.save(staging, headings);
                 String name = displayName(uri, asset.title);
-                NotebookBackup.Restored prepared = new NotebookBackup.Restored(staging, name, pageIds.size());
+                NotebookBackup.Restored prepared = new NotebookBackup.Restored(staging, name, pages.size());
                 message = "Adding PDF notebook…"; changed();
                 session.importBackup(prepared, error -> {
                     if (staging.exists()) NotebookBackup.deleteTree(staging);

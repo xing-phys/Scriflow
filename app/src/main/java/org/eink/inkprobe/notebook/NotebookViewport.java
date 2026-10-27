@@ -186,17 +186,33 @@ public final class NotebookViewport {
             }
             float scale = scale(id), top = pageTop(id, scroll), left = pageLeft(id);
             for (NotebookPage.Stroke stroke : page.strokes) {
+                float clipLeft = Math.max(0, left), clipTop = Math.max(0, top);
+                float clipRight = Math.min(width, pageRight(id));
+                float clipBottom = Math.min(height, top + heights[index(id)]);
+                if (!intersects(stroke, scale, left, top, clipLeft, clipTop, clipRight, clipBottom)) continue;
                 List<NotebookPage.Point> screen = transform(stroke.points, scale, left, top);
-                for (List<NotebookPage.Point> piece : clip(screen, Math.max(0, left), Math.max(0, top), Math.min(width, pageRight(id)),
-                        Math.min(height, top + heights[index(id)]))) {
-                    // The native widget caps display widths at 1024. Keep unusually broad
-                    // legacy tracks displayable at high zoom; their durable width is unchanged.
-                    result.add(new NotebookPage.Stroke(stroke.penType, Math.min(1024, stroke.width * scale), stroke.color, piece));
-                    count = Math.addExact(count, piece.size());
-                }
+                result.add(stroke.inView(stroke.width * scale, screen, stroke.captureScale / scale,
+                    clipLeft, clipTop, clipRight, clipBottom));
+                count = Math.addExact(count, screen.size());
             }
         }
         return NotebookPage.restored(width, height, NotebookPage.Template.BLANK, result, count);
+    }
+
+    private static boolean intersects(NotebookPage.Stroke stroke, float scale, float x, float y,
+                                      float left, float top, float right, float bottom) {
+        float minX = Float.MAX_VALUE, minY = Float.MAX_VALUE, maxX = -Float.MAX_VALUE, maxY = -Float.MAX_VALUE;
+        float pressure = 1;
+        for (NotebookPage.Point point : stroke.points) {
+            minX = Math.min(minX, point.x); minY = Math.min(minY, point.y);
+            maxX = Math.max(maxX, point.x); maxY = Math.max(maxY, point.y);
+            pressure = Math.max(pressure, point.pressure);
+        }
+        // Conservative native brush padding also retains thick edges whose
+        // centreline is outside the viewport, without replaying distant ink.
+        float padding = 2 * Math.max(stroke.width * pressure, 1 / stroke.captureScale) * scale;
+        return maxX * scale + x + padding >= left && minX * scale + x - padding <= right
+            && maxY * scale + y + padding >= top && minY * scale + y - padding <= bottom;
     }
 
     /** Clips a completed screen stroke into independently stored page-local pieces. */
@@ -211,7 +227,8 @@ public final class NotebookViewport {
             List<NotebookPage.Stroke> local = new ArrayList<>();
             for (List<NotebookPage.Point> piece : pieces) {
                 local.add(new NotebookPage.Stroke(stroke.penType, stroke.width / scale, stroke.color,
-                        transformClipped(piece, 1 / scale, -left / scale, -top / scale, pageWidth(id), pageHeight(id))));
+                        transformClipped(piece, 1 / scale, -left / scale, -top / scale, pageWidth(id), pageHeight(id)),
+                        stroke.captureScale * scale, stroke.captureWidth));
             }
             result.put(id, Collections.unmodifiableList(local));
         }

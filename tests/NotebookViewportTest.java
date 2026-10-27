@@ -100,7 +100,9 @@ public final class NotebookViewportTest {
         endpoint(pieces.get(1), 0, 0, 80, 0, 1);
         check(layout.splitStroke(stroke(4, point(-10, 10), point(-10, 90)), 0).isEmpty(), "offscreen path is not clamped into border ink");
         Map<Integer, NotebookPage> pages = Collections.singletonMap(1, page(100, 100, Arrays.asList(excursion)));
-        check(layout.compose(pages, 0).strokes.size() == 2, "composition also separates excursions");
+        NotebookPage.Stroke composed = layout.compose(pages, 0).strokes.get(0);
+        check(composed.points.size() == excursion.points.size() && composed.clip != null,
+            "composition retains complete native samples and clips their finished vector instead of making chords");
         List<NotebookPage.Stroke> crossing = layout.splitStroke(stroke(4, point(-20, -20), point(120, 120)), 0).get(1);
         endpoint(crossing.get(0), 0, 0, 0, 0, 1);
         endpoint(crossing.get(0), 1, 100, 100, 0, 1);
@@ -134,9 +136,10 @@ public final class NotebookViewportTest {
         NotebookPage.Stroke visible = composed.strokes.get(0);
         near(4, visible.width, "composition width scaling");
         endpoint(visible, 0, 50, 49, 10, .2f);
-        near(180, visible.points.get(1).y, "long segment intersects viewport bottom");
-        check(visible.points.get(1).time == 272, "clipped time interpolation");
-        near(.2 + .6 * 262 / 340, visible.points.get(1).pressure, "clipped pressure interpolation");
+        near(219, visible.points.get(1).y, "original offscreen endpoint is retained for native brush replay");
+        check(visible.points.get(1).time == 350, "scroll composition retains original event time");
+        near(.8, visible.points.get(1).pressure, "scroll composition retains original pressure");
+        near(180, visible.clip.bottom, "finished vector is clipped at the viewport bottom");
         check(layout.compose(Collections.<Integer, NotebookPage>emptyMap(), 80).strokes.isEmpty(), "unloaded pages do not materialize tracks");
         expectInvalid(() -> layout.compose(Collections.singletonMap(2, page(100, 100, Arrays.asList(stroke(4, point(1, 1))))), 80));
     }
@@ -221,8 +224,11 @@ public final class NotebookViewportTest {
                 }
                 pages.put(entry.getKey(), editor.current());
             }
-            for (NotebookPage.Stroke part : layout.compose(pages, scroll).strokes)
-                checkBounds(part.points, viewportWidth, viewportHeight);
+            for (NotebookPage.Stroke part : layout.compose(pages, scroll).strokes) {
+                check(part.clip != null && part.clip.left >= 0 && part.clip.top >= 0
+                    && part.clip.right <= viewportWidth && part.clip.bottom <= viewportHeight,
+                    "composed vector has strict visible bounds without clipping its original brush samples");
+            }
             for (NotebookViewport.EraseGesture gesture : layout.splitErase(source.points, 12, scroll))
                 for (List<NotebookPage.Point> path : gesture.paths) for (NotebookPage.Point point : path)
                     check(point.x >= -gesture.radius - .001 && point.x <= width + gesture.radius + .001

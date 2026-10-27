@@ -29,16 +29,48 @@ public final class NotebookPage {
         public final UUID id;
         public final int penType, color;
         public final float width;
+        /** Native input pixels per logical unit when this stroke was written. */
+        public final float captureScale;
+        /** Exact native brush width; reconstructing width * captureScale can cross a pixel threshold. */
+        public final float captureWidth;
         public final List<Point> points;
+        // Viewport-only clipping. Keep full samples so scrolling cannot restart the brush
+        // at a clipped MOVE and change its pressure/taper geometry.
+        final Clip clip;
 
         public Stroke(int penType, float width, int color, List<Point> points) {
             this(UUID.randomUUID(), penType, width, color, points);
         }
 
         public Stroke(UUID id, int penType, float width, int color, List<Point> points) {
+            this(id, penType, width, color, points, 1f);
+        }
+
+        public Stroke(int penType, float width, int color, List<Point> points, float captureScale) {
+            this(UUID.randomUUID(), penType, width, color, points, captureScale);
+        }
+
+        public Stroke(UUID id, int penType, float width, int color, List<Point> points, float captureScale) {
+            this(id, penType, width, color, points, captureScale, width * captureScale);
+        }
+
+        public Stroke(int penType, float width, int color, List<Point> points, float captureScale, float captureWidth) {
+            this(UUID.randomUUID(), penType, width, color, points, captureScale, captureWidth);
+        }
+
+        public Stroke(UUID id, int penType, float width, int color, List<Point> points,
+                      float captureScale, float captureWidth) {
+            this(id, penType, width, color, points, captureScale, captureWidth, null);
+        }
+
+        private Stroke(UUID id, int penType, float width, int color, List<Point> points,
+                       float captureScale, float captureWidth, Clip clip) {
             if (id == null) throw new IllegalArgumentException("Missing stroke ID");
             this.id = id;
-            if (penType < 0 || penType > 255 || !finite(width) || width <= 0 || width > 1024) {
+            if (penType < 0 || penType > 255 || !finite(width) || width <= 0 || (clip == null && width > 1024)
+                    || !finite(captureScale) || captureScale <= 0 || !finite(1f / captureScale)
+                    || !finite(captureWidth) || captureWidth <= 0 || captureWidth > 1024
+                    || !finite(width * captureScale)) {
                 throw new IllegalArgumentException("Invalid pen style");
             }
             if (points == null || points.isEmpty() || points.size() > NotebookStore.MAX_POINTS_PER_STROKE) {
@@ -47,11 +79,29 @@ public final class NotebookPage {
             ArrayList<Point> copy = new ArrayList<>(points);
             for (Point point : copy) {
                 if (point == null) throw new IllegalArgumentException("Missing pen point");
+                if (!finite(point.x * captureScale) || !finite(point.y * captureScale))
+                    throw new IllegalArgumentException("Invalid native pen coordinate");
             }
             this.penType = penType;
             this.width = width;
             this.color = color;
+            this.captureScale = captureScale;
+            this.captureWidth = captureWidth;
+            this.clip = clip;
             this.points = Collections.unmodifiableList(copy);
+        }
+
+        Stroke inView(float width, List<Point> points, float captureScale,
+                      float left, float top, float right, float bottom) {
+            return new Stroke(id, penType, width, color, points, captureScale, captureWidth,
+                new Clip(left, top, right, bottom));
+        }
+    }
+
+    static final class Clip {
+        final float left, top, right, bottom;
+        Clip(float left, float top, float right, float bottom) {
+            this.left = left; this.top = top; this.right = right; this.bottom = bottom;
         }
     }
 

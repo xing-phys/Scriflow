@@ -230,6 +230,7 @@ public final class NotebookDocument {
 
     private static boolean sameStroke(NotebookPage.Stroke a, NotebookPage.Stroke b) {
         if (!a.id.equals(b.id) || a.penType != b.penType || a.color != b.color || !same(a.width, b.width)
+                || !same(a.captureScale, b.captureScale) || !same(a.captureWidth, b.captureWidth)
                 || a.points.size() != b.points.size()) return false;
         for (int i = 0; i < a.points.size(); i++) {
             NotebookPage.Point p = a.points.get(i), q = b.points.get(i);
