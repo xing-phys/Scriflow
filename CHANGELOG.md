@@ -6,6 +6,23 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.33.0-dev.4 — Keep the main note visible during window changes (2026-10-28)
+
+- Stop destroying/recreating the native editor for floating-note move, resize,
+  open, close, minimize and restore operations. Retain unrelated readers and
+  update only layout/input exclusions when the editor dimensions are unchanged.
+- Repost existing painted paper/native tracks after exposing covered areas.
+  Recompose resized viewports on the same widget after native geometry is ready.
+- Reuse the paused editor during focus handoff. Keep the incoming reader visible
+  until native content is ready; retain the outgoing note's complete frame until
+  its vector pages and PDF tiles are ready. No blank loading frame is exposed.
+- Render paper/ink updates into a staging bitmap before copying complete pixels
+  to the bound display bitmap; never clear that bound bitmap while replaying ink.
+- Add production-callback regressions for layout/native-size races, retained
+  widget ownership, stale stroke rejection, frame retention and bitmap post order.
+- VersionCode 50; permanent signing identity and document formats unchanged.
+  Physical e-ink refresh and native input acceptance remain pending on the tablet.
+
 ## 0.33.0-dev.3 — Multi-note windows and continuous reading (2026-10-28)
 
 - Remove the redundant “Active” prefix from the shared note status island.

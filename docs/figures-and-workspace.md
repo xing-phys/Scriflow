@@ -107,15 +107,25 @@ Readers retain only visible immutable pages and cached vector stroke outlines.
 Each reader uses the same continuous viewport geometry and PDF tile cache as
 the editor, without flattening handwriting into a thumbnail. PDF link parsing
 is disabled in readers; link/outline tools belong to the editable note.
-Activation flushes
-completed ink and retires the old native surface before changing the writer’s
-active book. The editor is then placed into the activated note’s existing pane.
+From **0.33.0-dev.4**, activation flushes completed ink and pauses native input
+before changing the writer's active book, then reuses the same native widget in
+the selected pane. Its callback lifetime is separate from the writer-operation
+generation, so retained input uses the current notebook while retired widgets
+cannot submit strokes. The incoming reader stays visible until native content
+is ready. An outgoing editor temporarily retains a complete viewport image until
+its original vector pages and PDF tiles are ready; this image is never used as
+a permanent zoom source.
 Inactive split panes are ordinary views; an inactive floating pane uses a popup
 and joins native ink exclusion rectangles. An active floating pane hosts the
 single native surface in its own window. The toolbox and status bar stay anchored
-to the app root. Placement changes rebuild the viewport at its retained page
-anchor; resuming the app schedules through its attached root, including when
-the floating editor was detached during pause.
+to the app root. Floating-window operations retain unrelated reader caches and
+the native editor. If editor dimensions are unchanged, only exclusions and a
+complete existing paper/track post change. A resized editor waits for matching
+native geometry, then recomposes its viewport at the retained logical anchor.
+Paper/ink rendering uses a staging bitmap, followed by one opaque copy into
+the bound bitmap, so repaint never exposes a white intermediate. Resuming the
+app schedules through its attached root, including when the floating editor
+was detached during pause.
 
 ## Verification
 
@@ -133,6 +143,11 @@ to check continuous cross-page scrolling, pinch anchors, width fitting, vector
 replay, PDF tile resolution, cache retirement and minimized-note restoration.
 Corner-grip callbacks check tap/hold intent, movement, anchored resizing,
 cancel rollback, busy-writer rejection and delayed-callback retirement.
+Display callbacks check editor retention for float open/move/resize/close and
+minimize/restore, asynchronous layout/native-size races, background completion,
+current/stale native stroke ownership, complete-frame retention through PDF
+loading, and paint-before-bind / staging-before-copy order. These host adapters
+do not establish the visible waveform or latency on the physical e-ink screen.
 The PDF engine regression checks figures
 with and without transparency on ordinary and imported PDF pages, their pixel
 sizes and transformation matrices, and retention of original content. Host
@@ -148,3 +163,8 @@ individually from the tray. Hold/drag both corner controls, dock a third note,
 leave/resume a floating editor, and rotate with multiple notes open. Verify the
 status/toolbox follows focus, zoom detail resolves, gestures during writing are
 ignored, and pen input never appears in an inactive note or under controls.
+For dev.4, watch a main note containing both PDF text and recent native ink while
+moving, resizing, opening, closing, minimizing and restoring floating notes with
+either pane editable. The main note must never go white; newly exposed areas
+must retain their ink, focus changes must remain covered until content is ready,
+and pen capture must follow the resized/moved window accurately.

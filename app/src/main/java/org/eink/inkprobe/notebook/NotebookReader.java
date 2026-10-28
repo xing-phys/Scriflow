@@ -2,6 +2,8 @@ package org.eink.inkprobe.notebook;
 
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.Bitmap;
+import android.graphics.RectF;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
@@ -35,6 +37,8 @@ final class NotebookReader extends View {
     private NotebookSession.PreviewRequest metadataRequest, pageRequest;
     private NotebookViewport viewport;
     private File source;
+    private Bitmap retainedFrame;
+    private boolean pdfReady = true, pdfFailed;
     private float scrollY, lastX, lastY;
     private boolean opened, loadingPage, stylusContact, contactAccepted;
     private int epoch;
@@ -44,8 +48,8 @@ final class NotebookReader extends View {
         super(context); this.session = session; this.pane = pane; this.listener = listener;
         setContentDescription("Note; scroll and pinch with fingers, tap with stylus to edit");
         pdf = new NotebookPdfBackgrounds(context, new NotebookPdfBackgrounds.Listener() {
-            public void changed() { invalidate(); }
-            public void failed(IOException error) { message = "PDF unavailable. Reopen this note to retry."; invalidate(); }
+            public void changed() { preparePdf(); invalidate(); }
+            public void failed(IOException error) { pdfFailed = true; message = "PDF unavailable. Reopen this note to retry."; invalidate(); }
         }, false);
         scale = new ScaleGestureDetector(context, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
             @Override public boolean onScale(ScaleGestureDetector detector) {
@@ -64,13 +68,16 @@ final class NotebookReader extends View {
             }
         });
     }
+    /** A temporary complete frame, never a zoom/render source. Original vectors replace it when ready. */
+    void retainFrame(Bitmap frame) { retainedFrame = frame; invalidate(); }
+
     void open() {
         if (opened) return;
         opened = true; message = "Loading…";
         final int request = ++epoch;
         metadataRequest = session.companionMetadata(pane.notebookId, (loaded, file, error) -> {
             if (!opened || request != epoch) return;
-            if (error != null || loaded.isEmpty()) { message = "Note unavailable. Reopen it to retry."; invalidate(); return; }
+            if (error != null || loaded.isEmpty()) { retainedFrame = null; message = "Note unavailable. Reopen it to retry."; invalidate(); return; }
             sizes = loaded; source = file;
             pane.page = Math.max(1, Math.min(sizes.size(), pane.page));
             configure();
@@ -128,9 +135,20 @@ final class NotebookReader extends View {
                 viewport.pageHeight(number) * (double) viewport.scale(number), viewport.pageLeft(number),
                 viewport.pageTop(number, scrollY), viewport.width, viewport.height));
         }
-        pdf.prepare(source, tiles, sources);
+        pdfReady = pdf.prepare(source, tiles, sources);
+    }
+    private boolean frameReady() {
+        if (viewport == null || !pdfReady && !pdfFailed) return false;
+        for (int number : viewport.visiblePages(scrollY)) if (!pages.containsKey(number) && !errors.contains(number)) return false;
+        return true;
     }
     @Override protected void onDraw(Canvas canvas) {
+        if (retainedFrame != null) {
+            if (!frameReady()) {
+                canvas.drawBitmap(retainedFrame, null, new RectF(0, 0, getWidth(), getHeight()), paint); return;
+            }
+            retainedFrame = null; // Display lists may still reference the bitmap; let GC reclaim it.
+        }
         canvas.drawColor(0xffeeeeee);
         if (viewport == null) { label(canvas, message); return; }
         for (int number : viewport.visiblePages(scrollY)) {
@@ -206,6 +224,7 @@ final class NotebookReader extends View {
         if (metadataRequest != null) metadataRequest.cancel();
         if (pageRequest != null) pageRequest.cancel();
         viewport = null; sizes = Collections.emptyList(); pages.clear(); paths.clear(); errors.clear(); pdf.clear();
+        retainedFrame = null; pdfReady = true; pdfFailed = false;
     }
     void close() { hide(); pdf.close(); }
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }

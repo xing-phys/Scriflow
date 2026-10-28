@@ -38,12 +38,16 @@ public interface NotebookInkBackend {
     void pauseForEdit();
     boolean isReady();
     boolean isPenDown();
+    /** True only after the retained native surface has adopted these physical dimensions. */
+    boolean hasGeometry(int width, int height);
     void setTool(Tool tool);
     void setSelectionMode(boolean selected);
     /** Fitted width in the current widget's page coordinates. Live drawing belongs to native AHW. */
     void setPenWidth(float width);
     void setEraserWidth(float width);
     void setOverlayBounds(Rect... bounds);
+    /** Paused: repost existing paper/tracks exposed by an overlay, without repainting or clearing them. */
+    void redrawAfterOverlayChange();
     void setPage(NotebookPage page);
     void setPaperRenderer(PaperRenderer renderer);
     boolean updateViewport(NotebookPage page, PaperRenderer renderer);

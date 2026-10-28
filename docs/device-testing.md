@@ -4,6 +4,30 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## Scriflow 0.33.0-dev.4 floating-window display retention (2026-10-28)
+
+VersionCode 50 fixes the reported white main-note frame during floating-window
+operations. Layout and focus changes retain the native editor and unrelated
+readers. Unchanged editor geometry reposts existing paper/tracks; changed
+geometry recomposes on the same native widget. Focus handoff retains complete
+contents until the destination is ready. Rendering stages pixels offscreen
+before one opaque copy into the bound bitmap.
+
+- The full host suite passes. Production-callback fixtures cover floating open,
+  move, resize, minimize/restore and close without replacing the editor; native
+  geometry/layout/PDF-read races; active and retired stroke callbacks; retained
+  reader frames; complete bitmap binding and offscreen repaint order; and a
+  duplicate same-size callback that must preserve requested input resume.
+- Debug/release lint and builds pass. `scripts/build-release.sh` prepares the
+  permanently signed `build/releases/scriflow-0.33.0-dev.4.apk` and checksum;
+  APK metadata/signature verification uses the pinned release certificate.
+- `adb devices` lists no tablet. Physical absence of the white flash, newly
+  exposed ink, accurate capture after moving/resizing the active window,
+  pressure/latency and rotation/resume still need tablet acceptance. Host
+  callback adapters do not verify the physical e-ink refresh waveform.
+- Local signed update only; no GitHub release is published. Application ID,
+  notebook data formats and permanent signer are unchanged.
+
 ## Scriflow 0.33.0-dev.3 multi-note windows (2026-10-28)
 
 VersionCode 49 implements the owner's multi-note UI/reader fixes. A toolbox

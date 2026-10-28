@@ -55,7 +55,8 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private NotebookCompanion.ReadingView pendingReadingView;
     private int pendingReadingPage;
     private Runnable whenReady;
-    private boolean changingWorkspace;
+    private boolean changingWorkspace, workspaceLayoutPending;
+    private int inkGeneration;
     private final Map<Integer, byte[]> workspaceHistories = new LinkedHashMap<>();
     private TextView saveState, pageLabel;
     private NotebookDeviceStatus deviceStatus;
@@ -300,7 +301,8 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private void openCanvas(NotebookPage loaded) {
         ensureWorkspace();
         if (viewNotebookId != session.notebookId()) { viewNotebookId = session.notebookId(); viewHistory.clear(); }
-        final int request = ++generation;
+        if (ink != null && viewport != null && !retainEditorFrame()) return;
+        ++generation;
         if (!restoreCenter) captureViewCenter();
         disposeCanvas();
         shownError = null;
@@ -318,31 +320,34 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         updatePageLabel();
         updateControls();
         try {
+            final int surfaceOwner = inkGeneration;
             ink = new NotebookInk(this, NotebookPage.empty(), new NotebookInk.Listener() {
                 @Override public void onGeometryReady(int width, int height) {
-                    if (!active || request != generation) return;
+                    if (!active || surfaceOwner != inkGeneration) return;
                     if (geometryPending) {
-                        if (!editing && viewport != null && (viewport.width != width || viewport.height != height)) {
-                            ink.pauseForEdit(); captureViewCenter();
-                            main.post(() -> { if (active && request == generation) openCanvas(page); });
+                        if (workspaceLayoutPending) canvas.post(NotebookActivity.this::finishWorkspaceLayout);
+                        else if (!editing && viewport != null && (viewport.width != width || viewport.height != height)) {
+                            ink.pauseForEdit(); captureViewCenter(); scrolling = true; settleRead = true;
+                            configureViewport(width, height);
                         }
                         return;
                     }
                     geometryPending = true;
                     ink.pauseForEdit();
                     if (page.isInitialized()) { configureViewport(width, height); return; }
+                    final int geometryRequest = generation;
                     session.initializeSize(width, height, (sized, error) -> {
-                        if (!active || request != generation) return;
+                        if (!active || surfaceOwner != inkGeneration || geometryRequest != generation) return;
                         if (error != null) { showError(error); return; }
                         page = sized;
                         configureViewport(width, height);
                     });
                 }
                 @Override public void onStrokeComplete(NotebookPage.Stroke stroke) {
-                    acceptStroke(stroke, request);
+                    if (active && surfaceOwner == inkGeneration) acceptStroke(stroke, generation);
                 }
                 @Override public void onPenStateChanged(boolean down) {
-                    if (!active || request != generation) return;
+                    if (!active || surfaceOwner != inkGeneration) return;
                     penDown = down;
                     if (down) {
                         ++writingRevision; linkTap.cancel();
@@ -354,9 +359,11 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                     if (!down) scheduleSaveState();
                 }
                 @Override public void onReady() {
-                    if (!active || request != generation) return;
+                    if (!active || surfaceOwner != inkGeneration) return;
                     if (session.error() != null) { showError(session.error()); return; }
                     updateControls();
+                    NotebookCompanion window = noteWindows.get(workspace.find(session.notebookId()));
+                    if (window != null) window.editorReady();
                     statusIslands.show(workspaceRoot);
                     showFloatingTools();
                     if (pendingToolAction != null && !toolsContact && canEdit()) {
@@ -376,21 +383,21 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                     scheduleSaveState();
                 }
                 @Override public void onError(String message) {
-                    if (!active || request != generation) return;
+                    if (!active || surfaceOwner != inkGeneration) return;
                     showError(new IOException(message));
                 }
                 @Override public void onEraseGesture(List<NotebookPage.Point> path, float radius) {
-                    if (active && request == generation) erase(path, radius);
+                    if (active && surfaceOwner == inkGeneration) erase(path, radius);
                 }
                 @Override public void onLassoGesture(List<NotebookPage.Point> path) {
-                    if (active && request == generation) lasso(path);
+                    if (active && surfaceOwner == inkGeneration) lasso(path);
                 }
                 @Override public void onSelectionEvent(MotionEvent event) {
-                    if (active && request == generation) selectionTouch(event);
+                    if (active && surfaceOwner == inkGeneration) selectionTouch(event);
                 }
                 @Override public void onFingerEvent(MotionEvent event) {
                     lastInputAt = SystemClock.uptimeMillis();
-                    if (active && request == generation) finger(event);
+                    if (active && surfaceOwner == inkGeneration) finger(event);
                 }
             });
             ink.setTool(tool);
@@ -2097,7 +2104,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                 if (!canEdit() || changingWorkspace) return false;
                 pauseForEdit(); captureViewCenter(); persistPosition(); rememberEditor(); return true;
             }
-            public void endMove() { if (active) { saveWorkspace(); rebuildWorkspace(); } }
+            public void endMove() { if (active) { saveWorkspace(); relayoutWorkspace(); } }
             public void save() { saveWorkspace(); }
             public boolean allowInput() { return canEdit() && !changingWorkspace; }
         });
@@ -2123,16 +2130,63 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         updateOverlayBounds();
     }
 
-    private void rebuildWorkspace() {
-        changingWorkspace = true; ++generation; disposeCanvas();
+    /** Reuse the editor and every unrelated reader; a floating window never clears the main note. */
+    private void relayoutWorkspace() {
+        changingWorkspace = true; workspaceLayoutPending = true;
         layoutWorkspace();
-        workspaceArea.post(() -> { changingWorkspace = false; if (active) loadPage(); });
+        canvas.postOnAnimation(this::finishWorkspaceLayout);
+    }
+
+    private void finishWorkspaceLayout() {
+        if (!active || !workspaceLayoutPending || ink == null || shownError != null) return;
+        if (canvas.isLayoutRequested() || ink.view().isLayoutRequested()) {
+            canvas.postOnAnimation(this::finishWorkspaceLayout); return;
+        }
+        int width = ink.view().getWidth(), height = ink.view().getHeight();
+        if (!ink.hasGeometry(width, height)) return; // The native size callback schedules the continuation.
+        workspaceLayoutPending = changingWorkspace = false;
+        editing = false;
+        if (viewport == null || viewport.width != width || viewport.height != height) {
+            clearSelection(); tiles.clear(); preview = null;
+            scrolling = true; settleRead = true; ++viewportRevision;
+            configureViewport(width, height);
+        } else {
+            restoreCenter = false;
+            updateOverlayBounds(); ink.redrawAfterOverlayChange(); ink.start();
+            updateControls(); scheduleSaveState();
+        }
+    }
+
+    /** A focus handoff reuses the paused native widget, including its already painted surface. */
+    private void openWorkspaceCanvas(NotebookPage loaded) {
+        page = loaded; clearSelection(); resetSelectionPreview(); linkTap.cancel();
+        pdfBackgrounds.clear(); viewport = null; pages.clear(); viewportBuffer.clear(); tiles.clear(); preview = null;
+        fetching = dragging = false; scrolling = true; firstViewport = false; settleRead = true;
+        geometryPending = true; ++viewportRevision;
+        relayoutWorkspace();
+    }
+
+    private boolean retainEditorFrame() {
+        NotebookCompanion window = noteWindows.get(workspace.find(session.notebookId()));
+        if (window == null || viewport == null) return true;
+        try {
+            Bitmap frame = Bitmap.createBitmap(viewport.width, viewport.height, Bitmap.Config.RGB_565);
+            Canvas drawing = new Canvas(frame);
+            drawPaper(drawing, viewport.width, viewport.height);
+            Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            for (NotebookPage.Stroke stroke : viewport.compose(pages, scrollY).strokes)
+                NotebookStrokeRenderer.draw(drawing, stroke, paint);
+            window.retainEditorFrame(frame);
+            return true;
+        } catch (RuntimeException | OutOfMemoryError error) {
+            showError(new IOException("Could not retain the note display", error)); return false;
+        }
     }
 
     private void changeWorkspace(Runnable mutation) {
         if (!canEdit() || changingWorkspace) return;
         pauseForEdit(); captureViewCenter(); persistPosition(); rememberEditor();
-        mutation.run(); saveWorkspace(); rebuildWorkspace();
+        mutation.run(); saveWorkspace(); relayoutWorkspace();
     }
 
     private void collapsePane(NotebookWorkspace.Pane pane, boolean close) {
@@ -2237,8 +2291,10 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         int previous = session.notebookId(), target = targetPane.notebookId, targetPage = targetPane.page;
         pauseForEdit(); persistPosition(); rememberEditor();
         workspaceHistories.put(previous, viewHistory.save(previous));
-        changingWorkspace = true; int request = ++generation; disposeCanvas();
-        for (NotebookCompanion window : noteWindows.values()) window.hide();
+        if (!retainEditorFrame()) return;
+        changingWorkspace = true; int request = ++generation;
+        // Keep every note visible while the serialized writer changes owners. Native input is paused.
+        if (noteTray != null) noteTray.hide();
         session.openNotebook(target, (loaded, error) -> {
             changingWorkspace = false;
             if (error != null) { if (active && request == generation) showError(error); return; }
@@ -2252,8 +2308,8 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             reopenPosition = new NotebookScrollStore.State(pendingReadingPage, 0);
             whenReady = afterActivation;
             // Writer ownership changes before reparenting the surface. The activating pen tap is consumed by the reader.
-            activePage = pendingReadingPage; updatePageLabel(); layoutWorkspace();
-            workspaceArea.post(() -> { if (active && request == generation) openCanvas(loaded); });
+            activePage = pendingReadingPage; updatePageLabel();
+            if (active && request == generation) openWorkspaceCanvas(loaded);
         });
     }
 
@@ -2448,6 +2504,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         super.onSaveInstanceState(state);
     }
     private void disposeCanvas() {
+        ++inkGeneration; workspaceLayoutPending = false;
         main.removeCallbacks(previewFrame);
         clearSelection(); resetSelectionPreview();
         dragging = false; pinching = false; gestureEngaged = false; gestureStartViewport = null;

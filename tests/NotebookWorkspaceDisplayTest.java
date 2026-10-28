@@ -1,0 +1,83 @@
+package org.eink.inkprobe.notebook;
+
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+
+/** Executes production layout and native-restoration callbacks without a white intermediate post. */
+public final class NotebookWorkspaceDisplayTest {
+    public static void main(String[] args) throws Exception {
+        String activity = read("NotebookActivity"), ink = read("NotebookInk");
+        workspace(activity); nativeResize(ink);
+        System.out.println("NotebookWorkspaceDisplay: 25 assertions passed (retained surface, layout races, native resize/bind order; not physical e-ink verification).");
+    }
+    private static void workspace(String source) throws Exception {
+        String fixture = String.join("\n",
+            "package org.eink.inkprobe.notebook;import java.io.*;import java.util.*;",
+            "public class WorkspaceDisplayFixture {",
+            "final ArrayDeque<Runnable> queue=new ArrayDeque<>();",
+            "class Area {boolean requested;int width=1000,height=1200;boolean isLayoutRequested(){return requested;}int getWidth(){return width;}int getHeight(){return height;}void postOnAnimation(Runnable r){queue.add(r);}}",
+            "class Ink {final Area view=new Area();final Object identity=new Object();int physicalWidth=1000,physicalHeight=1200,posts;boolean enabled=true;void redrawAfterOverlayChange(){posts++;}void start(){enabled=true;}Area view(){return view;}boolean hasGeometry(int w,int h){return w==physicalWidth&&h==physicalHeight;}}",
+            "static class Session {int id=1;int notebookId(){return id;}}",
+            "static class Clearable {int clears;void clear(){clears++;}void cancel(){}}",
+            "final Area canvas=new Area();final Ink ink=new Ink();final Session session=new Session();final NotebookWorkspace workspace=new NotebookWorkspace();",
+            "final Object mainReaderCache=new Object();final Clearable viewportBuffer=new Clearable(),pdfBackgrounds=new Clearable(),linkTap=new Clearable();",
+            "final Map<Integer,Object> pages=new HashMap<>(),tiles=new HashMap<>();NotebookPage page;Object preview;",
+            "NotebookViewport viewport=new NotebookViewport(1,200,300,1000,1200,12);boolean active=true,workspaceLayoutPending,changingWorkspace,editing,scrolling,restoreCenter,fetching,dragging,firstViewport,settleRead,geometryPending,pdfDelayed;IOException shownError;int generation=8,inkGeneration=1,surfaceOwner=1,configured,accepted,acceptedGeneration;long viewportRevision;",
+            "WorkspaceDisplayFixture(){workspace.add(1,NotebookWorkspace.Position.FLOATING);workspace.add(2,NotebookWorkspace.Position.FLOATING);}",
+            "boolean canEdit(){return active&&!editing&&!changingWorkspace&&!scrolling&&ink.enabled;}void pauseForEdit(){editing=true;ink.enabled=false;}void captureViewCenter(){restoreCenter=true;}void persistPosition(){}void rememberEditor(){}void saveWorkspace(){}void clearSelection(){}void resetSelectionPreview(){}void updateOverlayBounds(){}void updateControls(){}void scheduleSaveState(){}",
+            "void layoutWorkspace(){NotebookWorkspace.Box b=workspace.box(workspace.find(session.id),1000,1200);canvas.width=ink.view.width=b.width;canvas.height=ink.view.height=b.height;}",
+            "void configureViewport(int w,int h){configured++;viewport=new NotebookViewport(1,200,300,w,h,12);restoreCenter=false;if(!pdfDelayed)installViewport();}",
+            "void installViewport(){if(editing)throw new AssertionError(\"still editing\");ink.posts++;ink.enabled=true;scrolling=false;}",
+            "void acceptStroke(NotebookPage.Stroke stroke,int request){accepted++;acceptedGeneration=request;}",
+            method(source,"private void relayoutWorkspace("), method(source,"private void finishWorkspaceLayout("),
+            method(source,"private void changeWorkspace("), method(source,"private void openWorkspaceCanvas("),
+            method(source,"public void onStrokeComplete("),
+            "void drain(){for(int n=0;!queue.isEmpty();n++){if(n>20)throw new AssertionError(\"layout loop\");queue.remove().run();}}",
+            "void nativeSize(){ink.physicalWidth=ink.view.width;ink.physicalHeight=ink.view.height;finishWorkspaceLayout();}",
+            "static void check(boolean b,String s){if(!b)throw new AssertionError(s);}",
+            "public static void run(){",
+            "WorkspaceDisplayFixture f=new WorkspaceDisplayFixture();Object editor=f.ink.identity,reader=f.mainReaderCache;NotebookViewport view=f.viewport;f.changeWorkspace(()->f.workspace.add(3,NotebookWorkspace.Position.FLOATING));f.drain();check(f.ink.identity==editor&&f.mainReaderCache==reader&&f.viewport==view&&f.generation==8&&f.inkGeneration==1,\"opening a floating note retains the editor, reader, view and callback owner\");",
+            "f.changeWorkspace(()->{NotebookWorkspace.Pane p=f.workspace.find(2);p.x=.8f;p.y=.7f;});f.drain();f.changeWorkspace(()->f.workspace.resize(f.workspace.find(2),.1f,false));f.drain();check(f.ink.posts==3&&f.configured==0&&f.ink.enabled,\"moving and resizing an inactive float post complete contents without reconstructing main viewport\");",
+            "f.changeWorkspace(()->f.workspace.minimize(f.workspace.find(2)));f.drain();f.changeWorkspace(()->f.workspace.find(2).collapsed=false);f.drain();f.changeWorkspace(()->f.workspace.close(f.workspace.find(3)));f.drain();check(f.viewport==view&&f.ink.identity==editor&&f.ink.posts==6,\"minimize, restore and close preserve main paper and ink\");",
+            "f.canvas.requested=true;f.changeWorkspace(()->f.workspace.find(2).x=.2f);f.queue.remove().run();check(f.workspaceLayoutPending&&!f.ink.enabled&&f.ink.posts==6,\"input waits while Android layout is outstanding\");f.canvas.requested=false;f.drain();check(f.ink.enabled&&!f.workspaceLayoutPending,\"layout completion resumes the existing editor once\");",
+            "WorkspaceDisplayFixture resized=new WorkspaceDisplayFixture();resized.session.id=2;resized.layoutWorkspace();resized.nativeSize();resized.viewport=new NotebookViewport(1,200,300,resized.canvas.width,resized.canvas.height,12);resized.ink.physicalWidth=resized.canvas.width;resized.ink.physicalHeight=resized.canvas.height;Object retained=resized.ink.identity;resized.changeWorkspace(()->resized.workspace.resize(resized.workspace.find(2),.1f,false));resized.drain();check(resized.workspaceLayoutPending&&resized.configured==0&&!resized.ink.enabled,\"active float resize waits for matching native geometry\");resized.nativeSize();check(resized.ink.identity==retained&&resized.configured==1&&resized.viewport.width==resized.canvas.width&&resized.ink.enabled,\"native resize recomposes the same widget at its new dimensions\");",
+            "WorkspaceDisplayFixture pdf=new WorkspaceDisplayFixture();pdf.pdfDelayed=true;pdf.changeWorkspace(()->pdf.workspace.place(pdf.workspace.find(2),NotebookWorkspace.Position.RIGHT));pdf.drain();pdf.nativeSize();check(pdf.scrolling&&!pdf.ink.enabled&&pdf.ink.posts==0,\"new PDF viewport keeps input paused while tiles load, without retiring the old display\");pdf.installViewport();check(pdf.ink.enabled&&pdf.ink.posts==1,\"complete PDF preparation posts one replacement and resumes input\");",
+            "WorkspaceDisplayFixture background=new WorkspaceDisplayFixture();background.changeWorkspace(()->background.workspace.find(2).x=.9f);background.active=false;background.drain();check(background.ink.posts==0&&!background.ink.enabled,\"background layout callback cannot enable native writing\");",
+            "WorkspaceDisplayFixture focus=new WorkspaceDisplayFixture();focus.pauseForEdit();focus.generation++;focus.openWorkspaceCanvas(NotebookPage.empty());focus.drain();check(focus.ink.identity!=null&&focus.inkGeneration==1&&focus.configured==1&&!focus.firstViewport&&focus.pdfBackgrounds.clears==1,\"writer handoff resets notebook-specific state while reusing native surface\");focus.onStrokeComplete(null);check(focus.accepted==1&&focus.acceptedGeneration==focus.generation,\"retained native listener uses current operation generation\");focus.inkGeneration++;focus.onStrokeComplete(null);check(focus.accepted==1,\"retired native widget cannot submit a stale stroke\");",
+            "}", "}");
+        NotebookWorkspaceActivationTest.runFixture("org.eink.inkprobe.notebook.WorkspaceDisplayFixture",fixture);
+    }
+    private static void nativeResize(String source) throws Exception {
+        String fixture=String.join("\n",
+            "package org.eink.inkprobe.notebook;import java.util.*;",
+            "public class NativeResizeFixture {",
+            "static class Bitmap {static final int DENSITY_NONE=0;static class Config {static final Config ARGB_8888=new Config();}final int w,h;boolean complete;int strokes;Bitmap(int w,int h){this.w=w;this.h=h;}static Bitmap createBitmap(int w,int h,Config c){return new Bitmap(w,h);}int getWidth(){return w;}int getHeight(){return h;}boolean isRecycled(){return false;}void setDensity(int n){}}",
+            "static class Canvas {final Bitmap target;Canvas(Bitmap b){target=b;}void drawBitmap(Bitmap b,float x,float y,Object paint){if(!b.complete)throw new AssertionError(\"incomplete staging frame\");target.complete=true;target.strokes=b.strokes;}}",
+            "static class Surface {boolean isValid(){return true;}}static class SurfaceHolder {Surface getSurface(){return new Surface();}}",
+            "static class View {int posts;final SurfaceHolder holder=new SurfaceHolder();SurfaceHolder getHolder(){return holder;}void post(Runnable r){posts++;}}",
+            "static class Listener {int geometry;void onGeometryReady(int w,int h){geometry++;}}",
+            "final List<Object> nativeTracks=new ArrayList<>(Arrays.asList(new Object(),new Object()));int trackReposts;final View view=new View();final Listener listener=new Listener();Object surface=new Object();NotebookPage page=NotebookPage.empty().withSize(100,200);final ArrayList<NotebookPage.Stroke> completed=new ArrayList<>();Bitmap paperBitmap,paperStaging;boolean alive=true,failed,prepared=true,wanted,enabled,penDown,paperDirty,restored=true,previewVisible,eraserPreviewVisible,restoring,paperBindingDirty,geometryReported,receiving;int surfaceWidth=100,surfaceHeight=200,binds,posts,stops;float scaleX=1,scaleY=1,widthScale=1;",
+            "NativeResizeFixture(){paperBitmap=new Bitmap(100,200);paperBitmap.complete=true;}",
+            "Object get(Object target,String name){if(name.equals(\"isReceivingTrack\"))return receiving;if(name.equals(\"getSurfacePicture\"))return view;if(name.equals(\"getTrackList\"))return nativeTracks;throw new AssertionError(name);}",
+            "Object call(Object target,String name,Class<?>[] types,Object... args){if(name.equals(\"setTrackList\")){if(args[0]==nativeTracks)throw new AssertionError(\"native list alias\");nativeTracks.clear();nativeTracks.addAll((List<?>)args[0]);trackReposts++;return null;}if(!name.equals(\"bindBitmap\"))throw new AssertionError(name);Bitmap b=(Bitmap)args[0];if(!b.complete)throw new AssertionError(\"blank bitmap bound\");binds++;return null;}",
+            "void paintPaper(Bitmap b){if(b==paperBitmap)throw new AssertionError(\"bound paper was cleared while rendering\");b.complete=true;b.strokes=completed.size();paperDirty=false;}void replaceNativeTracks(boolean repaint){if(repaint)repaintPaper(paperBitmap);if(!paperBitmap.complete)throw new AssertionError(\"blank surface post\");posts++;}void replaceNativeTracks(){replaceNativeTracks(true);}void fail(String message,Exception e){throw new AssertionError(message,e);}void stop(){stops++;wanted=enabled=false;restored=false;}void requirePaused(){if(wanted||enabled||penDown)throw new AssertionError(\"must pause\");}void tryEnable(){}void detach(){}",
+            method(source,"public boolean applyEditPage("),method(source,"private void restoreDocument("),method(source,"private void repaintPaper("),
+            method(source,"private static boolean sameStrokeReferences("),method(source,"public boolean hasGeometry("),method(source,"public void redrawAfterOverlayChange("),
+            method(source,"public void surfaceCreated("),method(source,"public void surfaceChanged("),method(source,"public void surfaceDestroyed("),
+            "static NotebookPage marked(int w,int h){return NotebookPage.empty().withSize(w,h).withStroke(new NotebookPage.Stroke(1,3,0xff000000,Collections.singletonList(new NotebookPage.Point(10,20,1,1))));}",
+            "static void check(boolean b,String s){if(!b)throw new AssertionError(s);}",
+            "public static void run(){",
+            "NativeResizeFixture f=new NativeResizeFixture();Object widget=f.view;Bitmap before=f.paperBitmap;f.wanted=true;f.surfaceChanged(f.view.holder,0,150,250);check(f.view==widget&&f.listener.geometry==1&&!f.wanted&&f.view.posts==0&&f.paperBitmap==before,\"native size callback retains painted buffer and waits for correct viewport\");check(f.hasGeometry(150,250)&&!f.hasGeometry(100,200),\"reuse requires actual physical geometry\");f.paperDirty=true;check(f.applyEditPage(marked(150,250)),\"resized viewport applies to the existing native widget\");check(f.binds==1&&f.posts==1&&f.paperBitmap.complete&&f.paperBitmap.strokes==1&&f.paperBitmap.getWidth()==150,\"new paper and ink are fully painted before binding and posting\");check(f.view==widget&&f.restored&&f.scaleX==1&&f.scaleY==1,\"native ownership and capture scale remain correct after resize\");",
+            "Object recent=f.nativeTracks.get(1);Bitmap intact=f.paperBitmap;f.redrawAfterOverlayChange();check(f.trackReposts==1&&f.nativeTracks.size()==2&&f.nativeTracks.get(1)==recent&&f.paperBitmap==intact&&f.binds==1,\"overlay exposure reposts existing opaque/transparent tracks without repainting or aliasing the native list\");",
+            "Bitmap stable=f.paperBitmap;f.paperDirty=true;check(f.applyEditPage(marked(150,250))&&f.paperBitmap==stable&&f.binds==1&&f.posts==2,\"ordinary workspace redraw reuses the bound bitmap and posts complete contents\");",
+            "int posts=f.posts;NotebookPage current=f.page;f.receiving=true;check(!f.applyEditPage(marked(200,300))&&f.posts==posts&&f.page==current&&f.paperBitmap==stable,\"unsettled native input cannot replace current contents\");f.receiving=false;",
+            "f.surfaceDestroyed(f.view.holder);check(!f.prepared&&f.paperBindingDirty&&f.paperBitmap==stable,\"reparenting retains complete bitmap while retiring native binding\");f.surfaceCreated(f.view.holder);f.surfaceChanged(f.view.holder,0,150,250);f.paperDirty=true;check(f.applyEditPage(marked(150,250))&&f.paperBitmap==stable&&f.binds==2&&f.posts==3,\"recreated physical surface rebinds a complete existing bitmap\");",
+            "NativeResizeFixture duplicate=new NativeResizeFixture();duplicate.wanted=true;duplicate.surfaceChanged(duplicate.view.holder,0,100,200);check(duplicate.wanted&&duplicate.view.posts==1&&duplicate.listener.geometry==0,\"same-size native callback preserves requested resume without stranding input\");",
+            "NativeResizeFixture unbound=new NativeResizeFixture();unbound.paperBitmap=null;check(unbound.applyEditPage(marked(100,200))&&unbound.binds==1&&unbound.posts==1,\"initial binding is complete before first post\");",
+            "}","}");
+        NotebookWorkspaceActivationTest.runFixture("org.eink.inkprobe.notebook.NativeResizeFixture",fixture);
+    }
+    private static String read(String name)throws Exception{return new String(Files.readAllBytes(new File("app/src/main/java/org/eink/inkprobe/notebook/"+name+".java").toPath()),StandardCharsets.UTF_8);}
+    private static String method(String source,String signature){return NotebookWorkspaceActivationTest.method(source,signature);}
+}

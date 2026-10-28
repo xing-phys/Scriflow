@@ -49,9 +49,9 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
     private boolean selectionMode;
     private final Runnable finishLasso = this::finishLassoAfterInput;
     private Object surface, pointListener, editListener;
-    private Bitmap paperBitmap;
+    private Bitmap paperBitmap, paperStaging;
     private PaperRenderer paperRenderer;
-    private boolean paperDirty, previewVisible;
+    private boolean paperDirty, previewVisible, paperBindingDirty = true;
     private boolean alive = true, wanted, prepared, enabled, restored, attached;
     private boolean penDown, failed, geometryReported, restoring;
     private int surfaceWidth, surfaceHeight, retries;
@@ -164,26 +164,27 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
         if (!alive || failed) return false;
         if (page == null) throw new IllegalArgumentException("Missing page");
         if (wanted || enabled || penDown) throw new IllegalStateException("Pause before editing the page");
-        if (page.width != this.page.width || page.height != this.page.height) {
-            return false;
-        }
         try {
-            if (!prepared || !view.getHolder().getSurface().isValid() || paperBitmap == null
-                    || paperBitmap.getWidth() != surfaceWidth || paperBitmap.getHeight() != surfaceHeight
+            if (!prepared || !view.getHolder().getSurface().isValid()
                     || Boolean.TRUE.equals(get(view, "isReceivingTrack"))) return false;
+            boolean resized = page.width != this.page.width || page.height != this.page.height
+                || paperBitmap == null || paperBitmap.getWidth() != surfaceWidth || paperBitmap.getHeight() != surfaceHeight;
             boolean sameStrokes = sameStrokeReferences(completed, page.strokes);
             boolean samePaper = this.page.template == page.template && !paperDirty;
             this.page = page;
-            completed.clear();
-            completed.addAll(page.strokes);
-            if (sameStrokes && samePaper && restored && !previewVisible && !eraserPreviewVisible) return true;
+            completed.clear(); completed.addAll(page.strokes);
+            scaleX = (float) surfaceWidth / page.width; scaleY = (float) surfaceHeight / page.height;
+            widthScale = (float) Math.sqrt((double) scaleX * scaleY);
+            if (!resized && sameStrokes && samePaper && restored && !previewVisible && !eraserPreviewVisible) return true;
             restored = false;
-            restoring = true;
-            try {
-                replaceNativeTracks();
-                restored = true;
-                previewVisible = false;
-            } finally { restoring = false; }
+            if (resized || paperBindingDirty) {
+                // Paint a complete replacement before binding it. Never construct a white native widget for a resize.
+                restoreDocument();
+            } else {
+                restoring = true;
+                try { replaceNativeTracks(); restored = true; previewVisible = false; }
+                finally { restoring = false; }
+            }
             return true;
         } catch (Exception e) {
             fail("Cannot update notebook ink", e);
@@ -245,6 +246,11 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
 
     public boolean isPenDown() { return penDown; }
 
+    @Override public boolean hasGeometry(int width, int height) {
+        return alive && !failed && prepared && width > 0 && height > 0
+            && surfaceWidth == width && surfaceHeight == height && view.getHolder().getSurface().isValid();
+    }
+
     public boolean isReady() {
         return alive && wanted && enabled && !failed && !eraserCommit.isWaiting() && !lassoCompletion.isPending();
     }
@@ -296,6 +302,19 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
         if (!prepared || surface == null) return;
         try { applyOverlayClip(); }
         catch (Exception e) { fail("Cannot protect floating notebook controls", e); }
+    }
+
+    @Override public void redrawAfterOverlayChange() {
+        requirePaused();
+        if (!alive || failed || !prepared || !restored || paperDirty || previewVisible || eraserPreviewVisible) return;
+        restoring = true;
+        try {
+            // Keep opaque recent native strokes as well as canonical transparent placeholders.
+            // Reposting a copy avoids both a blank paper draw and setter aliasing of the firmware-owned list.
+            List<?> tracks = new ArrayList<>((List<?>) get(view, "getTrackList"));
+            call(view, "setTrackList", new Class<?>[]{List.class}, tracks);
+        } catch (Exception error) { fail("Cannot restore exposed notebook content", error); }
+        finally { restoring = false; }
     }
 
     private void applyOverlayClip() throws Exception {
@@ -376,7 +395,7 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
         view.getHolder().removeCallback(this);
         view.setOnTouchListener(null);
         // SurfacePicture may still be drawing this bitmap. Let its owner release it naturally.
-        paperBitmap = null;
+        paperBitmap = paperStaging = null;
         paperRenderer = null;
     }
 
@@ -778,15 +797,26 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
                 background = Bitmap.createBitmap(surfaceWidth, surfaceHeight, Bitmap.Config.ARGB_8888);
                 background.setDensity(Bitmap.DENSITY_NONE);
             }
-            paintPaper(background);
+            if (bind) paintPaper(background); else repaintPaper(background);
             // Reuse the already bound bitmap after cancellation; repaint and track
             // replacement then reach the display together in one native post.
-            if (bind) call(get(view, "getSurfacePicture"), "bindBitmap", new Class<?>[]{Bitmap.class}, background);
+            if (bind || paperBindingDirty) call(get(view, "getSurfacePicture"), "bindBitmap", new Class<?>[]{Bitmap.class}, background);
+            paperBindingDirty = false;
             paperBitmap = background;
             replaceNativeTracks(false);
             restored = true;
             previewVisible = false;
         } finally { restoring = false; }
+    }
+
+    /** Paint offscreen first; the bound bitmap is updated with one opaque copy, never a white intermediate. */
+    private void repaintPaper(Bitmap target) {
+        if (paperStaging == null || paperStaging.getWidth() != target.getWidth() || paperStaging.getHeight() != target.getHeight()) {
+            paperStaging = Bitmap.createBitmap(target.getWidth(), target.getHeight(), Bitmap.Config.ARGB_8888);
+            paperStaging.setDensity(Bitmap.DENSITY_NONE);
+        }
+        paintPaper(paperStaging);
+        new Canvas(target).drawBitmap(paperStaging, 0, 0, null);
     }
 
     private void paintPaper(Bitmap bitmap) {
@@ -821,7 +851,7 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
     }
 
     private void replaceNativeTracks(boolean repaint) throws Exception {
-        if (repaint && paperBitmap != null) paintPaper(paperBitmap);
+        if (repaint && paperBitmap != null) repaintPaper(paperBitmap);
         ArrayList<Object> tracks = new ArrayList<>();
         Object creator = get(view, "getHWTrackCreator");
         Method createPoint = creator.getClass().getMethod("createHWPoint",
@@ -942,9 +972,10 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
         editListener = null;
     }
 
-    @Override public void surfaceCreated(SurfaceHolder holder) { prepared = false; }
+    @Override public void surfaceCreated(SurfaceHolder holder) { prepared = false; paperBindingDirty = true; }
 
     @Override public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+        boolean resized = surfaceWidth != width || surfaceHeight != height;
         boolean resume = wanted;
         stop();
         wanted = resume;
@@ -952,14 +983,18 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
         surfaceHeight = height;
         prepared = width > 0 && height > 0;
         geometryReported = false;
-        if (wanted) view.post(this::tryEnable);
+        if (page.isInitialized() && (resized || !resume)) {
+            // Re-layout changes the viewport, not the writer. Wait for a correctly composed page before resuming input.
+            wanted = false; geometryReported = true;
+            listener.onGeometryReady(width, height);
+        } else if (wanted) view.post(this::tryEnable);
     }
 
     @Override public void surfaceDestroyed(SurfaceHolder holder) {
         boolean resume = wanted;
         stop();
         wanted = resume;
-        prepared = false;
+        prepared = false; paperBindingDirty = true;
         detach();
         surface = null;
     }

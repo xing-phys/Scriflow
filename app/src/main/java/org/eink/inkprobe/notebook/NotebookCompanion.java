@@ -2,6 +2,7 @@ package org.eink.inkprobe.notebook;
 
 import android.content.Context;
 import android.graphics.Color;
+import android.graphics.Bitmap;
 import android.graphics.Rect;
 import android.os.Handler;
 import android.os.Looper;
@@ -35,7 +36,7 @@ final class NotebookCompanion {
     private final PopupWindow popup;
     private final NotebookIconButton menu, minimize;
     private final NotebookReader reader;
-    private boolean visible, editor;
+    private boolean visible, editor, editorPrepared;
     private final Handler main = new Handler(Looper.getMainLooper());
     private Grip menuGrip, resizeGrip;
 
@@ -69,20 +70,36 @@ final class NotebookCompanion {
     }
     void show(String name, View writingSurface) {
         if (pane.collapsed || !root.isAttachedToWindow() || root.getWidth() < 1) { hide(); return; }
-        editor = writingSurface != null;
+        boolean editing = writingSurface != null;
+        if (editing != editor) editorPrepared = false;
+        editor = editing;
         if (editor) {
-            reader.hide(); reader.setVisibility(View.GONE);
             if (writingSurface.getParent() != body) {
                 if (writingSurface.getParent() != null) ((ViewGroup) writingSurface.getParent()).removeView(writingSurface);
-                body.addView(writingSurface, new FrameLayout.LayoutParams(-1, -1));
+                // Keep the existing reader above the native surface until a complete editable viewport is posted.
+                body.addView(writingSurface, 0, new FrameLayout.LayoutParams(-1, -1));
             }
-        } else { reader.setVisibility(View.VISIBLE); reader.open(); }
+        } else { reader.setVisibility(View.VISIBLE); reader.bringToFront(); reader.open(); }
         menu.setContentDescription(name + ": options; hold and drag to move floating note");
         minimize.setContentDescription(name + ": minimize; hold and drag to resize floating note");
         boolean controls = workspace.panes().size() > 1;
         menu.setVisibility(controls ? View.VISIBLE : View.GONE); minimize.setVisibility(controls ? View.VISIBLE : View.GONE);
         position();
     }
+    void retainEditorFrame(Bitmap frame) {
+        editorPrepared = false; reader.retainFrame(frame);
+        reader.setVisibility(View.VISIBLE); reader.bringToFront();
+    }
+
+    void editorReady() {
+        if (!editor || editorPrepared) return;
+        editorPrepared = true;
+        content.postOnAnimation(() -> {
+            if (!editor || !editorPrepared) return;
+            reader.setVisibility(View.GONE); reader.hide();
+        });
+    }
+
     void position() {
         if (pane.collapsed || !root.isAttachedToWindow()) { hide(); return; }
         NotebookWorkspace.Box box = workspace.box(pane, root.getWidth(), root.getHeight());
@@ -177,7 +194,7 @@ final class NotebookCompanion {
         void cancel() { main.removeCallbacks(hold); moving = false; }
     }
     void hide() {
-        menuGrip.cancel(); resizeGrip.cancel(); reader.hide(); visible = false;
+        menuGrip.cancel(); resizeGrip.cancel(); reader.hide(); visible = editorPrepared = false;
         popup.dismiss(); if (content.getParent() == root) root.removeView(content);
         listener.boundsChanged();
     }
