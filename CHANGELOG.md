@@ -6,6 +6,13 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.33.0-dev.2 — Full-screen workspace status islands (2026-10-28)
+
+- Remove the reserved 48 dp top strip when a second note is open or collapsed.
+  Both note panes use the full screen beneath the existing top-left and
+  top-right floating status islands, matching the single-note layout.
+- Retain the permanent release signing identity; versionCode 48.
+
 ## 0.33.0-dev.1 — Figures, selection export, and second-note workspace (2026-10-28)
 
 - Insert SVG/SVGZ and Android-supported images, stored as bounded PNG figures.

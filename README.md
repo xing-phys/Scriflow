@@ -31,7 +31,7 @@ cover-lock/battery behavior and long-session performance remain unverified.
 The [changelog](CHANGELOG.md) summarizes changes; [device records](docs/device-testing.md)
 distinguish automated checks, publication authorization, and physical testing.
 
-Current development **0.33.0-dev.1** adds figures, lasso export to SVG/PNG/JPEG/
+Current development **0.33.0-dev.2** adds figures, lasso export to SVG/PNG/JPEG/
 WebP/PDF, and a split or floating second-note workspace. These additions await
 physical tablet acceptance. Page format 6 is written on edit and is unreadable
 by older APKs; preserve editable backups before testing. See

@@ -59,6 +59,8 @@ Scrolling or zooming the inactive note does not activate it.
 Both notes share **one floating toolbox**. Its actions always apply to the
 active note. The **top-left status bar stays at the app level** and shows the
 active note’s title, page and zoom, including when the floating note is active.
+From 0.33.0-dev.2, both top status islands float over the full-screen note
+content in every layout; opening or collapsing a second note reserves no top strip.
 Each notebook retains its saved pages and session undo history. Page, view
 center and zoom transfer between reading and editing, and each note keeps its
 link/outline navigation history during activation switches.

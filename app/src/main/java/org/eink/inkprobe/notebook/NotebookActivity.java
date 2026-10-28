@@ -2091,13 +2091,8 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         if (workspace.notebookId > 0 && name == null && !session.entries().isEmpty()) {
             workspace.notebookId = 0; workspace.secondaryActive = false; saveWorkspace();
         }
-        // Keep a single status row at the app's top left, outside either note's controls.
-        int inset = workspace.notebookId > 0 ? dp(48) : 0;
-        FrameLayout.LayoutParams area = (FrameLayout.LayoutParams) workspaceArea.getLayoutParams();
-        if (area.topMargin != inset) {
-            area = new FrameLayout.LayoutParams(-1, -1); area.topMargin = inset; workspaceArea.setLayoutParams(area);
-        }
-        int w = workspaceRoot.getWidth(), h = Math.max(1, workspaceRoot.getHeight() - inset);
+        // Both status islands float over full-screen notes, just as in the single-note view.
+        int w = workspaceRoot.getWidth(), h = workspaceRoot.getHeight();
         boolean floatingEditor = workspace.notebookId > 0 && !workspace.collapsed && workspace.secondaryActive
             && workspace.position == NotebookWorkspace.Position.FLOATING;
         if (!floatingEditor) {
