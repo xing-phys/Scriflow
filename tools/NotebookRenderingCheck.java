@@ -25,7 +25,10 @@ import org.json.JSONArray;
 
 /** Headless firmware regression: synthetic geometry only; never opens a notebook or a display surface. */
 public final class NotebookRenderingCheck {
-    private static final int WIDTH = 1404, HEIGHT = 1760;
+    // Both dimensions divide exactly by every capture scale below. Otherwise
+    // integer logical-page rounding changes PDF MediaBox height between cases,
+    // adding a PdfRenderer page-origin shift unrelated to stroke geometry.
+    private static final int WIDTH = 1404, HEIGHT = 1764;
 
     public static void main(String[] args) throws Exception {
         File directory = new File(args[0]);
@@ -53,7 +56,7 @@ public final class NotebookRenderingCheck {
                 PdfRenderer renderer = new PdfRenderer(descriptor);
                 PdfRenderer.Page pdfPage = renderer.openPage(0)) {
             Matrix matrix = new Matrix();
-            matrix.setScale((float) (WIDTH / 595.2756), (float) (WIDTH / 595.2756));
+            matrix.setScale((float) WIDTH / pdfPage.getWidth(), (float) HEIGHT / pdfPage.getHeight());
             pdfPage.render(pdfBitmap, null, matrix, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
         }
         png(directory, "pdf-on-device.png", pdfBitmap);
@@ -190,7 +193,7 @@ public final class NotebookRenderingCheck {
             bitmap.eraseColor(Color.WHITE);
             try (ParcelFileDescriptor descriptor = ParcelFileDescriptor.open(pdf, ParcelFileDescriptor.MODE_READ_ONLY);
                     PdfRenderer renderer = new PdfRenderer(descriptor); PdfRenderer.Page pdfPage = renderer.openPage(0)) {
-                Matrix matrix = new Matrix(); matrix.setScale((float) (WIDTH / 595.2756), (float) (WIDTH / 595.2756));
+                Matrix matrix = new Matrix(); matrix.setScale((float) WIDTH / pdfPage.getWidth(), (float) HEIGHT / pdfPage.getHeight());
                 pdfPage.render(bitmap, null, matrix, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
             }
             check.put("pdf", compare(reference, bitmap));

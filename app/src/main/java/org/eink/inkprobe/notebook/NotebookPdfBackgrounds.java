@@ -37,7 +37,7 @@ final class NotebookPdfBackgrounds {
     private Set<Integer> pages = Collections.emptySet();
     private File source;
     private volatile int epoch;
-    private boolean working, closed, failed;
+    private boolean working, closed, failed, resourceWork;
     // These two fields belong exclusively to worker.
     private NotebookPdfDisplayRenderer renderer;
     private File rendererSource;
@@ -92,7 +92,7 @@ final class NotebookPdfBackgrounds {
         final NotebookPdfTiles.Tile tile = missing;
         final int page = linkPage, request = epoch;
         final File file = source;
-        working = true;
+        working = true; resourceWork = true;
         worker.execute(() -> {
             Bitmap bitmap = null;
             List<NotebookPdfAsset.Link> resultLinks = null;
@@ -106,7 +106,7 @@ final class NotebookPdfBackgrounds {
                         bitmap = renderer.render(tile);
                     } else resultLinks = NotebookPdfEngine.links(context, file, page);
                 }
-            } catch (IOException | RuntimeException error) {
+            } catch (IOException | RuntimeException | OutOfMemoryError error) {
                 failure = new IOException("Could not display source PDF page " + (tile == null ? page : tile.page), error);
             }
             final Bitmap result = bitmap;
@@ -138,7 +138,9 @@ final class NotebookPdfBackgrounds {
         long pixels = 0, required = 0;
         for (NotebookPdfTiles.Tile tile : cache.keySet()) pixels += tile.pixels();
         for (NotebookPdfTiles.Tile tile : wanted) required += tile.pixels();
-        long budget = Math.max(CACHE_PIXELS, required);
+        // Keep at most two visible tile sets for zoom fallback. A small floating
+        // pane should not accumulate the same cache as a full-screen editor.
+        long budget = Math.max(required, Math.min(CACHE_PIXELS, required * 2));
         Iterator<Map.Entry<NotebookPdfTiles.Tile, Bitmap>> old = cache.entrySet().iterator();
         while (old.hasNext()) {
             Map.Entry<NotebookPdfTiles.Tile, Bitmap> item = old.next();
@@ -153,11 +155,20 @@ final class NotebookPdfBackgrounds {
         ++epoch; wanted = Collections.emptySet(); pages = Collections.emptySet(); failed = false;
         for (Bitmap bitmap : cache.values()) bitmap.recycle();
         cache.clear(); links.clear();
+        // Native readers own descriptors and parser memory even after pixels are gone.
+        // Queue behind in-flight work, before any replacement request. Blank notes do
+        // not start a PDF worker just to close an unused reader.
+        if (resourceWork) {
+            resourceWork = false;
+            worker.execute(() -> {
+                closeRenderer();
+                if (loadLinks) NotebookPdfEngine.closeNavigation();
+            });
+        }
     }
 
     void close() {
         closed = true; clear();
-        worker.execute(() -> { closeRenderer(); NotebookPdfEngine.closeNavigation(); });
         worker.shutdown();
     }
 

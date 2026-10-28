@@ -4,6 +4,25 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## Resource and lifecycle audit of 0.33.0-dev.7 (2026-10-28)
+
+Permanently signed versionCode 53 passed the expanded 31-check workspace/tool/
+PDF audit and the separate 18-check workspace/sleep/Home-return run on HMW-W09.
+The five-page inactive note scrolled continuously and pinched to 2.5×; stylus
+input activated it, three floating companions coexisted, and at most two notes
+remained split. Two twenty-cycle window runs retained the native widget and QA
+ink. The 600-page system-picker import opened in landscape; encrypted and invalid
+sources produced recoverable errors.
+
+A small-pane eight-zoom fixture reduced cached pixels by 64% and no longer
+retained a native PDF reader/descriptor after clear. The worker replacement race
+passed. All native pressure-outline comparisons, synthetic editable-backup
+round trips, full host tests and lint/build/signature checks passed. The sleep
+harness was corrected to follow Activity recreation on wake; it did not require
+changing the app or the keyguard. Sensor orientation was restored through app
+Settings. See the [full audit](matepad-audit-0.33.md) for measurements, reproduction
+and unmeasured optical/battery/cover/long-session limits.
+
 ## M-Pencil body shortcut on 0.33.0-dev.6 (2026-10-28)
 
 The permanently signed versionCode 52 update was installed over dev.5 on the

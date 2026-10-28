@@ -6,6 +6,24 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.33.0-dev.7 — Measured PDF resource reductions (2026-10-28)
+
+- Release native PDF readers/descriptors on the PDF worker when a pane is hidden
+  or its source is cleared. Closing a read-only companion no longer discards the
+  active editor's link-navigation reader. Blank panes do not start unused PDF
+  workers for cleanup; display memory exhaustion follows the existing error path.
+- Bound zoom fallback pixels to two visible tile sets, retaining the full-screen
+  ceiling and all required sharp tiles. The connected-tablet small-pane fixture
+  fell from 5,767,168 to 2,097,152 cached pixels (64% less) without a measured
+  rendering-time increase.
+- Extend signed-release device checks with multi-note scrolling/pinch/focus,
+  split limits, 20-cycle window stress, resource counts, idle timing and lifecycle
+  checks. Run native rendering/storage tools against current signed release
+  classes instead of stale debug outputs. Correct the PDF comparison fixture's
+  page rounding/viewport transform; retain the one-pixel outline tolerance.
+- Keep the native live-writing pipeline, saved ink and permanent signer intact.
+  VersionCode 53. See [MatePad audit](docs/matepad-audit-0.33.md).
+
 ## 0.33.0-dev.6 — M-Pencil body double tap (2026-10-28)
 
 - Listen to the foreground M-Pencil body double-tap action verified on the
