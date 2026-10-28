@@ -4,6 +4,43 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## USB validation of 0.33.0-dev.5 (2026-10-28)
+
+Installed the exact permanently signed versionCode 51 APK over the existing
+versionCode 50 installation on MatePad Paper HMW-W09, Android 10/API 29,
+firmware HMW-W09 2.1.0.222(C00E170R1P8). Existing library data remained available.
+All new writes used named disposable QA notebooks.
+
+- Direct system PDF picker and automatic opening passed in Landscape, including
+  the picker presenting in Portrait and returning through an orientation change.
+  The two-page source fixture opened at fit width; the app process remained alive
+  without a new app crash. This verifies the formerly untested result handoff for
+  this fixture, not every possible PDF.
+- A same-signer external instrumentation harness passed 13 real-device checks:
+  persisted ink replay; floating open, move, inactive/active resize and focus
+  reuse of the same native widget; lasso selecting QA ink and showing its real
+  action panel; Activity token parenting; toolbox subpanel above ordinary
+  panels; floating width and zoom controls; active float close returning to the
+  main note with its saved ink intact.
+- The close check waits for the asynchronous close operation, not merely the
+  first editable frame during its preceding focus handoff.
+- `scripts/check-device-workspace.sh` rebuilds this separate QA APK with the
+  permanent signer and removes that helper package on exit. It creates unique
+  QA notebooks and does not edit/delete existing notebooks. Test captures and
+  outputs remain in ignored `artifacts/` and app external QA output folders.
+- Effective firmware application policy is mode 13, matching the established
+  native handwriting path. The existing offscreen firmware brush check passed
+  all 40 synthetic ballpoint/simple-eraser cases.
+- A foreground diagnostic receiver captured three physical M-Pencil body
+  double-tap broadcasts with action
+  `com.huawei.stylus.action.BUTTON_DOUBLE_PRESSED`. No new app permission or
+  system-setting change was required. The feature implementation follows this
+  hardware-signal verification.
+- Synthetic saved ink and instrumentation verify native restoration and window
+  integration. They do not measure physical pen pressure/optical latency or the
+  panel's visible refresh waveform. Those limits remain explicit in later
+  performance and release records.
+
 ## Scriflow 0.33.0-dev.5 popup hosting and PDF import (2026-10-28)
 
 VersionCode 51 addresses the owner's toolbox ordering, direct-import workflow,
