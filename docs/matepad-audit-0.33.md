@@ -133,4 +133,6 @@ until the external QA stop file is created (ten-minute guard). Software tests
 invoke the actual receiver directly because the firmware blocks application
 senders; only physical taps establish hardware delivery. Logs/screenshots stay in
 ignored `artifacts/` and external QA directories. The helper creates uniquely
-named notes, which can be moved to Trash after inspecting the test results.
+named notes. Optional `cleanupNames` accepts an explicit comma-separated allowlist
+of disposable QA names and moves only exact matches to recoverable Trash;
+`keepId` retains a selected QA note. It never permanently deletes notebooks.

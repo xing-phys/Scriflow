@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Real signed-release UI checks using uniquely named disposable QA notebooks.
-# No existing notebook is edited or removed. A separate, same-signer test APK is removed at exit.
+# Default checks do not edit/remove existing notes. Explicit cleanupNames only moves
+# allowlisted disposable QA notes to Trash. The same-signer helper APK is removed at exit.
 set -euo pipefail
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"

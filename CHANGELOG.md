@@ -6,6 +6,24 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.33.0 — Floating notes and M-Pencil shortcut (2026-10-28)
+
+- Promote the verified dev.7 implementation to stable, versionCode 54. Retain
+  the permanent signing certificate and in-place update identity.
+- Include figures, lasso export, two split panes plus multiple floating notes,
+  the notes tray, stylus-tap focus, continuous sharp inactive-note reading,
+  retained main-editor rendering, frontmost tools and direct PDF import.
+- Include the physically accepted M-Pencil body Pen/Eraser shortcut and brief
+  top-center tool hint. Reduce the measured small-pane PDF cache by 64% and
+  release hidden native PDF readers/descriptors.
+- Connected HMW-W09 checks include landscape system-picker import (two and 600
+  pages), recoverable invalid/encrypted PDF errors, real workspace/lasso/tool
+  integration, repeated window operations, native ink consistency, backup round
+  trips and sleep/wake/Home-return. See the [audit](docs/matepad-audit-0.33.md).
+- Page format 6 requires this version or newer after editing; retain editable
+  backups before upgrading. Other devices/firmware, overnight battery drain,
+  physical cover sensing and optical latency remain unverified.
+
 ## 0.33.0-dev.7 — Measured PDF resource reductions (2026-10-28)
 
 - Release native PDF readers/descriptors on the PDF worker when a pane is hidden

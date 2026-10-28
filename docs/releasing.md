@@ -18,6 +18,15 @@ is connected for this release either; physical acceptance remains pending.
 
 ## Before publishing
 
+**0.33.0** (`versionCode` **54**) follows the owner's request to install/test
+through USB, implement the M-Pencil body gesture, audit/optimize the app against
+the tablet system, and then release formally. Publish the verified dev.7
+implementation with only release metadata changed, after checking the exact
+signed stable APK on the connected HMW-W09. Retain the signer/application ID;
+publish tag **v0.33.0** as a normal Latest release with only the signed APK and
+checksum attached. Disclose page format 6 and the firmware/optical/battery/cover/
+long-session limits in the [audit](matepad-audit-0.33.md).
+
 **0.32.0** (`versionCode` **46**) is the first stable release, explicitly
 requested by the owner after testing the development candidates on the connected
 MatePad. Include all fixes through **0.32.0-dev.4**, retain the permanent signing

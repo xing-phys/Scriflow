@@ -63,7 +63,23 @@ public final class NotebookDeviceCheck extends Instrumentation {
         main(()->session.appendViewport(Collections.singletonMap(1,Collections.singletonList(stroke.get())),(p,e)->{try{call(activity,"finishEdit",new Class<?>[]{int.class,NotebookPage.class,IOException.class},field(activity,"generation"),p,e);}catch(Throwable t){error.set(t);}done.countDown();}));
         if(!done.await(30,TimeUnit.SECONDS))throw new AssertionError("append timeout");if(error.get()!=null)throw new Exception(error.get());ready();
     }
-    @Override public void onStart(){try{if(args!=null&&"true".equals(args.getString("gestureOnly"))){captureOnly();}else runChecks();Bundle b=new Bundle();b.putString("stream","QA COMPLETE checks="+checks+" output="+output);finish(0,b);}catch(Throwable t){StringWriter s=new StringWriter();t.printStackTrace(new PrintWriter(s));Bundle b=new Bundle();b.putString("stream",s.toString());finish(-1,b);}}
+    @Override public void onStart(){try{if(args!=null&&args.getString("cleanupNames")!=null){cleanupQa();}else if(args!=null&&"true".equals(args.getString("gestureOnly"))){captureOnly();}else runChecks();Bundle b=new Bundle();b.putString("stream","QA COMPLETE checks="+checks+" output="+output);finish(0,b);}catch(Throwable t){StringWriter s=new StringWriter();t.printStackTrace(new PrintWriter(s));Bundle b=new Bundle();b.putString("stream",s.toString());finish(-1,b);}}
+    /** Explicit name allowlist only; move our disposable test notes to recoverable Trash. */
+    private void cleanupQa()throws Exception {
+        Set<String> allowed=new HashSet<>(Arrays.asList(args.getString("cleanupNames").split(",")));
+        for(String name:allowed)if(!name.matches("QA-USB-[0-9]+-(A|B|extra-[01])|Scriflow-QA-(A-|large-|stable-)?20261028"))
+            throw new IllegalArgumentException("Not a disposable QA name");
+        int keep=Integer.parseInt(args.getString("keepId","0"));
+        startActivitySync(new Intent(getTargetContext(),NotebookLibraryActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        main(()->session=NotebookSession.get(getTargetContext()));operation(session::load);
+        int moved=0;
+        for(NotebookCatalog.Entry entry:new ArrayList<>(session.entries()))
+            if(entry.status==NotebookCatalog.ACTIVE&&entry.id!=keep&&allowed.contains(entry.name)){
+                operation(cb->session.trashNotebook(entry.id,cb));moved++;
+            }
+        if(keep>0)operation(cb->session.openNotebook(keep,cb));
+        report("QA_CLEANUP movedToTrash="+moved+" retainedQaId="+keep);
+    }
     private void captureOnly()throws Exception {
         Activity owner=startActivitySync(new Intent().setClassName(getTargetContext(),"org.eink.inkprobe.notebook.NotebookLibraryActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         AtomicInteger events=new AtomicInteger();BroadcastReceiver receiver=new BroadcastReceiver(){public void onReceive(Context c,Intent i){events.incrementAndGet();report("STYLUS_BODY_EVENT "+i.getAction());}};

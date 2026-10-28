@@ -16,32 +16,27 @@ Development and physical testing target **MatePad Paper HMW-W09**, Android
 rendering use Huawei APIs already present on that firmware; no proprietary
 Huawei code is bundled. Other tablets and firmware versions are unverified.
 
-The latest stable release is **[Scriflow 0.32.0](https://github.com/xing-phys/Scriflow/releases/tag/v0.32.0)**,
-released on 2026-10-27. This first formal release includes native handwriting,
-PDF notebooks and export, compact bookshelf/Settings layouts, configurable
-portrait/landscape thumbnail grids, folders and Trash, and Keep screen on.
-It includes all fixes through 0.32.0-dev.4: reliable folder/Trash controls,
-−/+ grid settings, persistent width sliders, cross-page lasso movement with
-paired undo/redo, partial-overlap selection, and a 200 ms finger-navigation
-quiet period. See [bookshelf settings](docs/bookshelf-settings.md) and [lasso](docs/lasso.md).
-The application ID and permanent signing certificate are retained for in-place
-updates. Development builds were installed and used on the owner's tablet;
-automated regressions and native eraser checks pass. Other hardware/firmware,
-cover-lock/battery behavior and long-session performance remain unverified.
-The [changelog](CHANGELOG.md) summarizes changes; [device records](docs/device-testing.md)
-distinguish automated checks, publication authorization, and physical testing.
+The latest stable release is **[Scriflow 0.33.0](https://github.com/xing-phys/Scriflow/releases/tag/v0.33.0)**,
+released on 2026-10-28. It adds figures and lasso export, two split panes plus
+multiple floating notes, a toolbox notes tray, and stylus-tap editing focus.
+Inactive notes scroll continuously and pinch with fingers, while their vector
+ink and PDF tiles render at the current zoom. Window changes retain the main
+editor. The toolbox stays above note/status/selection panels; PDF import opens
+the system picker directly and opens the imported note on success.
 
-Current development **0.33.0-dev.7** adds figures, lasso export to SVG/PNG/JPEG/
-WebP/PDF, two split panes plus multiple floating notes, a toolbox notes tray,
-and stylus-tap editing focus. Floating-window changes keep the main note visible.
-PDF import opens the system picker directly and opens the imported note on success;
-the toolbox stays above note/status/selection panels. Double tapping the M-Pencil
-body switches Pen/Eraser and briefly shows the selected icon at the top center.
-The body shortcut has passed the owner’s physical check; USB workspace and
-landscape PDF checks are recorded in the device record. Measured PDF cache/reader reductions and additional multi-note checks are in the
-[MatePad audit](docs/matepad-audit-0.33.md). Page format 6 is written on edit and is unreadable
-by older APKs; preserve editable backups before testing. See
-[figures and workspace](docs/figures-and-workspace.md) for formats and controls.
+Double tapping the **M-Pencil body** switches Pen/Eraser and briefly shows the
+selected icon at the top center. The owner accepted the physical switches and
+icons. Connected-tablet checks cover landscape PDF import, multiple floating
+notes, lasso panels, native rendering, sleep/wake and Home/return. The small-pane
+PDF cache fixture uses 64% fewer pixels and releases hidden native readers; see
+the [MatePad audit](docs/matepad-audit-0.33.md) for measurements and limits.
+Other hardware/firmware, overnight battery drain, cover-sensor behavior and
+optical latency remain unverified.
+
+The application ID and permanent signing certificate are retained for in-place
+updates. **Page format 6 is written on edit and cannot be opened by older APKs.**
+Keep editable backups before updating. See [figures and workspace](docs/figures-and-workspace.md),
+[changelog](CHANGELOG.md), and [device records](docs/device-testing.md).
 
 ## Features
 
@@ -79,8 +74,8 @@ makes no network requests. See [privacy and local storage](docs/privacy.md).
 
 ## Install and update
 
-Download the signed **[Scriflow 0.32.0 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.32.0/scriflow-0.32.0.apk)**
-from [GitHub Releases](https://github.com/xing-phys/Scriflow/releases/tag/v0.32.0),
+Download the signed **[Scriflow 0.33.0 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.33.0/scriflow-0.33.0.apk)**
+from [GitHub Releases](https://github.com/xing-phys/Scriflow/releases/tag/v0.33.0),
 where its file checksum and signing certificate fingerprint are recorded.
 Copy it to the supported tablet, open it with the tablet's file manager, and
 allow installation from that source when prompted.
@@ -150,8 +145,8 @@ troubleshooting.
 - Erasing removes entire touched strokes. Undo/redo keeps up to 100 actions per
   page while the app process remains alive; it does not survive a process restart.
 - There is no handwriting recognition, typed text, or cloud sync.
-- PDF import supports unlocked PDFs up to 256 MiB and 1,000 pages. Physical
-  acceptance and large-PDF performance testing remain pending.
+- PDF import supports unlocked PDFs up to 256 MiB and 1,000 pages. Landscape USB import/open checks include a 600-page, 9 MB synthetic PDF;
+  arbitrary complex PDFs and extended sessions remain unverified.
 - Page management keeps at least one page in a notebook. Its separate undo/redo
   history holds 50 page changes until the process restarts. Removed page files
   remain in private storage for recovery; current exports/backups exclude them.

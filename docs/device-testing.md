@@ -4,6 +4,34 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## Formal 0.33.0 release verification (2026-10-28)
+
+The exact permanently signed **0.33.0 / versionCode 54** APK was installed over
+dev.7 with data retained. All compiled application class hashes match the
+validated dev.7 candidate; the promotion changes version/release metadata.
+The final same-signer external helper passed **36 real-device checks** combining
+workspace, native tools, multiple readers, 20-cycle window stress, PDF resource
+cleanup/races, sleep/wake and Home/return. Sensor orientation remained selected.
+A fresh two-page import through the real system picker automatically opened in
+landscape on this exact APK. No production-app crash was observed.
+
+Release/Debug lint and builds passed with zero lint errors. Full host tests and
+native synthetic checks are recorded in the [audit](matepad-audit-0.33.md).
+The APK was checked against the pinned permanent signing certificate. SHA-256:
+
+```text
+50c0aea96715f4091e09e0708115a011bb12743117fa0cab2ca449c7295fb89b
+```
+
+The optional QA cleanup takes an explicit name allowlist and only moves matching
+disposable notes to recoverable Trash. It moved 35 generated test/import notes;
+one release QA note was retained. Existing personal notebooks were not edited
+or deleted. The separate instrumentation package was uninstalled after testing.
+Publish only the signed APK and adjacent checksum as normal release **v0.33.0**;
+private captures, fixtures and signing credentials remain excluded. Hardware/
+firmware scope and unmeasured optical/battery/cover/long-session limits remain
+those in the audit; stable publication does not expand that scope.
+
 ## Resource and lifecycle audit of 0.33.0-dev.7 (2026-10-28)
 
 Permanently signed versionCode 53 passed the expanded 31-check workspace/tool/
