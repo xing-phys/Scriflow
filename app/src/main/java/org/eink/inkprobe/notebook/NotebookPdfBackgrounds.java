@@ -27,6 +27,7 @@ final class NotebookPdfBackgrounds {
     }
     private static final long CACHE_PIXELS = 6_000_000;
     private final Context context;
+    private final boolean loadLinks;
     private final Listener listener;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService worker = Executors.newSingleThreadExecutor(r -> new Thread(r, "notebook-pdf-display"));
@@ -42,7 +43,11 @@ final class NotebookPdfBackgrounds {
     private File rendererSource;
 
     NotebookPdfBackgrounds(Context context, Listener listener) {
-        this.context = context.getApplicationContext(); this.listener = listener;
+        this(context, listener, true);
+    }
+
+    NotebookPdfBackgrounds(Context context, Listener listener, boolean loadLinks) {
+        this.context = context.getApplicationContext(); this.listener = listener; this.loadLinks = loadLinks;
     }
 
     boolean prepare(File source, List<NotebookPdfTiles.Tile> visible, Set<Integer> visiblePages) {
@@ -82,7 +87,7 @@ final class NotebookPdfBackgrounds {
         NotebookPdfTiles.Tile missing = null;
         for (NotebookPdfTiles.Tile tile : wanted) if (!cache.containsKey(tile)) { missing = tile; break; }
         int linkPage = 0;
-        if (missing == null) for (int page : pages) if (!links.containsKey(page)) { linkPage = page; break; }
+        if (missing == null && loadLinks) for (int page : pages) if (!links.containsKey(page)) { linkPage = page; break; }
         if (missing == null && linkPage == 0) return;
         final NotebookPdfTiles.Tile tile = missing;
         final int page = linkPage, request = epoch;

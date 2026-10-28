@@ -12,8 +12,8 @@ public final class NotebookFiguresTest {
     private interface Action { void run() throws Exception; }
     public static void main(String[] args) throws Exception {
         try {
-            immutableGeometry(); durableHistory(); backupAndPageCommands(); versionFiveMigration(); companionReads(); exportCrop(); workspaceGeometry(); workspaceActivation();
-            System.out.println("NotebookFigures: " + assertions + " assertions passed (figures, backup, crop, workspace and isolated reads).");
+            immutableGeometry(); durableHistory(); backupAndPageCommands(); versionFiveMigration(); companionReads(); exportCrop();
+            System.out.println("NotebookFigures: " + assertions + " assertions passed (figures, backup, crop and isolated reads).");
         } finally { for (File root : roots) NotebookBackup.deleteTree(root); }
     }
     private static void immutableGeometry() throws Exception {
@@ -86,6 +86,7 @@ public final class NotebookFiguresTest {
         NotebookPage first = library.current(); library.createNotebook("Second"); library.initializeSize(200, 300); library.append(stroke()); library.addPage();
         int second = library.notebookId(); library.openNotebook(1);
         byte[] catalog = Files.readAllBytes(new File(root, "library.nbl").toPath());
+        check(library.companionMetadata(second).size() == 2 && library.companionMetadata(second).get(0).width == 200, "Companion metadata supports continuous layout without changing selection");
         check(library.companionCount(second) == 2 && library.companionPage(second, 1).strokes.size() == 1, "Companion can navigate a cached other notebook");
         check(library.notebookId() == 1 && library.current() == first && library.canUndo(), "Companion reads preserve active document and history");
         check(Arrays.equals(catalog, Files.readAllBytes(new File(root, "library.nbl").toPath())), "Companion reads never change catalog selection");
@@ -104,49 +105,6 @@ public final class NotebookFiguresTest {
         check(svg.contains("#4080ff") && svg.contains("fill-opacity=\"0.5019608\"") && svg.contains("evenodd"), "SVG preserves color, alpha, and fill rule");
         javax.xml.parsers.DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(new ByteArrayInputStream(output.toByteArray()));
         reject(() -> new NotebookSelectionExport(Collections.emptyList(), ignored -> null));
-    }
-    private static void workspaceGeometry() {
-        NotebookWorkspace state = new NotebookWorkspace(); state.notebookId = 2;
-        for (int w : new int[]{320, 1404, 1872}) for (int h : new int[]{480, 1872, 1404}) {
-            for (NotebookWorkspace.Position position : NotebookWorkspace.Position.values()) for (float split : new float[]{0, .25f, .5f, .75f, 1, Float.NaN}) {
-                state.position = position; state.split = split;
-                NotebookWorkspace.Box editor = state.editor(w, h), other = state.companion(w, h);
-                check(editor.width > 0 && editor.height > 0 && other.width > 0 && other.height > 0, "Both panes retain usable geometry");
-                check(other.x >= 0 && other.y >= 0 && other.x + other.width <= w && other.y + other.height <= h, "Companion remains inside app bounds");
-                if (position != NotebookWorkspace.Position.FLOATING) {
-                    check((long) editor.width * editor.height + (long) other.width * other.height == (long) w * h, "Split partitions the entire app");
-                    check(editor.x + editor.width <= other.x || other.x + other.width <= editor.x || editor.y + editor.height <= other.y || other.y + other.height <= editor.y, "Split panes cannot overlap");
-                }
-            }
-            state.collapsed = true;
-            check(state.editor(w, h).width == w && state.editor(w, h).height == h, "Collapse returns all paper space");
-            state.collapsed = false;
-        }
-    }
-    private static void workspaceActivation() throws Exception {
-        for (NotebookWorkspace.Position position : NotebookWorkspace.Position.values()) {
-            NotebookWorkspace state = new NotebookWorkspace(); state.notebookId = 2; state.page = 7;
-            state.position = position; state.split = .35f;
-            NotebookWorkspace.Box first = state.editor(1404, 1872), second = state.companion(1404, 1872);
-            state.activatedOther(1, 3);
-            check(state.primaryNotebook(2) == 1 && state.secondaryNotebook(2) == 2, "Activation keeps note identities in their original panes");
-            check(state.secondaryActive && state.notebookId == 1 && state.page == 3, "Only the activated note owns editing; old page stays navigable");
-            box(state.editor(1404, 1872), second, "Editor moves to selected pane without moving the note");
-            box(state.companion(1404, 1872), first, "Old active pane becomes the reader in place");
-            state.activatedOther(2, 8);
-            check(!state.secondaryActive && state.notebookId == 2 && state.page == 8, "Returning activation preserves other note navigation");
-            box(state.editor(1404, 1872), first, "Second activation restores the first editor's position");
-            box(state.companion(1404, 1872), second, "Second note keeps its split or floating placement");
-            state.collapsed = true;
-            check(state.primaryNotebook(1) == 1 && state.secondaryNotebook(1) == 2, "Collapse never changes note identity");
-            check(state.editor(1404, 1872).width == 1404 && state.editor(1404, 1872).height == 1872, "Collapsed reader frees editing space");
-            state.activatedOther(1, 3);
-            check(!state.collapsed && state.secondaryActive, "Activating the collapsed note reopens its pane");
-            reject(() -> state.activatedOther(1, 3));
-        }
-    }
-    private static void box(NotebookWorkspace.Box a, NotebookWorkspace.Box b, String message) {
-        check(a.x == b.x && a.y == b.y && a.width == b.width && a.height == b.height, message);
     }
     private static NotebookFigure figure() throws IOException { return new NotebookFigure(UUID.randomUUID(), 10, 20, 30, 40, NotebookFigureFixture.png(true)); }
     private static NotebookPage.Stroke stroke() { return new NotebookPage.Stroke(1, 2, 0xff000000, Collections.singletonList(new NotebookPage.Point(30, 40, 10, 1))); }

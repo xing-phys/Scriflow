@@ -22,7 +22,7 @@ import java.util.EnumMap;
 /** A separate, static window above the native ink surface, moved only by its grip. */
 public final class NotebookFloatingTools {
     public enum Action {
-        LIBRARY, PREVIOUS, NEXT, ADD_PAGE, PEN, ERASER, LASSO, UNDO, REDO, PAPER, MORE, OVERVIEW, OUTLINE, VIEW_BACK, VIEW_FORWARD, ORIENTATION, COLLAPSE
+        LIBRARY, NOTES, PREVIOUS, NEXT, ADD_PAGE, PEN, ERASER, LASSO, UNDO, REDO, PAPER, MORE, OVERVIEW, OUTLINE, VIEW_BACK, VIEW_FORWARD, ORIENTATION, COLLAPSE
     }
 
     public interface Listener {
@@ -91,6 +91,7 @@ public final class NotebookFloatingTools {
                 view.getParent().requestDisallowInterceptTouchEvent(false);
             return consumed;
         });
+        add(Action.NOTES, NotebookIconDrawable.Icon.NOTES, "Open notes and minimized windows");
         add(Action.LIBRARY, NotebookIconDrawable.Icon.LIBRARY, "Notebook library");
         add(Action.PREVIOUS, NotebookIconDrawable.Icon.PREVIOUS, "Previous page");
         add(Action.NEXT, NotebookIconDrawable.Icon.NEXT, "Next page");
@@ -110,7 +111,7 @@ public final class NotebookFloatingTools {
             button(Action.REDO),
             button(Action.PREVIOUS), button(Action.NEXT), button(Action.ADD_PAGE),
             button(Action.OVERVIEW), button(Action.OUTLINE), button(Action.VIEW_BACK),
-            button(Action.VIEW_FORWARD), button(Action.PAPER), button(Action.LIBRARY)};
+            button(Action.VIEW_FORWARD), button(Action.PAPER), button(Action.NOTES), button(Action.LIBRARY)};
         popup = new PopupWindow(content, 0, 0, false);
         popup.setTouchable(true);
         popup.setOutsideTouchable(false);

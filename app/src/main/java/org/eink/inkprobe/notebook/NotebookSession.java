@@ -376,33 +376,38 @@ final class NotebookSession {
         });
     }
 
-    interface CompanionCallback { void complete(Bitmap bitmap, int pages, IOException error); }
-    PreviewRequest previewCompanion(int id, int number, CompanionCallback callback) {
+    interface CompanionMetadataCallback { void complete(List<NotebookViewport.Size> sizes, File source, IOException error); }
+    interface CompanionPageCallback { void complete(NotebookPage page, IOException error); }
+    PreviewRequest companionMetadata(int id, CompanionMetadataCallback callback) {
         PreviewRequest request = new PreviewRequest();
         worker.execute(() -> {
             if (request.cancelled) return;
+            List<NotebookViewport.Size> sizes = new ArrayList<>(); File source = document.notebookPdf(id); IOException failure = null;
             try {
-                final int count = document.companionCount(id);
-                final NotebookPage page = document.companionPage(id, Math.max(1, Math.min(count, number)));
-                final File source = document.notebookPdf(id);
-                tasks.render.execute(() -> {
-                    if (request.cancelled) return;
-                    Bitmap bitmap = null; IOException error = null;
-                    try {
-                        float scale = 1024f / Math.max(page.width, page.height);
-                        bitmap = NotebookPageThumbnail.render(page, source,
-                            Math.max(1, Math.round(page.width * scale)), Math.max(1, Math.round(page.height * scale)), () -> request.cancelled);
-                    }
-                    catch (IOException | RuntimeException failure) { error = new IOException("Cannot preview this note", failure); }
-                    final Bitmap result = bitmap; final IOException failure = error;
-                    main.post(() -> {
-                        if (request.cancelled) { if (result != null) result.recycle(); return; }
-                        callback.complete(result, count, failure);
-                    });
-                });
-            } catch (IOException | RejectedExecutionException error) {
-                main.post(() -> { if (!request.cancelled) callback.complete(null, 1, new IOException("Cannot open this note", error)); });
-            }
+                List<NotebookPageCatalog.Entry> metadata = document.companionMetadata(id);
+                NotebookViewport.Size fallback = new NotebookViewport.Size(1404, 1688);
+                for (NotebookPageCatalog.Entry entry : metadata) if (entry != null && entry.width > 0) {
+                    fallback = new NotebookViewport.Size(entry.width, entry.height); break;
+                }
+                // A damaged offscreen page remains a local error, just as in the editor.
+                for (NotebookPageCatalog.Entry entry : metadata)
+                    sizes.add(entry == null || entry.width == 0 ? fallback : new NotebookViewport.Size(entry.width, entry.height));
+            } catch (IOException | RuntimeException error) { failure = new IOException("Cannot open this note", error); }
+            final List<NotebookViewport.Size> result = Collections.unmodifiableList(sizes); final IOException error = failure;
+            main.post(() -> { if (!request.cancelled) callback.complete(result, source, error); });
+        });
+        return request;
+    }
+    /** Immutable visible-page reads use the writer without selecting the other notebook. */
+    PreviewRequest companionPage(int id, int number, CompanionPageCallback callback) {
+        PreviewRequest request = new PreviewRequest();
+        worker.execute(() -> {
+            if (request.cancelled) return;
+            NotebookPage page = null; IOException failure = null;
+            try { page = document.companionPage(id, number); }
+            catch (IOException | RuntimeException error) { failure = new IOException("Cannot load this page", error); }
+            final NotebookPage result = page; final IOException error = failure;
+            main.post(() -> { if (!request.cancelled) callback.complete(result, error); });
         });
         return request;
     }

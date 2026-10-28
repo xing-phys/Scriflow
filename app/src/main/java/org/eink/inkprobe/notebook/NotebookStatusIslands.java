@@ -83,6 +83,12 @@ final class NotebookStatusIslands {
         position();
     }
 
+    /** Newly shown note popups must stay below the shared app-level status. Keep existing ink holes intact. */
+    void raise() {
+        if (anchor == null) return;
+        leftWindow.dismiss(); rightWindow.dismiss(); position();
+    }
+
     /** Save failures can add a Retry line while native input is already stopped. */
     void refresh() { position(); }
 

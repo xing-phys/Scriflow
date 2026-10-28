@@ -6,6 +6,23 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.33.0-dev.3 — Multi-note windows and continuous reading (2026-10-28)
+
+- Remove the redundant “Active” prefix from the shared note status island.
+- Move note management to a toolbox button. Open the second note directly, then
+  use its adjacent tray to add floating notes and restore individual minimized
+  notes. Keep at most two split notes while allowing multiple floating notes.
+- Switch editing focus by tapping inside a note with the stylus. Keep one native
+  writer and preserve every note's position, page, zoom and session undo history.
+- Replace inactive-note bars with two small corner icons: options/move on the
+  left, minimize/resize on the right. Hold before dragging a floating window.
+- Replace single-page bitmap previews with continuous, width-fitted viewports,
+  finger scrolling/pinching, vector ink and PDF tiles at the current zoom.
+- Persist independent window/read states and migrate earlier two-note layouts.
+- VersionCode 49; permanent signing identity and document formats unchanged.
+  Host regression and signed-build verification cover the implementation;
+  physical stylus, e-ink and window behavior still require tablet acceptance.
+
 ## 0.33.0-dev.2 — Full-screen workspace status islands (2026-10-28)
 
 - Remove the reserved 48 dp top strip when a second note is open or collapsed.

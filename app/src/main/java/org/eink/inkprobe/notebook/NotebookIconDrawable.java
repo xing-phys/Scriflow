@@ -14,7 +14,7 @@ public final class NotebookIconDrawable extends Drawable {
     public enum Icon {
         LIBRARY, PREVIOUS, NEXT, ADD_PAGE, PEN, ERASER, LASSO, UNDO, REDO,
         PAPER_BLANK, PAPER_LINED, MORE, OVERVIEW, MOVE, LAYOUT_HORIZONTAL, LAYOUT_VERTICAL,
-        BATTERY, WIFI, WIFI_OFF, OUTLINE, VIEW_BACK, VIEW_FORWARD
+        BATTERY, WIFI, WIFI_OFF, OUTLINE, VIEW_BACK, VIEW_FORWARD, NOTES, MINIMIZE, PLUS
     }
 
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);

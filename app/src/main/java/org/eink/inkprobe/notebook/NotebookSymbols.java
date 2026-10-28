@@ -122,6 +122,17 @@ public final class NotebookSymbols {
                 line(out, 9, 14.5f, 16, 14.5f);
                 line(out, 9, 18, 16, 18);
                 break;
+            case "NOTES":
+                polygon(out, false, 3, 7, 16, 7, 16, 21, 3, 21);
+                line(out, 7, 3, 21, 3, 21, 17);
+                break;
+            case "MINIMIZE":
+                line(out, 5, 19, 19, 19);
+                break;
+            case "PLUS":
+                line(out, 5, 12, 19, 12);
+                line(out, 12, 5, 12, 19);
+                break;
             case "MORE":
                 circle(out, 5, 12, 1.6f);
                 circle(out, 12, 12, 1.6f);

@@ -4,6 +4,28 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## Scriflow 0.33.0-dev.3 multi-note windows (2026-10-28)
+
+VersionCode 49 implements the owner's multi-note UI/reader fixes. A toolbox
+notes tray opens floating notes and restores minimized windows. At most two
+notes split the screen; additional notes float. Stylus taps switch the shared
+writer, while every inactive note has continuous finger scrolling/zoom,
+vector ink and PDF tiles at the current screen resolution. Two corner controls
+replace inactive-note bars. Existing two-note layout preferences migrate.
+
+- Full host suite passes, including production writer/surface handoff callbacks,
+  continuous reader touch/drawing callbacks, window geometry/persistence, and
+  corner-grip tap/hold/move/resize/cancel callbacks. Host adapters do not measure
+  native stylus latency, visible e-ink refresh or physical pixel quality.
+- Debug and release lint/builds pass. `scripts/build-release.sh` prepares
+  `build/releases/scriflow-0.33.0-dev.3.apk` and its adjacent SHA-256 checksum;
+  APK metadata and signer match the pinned permanent release certificate.
+- No tablet is connected. Multi-window placement, finger/stylus routing, corner
+  holds, sharp PDF/ink zoom, rotation and app resume still need physical acceptance
+  using the checklist in [figures and workspace](figures-and-workspace.md).
+- This task prepares a local signed update; no GitHub release is published.
+  Application ID, notebook formats and signing identity are unchanged.
+
 ## Scriflow 0.32.0 first stable release (2026-10-27)
 
 The owner requests the first formal GitHub release after testing the local

@@ -242,6 +242,7 @@ public final class NotebookLibrary {
     }
     public NotebookPage companionPage(int id, int number) throws IOException { return companionBook(id).previewPage(number); }
     public int companionCount(int id) throws IOException { return companionBook(id).pageCount(); }
+    public List<NotebookPageCatalog.Entry> companionMetadata(int id) throws IOException { return companionBook(id).navigationMetadata(); }
 
     public File notebookPdf(int id) { return new File(bookDirectory(id), "source.pdf"); }
 

@@ -1,6 +1,7 @@
-# Figures, selected-ink export, and a second note
+# Figures, selected-ink export, and multiple notes
 
-Available in **0.33.0-dev.1**, a development build. Automated model/export checks
+Figures/export are available from **0.33.0-dev.1**; the window controls below
+are available in **0.33.0-dev.3**, a development build. Automated model/export checks
 and Android builds are available; touch, native handwriting clipping, and
 floating-window behavior on the MatePad still require physical acceptance.
 
@@ -43,38 +44,46 @@ are preserved. SVG and PDF keep vector ink; PNG/WebP keep transparency and
 JPEG uses a white background. Bitmap exports use up to 2× logical resolution,
 capped at 2,048 pixels on their longest edge. Export does not change the note.
 
-## Open two notes
+## Open and manage notes
 
-Choose **⋮ → Open another note…**, select a different active notebook, then
-choose **Left, Right, Top, Bottom, or Floating window**.
+Tap the **overlapping-notes button in the toolbox**. With one note open, select
+another notebook and choose **Left, Right, Top, Bottom, or Floating window**.
+With several notes open, the button toggles a small adjacent tray: **+** opens
+another floating note, and numbered note icons restore individual minimized
+notes. Each icon identifies its notebook through its tooltip/accessibility name.
+Only notebooks not already in the workspace appear in the picker.
 
-The second pane has its own previous/next page buttons, pinch zoom, and drag
-panning. Tap its bottom **Fit page** strip to reset zoom. Tap **Activate** in
-the inactive pane (or **Workspace… → Activate other note**) to edit that note
-in its existing position. The notes never exchange positions during activation.
-Only one note accepts writing, erasing, lasso operations, or other edits at a
-time; the inactive note remains available for reading, navigation, pan and zoom.
-Scrolling or zooming the inactive note does not activate it.
+There can be **two split notes at most**, alongside multiple floating notes.
+Docking a different note floats the previous secondary split note. Closing a
+window never deletes its notebook.
 
-Both notes share **one floating toolbox**. Its actions always apply to the
-active note. The **top-left status bar stays at the app level** and shows the
-active note’s title, page and zoom, including when the floating note is active.
-From 0.33.0-dev.2, both top status islands float over the full-screen note
-content in every layout; opening or collapsing a second note reserves no top strip.
-Each notebook retains its saved pages and session undo history. Page, view
-center and zoom transfer between reading and editing, and each note keeps its
-link/outline navigation history during activation switches.
+**Tap inside a note with the stylus to edit it.** The activating tap is consumed
+before switching the writer, so it does not leave ink in either note. Notes
+retain their placement during focus switches. Fingers independently scroll
+through the continuous page stack and pinch to zoom in every visible note;
+finger navigation does not change editing focus. New readers start at **fit
+width**. Ink remains vector-rendered, and PDF tiles are requested at the current
+screen resolution after pan/zoom. Imported raster figures retain their source
+resolution limits.
 
-Drag the floating window’s title to move it and its bottom strip to resize it.
-Use the pane’s **⋮** or the main **⋮ → Workspace…** to reposition it, adjust its
-size, reset the split, or close it. **−** collapses the second note; the
-**Reopen note ▣** button restores it. Collapsing returns the space to the main
-page. The second note, selected page, placement, size, and collapsed state are
-saved across app reopen and orientation changes, including which pane is active.
-Reading zoom/pan is retained during activation and collapse/reopen in the same
-Activity; it resets after Activity recreation. If the second note is active,
-collapsing or closing it first activates the primary note. Closing a pane never
-deletes a notebook.
+Each note has two small controls over its lower corners, with no reserved top
+or bottom bar. Tap the **bottom-left options icon** for position, size presets,
+minimize, or close. In a floating note, **hold and drag** this icon to move the
+window. Tap the **bottom-right minimize icon** to hide the window in the toolbox
+tray; **hold and drag** it to resize a floating window from its lower-right
+corner. A short drag before the hold threshold does not move or resize it.
+Minimizing or closing the editable window first hands editing to another
+visible note. The last visible note remains open.
+
+All notes share **one floating toolbox** whose actions apply to the editable
+note. The **top-left status island** shows its title, page and zoom without an
+“Active” prefix, including when a floating note is editable. Both status islands
+float over full-screen note content in every layout. Each notebook retains its
+saved pages and session undo history. Page, logical view center and width-relative
+zoom transfer between reading and editing; note windows, minimized states,
+placement, size and reading positions persist across recreation and app reopen.
+Per-note link/outline navigation history is retained during focus switches in
+the same Activity. Existing two-note preferences migrate on first open.
 
 ## Storage and architecture
 
@@ -94,7 +103,11 @@ using a 16 MiB stream-memory budget before spilling to disk.
 
 The companion reads through the existing serialized writer and the library’s
 cached books without changing the active notebook, page selection, or history.
-Its bounded preview is rendered on the existing render queue. Activation flushes
+Readers retain only visible immutable pages and cached vector stroke outlines.
+Each reader uses the same continuous viewport geometry and PDF tile cache as
+the editor, without flattening handwriting into a thumbnail. PDF link parsing
+is disabled in readers; link/outline tools belong to the editable note.
+Activation flushes
 completed ink and retires the old native surface before changing the writer’s
 active book. The editor is then placed into the activated note’s existing pane.
 Inactive split panes are ordinary views; an inactive floating pane uses a popup
@@ -109,12 +122,18 @@ the floating editor was detached during pause.
 `./scripts/test.sh` covers figure immutability and bounds, insertion/move/delete
 undo and redo, failed-save retry, v5 non-mutating reads and v6 migration,
 backup round trips, page duplication, cross-page ink undo with figures,
-independent cold/cached companion reads, all split positions, collapse bounds,
+independent cold/cached companion reads, all split positions, multiple floating
+notes, minimized-state persistence, the two-split limit,
 and SVG crop/color/opacity/fill rules. Production activation callbacks are also
 executed with queued writer/surface adapters: they check exclusive input,
 writer-before-surface ordering, unchanged pane identities, read-view transfer,
 failed-save rejection, stale/background continuations, and closing/collapsing
-an active second pane. The PDF engine regression checks figures
+any editable pane. Reader callbacks run with synthetic touch/drawing adapters
+to check continuous cross-page scrolling, pinch anchors, width fitting, vector
+replay, PDF tile resolution, cache retirement and minimized-note restoration.
+Corner-grip callbacks check tap/hold intent, movement, anchored resizing,
+cancel rollback, busy-writer rejection and delayed-callback retirement.
+The PDF engine regression checks figures
 with and without transparency on ordinary and imported PDF pages, their pixel
 sizes and transformation matrices, and retention of original content. Host
 PDF tests use ImageIO as the Android bitmap-decoder adapter; they do not prove
@@ -122,8 +141,10 @@ the tablet’s codecs or native rendering.
 
 For device acceptance, use disposable notes: insert SVG/transparent PNG/rotated
 JPEG, annotate and move figures, undo/redo and reopen, export all five lasso
-formats, activate/collapse/reopen all five workspace placements, and verify
-that activation keeps both notes in place and updates the shared status/toolbox.
-Drag/resize the floating window with either note active; leave and resume the
-app or a file picker with the floating editor active; rotate with both notes
-open; verify that pen input never appears in the inactive note or under controls.
+formats, open a split plus at least two floating notes, and switch editing with
+stylus taps while retaining all placements. Scroll across page boundaries and
+zoom text/ink in each inactive note. Minimize several windows and restore them
+individually from the tray. Hold/drag both corner controls, dock a third note,
+leave/resume a floating editor, and rotate with multiple notes open. Verify the
+status/toolbox follows focus, zoom detail resolves, gestures during writing are
+ignored, and pen input never appears in an inactive note or under controls.

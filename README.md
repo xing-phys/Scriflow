@@ -31,8 +31,9 @@ cover-lock/battery behavior and long-session performance remain unverified.
 The [changelog](CHANGELOG.md) summarizes changes; [device records](docs/device-testing.md)
 distinguish automated checks, publication authorization, and physical testing.
 
-Current development **0.33.0-dev.2** adds figures, lasso export to SVG/PNG/JPEG/
-WebP/PDF, and a split or floating second-note workspace. These additions await
+Current development **0.33.0-dev.3** adds figures, lasso export to SVG/PNG/JPEG/
+WebP/PDF, two split panes plus multiple floating notes, a toolbox notes tray,
+and stylus-tap editing focus. These additions await
 physical tablet acceptance. Page format 6 is written on edit and is unreadable
 by older APKs; preserve editable backups before testing. See
 [figures and workspace](docs/figures-and-workspace.md) for formats and controls.
@@ -57,8 +58,9 @@ by older APKs; preserve editable backups before testing. See
 - Insert images, then move, resize or delete them with undo; include figures in
   thumbnails, PDF exports and editable backups.
 - Export selected ink as SVG, PNG, JPEG, WebP or PDF.
-- Open a second note in any split direction or a floating window, independently
-  browse it, activate either note in place with one shared toolbox, and collapse/reopen it.
+- Keep up to two split notes and several floating notes open with one shared toolbox.
+  Tap a note with the stylus to edit it; finger-scroll or pinch any note, and
+  minimize/restore windows through the toolbox notes tray.
 - Automatic saving of completed strokes and editable restoration after reopening.
 - Vector PDF export for sharing and editable `.inkbook` backup/restore.
 - Import PDFs as notebooks, write over their original pages, follow links,
@@ -126,8 +128,9 @@ retains its captured geometry in both modes.
 External links ask before opening
 another app. See [PDF notebooks](docs/pdf-import.md).
 The vertical three-dot menu beside the top-left percentage contains image insertion,
-figure editing, and the second-note workspace. **Page information / Export PDF**
-opens save status, PDF export, and **Reset tools**. Tap the time/battery/Wi-Fi area to open
+figure editing, and **Page information / Export PDF**, which opens save status,
+PDF export, and **Reset tools**. The toolbox notes button opens and restores
+note windows. Tap the time/battery/Wi-Fi area to open
 **Settings** on any app screen, or use **App settings** in the compact zoom menu.
 Settings includes separate portrait/landscape bookshelf rows/columns and page
 overview columns, plus **Keep screen on** while the app is visible. Choose portrait, landscape, or

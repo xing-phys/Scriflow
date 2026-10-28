@@ -61,7 +61,9 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPenSliderState.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPenSliderClose.java \
   tests/CallbackTimingTest.java tests/NotebookStoreTest.java \
-  tests/NotebookFiguresTest.java tests/NotebookFigureFixture.java tests/NotebookWorkspaceActivationTest.java \
+  tests/NotebookFiguresTest.java tests/NotebookFigureFixture.java \
+  tests/NotebookWorkspaceActivationTest.java tests/NotebookWorkspaceTest.java \
+  tests/NotebookReaderInteractionTest.java tests/NotebookWindowGripTest.java \
   tests/NotebookEditsTest.java tests/NotebookDocumentTest.java tests/NotebookLassoTest.java \
   tests/NotebookLassoInteractionTest.java \
   tests/NotebookSelectionMoveTest.java tests/NotebookInkTransferTest.java tests/NotebookEditRestoreTest.java \
@@ -83,6 +85,9 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   tests/NotebookStrokeScaleTest.java tests/NotebookViewportSaveTest.java
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookFiguresTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookWorkspaceActivationTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookWorkspaceTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookReaderInteractionTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookWindowGripTest
 java -ea -cp build/host-tests org.eink.inkprobe.CallbackTimingTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookStoreTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookEditsTest
