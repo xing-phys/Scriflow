@@ -52,6 +52,11 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private final NotebookWorkspace workspace = new NotebookWorkspace();
     private final Map<NotebookWorkspace.Pane, NotebookCompanion> noteWindows = new LinkedHashMap<>();
     private NotebookNoteTray noteTray;
+    private NotebookStylusGesture stylusGesture;
+    private final NotebookStylusShortcut stylusShortcut = new NotebookStylusShortcut();
+    private NotebookToolHint toolHint;
+    private final Rect toolHintBounds = new Rect();
+    private final Runnable applyStylusShortcut = this::applyStylusShortcut;
     private NotebookCompanion.ReadingView pendingReadingView;
     private int pendingReadingPage;
     private Runnable whenReady;
@@ -265,6 +270,8 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         paperButton = floatingTools.button(NotebookFloatingTools.Action.PAPER);
         selectionTools = new NotebookSelectionTools(this, this::performSelectionAction);
         initializeWorkspace();
+        toolHint = new NotebookToolHint(this, bounds -> { toolHintBounds.set(bounds); updateOverlayBounds(); });
+        stylusGesture = new NotebookStylusGesture(this, this::stylusDoubleTap);
         updateControls();
     }
 
@@ -278,6 +285,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             ensureWorkspace(); restoreWorkspaceView();
         }
         active = true;
+        stylusGesture.start();
         deviceStatus.start();
         workspaceRoot.post(() -> {
             if (!active) return;
@@ -356,7 +364,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                     setWritingContact(down);
                     lastInputAt = SystemClock.uptimeMillis();
                     main.removeCallbacks(updateSaveState);
-                    if (!down) scheduleSaveState();
+                    if (!down) { scheduleSaveState(); if (stylusShortcut.hasPending()) main.post(applyStylusShortcut); }
                 }
                 @Override public void onReady() {
                     if (!active || surfaceOwner != inkGeneration) return;
@@ -381,6 +389,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                         catch (Exception ignored) { /* Explicit debug check does not interrupt writing. */ }
                     }
                     scheduleSaveState();
+                    if (stylusShortcut.hasPending()) applyStylusShortcut();
                 }
                 @Override public void onError(String message) {
                     if (!active || surfaceOwner != inkGeneration) return;
@@ -882,6 +891,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         List<Rect> bounds = new ArrayList<>();
         for (NotebookCompanion window : noteWindows.values()) bounds.addAll(window.exclusions());
         if (noteTray != null) bounds.add(noteTray.bounds());
+        bounds.add(toolHintBounds);
         bounds.add(toolsBounds); bounds.add(notebookStatusBounds); bounds.add(deviceStatusBounds); bounds.add(widthPopupBounds);
         if (viewport != null) {
             int[] origin = new int[2]; ink.view().getLocationOnScreen(origin);
@@ -1004,8 +1014,31 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             + (tool == NotebookInk.Tool.ERASER ? "; tap for width slider" : "; select eraser"));
     }
 
+    private boolean acceptsStylusShortcut() {
+        return active && !isFinishing() && !isDestroyed() && ink != null && shownError == null && session.error() == null
+            && !changingWorkspace && overview == null && viewMenu == null && lassoMenu == null
+            && outlineMenu == null && outlineChild == null && externalLinkMenu == null && figureEditor == null;
+    }
+
+    private void stylusDoubleTap() {
+        if (!acceptsStylusShortcut()) return;
+        if (stylusShortcut.request(SystemClock.uptimeMillis(), tool == NotebookInk.Tool.PEN)) applyStylusShortcut();
+    }
+
+    private void applyStylusShortcut() {
+        if (!stylusShortcut.hasPending()) return;
+        if (!acceptsStylusShortcut()) { stylusShortcut.discard(); return; }
+        NotebookStylusShortcut.Target target = stylusShortcut.take(SystemClock.uptimeMillis(), canEdit() && !toolsContact && !widthContact);
+        if (target == null) return;
+        if (widthPopup != null) widthPopup.dismiss();
+        NotebookInk.Tool selected = target == NotebookStylusShortcut.Target.PEN ? NotebookInk.Tool.PEN : NotebookInk.Tool.ERASER;
+        if (tool != selected) selectTool(selected);
+        if (shownError == null && tool == selected) toolHint.show(workspaceRoot, selected == NotebookInk.Tool.PEN);
+    }
+
     private void selectTool(NotebookInk.Tool selected) {
         if (!canEdit()) return;
+        stylusShortcut.discard();
         if (tool == selected) {
             if (selected == NotebookInk.Tool.LASSO) selectionMenu(); else chooseWidth(selected);
             return;
@@ -2293,6 +2326,8 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                 || targetPane.notebookId == session.notebookId()) return;
         NotebookCompanion targetWindow = noteWindows.get(targetPane);
         NotebookCompanion.ReadingView incoming = targetWindow == null ? null : targetWindow.readingView();
+        stylusShortcut.discard();
+        if (toolHint != null) toolHint.hide();
         int previous = session.notebookId(), target = targetPane.notebookId, targetPage = targetPane.page;
         pauseForEdit(); persistPosition(); rememberEditor();
         workspaceHistories.put(previous, viewHistory.save(previous));
@@ -2471,6 +2506,9 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         if (ink != null) ink.pauseForEdit();
         captureViewCenter();
         active = false; ++generation; whenReady = null;
+        if (stylusGesture != null) stylusGesture.stop();
+        stylusShortcut.reset(); main.removeCallbacks(applyStylusShortcut);
+        if (toolHint != null) toolHint.hide();
         rememberEditor();
         for (NotebookCompanion window : noteWindows.values()) window.hide();
         if (noteTray != null) noteTray.hide();
@@ -2524,6 +2562,8 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     }
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
     @Override protected void onDestroy() {
+        if (stylusGesture != null) stylusGesture.stop();
+        if (toolHint != null) toolHint.hide();
         pdfBackgrounds.close();
         for (NotebookCompanion window : noteWindows.values()) window.close();
         if (statusIslands != null) statusIslands.hide();

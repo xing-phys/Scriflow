@@ -192,6 +192,13 @@ pencil previews it. Width changes affect new strokes. Saved writing, undo/redo,
 scroll previews, thumbnails, and PDFs preserve each stroke's own style and
 recorded pressure shape.
 
+On the supported MatePad firmware, **double tap the M-Pencil body** to switch
+from Pen to Eraser. From Eraser or Lasso, double tap to select Pen. A small icon
+appears at the top center for 650 ms and disappears. The shortcut works while
+a note is open in the foreground, including the active floating note; lift the
+tip before tapping. It leaves an unfinished stroke intact and switches after
+it finishes. It does not change tools while a menu/editor dialog is open.
+
 ## Erasing and undo/redo
 
 Choose **Eraser**, move the stylus across writing, then lift it to remove every

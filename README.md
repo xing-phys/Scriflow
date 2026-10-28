@@ -31,12 +31,15 @@ cover-lock/battery behavior and long-session performance remain unverified.
 The [changelog](CHANGELOG.md) summarizes changes; [device records](docs/device-testing.md)
 distinguish automated checks, publication authorization, and physical testing.
 
-Current development **0.33.0-dev.5** adds figures, lasso export to SVG/PNG/JPEG/
+Current development **0.33.0-dev.6** adds figures, lasso export to SVG/PNG/JPEG/
 WebP/PDF, two split panes plus multiple floating notes, a toolbox notes tray,
 and stylus-tap editing focus. Floating-window changes keep the main note visible.
 PDF import opens the system picker directly and opens the imported note on success;
-the toolbox stays above note/status/selection panels. These additions await
-physical tablet acceptance. Page format 6 is written on edit and is unreadable
+the toolbox stays above note/status/selection panels. Double tapping the M-Pencil
+body switches Pen/Eraser and briefly shows the selected icon at the top center.
+The body shortcut has passed the owner’s physical check; USB workspace and
+landscape PDF checks are recorded in the device record. Broader performance
+validation is in progress. Page format 6 is written on edit and is unreadable
 by older APKs; preserve editable backups before testing. See
 [figures and workspace](docs/figures-and-workspace.md) for formats and controls.
 

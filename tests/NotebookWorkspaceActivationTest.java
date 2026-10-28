@@ -26,7 +26,7 @@ public final class NotebookWorkspaceActivationTest {
             "final NotebookWorkspace workspace=new NotebookWorkspace(); final Session session=new Session();",
             "final Map<NotebookWorkspace.Pane,NotebookCompanion> noteWindows=new LinkedHashMap<>();",
             "final NotebookViewHistory viewHistory=new NotebookViewHistory(); final Map<Integer,byte[]> workspaceHistories=new HashMap<>();",
-            "final Area workspaceArea=new Area(); final Tray noteTray=new Tray(); NotebookViewport viewport=new NotebookViewport();",
+            "final Area workspaceArea=new Area(); final Tray noteTray=new Tray(),toolHint=new Tray();final org.eink.inkprobe.notebook.NotebookStylusShortcut stylusShortcut=new org.eink.inkprobe.notebook.NotebookStylusShortcut(); NotebookViewport viewport=new NotebookViewport();",
             "NotebookViewport.Fit zoomFit=NotebookViewport.Fit.WIDTH; float zoom=1; boolean restoreCenter;",
             "NotebookCompanion.ReadingView pendingReadingView; NotebookScrollStore.State reopenPosition; Runnable whenReady;",
             "int activePage=3,generation=1,viewNotebookId=1,pendingReadingPage,editable=1,statusNote=1,openCount;",

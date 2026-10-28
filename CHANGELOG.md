@@ -6,6 +6,18 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.33.0-dev.6 — M-Pencil body double tap (2026-10-28)
+
+- Listen to the foreground M-Pencil body double-tap action verified on the
+  connected MatePad firmware. Pen switches to Eraser; Eraser or Lasso switches
+  to Pen. An unfinished native stroke is allowed to finish before switching.
+- Show the selected Pen/Eraser vector icon briefly at the top center (650 ms),
+  then remove it without animation. The toolbox remains above this hint.
+- Ignore duplicate/late/background gestures; clear queued gestures on pause and
+  focus handoff. Ordinary pen samples/up events do no shortcut work when idle.
+- Keep direct native handwriting, captured ink, document formats and permanent
+  signing identity unchanged. VersionCode 52.
+
 ## 0.33.0-dev.5 — Frontmost tools and direct PDF import (2026-10-28)
 
 - Keep the toolbox on the higher application subpanel layer so opening notes,

@@ -4,6 +4,26 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## M-Pencil body shortcut on 0.33.0-dev.6 (2026-10-28)
+
+The permanently signed versionCode 52 update was installed over dev.5 on the
+same HMW-W09 firmware. The owner confirms **both Pen/Eraser switches and the
+brief icons worked inside an open QA note**. Six physical body-gesture
+broadcasts were received; observed changes included Pen → Eraser, Eraser → Pen,
+and Lasso → Pen. The hardware action is a protected firmware broadcast:
+applications may receive it but cannot send it. The automated receiver test
+therefore invokes the real receiver directly; physical delivery is separately
+established by the owner's taps.
+
+The external same-signer harness passed 21 checks: the preceding 13 workspace
+checks, seven tool/backend/icon checks, and physical gesture delivery with tool
+changes. The native widget and saved QA ink survived switching; the top-center
+hint was visible, nonfocusable/nontouchable, and gone after 650 ms. Full host
+regressions include 27 shortcut assertions; Debug/Release lint and builds pass
+with no lint errors. Pausing unregisters the receiver and clears queued work.
+No permissions, system settings, live native ink callbacks, or file formats
+were changed by the feature. Private screenshots/logs remain ignored.
+
 ## USB validation of 0.33.0-dev.5 (2026-10-28)
 
 Installed the exact permanently signed versionCode 51 APK over the existing

@@ -67,6 +67,52 @@ public final class NotebookDeviceCheck extends Instrumentation {
         while(!stop.exists()&&SystemClock.uptimeMillis()<deadline)SystemClock.sleep(250);
         stop.delete();main(()->owner.unregisterReceiver(receiver));report("GESTURE_CAPTURE_FINISHED events="+events.get());
     }
+    private NotebookInk.Tool selected() throws Exception {
+        AtomicReference<NotebookInk.Tool> value=new AtomicReference<>();
+        main(()->value.set((NotebookInk.Tool)field(activity,"tool")));return value.get();
+    }
+    private void select(NotebookInk.Tool value)throws Exception {
+        ready();if(selected()!=value)main(()->call(activity,"selectTool",new Class<?>[]{NotebookInk.Tool.class},value));
+    }
+    private void bodyGesture(NotebookInk.Tool expected)throws Exception {
+        SystemClock.sleep(300);
+        // Firmware protects this broadcast from application senders. Exercise the real
+        // receiver directly here; the interactive check separately verifies hardware delivery.
+        main(()->((BroadcastReceiver)field(field(activity,"stylusGesture"),"receiver")).onReceive(activity,new Intent(NotebookStylusGesture.ACTION)));
+        long until=SystemClock.uptimeMillis()+3000;
+        while(selected()!=expected&&SystemClock.uptimeMillis()<until)SystemClock.sleep(15);
+        check(selected()==expected&&((NotebookInk)field(activity,"ink")).getTool()==expected,"body gesture selects "+expected+" in UI and native backend");
+    }
+    private void checkStylus()throws Exception {
+        Object backend=field(activity,"ink");int strokes=session.current().strokes.size();
+        select(NotebookInk.Tool.PEN);bodyGesture(NotebookInk.Tool.ERASER);
+        Object hint=field(activity,"toolHint");PopupWindow popup=(PopupWindow)field(hint,"popup");
+        check(popup.isShowing()&&!popup.isTouchable()&&!popup.isFocusable(),"brief tool icon is visible and does not intercept input");
+        WindowManager.LayoutParams lp=(WindowManager.LayoutParams)popup.getContentView().getRootView().getLayoutParams();
+        View root=(View)field(activity,"workspaceRoot");
+        check(Math.abs(lp.x*2+lp.width-root.getWidth())<=2,"tool icon is centered at top of screen");
+        screenshot("eraser-hint");SystemClock.sleep(800);
+        check(!popup.isShowing(),"tool icon disappears automatically");
+        bodyGesture(NotebookInk.Tool.PEN);select(NotebookInk.Tool.LASSO);bodyGesture(NotebookInk.Tool.PEN);
+        check(field(activity,"ink")==backend&&session.current().strokes.size()==strokes,"tool gestures retain native widget and saved ink");
+    }
+    private void interactiveStylus()throws Exception {
+        select(NotebookInk.Tool.PEN);SystemClock.sleep(800);
+        File stop=new File(getTargetContext().getExternalFilesDir(null),"qa-capture-stop");stop.delete();
+        AtomicInteger events=new AtomicInteger();
+        BroadcastReceiver receiver=new BroadcastReceiver(){public void onReceive(Context c,Intent i){events.incrementAndGet();report("PHYSICAL_BODY_EVENT "+events.get());}};
+        main(()->activity.registerReceiver(receiver,new IntentFilter(NotebookStylusGesture.ACTION)));
+        report("FEATURE_READY: QA note open, PEN selected; waiting for physical body double tap");
+        long deadline=SystemClock.uptimeMillis()+600000;NotebookInk.Tool previous=selected();int transitions=0;
+        while(!stop.exists()&&SystemClock.uptimeMillis()<deadline){
+            NotebookInk.Tool current=selected();
+            if(current!=previous){transitions++;report("PHYSICAL_TOOL_CHANGE "+previous+" -> "+current);screenshot("physical-tool-"+transitions);previous=current;}
+            SystemClock.sleep(40);
+        }
+        stop.delete();main(()->activity.unregisterReceiver(receiver));
+        check(events.get()>0&&transitions>0,"physical M-Pencil body gesture changes tool inside open note");
+        report("PHYSICAL_RESULT events="+events.get()+" toolTransitions="+transitions);
+    }
     private void runChecks()throws Exception {
         output=new File(getTargetContext().getExternalFilesDir(null),"qa-"+System.currentTimeMillis());output.mkdirs();
         Activity library=startActivitySync(new Intent().setClassName(getTargetContext(),"org.eink.inkprobe.notebook.NotebookLibraryActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
@@ -114,11 +160,7 @@ public final class NotebookDeviceCheck extends Instrumentation {
         check(session.notebookId()==first&&workspace.find(second)==null&&field(activity,"ink")==backend,"closing active float returns to main without replacing editor");
         check(session.current().strokes.size()==1,"main QA ink survives float close and handoff");screenshot("main-after-float");
         try(FileWriter out=new FileWriter(new File(output,"result.json"))){out.write("{\"checks\":"+checks+",\"firstId\":"+first+",\"secondId\":"+second+",\"prefix\":\""+prefix+"\"}");}
-        if(args!=null&&"true".equals(args.getString("captureGesture"))){
-            AtomicInteger events=new AtomicInteger();BroadcastReceiver receiver=new BroadcastReceiver(){public void onReceive(Context c,Intent i){events.incrementAndGet();report("STYLUS_BODY_EVENT "+i.getAction());}};
-            main(()->activity.registerReceiver(receiver,new IntentFilter("com.huawei.stylus.action.BUTTON_DOUBLE_PRESSED")));
-            report("GESTURE_CAPTURE_READY: double tap M-Pencil body with tip away from screen");SystemClock.sleep(45000);
-            main(()->activity.unregisterReceiver(receiver));report("GESTURE_CAPTURE_FINISHED events="+events.get());
-        }
+        if(args!=null&&"true".equals(args.getString("testStylus")))checkStylus();
+        if(args!=null&&"true".equals(args.getString("interactiveStylus")))interactiveStylus();
     }
 }
