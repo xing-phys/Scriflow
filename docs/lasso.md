@@ -43,6 +43,13 @@ Cut, Delete, Export… and Done. It stays within the viewport and avoids the mai
 when space allows. An empty region says "No strokes selected"; only Done is
 available.
 
+From **0.33.0-dev.5**, the action panel uses the Activity's window token even
+when its placement belongs to a floating note. It stays beside that note rather
+than creating a nested popup under the floating window. Teardown/attachment
+races skip the panel without reporting a native handwriting failure. The main
+toolbox stays on a higher application sublayer above notes, status islands and
+selection actions.
+
 ## Moving across pages
 
 While the region exists, AHW stays disabled and its Android pointer stream

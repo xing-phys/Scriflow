@@ -6,6 +6,24 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.33.0-dev.5 — Frontmost tools and direct PDF import (2026-10-28)
+
+- Keep the toolbox on the higher application subpanel layer so opening notes,
+  status islands, and lasso controls cannot cover it; retain its window during
+  tool gestures rather than dismissing/reopening it to change stacking order.
+- Show editor popups through the live Activity window token while keeping their
+  floating-note geometry. Fix the lasso popup's nested-window token failure and
+  apply the same host to width controls, zoom badges, figures and other panels.
+  A stale token during Activity teardown no longer becomes a native ink error.
+- Open the PDF file picker immediately from Import PDF, without a second Choose
+  PDF action, then open the imported notebook automatically after publication.
+- Retain picker/import/open phases across landscape recreation and guard UI
+  handoff against paused, destroyed, finishing or unattached Activity instances.
+  Add regressions for duplicate results, cancellation, failure retry and one-time
+  opening. PDF staging/publication memory failures report an import error instead
+  of escaping the worker; the physical landscape case still needs confirmation.
+- VersionCode 51; permanent signer, application ID and notebook formats unchanged.
+
 ## 0.33.0-dev.4 — Keep the main note visible during window changes (2026-10-28)
 
 - Stop destroying/recreating the native editor for floating-note move, resize,

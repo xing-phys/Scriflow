@@ -58,7 +58,9 @@ final class NotebookNoteTray {
         popup.setEnterTransition(null); popup.setExitTransition(null);
         popup.setOnDismissListener(() -> { bounds.setEmpty(); listener.boundsChanged(); });
         bounds.set(x, y, x + width, y + height); listener.boundsChanged();
-        popup.showAtLocation(anchor, Gravity.TOP | Gravity.LEFT, x, y);
+        if (!NotebookPopupHost.show(popup, anchor, Gravity.TOP | Gravity.LEFT, x, y)) {
+            bounds.setEmpty(); listener.boundsChanged();
+        }
     }
     void hide() { if (popup != null) popup.dismiss(); popup = null; bounds.setEmpty(); listener.boundsChanged(); }
     private int dp(int value) { return Math.round(value * context.getResources().getDisplayMetrics().density); }

@@ -4,6 +4,37 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## Scriflow 0.33.0-dev.5 popup hosting and PDF import (2026-10-28)
+
+VersionCode 51 addresses the owner's toolbox ordering, direct-import workflow,
+landscape picker-result exit, and invalid-window-token lasso report.
+
+- The toolbox uses the higher application subpanel layer. Notes, status islands
+  and selection controls use ordinary panels, so their show order cannot cover
+  the toolbox and it need not be dismissed/reopened during tool gestures.
+- All editor panels use the attached Activity decor's token while preserving
+  their pane-relative geometry. Nested floating-note tokens no longer reach
+  WindowManager; teardown races skip/reset presentation, and failed status
+  presentation clears only the missing window's native input exclusion.
+- Import PDF opens the system picker directly. A retained phase tracks picker,
+  import and one-time editor opening across landscape recreation. Completion
+  launches only from a resumed, attached Activity; cancellation returns to the
+  library. PDF preparation/publication memory exhaustion reports an import
+  failure rather than escaping the worker.
+- Full host regressions cover root-token presentation, pane geometry, window
+  teardown/failure cleanup, retained import phases and picker-result/open
+  callbacks. Debug/release lint and builds pass. The signed update is
+  `build/releases/scriflow-0.33.0-dev.5.apk`, with its adjacent checksum, verified
+  by `scripts/build-release.sh` against the pinned permanent certificate.
+- No tablet is connected. The owner narrowed the landscape exit to **after PDF
+  selection**; no fresh device crash log establishes its precise cause. Verify
+  direct import and rotation during the picker/result/import transition, and
+  confirm the reported exit is gone. Also verify toolbox overlap and lasso,
+  width, zoom and figure controls while a floating note is editable.
+- Local signed update only; no GitHub release is published. Signer, application
+  ID and notebook formats are unchanged. Host checks do not establish visible
+  e-ink behavior or native pen latency.
+
 ## Scriflow 0.33.0-dev.4 floating-window display retention (2026-10-28)
 
 VersionCode 50 fixes the reported white main-note frame during floating-window

@@ -321,8 +321,13 @@ final class NotebookSession {
 
     void importBackup(NotebookBackup.Restored restored, TransferCallback callback) {
         submit(() -> {
-            document.loadCatalog(); document.importNotebook(restored); document.load();
-            windowIds = Collections.emptyList(); navigationBook = 0;
+            try {
+                document.loadCatalog(); document.importNotebook(restored); document.load();
+                windowIds = Collections.emptyList(); navigationBook = 0;
+            } catch (OutOfMemoryError error) {
+                // A restore intent/directory may already have been published. Preserve it for normal library recovery.
+                throw new IOException("Import ran out of memory. Check the library before trying the file again.", error);
+            }
         }, (page, error) -> callback.complete(error));
     }
 

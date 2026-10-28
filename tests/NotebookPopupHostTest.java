@@ -1,0 +1,79 @@
+package org.eink.inkprobe.notebook;
+
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+
+/** Production popup-host and selection presentation callbacks with synthetic WindowManager tokens. */
+public final class NotebookPopupHostTest {
+    public static void main(String[] args) throws Exception {
+        String host = read("NotebookPopupHost"), selection = read("NotebookSelectionTools");
+        String fixture = String.join("\n",
+            "package org.eink.inkprobe.notebook;import java.util.*;",
+            "public class PopupHostFixture {",
+            "static class Context {}",
+            "static class ContextWrapper extends Context {Context base;ContextWrapper(Context base){this.base=base;}Context getBaseContext(){return base;}}",
+            "static class Activity extends ContextWrapper {boolean finishing,destroyed;final Window window;Activity(){super(new Context());window=new Window(this);}boolean isFinishing(){return finishing;}boolean isDestroyed(){return destroyed;}Window getWindow(){return window;}}",
+            "static class Window {final View decor;Window(Context c){decor=new View(c,1404,1872,0,0);}View getDecorView(){return decor;}}",
+            "static class View {final Context context;boolean attached=true;Object token=new Object();int width,height,x,y;View(Context c,int w,int h,int x,int y){context=c;width=w;height=h;this.x=x;this.y=y;}Context getContext(){return context;}boolean isAttachedToWindow(){return attached;}Object getWindowToken(){return token;}int getWidth(){return width;}int getHeight(){return height;}void getLocationOnScreen(int[] xy){xy[0]=x;xy[1]=y;}}",
+            "static class WindowManager {static class BadTokenException extends RuntimeException {BadTokenException(){super(\"invalid panel token\");}}}",
+            "static class PopupWindow {final Object acceptedToken;boolean showing,rejectNext,dirtyFailure,dismissThrows;View anchor;int gravity,x,y,width,height,attempts,dismissals,updates;PopupWindow(Object token){acceptedToken=token;}void showAtLocation(View root,int g,int x,int y){attempts++;if(root.getWindowToken()!=acceptedToken)throw new WindowManager.BadTokenException();if(rejectNext){rejectNext=false;showing=dirtyFailure;throw new WindowManager.BadTokenException();}anchor=root;gravity=g;this.x=x;this.y=y;showing=true;}boolean isShowing(){return showing;}void dismiss(){dismissals++;showing=false;if(dismissThrows)throw new IllegalArgumentException(\"window was never accepted\");}void setWidth(int n){width=n;}void setHeight(int n){height=n;}void update(int x,int y,int w,int h){updates++;this.x=x;this.y=y;width=w;height=h;}}",
+            "static class NotebookPopupHost {",
+            method(host, "static boolean show("), method(host, "private static Activity activity("),
+            "}",
+            "static class Rect {int left,top,right,bottom;Rect(int l,int t,int r,int b){left=l;top=t;right=r;bottom=b;}}",
+            "static class RectF {float left,top,right,bottom;RectF(float l,float t,float r,float b){left=l;top=t;right=r;bottom=b;}}",
+            "static class Gravity {static final int TOP=48,LEFT=3;}",
+            "static class Text {String value;void setText(String text){value=text;}}static class Button {boolean available;void setAvailable(boolean b){available=b;}}",
+            "static class SelectionHarness {enum Action {COPY,DUPLICATE,MOVE,CUT,DELETE,EXPORT,DONE}final PopupWindow popup;final Text status=new Text();final EnumMap<Action,Button> buttons=new EnumMap<>(Action.class);SelectionHarness(PopupWindow p){popup=p;for(Action a:Action.values())buttons.put(a,new Button());}int dp(int n){return n;}",
+            method(selection, "void show("),
+            "}",
+            "static int assertions;static void check(boolean b,String s){assertions++;if(!b)throw new AssertionError(s);}",
+            "static View pane(Context c){return new View(c,220,360,300,500);}static PopupWindow popup(Activity a){return new PopupWindow(a.window.decor.token);}",
+            "public static void run(){",
+            "Activity a=new Activity();View root=a.window.decor,pane=pane(new ContextWrapper(new ContextWrapper(a)));check(pane.token!=root.token,\"fixture distinguishes popup-subwindow token from Activity token\");PopupWindow nested=popup(a);boolean invalid=false;try{nested.showAtLocation(pane,0,0,0);}catch(WindowManager.BadTokenException expected){invalid=true;}check(invalid,\"nested popup token reproduces WindowManager rejection\");",
+            "PopupWindow hosted=popup(a);check(NotebookPopupHost.show(hosted,pane,91,-307,451),\"wrapped Activity resolves to a valid popup host\");check(hosted.anchor==root&&hosted.anchor!=pane&&hosted.gravity==91&&hosted.x==-307&&hosted.y==451,\"stable Activity token is used without changing supplied screen placement\");",
+            "Activity finishing=new Activity();finishing.finishing=true;PopupWindow p=popup(finishing);check(!NotebookPopupHost.show(p,pane(finishing),0,0,0)&&p.attempts==0,\"finishing Activity never adds a panel\");",
+            "Activity destroyed=new Activity();destroyed.destroyed=true;p=popup(destroyed);check(!NotebookPopupHost.show(p,pane(destroyed),0,0,0)&&p.attempts==0,\"destroyed Activity never adds a panel\");",
+            "Activity detach=new Activity();View detachedPane=pane(detach);detachedPane.attached=false;p=popup(detach);check(!NotebookPopupHost.show(p,detachedPane,0,0,0)&&p.attempts==0,\"detached pane cannot open a panel\");detachedPane.attached=true;detach.window.decor.attached=false;check(!NotebookPopupHost.show(p,detachedPane,0,0,0)&&p.attempts==0,\"attached floating pane cannot substitute for detached Activity decor\");detach.window.decor.attached=true;check(NotebookPopupHost.show(p,detachedPane,0,0,0),\"presentation can succeed after the Activity decor reattaches\");",
+            "Activity untokened=new Activity();untokened.window.decor.token=null;p=popup(untokened);check(!NotebookPopupHost.show(p,pane(untokened),0,0,0)&&p.attempts==0,\"Activity decor without a live token is rejected before WindowManager\");",
+            "p=popup(a);check(!NotebookPopupHost.show(p,pane(new Context()),0,0,0)&&p.attempts==0,\"non-Activity context is rejected\");ContextWrapper self=new ContextWrapper(null);self.base=self;check(!NotebookPopupHost.show(p,pane(self),0,0,0)&&p.attempts==0,\"self-wrapped context terminates safely\");",
+            "PopupWindow race=popup(a);race.rejectNext=true;race.dirtyFailure=true;check(!NotebookPopupHost.show(race,pane,0,4,5)&&!race.showing&&race.dismissals==1,\"BadToken race resets partially shown popup without escaping to native readiness\");check(NotebookPopupHost.show(race,pane,0,4,5)&&race.anchor==root,\"a failed presentation can retry through the current Activity token\");",
+            "PopupWindow rejected=popup(a);rejected.rejectNext=true;rejected.dirtyFailure=true;rejected.dismissThrows=true;check(!NotebookPopupHost.show(rejected,pane,0,0,0)&&!rejected.showing&&rejected.dismissals==1,\"WindowManager rejection during cleanup is also harmless\");",
+            "PopupWindow cleanFailure=popup(a);cleanFailure.rejectNext=true;check(!NotebookPopupHost.show(cleanFailure,pane,0,0,0)&&cleanFailure.dismissals==0,\"failed add that never became visible is not needlessly dismissed\");",
+            "PopupWindow actions=popup(a);SelectionHarness selection=new SelectionHarness(actions);selection.show(pane,new RectF(30,45,150,120),new Rect(800,50,1350,90),2);check(actions.anchor==root&&actions.width==204&&actions.height==122&&actions.x==300&&actions.y==628,\"selection actions keep floating-pane geometry while using the Activity token\");check(selection.buttons.get(SelectionHarness.Action.COPY).available&&selection.buttons.get(SelectionHarness.Action.DONE).available,\"selection actions remain usable after successful presentation\");pane.x=370;pane.y=650;selection.show(pane,new RectF(30,45,150,200),new Rect(800,50,1350,90),0);check(actions.attempts==1&&actions.updates==1&&actions.x==370&&actions.y==858,\"existing action popup follows changed pane origin without reopening under a nested token\");check(!selection.buttons.get(SelectionHarness.Action.COPY).available&&selection.buttons.get(SelectionHarness.Action.DONE).available,\"empty lasso keeps Done available while disabling destructive actions\");",
+            "PopupWindow lassoRace=popup(a);lassoRace.rejectNext=true;lassoRace.dirtyFailure=true;SelectionHarness retry=new SelectionHarness(lassoRace);retry.show(pane,new RectF(30,45,150,120),new Rect(800,50,1350,90),1);check(!lassoRace.showing&&lassoRace.dismissals==1,\"selection presentation race does not throw from the native onReady path\");retry.show(pane,new RectF(30,45,150,120),new Rect(800,50,1350,90),1);check(lassoRace.showing&&lassoRace.anchor==root,\"lasso action panel can reopen after attachment race\");",
+            "System.out.println(\"NotebookPopupHost: \"+assertions+\" assertions passed (production host/selection callbacks, synthetic tokens; not device window verification).\");",
+            "}", "}");
+        NotebookWorkspaceActivationTest.runFixture("org.eink.inkprobe.notebook.PopupHostFixture", fixture);
+        statusPresentation();
+    }
+    private static void statusPresentation() throws Exception {
+        String status = read("NotebookStatusIslands");
+        String fixture = String.join("\n",
+            "package org.eink.inkprobe.notebook;import java.util.*;",
+            "public class StatusHostFixture {",
+            "static class Rect {int left,top,right,bottom;Rect(){}Rect(int l,int t,int r,int b){set(l,t,r,b);}Rect(Rect r){set(r);}void set(int l,int t,int r,int b){left=l;top=t;right=r;bottom=b;}void set(Rect r){set(r.left,r.top,r.right,r.bottom);}void setEmpty(){set(0,0,0,0);}int width(){return right-left;}int height(){return bottom-top;}boolean isEmpty(){return width()<=0||height()<=0;}void inset(int x,int y){left+=x;right-=x;top+=y;bottom-=y;}boolean intersect(Rect r){int l=Math.max(left,r.left),t=Math.max(top,r.top),rr=Math.min(right,r.right),b=Math.min(bottom,r.bottom);if(rr<=l||b<=t)return false;set(l,t,rr,b);return true;}}",
+            "static class View {static class MeasureSpec {static final int UNSPECIFIED=0,AT_MOST=1,EXACTLY=2;static int makeMeasureSpec(int size,int mode){return size;}}boolean attached=true;boolean isAttachedToWindow(){return attached;}int getWidth(){return 1000;}int getHeight(){return 800;}void getLocationOnScreen(int[] xy){xy[0]=100;xy[1]=200;}void getWindowVisibleDisplayFrame(Rect r){r.set(100,200,1100,1000);}}",
+            "static class Layout {int width,height;final boolean fixed;Layout(int w,int h,boolean f){width=w;height=h;fixed=f;}void measure(int w,int h){if(!fixed)width=w;}int getMeasuredWidth(){return width;}int getMeasuredHeight(){return height;}}",
+            "static class PopupWindow {final String name;final List<String> log;boolean showing,fail;int updates;PopupWindow(String n,List<String> log){name=n;this.log=log;}boolean isShowing(){return showing;}void update(int x,int y,int w,int h){log.add(\"update:\"+name);updates++;}void setWidth(int w){}void setHeight(int h){}}",
+            "static class Gravity {static final int TOP=48,LEFT=3;}",
+            "static class NotebookPopupHost {static boolean show(PopupWindow popup,View anchor,int gravity,int x,int y){popup.log.add(\"show:\"+popup.name);popup.showing=!popup.fail;return popup.showing;}}",
+            "interface Listener {void onBoundsChanged(Rect left,Rect right);}",
+            "final List<String> events=new ArrayList<>();final List<Rect[]> bounds=new ArrayList<>();final View anchor=new View();final Rect leftBounds=new Rect(),rightBounds=new Rect();final Layout notebook=new Layout(0,36,false),device=new Layout(120,24,true);final int preferredLeftWidth=320;final PopupWindow leftWindow=new PopupWindow(\"left\",events),rightWindow=new PopupWindow(\"right\",events);final Listener listener=(left,right)->{events.add(\"bounds\");bounds.add(new Rect[]{new Rect(left),new Rect(right)});};int dp(int n){return n;}",
+            method(status, "private void position("), method(status, "private boolean place("),
+            "static int assertions;static void check(boolean b,String s){assertions++;if(!b)throw new AssertionError(s);}static boolean same(Rect a,Rect b){return a.left==b.left&&a.top==b.top&&a.right==b.right&&a.bottom==b.bottom;}",
+            "public static void run(){",
+            "StatusHostFixture left=new StatusHostFixture();left.leftWindow.fail=true;left.position();check(left.bounds.size()==2&&!left.bounds.get(0)[0].isEmpty()&&!left.bounds.get(0)[1].isEmpty(),\"both native holes are preinstalled before presenting either status window\");check(left.events.equals(Arrays.asList(\"bounds\",\"show:left\",\"show:right\",\"bounds\")),\"actual-outcome notification follows both presentation attempts\");check(left.leftBounds.isEmpty()&&!left.rightBounds.isEmpty()&&!left.leftWindow.showing&&left.rightWindow.showing,\"failed left status releases its hole while visible right status remains protected\");check(left.bounds.get(1)[0].isEmpty()&&!left.bounds.get(1)[1].isEmpty(),\"native listener receives only live status exclusions after failure\");check(same(left.bounds.get(0)[1],left.bounds.get(1)[1]),\"successful right island retains its exact exclusion geometry\");left.leftWindow.fail=false;left.position();check(left.leftWindow.showing&&left.rightWindow.showing&&!left.leftBounds.isEmpty()&&!left.rightBounds.isEmpty(),\"failed island can retry without losing an already visible island\");check(left.bounds.size()==3&&left.rightWindow.updates==1,\"successful retry needs only the preinstalled bounds notification and updates the existing right window\");",
+            "StatusHostFixture right=new StatusHostFixture();right.leftWindow.showing=true;right.rightWindow.fail=true;right.position();check(right.leftWindow.updates==1&&right.leftWindow.showing&&!right.leftBounds.isEmpty()&&right.rightBounds.isEmpty(),\"failed right presentation preserves an existing visible left status hole\");check(!right.bounds.get(1)[0].isEmpty()&&right.bounds.get(1)[1].isEmpty(),\"right-only failure reports the actual surviving exclusion\");",
+            "StatusHostFixture both=new StatusHostFixture();both.leftWindow.fail=both.rightWindow.fail=true;both.position();check(both.leftBounds.isEmpty()&&both.rightBounds.isEmpty()&&!both.leftWindow.showing&&!both.rightWindow.showing,\"two failed status windows leave no invisible native holes\");check(both.bounds.size()==2&&!both.bounds.get(0)[0].isEmpty()&&!both.bounds.get(0)[1].isEmpty()&&both.bounds.get(1)[0].isEmpty()&&both.bounds.get(1)[1].isEmpty(),\"double failure removes holes only after safe preinstallation\");",
+            "StatusHostFixture valid=new StatusHostFixture();valid.position();check(valid.bounds.size()==1&&valid.leftWindow.showing&&valid.rightWindow.showing&&!valid.leftBounds.isEmpty()&&!valid.rightBounds.isEmpty(),\"successful presentation retains both preinstalled exclusions without redundant notifications\");valid.position();check(valid.bounds.size()==2&&valid.leftWindow.updates==1&&valid.rightWindow.updates==1,\"repositioning visible islands keeps their valid holes\");",
+            "System.out.println(\"NotebookStatusPopupHost: \"+assertions+\" assertions passed (production placement/outcome callbacks; not device window verification).\");",
+            "}", "}");
+        NotebookWorkspaceActivationTest.runFixture("org.eink.inkprobe.notebook.StatusHostFixture", fixture);
+    }
+    private static String read(String name) throws Exception {
+        return new String(Files.readAllBytes(new File("app/src/main/java/org/eink/inkprobe/notebook/" + name + ".java").toPath()), StandardCharsets.UTF_8);
+    }
+    private static String method(String source, String signature) { return NotebookWorkspaceActivationTest.method(source, signature); }
+}

@@ -1,9 +1,21 @@
 # PDF notebooks, outlines, and view history — 0.31
 
-Choose **Import PDF** in the library, select a PDF in the system picker, and
-wait for import to finish. It appears as a separate notebook, named after the
-file. The app keeps a private, unchanged copy of the source file; moving or
-deleting the selected external file does not affect the notebook.
+Choose **Import PDF** in the library to open the system file picker directly.
+Select a PDF and wait for import to finish; the imported notebook opens
+automatically, named after the file. There is no separate Choose PDF or success
+confirmation screen. Cancelling the picker returns to the library. Import
+failures offer an explicit retry. The app keeps a private, unchanged copy of the
+source file; moving or deleting the selected external file does not affect the
+notebook.
+
+From **0.33.0-dev.5**, outstanding picker results and in-process import jobs
+belong to retained import state, so landscape recreation does not launch a second
+picker/import. Completion opens the note once, only from a resumed, attached
+Activity. Recoverable memory exhaustion in PDF preparation/publication reports
+an import error with retry controls rather than escaping the worker. If the
+process is killed during import, return to the library to check for the published
+note before retrying. The reported exit after selecting a PDF
+in landscape still needs physical confirmation on the supported tablet.
 
 Write, sketch, erase your ink, undo/redo, select ink with the lasso, and manage
 pages using the ordinary notebook tools. The PDF itself is a background;

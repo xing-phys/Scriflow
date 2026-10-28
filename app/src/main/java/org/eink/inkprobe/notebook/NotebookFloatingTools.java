@@ -113,6 +113,8 @@ public final class NotebookFloatingTools {
             button(Action.OVERVIEW), button(Action.OUTLINE), button(Action.VIEW_BACK),
             button(Action.VIEW_FORWARD), button(Action.PAPER), button(Action.NOTES), button(Action.LIBRARY)};
         popup = new PopupWindow(content, 0, 0, false);
+        // A dedicated higher application sublayer keeps tools above notes, status and selection panels regardless of show order.
+        popup.setWindowLayoutType(WindowManager.LayoutParams.TYPE_APPLICATION_SUB_PANEL);
         popup.setTouchable(true);
         popup.setOutsideTouchable(false);
         popup.setFocusable(false);
@@ -212,8 +214,10 @@ public final class NotebookFloatingTools {
         position(horizontalFraction, verticalFraction);
         if (!popup.isShowing()) {
             try {
-                popup.showAtLocation(anchor, Gravity.TOP | Gravity.LEFT,
-                        screenBounds.left, screenBounds.top);
+                if (!NotebookPopupHost.show(popup, anchor, Gravity.TOP | Gravity.LEFT, screenBounds.left, screenBounds.top)) {
+                    anchor.removeOnLayoutChangeListener(layoutListener);
+                    screenBounds.setEmpty(); listener.onBoundsChanged(new Rect());
+                }
             } catch (RuntimeException error) {
                 anchor.removeOnLayoutChangeListener(layoutListener);
                 screenBounds.setEmpty();

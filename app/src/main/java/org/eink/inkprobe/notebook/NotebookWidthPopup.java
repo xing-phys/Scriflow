@@ -82,7 +82,7 @@ final class NotebookWidthPopup {
         // Install the native-ink hole before this window becomes visible.
         listener.onBoundsChanged(new Rect(bounds));
         popup.setWidth(bar.width); popup.setHeight(bar.height);
-        try { popup.showAtLocation(canvas, Gravity.TOP | Gravity.LEFT, bounds.left, bounds.top); }
+        try { if (!NotebookPopupHost.show(popup, canvas, Gravity.TOP | Gravity.LEFT, bounds.left, bounds.top)) finish(null); }
         catch (RuntimeException error) { finish(null); }
     }
 

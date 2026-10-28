@@ -118,16 +118,22 @@ final class NotebookStatusIslands {
             rightTop + device.getMeasuredHeight());
         // Install both holes before either window becomes visible.
         listener.onBoundsChanged(new Rect(leftBounds), new Rect(rightBounds));
-        place(leftWindow, leftBounds);
-        place(rightWindow, rightBounds);
+        boolean leftShown = place(leftWindow, leftBounds);
+        boolean rightShown = place(rightWindow, rightBounds);
+        if (!leftShown || !rightShown) {
+            if (!leftShown) leftBounds.setEmpty();
+            if (!rightShown) rightBounds.setEmpty();
+            listener.onBoundsChanged(new Rect(leftBounds), new Rect(rightBounds));
+        }
     }
 
-    private void place(PopupWindow window, Rect bounds) {
-        if (window.isShowing()) window.update(bounds.left, bounds.top, bounds.width(), bounds.height());
-        else {
-            window.setWidth(bounds.width()); window.setHeight(bounds.height());
-            window.showAtLocation(anchor, Gravity.TOP | Gravity.LEFT, bounds.left, bounds.top);
+    private boolean place(PopupWindow window, Rect bounds) {
+        if (window.isShowing()) {
+            window.update(bounds.left, bounds.top, bounds.width(), bounds.height());
+            return true;
         }
+        window.setWidth(bounds.width()); window.setHeight(bounds.height());
+        return NotebookPopupHost.show(window, anchor, Gravity.TOP | Gravity.LEFT, bounds.left, bounds.top);
     }
 
     void hide() {

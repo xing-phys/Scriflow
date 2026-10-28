@@ -84,7 +84,7 @@ final class NotebookFigureEditor {
     }
     void show() {
         int[] location = new int[2]; anchor.getLocationOnScreen(location);
-        popup.showAtLocation(anchor, Gravity.TOP | Gravity.LEFT, location[0], location[1]);
+        if (!NotebookPopupHost.show(popup, anchor, Gravity.TOP | Gravity.LEFT, location[0], location[1])) finish(null, false);
     }
     void cancel() { finish(null, false); }
     void dismiss() { completed = true; popup.dismiss(); }

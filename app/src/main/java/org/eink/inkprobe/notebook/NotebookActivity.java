@@ -747,7 +747,12 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private void showZoomBadge() {
         zoomBadgeText.setText(zoomLabel());
         if (zoomBadge.isShowing() || !canvas.isAttachedToWindow()) return;
-        zoomBadge.showAtLocation(canvas, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, 0, dp(24));
+        int unspecified = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED);
+        zoomBadgeText.measure(unspecified, unspecified);
+        int[] location = new int[2]; canvas.getLocationOnScreen(location);
+        int x = location[0] + (canvas.getWidth() - zoomBadgeText.getMeasuredWidth()) / 2;
+        int y = location[1] + canvas.getHeight() - dp(24) - zoomBadgeText.getMeasuredHeight();
+        NotebookPopupHost.show(zoomBadge, canvas, Gravity.TOP | Gravity.LEFT, x, Math.max(location[1], y));
     }
 
     private void captureViewCenter() {

@@ -63,7 +63,7 @@ final class NotebookSelectionTools {
             tools.left - location[0], tools.top - location[1], tools.right - location[0], tools.bottom - location[1]);
         popup.setWidth(width); popup.setHeight(height);
         if (popup.isShowing()) popup.update(location[0] + position[0], location[1] + position[1], width, height);
-        else popup.showAtLocation(anchor, Gravity.TOP | Gravity.LEFT, location[0] + position[0], location[1] + position[1]);
+        else NotebookPopupHost.show(popup, anchor, Gravity.TOP | Gravity.LEFT, location[0] + position[0], location[1] + position[1]);
     }
     void hide() { if (popup.isShowing()) popup.dismiss(); }
     void copied() { status.setText("Copied · Done, then tap Lasso to paste"); }

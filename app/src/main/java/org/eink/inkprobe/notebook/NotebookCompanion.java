@@ -109,7 +109,7 @@ final class NotebookCompanion {
             if (content.getParent() == root) root.removeView(content);
             popup.setWidth(Math.max(1, box.width)); popup.setHeight(Math.max(1, box.height));
             if (popup.isShowing()) popup.update(x, y, box.width, box.height);
-            else popup.showAtLocation(root, Gravity.TOP | Gravity.LEFT, x, y);
+            else if (!NotebookPopupHost.show(popup, root, Gravity.TOP | Gravity.LEFT, x, y)) { visible = false; listener.boundsChanged(); return; }
         } else {
             if (popup.isShowing()) popup.dismiss();
             if (content.getParent() != root) {

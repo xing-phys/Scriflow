@@ -76,7 +76,8 @@ Minimizing or closing the editable window first hands editing to another
 visible note. The last visible note remains open.
 
 All notes share **one floating toolbox** whose actions apply to the editable
-note. The **top-left status island** shows its title, page and zoom without an
+note. From **0.33.0-dev.5**, its application sublayer keeps it above note windows,
+status islands and selection actions regardless of which panel was opened last. The **top-left status island** shows its title, page and zoom without an
 “Active” prefix, including when a floating note is editable. Both status islands
 float over full-screen note content in every layout. Each notebook retains its
 saved pages and session undo history. Page, logical view center and width-relative
@@ -162,7 +163,10 @@ zoom text/ink in each inactive note. Minimize several windows and restore them
 individually from the tray. Hold/drag both corner controls, dock a third note,
 leave/resume a floating editor, and rotate with multiple notes open. Verify the
 status/toolbox follows focus, zoom detail resolves, gestures during writing are
-ignored, and pen input never appears in an inactive note or under controls.
+ignored, and pen input never appears in an inactive note or under controls. For dev.5,
+position a floating note/status/selection panel over the toolbox and confirm the
+toolbox remains in front; complete a lasso and open its actions, width sliders,
+zoom indicator and figure editor while a floating note is editable.
 For dev.4, watch a main note containing both PDF text and recent native ink while
 moving, resizing, opening, closing, minimizing and restoring floating notes with
 either pane editable. The main note must never go white; newly exposed areas
