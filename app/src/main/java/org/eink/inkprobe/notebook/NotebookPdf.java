@@ -183,6 +183,8 @@ public final class NotebookPdf {
     private static int pageObject(int number) { return 5 + (number - 1) * 3; }
 
     private static void validate(NotebookPage page, int number) throws IOException {
+        if (page != null && !page.figures.isEmpty())
+            throw new IOException("Pages with figures require the image-aware PDF engine");
         if (page == null || !page.isInitialized() || page.width > NotebookStore.MAX_DIMENSION ||
                 page.height > NotebookStore.MAX_DIMENSION || page.template == null) {
             throw new IOException("PDF page " + number + " has no valid paper size");

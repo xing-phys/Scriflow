@@ -19,8 +19,8 @@ import java.util.zip.CRC32;
  * Single-writer page store. Call only from a serialized background worker, never pen callbacks.
  * A synced, checksummed record commits each completed stroke without rewriting previous points.
  * Size/template changes and stroke edits publish an atomic snapshot and retain the previous file
- * as a backup. Legacy reads are non-mutating; the first edit atomically migrates to version 5,
- * which also retains the native input scale needed for faithful pressure geometry.
+ * as a backup. Legacy reads are non-mutating; the first edit atomically migrates to version 6,
+ * retaining native input scale and self-contained figure images.
  */
 public final class NotebookStore {
     public static final int MAX_POINTS_PER_STROKE = 200000;
@@ -29,7 +29,7 @@ public final class NotebookStore {
     public static final int MAX_DIMENSION = 32768;
 
     private static final int MAGIC = 0x4e424b31; // NBK1
-    private static final int VERSION = 5;
+    private static final int VERSION = 6;
     private static final int SNAPSHOT = 1, APPEND_STROKE = 2;
     private static final int MAX_RECORD_BYTES = 32 * 1024 * 1024;
     private static final long MAX_FILE_BYTES = 64L * 1024 * 1024;
@@ -269,7 +269,17 @@ public final class NotebookStore {
             pointCount += stroke.points.size();
             if (pointCount > MAX_TOTAL_POINTS) throw new IOException("Notebook page has reached its point limit");
         }
-        return publish(NotebookPage.restored(page.id, page.width, page.height, page.paperSize, page.pdfPage, page.template, copy, pointCount));
+        return publish(page.withStrokes(copy));
+    }
+
+    public NotebookPage replaceContent(NotebookPage target) throws IOException {
+        requireReady();
+        if (!page.id.equals(target.id) || page.width != target.width || page.height != target.height)
+            throw new IOException("The page changed");
+        for (NotebookPage.Stroke stroke : target.strokes) validateStroke(target, stroke);
+        if (target.strokes.size() > MAX_STROKES || target.pointCount > MAX_TOTAL_POINTS)
+            throw new IOException("Page exceeds storage limits");
+        return publish(page.withStrokes(target.strokes).withFigures(target.figures));
     }
 
     /** Write a canonical transport snapshot; ownership of output stays with the caller. */
@@ -363,7 +373,7 @@ public final class NotebookStore {
             }
             if (!state.hasSnapshot) throw corrupt("Notebook has no complete initial snapshot");
             NotebookPage loaded = NotebookPage.restored(state.id, state.width, state.height, state.paperSize, state.pdfPage, state.template,
-                                                       state.strokes, state.pointCount);
+                                                       state.strokes, state.pointCount).withFigures(state.figures);
             return new ReadResult(loaded, valid, incomplete, version);
         } catch (IllegalArgumentException error) {
             throw new CorruptDocumentException("Invalid notebook data", error);
@@ -402,6 +412,21 @@ public final class NotebookStore {
                 if (state.pointCount > MAX_TOTAL_POINTS) throw corrupt("Notebook point limit exceeded");
                 if (!state.ids.add(stroke.id)) throw corrupt("Duplicate stroke ID");
                 state.strokes.add(stroke);
+            }
+            if (state.version >= 6) {
+                int figures = input.readInt(), total = 0;
+                if (figures < 0 || figures > NotebookFigure.MAX_COUNT) throw corrupt("Invalid figure count");
+                HashSet<UUID> figureIds = new HashSet<>();
+                for (int i = 0; i < figures; i++) {
+                    UUID id = readId(input);
+                    float x = input.readFloat(), y = input.readFloat(), w = input.readFloat(), h = input.readFloat();
+                    int size = input.readInt();
+                    if (size < 24 || size > NotebookFigure.MAX_BYTES || size > input.available()
+                            || (total += size) > NotebookFigure.MAX_PAGE_BYTES || !figureIds.add(id))
+                        throw corrupt("Invalid figure data");
+                    byte[] png = new byte[size]; input.readFully(png);
+                    state.figures.add(new NotebookFigure(id, x, y, w, h, png));
+                }
             }
             state.hasSnapshot = true;
         } else if (type == APPEND_STROKE) {
@@ -488,6 +513,14 @@ public final class NotebookStore {
         output.writeByte(page.template.ordinal());
         output.writeInt(page.strokes.size());
         for (NotebookPage.Stroke stroke : page.strokes) writeStroke(output, stroke);
+        output.writeInt(page.figures.size());
+        for (NotebookFigure figure : page.figures) {
+            writeId(output, figure.id);
+            output.writeFloat(figure.x); output.writeFloat(figure.y);
+            output.writeFloat(figure.width); output.writeFloat(figure.height);
+            output.writeInt(figure.byteCount()); figure.writeTo(output);
+        }
+        if (bytes.size() > MAX_RECORD_BYTES) throw new IOException("Page exceeds snapshot size limit");
         output.flush();
         return bytes.toByteArray();
     }
@@ -547,6 +580,7 @@ public final class NotebookStore {
         NotebookPage.Template template;
         NotebookPaperSize paperSize;
         final List<NotebookPage.Stroke> strokes = new ArrayList<>();
+        final List<NotebookFigure> figures = new ArrayList<>();
     }
 
     private static final class ReadResult {

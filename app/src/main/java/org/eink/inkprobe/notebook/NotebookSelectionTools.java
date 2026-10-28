@@ -14,7 +14,7 @@ import java.util.EnumMap;
 
 /** Nonmodal, static selection actions above the native surface. Paper remains touchable. */
 final class NotebookSelectionTools {
-    enum Action { COPY, DUPLICATE, MOVE, CUT, DELETE, DONE }
+    enum Action { COPY, DUPLICATE, MOVE, CUT, DELETE, EXPORT, DONE }
     interface Listener { void onAction(Action action); }
     private final Context context;
     private final LinearLayout content;
@@ -31,15 +31,18 @@ final class NotebookSelectionTools {
         status = new TextView(context); status.setTextColor(Color.BLACK); status.setTextSize(13);
         status.setGravity(Gravity.CENTER); status.setSingleLine(true);
         content.addView(status, new LinearLayout.LayoutParams(-1, dp(30)));
-        LinearLayout row = new LinearLayout(context);
-        String[] labels = {"Copy", "Duplicate", "Move…", "Cut", "Delete", "Done"};
+        LinearLayout row = null;
+        String[] labels = {"Copy", "Duplicate", "Move…", "Cut", "Delete", "Export…", "Done"};
         for (Action action : Action.values()) {
+            if (action.ordinal() % 4 == 0) {
+                row = new LinearLayout(context); content.addView(row, new LinearLayout.LayoutParams(-1, -2));
+            }
             NotebookButton button = new NotebookButton(context); button.setText(labels[action.ordinal()]);
             button.setTextSize(14); button.setSingleLine(true);
             button.setOnClickListener(v -> listener.onAction(action)); buttons.put(action, button);
             row.addView(button, new LinearLayout.LayoutParams(0, dp(44), 1));
         }
-        content.addView(row, new LinearLayout.LayoutParams(-1, -2));
+
         popup = new PopupWindow(content, 0, 0, false);
         popup.setTouchable(true); popup.setOutsideTouchable(false); popup.setFocusable(false);
         popup.setInputMethodMode(PopupWindow.INPUT_METHOD_NOT_NEEDED); popup.setClippingEnabled(false);
@@ -53,7 +56,7 @@ final class NotebookSelectionTools {
             : count + (count == 1 ? " stroke" : " strokes") + " · drag with finger or stylus");
         for (Action action : Action.values()) buttons.get(action).setAvailable(action == Action.DONE || count > 0);
         int width = Math.min(dp(420), Math.max(1, anchor.getWidth() - dp(16)));
-        int height = Math.min(anchor.getHeight(), dp(78));
+        int height = Math.min(anchor.getHeight(), dp(122));
         int[] location = new int[2]; anchor.getLocationOnScreen(location);
         int[] position = NotebookSelectionPlacement.place(anchor.getWidth(), anchor.getHeight(), width, height, dp(8),
             selection.left, selection.top, selection.right, selection.bottom,

@@ -48,7 +48,17 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private final Handler main = new Handler(Looper.getMainLooper());
     private NotebookSession session;
     private NotebookInkBackend ink;
-    private FrameLayout canvas;
+    private FrameLayout canvas, workspaceRoot, workspaceArea;
+    private final NotebookWorkspace workspace = new NotebookWorkspace();
+    private NotebookCompanion companion, activeWindow;
+    private NotebookCompanion.ReadingView pendingReadingView;
+    private int pendingReadingPage, workspaceOwner;
+    private NotebookButton reopenCompanion;
+    private final Rect companionBounds = new Rect(), reopenBounds = new Rect();
+    private PopupWindow reopenWindow;
+    private Runnable whenReady;
+    private boolean changingWorkspace;
+    private final Map<Integer, byte[]> workspaceHistories = new LinkedHashMap<>();
     private TextView saveState, pageLabel;
     private NotebookDeviceStatus deviceStatus;
     private NotebookStatusIslands statusIslands;
@@ -167,10 +177,12 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE
             | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING);
-        FrameLayout root = new FrameLayout(this);
+        FrameLayout root = new FrameLayout(this); workspaceRoot = root;
         root.setBackgroundColor(Color.WHITE);
+        workspaceArea = new FrameLayout(this);
+        root.addView(workspaceArea, new FrameLayout.LayoutParams(-1, -1));
         canvas = new FrameLayout(this); canvas.setBackgroundColor(Color.WHITE);
-        root.addView(canvas, new FrameLayout.LayoutParams(-1, -1));
+        workspaceArea.addView(canvas, new FrameLayout.LayoutParams(-1, -1));
         setContentView(root);
         pageLabel = new TextView(this);
         pageLabel.setText(session.notebookName() + " · 1 / 1 · 100%");
@@ -199,8 +211,8 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         deviceStatus = new NotebookDeviceStatus(this,
             () -> canEdit() && SystemClock.uptimeMillis() - lastInputAt >= 1000);
         NotebookButton more = new NotebookButton(this); more.setText("⋮"); more.setTextSize(20);
-        more.setContentDescription("Page information, help and export PDF");
-        more.setOnClickListener(v -> pageInformation());
+        more.setContentDescription("Note actions, figures, workspace and export");
+        more.setOnClickListener(v -> noteActions());
         statusIslands = new NotebookStatusIslands(this, pageLabel, saveState, more, deviceStatus, (left, right) -> {
             if (notebookStatusBounds.equals(left) && deviceStatusBounds.equals(right)) return;
             notebookStatusBounds.set(left); deviceStatusBounds.set(right);
@@ -250,6 +262,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         redoButton = floatingTools.button(NotebookFloatingTools.Action.REDO);
         paperButton = floatingTools.button(NotebookFloatingTools.Action.PAPER);
         selectionTools = new NotebookSelectionTools(this, this::performSelectionAction);
+        initializeWorkspace();
         updateControls();
     }
 
@@ -263,8 +276,10 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         }
         active = true;
         deviceStatus.start();
-        canvas.post(() -> { if (active) statusIslands.show(canvas); });
-        loadPage();
+        workspaceRoot.post(() -> {
+            if (!active) return;
+            layoutWorkspace(); statusIslands.show(workspaceRoot); loadPage();
+        });
     }
 
     private void loadPage() {
@@ -281,6 +296,10 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     }
 
     private void openCanvas(NotebookPage loaded) {
+        if (workspace.notebookId == session.notebookId()) { workspace.notebookId = 0; workspace.secondaryActive = false; }
+        else if (workspaceOwner != session.notebookId()) workspace.secondaryActive = false;
+        workspaceOwner = session.notebookId();
+        if (viewNotebookId != session.notebookId()) { viewNotebookId = session.notebookId(); viewHistory.clear(); }
         final int request = ++generation;
         if (!restoreCenter) captureViewCenter();
         disposeCanvas();
@@ -290,6 +309,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         statusIslands.refresh();
         editing = false;
         page = loaded; geometryPending = false;
+        layoutWorkspace();
         viewport = null; pages.clear(); viewportBuffer.clear(); tiles.clear(); preview = null;
         fetching = dragging = false; scrolling = true; firstViewport = true;
         settleRead = true; ++viewportRevision;
@@ -300,7 +320,14 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         try {
             ink = new NotebookInk(this, NotebookPage.empty(), new NotebookInk.Listener() {
                 @Override public void onGeometryReady(int width, int height) {
-                    if (geometryPending || !active || request != generation) return;
+                    if (!active || request != generation) return;
+                    if (geometryPending) {
+                        if (!editing && viewport != null && (viewport.width != width || viewport.height != height)) {
+                            ink.pauseForEdit(); captureViewCenter();
+                            main.post(() -> { if (active && request == generation) openCanvas(page); });
+                        }
+                        return;
+                    }
                     geometryPending = true;
                     ink.pauseForEdit();
                     if (page.isInitialized()) { configureViewport(width, height); return; }
@@ -330,7 +357,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                     if (!active || request != generation) return;
                     if (session.error() != null) { showError(session.error()); return; }
                     updateControls();
-                    statusIslands.show(canvas);
+                    statusIslands.show(workspaceRoot);
                     showFloatingTools();
                     if (pendingToolAction != null && !toolsContact && canEdit()) {
                         NotebookFloatingTools.Action action = pendingToolAction;
@@ -338,6 +365,9 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                         performToolAction(action);
                     }
                     if (!toolsContact && canEdit()) showSelectionTools();
+                    if (whenReady != null && canEdit()) {
+                        Runnable action = whenReady; whenReady = null; main.post(action);
+                    }
                     if (verifyOnReady) {
                         verifyOnReady = false;
                         try { NotebookVerification.write(NotebookActivity.this, viewport.compose(pages, scrollY), ink.snapshotNativeStrokes()); }
@@ -390,6 +420,15 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             scrollY = viewport.scrollForPoint(centerPage, restoreCenterY, height / 2f);
         }
         restoreCenter = false;
+        if (pendingReadingView != null) {
+            int target = Math.max(1, Math.min(session.pageCount(), pendingReadingPage));
+            zoomFit = NotebookViewport.Fit.CUSTOM;
+            zoom = viewport.fittedZoom(NotebookViewport.Fit.PAGE, target) * pendingReadingView.zoom;
+            viewport = viewport.withView(zoom, 0); zoom = viewport.zoom;
+            viewport = viewport.withView(zoom, viewport.panForPoint(target, pendingReadingView.centerX * viewport.pageWidth(target), width / 2f));
+            scrollY = viewport.scrollForPoint(target, pendingReadingView.centerY * viewport.pageHeight(target), height / 2f);
+            pendingReadingView = null;
+        }
         activePage = viewport.centeredPage(scrollY);
         requestWindow();
     }
@@ -807,6 +846,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             paint.setColor(0xffd2d2d2); paint.setStrokeWidth(1);
             for (int y = 72; y < current.height; y += 72) drawing.drawLine(0, y, current.width, y, paint);
         }
+        NotebookImages.draw(drawing, current);
         if (includeInk) {
             for (NotebookPage.Stroke stroke : current.strokes)
                 NotebookStrokeRenderer.draw(drawing, stroke, paint);
@@ -816,7 +856,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
 
     private void showFloatingTools() {
         if (floatingTools != null && !floatingTools.isShowing() && canEdit() && overview == null) {
-            floatingTools.show(canvas, toolsX, toolsY);
+            floatingTools.show(workspaceRoot, toolsX, toolsY);
             if (placeToolsBelowStatus && floatingTools.isShowing()) {
                 floatingTools.avoidStatusIslands(notebookStatusBounds, deviceStatusBounds);
                 placeToolsBelowStatus = false;
@@ -828,6 +868,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private void updateOverlayBounds() {
         if (ink == null) return;
         List<Rect> bounds = new ArrayList<>();
+        bounds.add(companionBounds); bounds.add(reopenBounds);
         bounds.add(toolsBounds); bounds.add(notebookStatusBounds); bounds.add(deviceStatusBounds); bounds.add(widthPopupBounds);
         if (viewport != null) {
             int[] origin = new int[2]; ink.view().getLocationOnScreen(origin);
@@ -1142,6 +1183,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         }
         if (selection == null) return;
         if (action == NotebookSelectionTools.Action.COPY) { session.copy(selection); selectionTools.copied(); return; }
+        if (action == NotebookSelectionTools.Action.EXPORT) { exportSelection(); return; }
         if (action == NotebookSelectionTools.Action.MOVE) { moveSelectionToPage(); return; }
         pauseForEdit();
         if (shownError != null) return;
@@ -1468,9 +1510,9 @@ public final class NotebookActivity extends NotebookDisplayActivity {
 
     private void updatePageLabel() {
         String name = session.notebookName();
-        String text = name + " · " + activePage + " / " + session.pageCount() + " · " + zoomLabel();
+        String text = (workspace.notebookId > 0 ? "Active · " : "") + name + " · " + activePage + " / " + session.pageCount() + " · " + zoomLabel();
         if (!text.contentEquals(pageLabel.getText())) pageLabel.setText(text);
-        pageLabel.setContentDescription(session.notebookName() + ", page " + activePage
+        pageLabel.setContentDescription("Active note " + session.notebookName() + ", page " + activePage
             + " of " + session.pageCount() + ", zoom " + zoomLabel() + "; tap for zoom and app settings");
     }
 
@@ -1940,7 +1982,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         main.removeCallbacks(updateSaveState);
         saveState.setText(saveFailed ? "Not saved · Retry" : "Writing paused · Retry");
         saveState.setVisibility(View.VISIBLE);
-        statusIslands.show(canvas);
+        statusIslands.show(workspaceRoot);
         saveState.setOnClickListener(v -> {
             AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle(saveFailed ? "Couldn’t save the notebook" : "Writing is paused")
@@ -1973,6 +2015,333 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         if (shownError != null) return;
         final int request = generation;
         session.setTemplate(activePage, selected, (updated, error) -> finishEdit(request, updated, error));
+    }
+
+    private void resumeThen(Runnable action) {
+        whenReady = action; editing = false; installViewport();
+    }
+
+    private void initializeWorkspace() {
+        android.content.SharedPreferences preferences = getPreferences(MODE_PRIVATE);
+        workspaceOwner = preferences.getInt("workspaceActiveId", session.notebookId());
+        workspace.notebookId = preferences.getInt("companionId", 0);
+        workspace.page = Math.max(1, preferences.getInt("companionPage", 1));
+        workspace.collapsed = preferences.getBoolean("companionCollapsed", false);
+        workspace.secondaryActive = !workspace.collapsed && preferences.getBoolean("secondaryActive", false);
+        try { workspace.position = NotebookWorkspace.Position.valueOf(preferences.getString("companionPosition", "RIGHT")); }
+        catch (IllegalArgumentException ignored) { workspace.position = NotebookWorkspace.Position.RIGHT; }
+        workspace.split = preferences.getFloat("companionSplit", .5f);
+        workspace.x = preferences.getFloat("companionX", .42f); workspace.y = preferences.getFloat("companionY", .18f);
+        workspace.width = preferences.getFloat("companionWidth", .55f); workspace.height = preferences.getFloat("companionHeight", .58f);
+        companion = new NotebookCompanion(this, workspaceArea, workspace, session, new NotebookCompanion.Listener() {
+            public void menu() { workspaceMenu(); }
+            public void activate() { activateCompanion(null); }
+            public void navigate(int delta) { }
+            public void collapse() { collapseSecondary(false); }
+            public void bounds(Rect rect) { companionBounds.set(rect); updateOverlayBounds(); }
+            public boolean beginMove() {
+                if (!canEdit()) return false;
+                pauseForEdit(); return true;
+            }
+            public void endMove() { if (active) { editing = false; installViewport(); } }
+            public void save() { saveWorkspace(); }
+        }, false);
+        activeWindow = new NotebookCompanion(this, workspaceArea, workspace, session, new NotebookCompanion.Listener() {
+            public void menu() { workspaceMenu(); }
+            public void activate() { }
+            public void navigate(int delta) { switchPage(delta); }
+            public void collapse() { collapseSecondary(false); }
+            public void bounds(Rect rect) { }
+            public boolean beginMove() {
+                if (!canEdit()) return false;
+                pauseForEdit(); captureViewCenter(); return true;
+            }
+            public void endMove() { if (active) rebuildWorkspace(); }
+            public void save() { saveWorkspace(); }
+        }, true);
+        reopenCompanion = new NotebookButton(this); reopenCompanion.setText("Reopen note ▣"); reopenCompanion.setTextSize(13);
+        reopenCompanion.setContentDescription("Reopen collapsed second note");
+        reopenCompanion.setOnClickListener(v -> { if (canEdit()) changeWorkspace(() -> workspace.collapsed = false); });
+        reopenWindow = new PopupWindow(reopenCompanion, dp(140), dp(40), false);
+        reopenWindow.setAnimationStyle(0); reopenWindow.setIsLaidOutInScreen(true); reopenWindow.setClippingEnabled(false);
+        workspaceArea.addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+            if (active && (right - left != oldRight - oldLeft || bottom - top != oldBottom - oldTop)) layoutWorkspace();
+        });
+    }
+
+    private void saveWorkspace() {
+        workspaceOwner = session.notebookId();
+        getPreferences(MODE_PRIVATE).edit().putInt("companionId", workspace.notebookId)
+            .putInt("companionPage", workspace.page).putBoolean("companionCollapsed", workspace.collapsed)
+            .putBoolean("secondaryActive", workspace.secondaryActive).putInt("workspaceActiveId", session.notebookId())
+            .putString("companionPosition", workspace.position.name()).putFloat("companionSplit", workspace.split)
+            .putFloat("companionX", workspace.x).putFloat("companionY", workspace.y)
+            .putFloat("companionWidth", workspace.width).putFloat("companionHeight", workspace.height).apply();
+    }
+
+    private String companionName() {
+        for (NotebookCatalog.Entry entry : session.entries())
+            if (entry.id == workspace.notebookId && entry.status == NotebookCatalog.ACTIVE) return entry.name;
+        return null;
+    }
+
+    private void layoutWorkspace() {
+        if (workspaceRoot.getWidth() < 1 || workspaceRoot.getHeight() < 1 || companion == null) return;
+        String name = companionName();
+        if (workspace.notebookId > 0 && name == null && !session.entries().isEmpty()) {
+            workspace.notebookId = 0; workspace.secondaryActive = false; saveWorkspace();
+        }
+        // Keep a single status row at the app's top left, outside either note's controls.
+        int inset = workspace.notebookId > 0 ? dp(48) : 0;
+        FrameLayout.LayoutParams area = (FrameLayout.LayoutParams) workspaceArea.getLayoutParams();
+        if (area.topMargin != inset) {
+            area = new FrameLayout.LayoutParams(-1, -1); area.topMargin = inset; workspaceArea.setLayoutParams(area);
+        }
+        int w = workspaceRoot.getWidth(), h = Math.max(1, workspaceRoot.getHeight() - inset);
+        boolean floatingEditor = workspace.notebookId > 0 && !workspace.collapsed && workspace.secondaryActive
+            && workspace.position == NotebookWorkspace.Position.FLOATING;
+        if (!floatingEditor) {
+            activeWindow.hide();
+            if (canvas.getParent() != workspaceArea) {
+                if (canvas.getParent() != null) ((android.view.ViewGroup) canvas.getParent()).removeView(canvas);
+                workspaceArea.addView(canvas, new FrameLayout.LayoutParams(-1, -1));
+            }
+            NotebookWorkspace.Box box = workspace.editor(w, h);
+            FrameLayout.LayoutParams current = (FrameLayout.LayoutParams) canvas.getLayoutParams();
+            if (current.width != box.width || current.height != box.height || current.leftMargin != box.x || current.topMargin != box.y) {
+                FrameLayout.LayoutParams layout = new FrameLayout.LayoutParams(box.width, box.height);
+                layout.leftMargin = box.x; layout.topMargin = box.y; canvas.setLayoutParams(layout);
+            }
+        }
+        reopenWindow.dismiss(); reopenBounds.setEmpty();
+        if (workspace.notebookId > 0 && !workspace.collapsed && name != null) companion.show(name);
+        else {
+            companion.hide();
+            if (workspace.notebookId > 0 && active && workspaceRoot.isAttachedToWindow()) {
+                int[] origin = new int[2]; workspaceRoot.getLocationOnScreen(origin);
+                int x = origin[0] + dp(8), y = origin[1] + workspaceRoot.getHeight() - dp(48);
+                reopenWindow.showAtLocation(workspaceRoot, Gravity.TOP | Gravity.LEFT, x, y);
+                reopenBounds.set(x, y, x + dp(140), y + dp(40));
+            }
+        }
+        if (floatingEditor) activeWindow.showEditor(session.notebookName(), canvas);
+        updateOverlayBounds();
+    }
+
+    private void rebuildWorkspace() {
+        changingWorkspace = true; ++generation; disposeCanvas();
+        layoutWorkspace();
+        workspaceArea.post(() -> { changingWorkspace = false; if (active) loadPage(); });
+    }
+
+    private void changeWorkspace(Runnable mutation) {
+        if (!canEdit() || changingWorkspace) return;
+        pauseForEdit(); captureViewCenter(); persistPosition();
+        mutation.run(); saveWorkspace(); rebuildWorkspace();
+    }
+
+    private void collapseSecondary(boolean close) {
+        if (!canEdit() || workspace.notebookId <= 0) return;
+        Runnable collapse = () -> changeWorkspace(() -> {
+            if (close) workspace.notebookId = 0;
+            workspace.collapsed = !close; workspace.secondaryActive = false;
+        });
+        if (workspace.secondaryActive) activateCompanion(collapse); else collapse.run();
+    }
+
+    private void openCompanion() {
+        if (!canEdit()) return;
+        if (workspace.secondaryActive) { activateCompanion(this::openCompanion); return; }
+        List<NotebookCatalog.Entry> choices = new ArrayList<>();
+        for (NotebookCatalog.Entry entry : session.entries())
+            if (entry.status == NotebookCatalog.ACTIVE && entry.id != session.notebookId()) choices.add(entry);
+        if (choices.isEmpty()) { Toast.makeText(this, "Create another note in the library first", Toast.LENGTH_LONG).show(); return; }
+        String[] labels = new String[choices.size()];
+        for (int i = 0; i < labels.length; i++) labels[i] = choices.get(i).name;
+        pauseForEdit(); final int[] choice = {-1};
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Open another note")
+            .setItems(labels, (menu, index) -> choice[0] = index).setNegativeButton("Cancel", null).create();
+        viewMenu = dialog;
+        dialog.setOnDismissListener(closed -> {
+            viewMenu = null; if (!active) return;
+            resumeThen(() -> { if (choice[0] >= 0) chooseCompanionPosition(choices.get(choice[0]).id); });
+        });
+        showStaticDialog(dialog);
+    }
+
+    private void chooseCompanionPosition(int notebook) {
+        if (!canEdit()) return;
+        pauseForEdit(); final int[] choice = {-1};
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Open note at…")
+            .setItems(new String[]{"Left", "Right", "Top", "Bottom", "Floating window"}, (menu, which) -> choice[0] = which)
+            .setNegativeButton("Cancel", null).create();
+        viewMenu = dialog;
+        dialog.setOnDismissListener(closed -> {
+            viewMenu = null; if (!active) return;
+            resumeThen(() -> { if (choice[0] >= 0) changeWorkspace(() -> {
+                if (workspace.secondaryNotebook(session.notebookId()) != notebook) {
+                    workspace.page = 1; workspace.notebookId = notebook; workspace.secondaryActive = false;
+                }
+                workspace.collapsed = false;
+                workspace.position = NotebookWorkspace.Position.values()[choice[0]];
+            }); });
+        });
+        showStaticDialog(dialog);
+    }
+
+    private void workspaceMenu() {
+        if (!canEdit()) return;
+        if (workspace.notebookId <= 0) { openCompanion(); return; }
+        pauseForEdit(); final int[] choice = {-1};
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Second note")
+            .setItems(new String[]{"Position…", workspace.collapsed ? "Reopen" : "Collapse", "Activate other note", "Smaller pane", "Equal split / Reset size", "Larger pane", "Close second note"},
+                (menu, which) -> choice[0] = which).setNegativeButton("Cancel", null).create();
+        viewMenu = dialog;
+        dialog.setOnDismissListener(closed -> {
+            viewMenu = null; if (!active) return;
+            resumeThen(() -> {
+                if (choice[0] == 0) chooseCompanionPosition(workspace.secondaryNotebook(session.notebookId()));
+                else if (choice[0] == 2) activateCompanion(null);
+                else if (choice[0] == 6) collapseSecondary(true);
+                else if (choice[0] == 1 && !workspace.collapsed) collapseSecondary(false);
+                else if (choice[0] >= 0) changeWorkspace(() -> {
+                    if (choice[0] == 1) workspace.collapsed = !workspace.collapsed;
+                    else if (choice[0] == 6) { workspace.notebookId = 0; workspace.secondaryActive = false; }
+                    else if (choice[0] == 4) { workspace.split = .5f; workspace.width = .55f; workspace.height = .58f; }
+                    else {
+                        float delta = choice[0] == 3 ? -.1f : .1f;
+                        workspace.split = NotebookWorkspace.clamp(workspace.split + delta, .25f, .75f);
+                        workspace.width = NotebookWorkspace.clamp(workspace.width + delta, .3f, .95f);
+                        workspace.height = NotebookWorkspace.clamp(workspace.height + delta, .3f, .95f);
+                    }
+                });
+            });
+        });
+        showStaticDialog(dialog);
+    }
+
+    private void activateCompanion(Runnable afterActivation) {
+        if (!canEdit() || workspace.notebookId <= 0 || changingWorkspace) return;
+        int previous = session.notebookId(), previousPage = activePage, target = workspace.notebookId, targetPage = workspace.page;
+        NotebookCompanion.ReadingView incoming = companion.readingView();
+        pauseForEdit(); persistPosition();
+        NotebookViewHistory.State position = currentView();
+        if (position != null) {
+            companion.remember(previous, previousPage, new NotebookCompanion.ReadingView(
+                zoom / viewport.fittedZoom(NotebookViewport.Fit.PAGE, previousPage),
+                position.x / viewport.pageWidth(previousPage), position.y / viewport.pageHeight(previousPage)));
+        }
+        workspaceHistories.put(previous, viewHistory.save(previous));
+        changingWorkspace = true; int request = ++generation; disposeCanvas(); companion.hide(); activeWindow.hide();
+        session.openNotebook(target, (loaded, error) -> {
+            changingWorkspace = false;
+            if (error != null) { if (active && request == generation) showError(error); return; }
+            workspace.activatedOther(previous, previousPage); saveWorkspace();
+            if (!active || request != generation) return;
+            viewNotebookId = target; viewHistory.clear();
+            viewHistory.restore(target, workspaceHistories.get(target));
+            viewport = null; restoreCenter = false; zoom = 1; zoomFit = NotebookViewport.Fit.WIDTH;
+            pendingReadingPage = Math.max(1, Math.min(session.pageCount(), targetPage));
+            pendingReadingView = incoming == null ? new NotebookCompanion.ReadingView(1, .5f, .5f) : incoming;
+            reopenPosition = new NotebookScrollStore.State(pendingReadingPage, 0);
+            whenReady = afterActivation;
+            // The writer changes owners before the surface is reparented; no input can reach the old note.
+            activePage = pendingReadingPage; updatePageLabel(); layoutWorkspace();
+            workspaceArea.post(() -> { if (active && request == generation) openCanvas(loaded); });
+        });
+    }
+
+    private void exportSelection() {
+        if (selection == null || selection.isEmpty()) return;
+        NotebookPage source = NotebookPage.empty().withSize(viewport.pageWidth(selectionPage), viewport.pageHeight(selectionPage))
+            .withStrokes(selection.strokes);
+        pauseForEdit(); floatingTools.hide(); final int request = generation;
+        session.prepareSelection(getApplicationContext(), source, (file, error) -> {
+            if (!active || request != generation) {
+                if (file != null) { new File(file, "page.nbk").delete(); file.delete(); }
+                return;
+            }
+            if (error != null) { Toast.makeText(this, error.getMessage(), Toast.LENGTH_LONG).show(); editing = false; installViewport(); return; }
+            startActivity(new Intent(this, NotebookMediaActivity.class).putExtra("source", file.getPath()));
+        });
+    }
+
+    private void noteActions() {
+        if (!canEdit()) return;
+        pauseForEdit(); floatingTools.hide();
+        final int[] chosen = {-1};
+        AlertDialog menu = new AlertDialog.Builder(this).setTitle(session.notebookName())
+            .setItems(new String[]{"Insert figure…", "Figures…", "Open another note…", "Workspace…", "Page information / Export PDF"},
+                (dialog, which) -> chosen[0] = which).setNegativeButton("Close", null).create();
+        viewMenu = menu;
+        menu.setOnDismissListener(dialog -> {
+            viewMenu = null;
+            if (!active) return;
+            resumeThen(() -> {
+                switch (chosen[0]) {
+                    case 0: insertFigure(); break;
+                    case 1: chooseFigure(); break;
+                    case 2: openCompanion(); break;
+                    case 3: workspaceMenu(); break;
+                    case 4: pageInformation(); break;
+                }
+            });
+        });
+        showStaticDialog(menu);
+    }
+
+    private void insertFigure() {
+        if (!canEdit()) return;
+        NotebookPage target = pages.get(activePage);
+        if (target == null) return;
+        pauseForEdit();
+        startActivity(new Intent(this, NotebookMediaActivity.class).putExtra("import", true)
+            .putExtra("notebookId", session.notebookId()).putExtra("page", activePage).putExtra("pageId", target.id.toString()));
+    }
+
+    private void chooseFigure() {
+        if (!canEdit()) return;
+        NotebookPage target = pages.get(activePage);
+        if (target == null || target.figures.isEmpty()) {
+            Toast.makeText(this, "No figures on this page. Use Insert figure…", Toast.LENGTH_LONG).show(); return;
+        }
+        pauseForEdit(); floatingTools.hide();
+        String[] labels = new String[target.figures.size()];
+        for (int i = 0; i < labels.length; i++) labels[i] = "Figure " + (i + 1);
+        final int[] chosen = {-1};
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Move, resize or delete figure")
+            .setItems(labels, (choice, which) -> chosen[0] = which).setNegativeButton("Cancel", null).create();
+        viewMenu = dialog;
+        dialog.setOnDismissListener(closed -> {
+            viewMenu = null;
+            if (!active) return;
+            if (chosen[0] < 0) { editing = false; installViewport(); return; }
+            editFigure(target, chosen[0]);
+        });
+        showStaticDialog(dialog);
+    }
+
+    private NotebookFigureEditor figureEditor;
+    private void editFigure(NotebookPage target, int index) {
+        if (viewport == null) return;
+        clearSelection();
+        int number = activePage, request = generation;
+        List<NotebookFigure> others = new ArrayList<>(target.figures); others.remove(index);
+        session.previewFigurePlacement(target.withFigures(others), (background, failure) -> {
+            if (!active || request != generation) { if (background != null) background.recycle(); return; }
+            if (failure != null) {
+                Toast.makeText(this, failure.getMessage(), Toast.LENGTH_LONG).show(); editing = false; installViewport(); return;
+            }
+            figureEditor = new NotebookFigureEditor(this, canvas, target, index, background, (figure, delete) -> {
+                figureEditor = null;
+                if (!active || request != generation) return;
+                if (figure == null && !delete) { editing = false; installViewport(); return; }
+                List<NotebookFigure> figures = new ArrayList<>(target.figures);
+                if (delete) figures.remove(index); else figures.set(index, figure);
+                session.setFigures(number, figures, (updated, error) -> finishEdit(request, updated, error));
+            });
+            figureEditor.show();
+        });
     }
 
     private void pageInformation() {
@@ -2036,7 +2405,12 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         // Flush completed pen-UP events against the current layout before retiring its callbacks.
         if (ink != null) ink.pauseForEdit();
         captureViewCenter();
-        active = false; ++generation;
+        active = false; ++generation; whenReady = null;
+        if (companion != null) companion.hide();
+        if (activeWindow != null) activeWindow.hide();
+        if (reopenWindow != null) reopenWindow.dismiss();
+        saveWorkspace();
+        if (figureEditor != null) { figureEditor.dismiss(); figureEditor = null; }
         setWritingContact(false);
         deviceStatus.stop();
         statusIslands.hide();
@@ -2057,7 +2431,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         super.onPause();
     }
     @Override protected void onSaveInstanceState(Bundle state) {
-        captureViewCenter();
+        captureViewCenter(); saveWorkspace();
         state.putInt("viewNotebookId", viewNotebookId);
         state.putByteArray("viewHistory", viewHistory.save(viewNotebookId));
         state.putFloat("zoom", zoom);
@@ -2090,6 +2464,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         super.onDestroy();
     }
     @Override public void onBackPressed() {
+        if (figureEditor != null) { figureEditor.cancel(); return; }
         if (widthPopup != null) { widthPopup.cancel(); return; }
         if (selectionDrag.isActive()) {
             scrollY = selectionStartScroll;

@@ -31,6 +31,12 @@ cover-lock/battery behavior and long-session performance remain unverified.
 The [changelog](CHANGELOG.md) summarizes changes; [device records](docs/device-testing.md)
 distinguish automated checks, publication authorization, and physical testing.
 
+Current development **0.33.0-dev.1** adds figures, lasso export to SVG/PNG/JPEG/
+WebP/PDF, and a split or floating second-note workspace. These additions await
+physical tablet acceptance. Page format 6 is written on edit and is unreadable
+by older APKs; preserve editable backups before testing. See
+[figures and workspace](docs/figures-and-workspace.md) for formats and controls.
+
 ## Features
 
 - Native handwriting with adjustable pen thickness, page/screen width modes,
@@ -48,6 +54,11 @@ distinguish automated checks, publication authorization, and physical testing.
   finger/stylus dragging.
 - Manage pages from the overview: reorder, duplicate, insert blank pages, delete,
   and undo/redo page changes.
+- Insert images, then move, resize or delete them with undo; include figures in
+  thumbnails, PDF exports and editable backups.
+- Export selected ink as SVG, PNG, JPEG, WebP or PDF.
+- Open a second note in any split direction or a floating window, independently
+  browse it, activate either note in place with one shared toolbox, and collapse/reopen it.
 - Automatic saving of completed strokes and editable restoration after reopening.
 - Vector PDF export for sharing and editable `.inkbook` backup/restore.
 - Import PDFs as notebooks, write over their original pages, follow links,
@@ -114,8 +125,9 @@ zoom; identical pressure behavior across zoom is unresolved. Completed ink
 retains its captured geometry in both modes.
 External links ask before opening
 another app. See [PDF notebooks](docs/pdf-import.md).
-The vertical three-dot menu beside the top-left percentage contains PDF export,
-save status, and **Reset tools**. Tap the time/battery/Wi-Fi area to open
+The vertical three-dot menu beside the top-left percentage contains image insertion,
+figure editing, and the second-note workspace. **Page information / Export PDF**
+opens save status, PDF export, and **Reset tools**. Tap the time/battery/Wi-Fi area to open
 **Settings** on any app screen, or use **App settings** in the compact zoom menu.
 Settings includes separate portrait/landscape bookshelf rows/columns and page
 overview columns, plus **Keep screen on** while the app is visible. Choose portrait, landscape, or

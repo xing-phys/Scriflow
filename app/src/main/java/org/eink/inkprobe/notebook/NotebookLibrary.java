@@ -234,6 +234,15 @@ public final class NotebookLibrary {
         return new NotebookStore(first).load();
     }
 
+    private NotebookBook companionBook(int id) throws IOException {
+        requireCatalog(); requireId(id); requireActive(id);
+        NotebookBook cached = books.get(id);
+        if (cached == null) { cached = new NotebookBook(bookDirectory(id)); cached.load(); books.put(id, cached); }
+        return cached;
+    }
+    public NotebookPage companionPage(int id, int number) throws IOException { return companionBook(id).previewPage(number); }
+    public int companionCount(int id) throws IOException { return companionBook(id).pageCount(); }
+
     public File notebookPdf(int id) { return new File(bookDirectory(id), "source.pdf"); }
 
     private int folderIndex(int id) throws IOException {
@@ -330,6 +339,7 @@ public final class NotebookLibrary {
     public void appendStrokesToPage(int number, List<NotebookPage.Stroke> strokes) throws IOException {
         edit(() -> book.appendStrokesToPage(number, strokes));
     }
+    public void setFigures(int number, List<NotebookFigure> figures) throws IOException { edit(() -> book.setFigures(number, figures)); }
     public void setPageTemplate(int number, NotebookPage.Template template) throws IOException { edit(() -> book.setPageTemplate(number, template)); }
     public void saveScrollPosition(int number, double fraction) throws IOException { edit(() -> book.saveScrollPosition(number, fraction)); }
     public boolean eraseOnPage(int number, List<NotebookPage.Point> path, float radius) throws IOException {

@@ -14,7 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.*;
 
-/** Executes the shipped PDFBox Android library, with only Android logging replaced on the host. */
+/** Executes the shipped PDFBox Android library, with Android logging and the bitmap decoder replaced by host contract adapters. */
 public final class NotebookPdfEngineTest {
     private static int assertions;
     private static final String FIRST = "q 0.95 0.95 0.95 rg 20 30 360 240 re f Q\n" +
@@ -134,7 +134,29 @@ public final class NotebookPdfEngineTest {
         try { NotebookPdfEngine.inspect(encrypted); throw new AssertionError("Encrypted import should reject"); }
         catch (IOException expected) { check(expected.getMessage().contains("unlocked copy"), "Encrypted PDF rejection is actionable"); }
         check(Arrays.equals(pristine, Files.readAllBytes(source.toPath())), "Source remains unchanged after all exports");
+        figures(directory, source, a);
         System.out.println("NotebookPdfEngineTest: " + assertions + " assertions passed; fixtures in " + directory);
+    }
+
+    private static void figures(File directory, File source, NotebookPage pdfPage) throws Exception {
+        for (boolean imported : new boolean[]{false, true}) for (boolean alpha : new boolean[]{false, true}) {
+            NotebookPage page = (imported ? pdfPage : NotebookPage.empty().withSize(480, 720))
+                .withStrokes(Collections.emptyList()).withFigures(Collections.singletonList(
+                    new NotebookFigure(UUID.randomUUID(), 20, 30, 100, 80, NotebookFigureFixture.png(alpha))));
+            File output = new File(directory, imported ? "figure-on-pdf.pdf" : "figure-on-paper.pdf");
+            export(output, imported ? source : null, Collections.singletonList(page), Collections.emptyList());
+            try (PDDocument document = PDDocument.load(output)) {
+                PDPage first = document.getPage(0);
+                check(first.getResources().getXObjectNames().iterator().hasNext(), "Figure survives PDF export without ink on " + (imported ? "PDF" : "paper"));
+                String content = String.join("\n", streams(first));
+                check(content.contains("100 0 0 -80 20 110 cm"), "Figure transform preserves logical placement and image orientation");
+                if (imported) check(content.contains(FIRST), "Figure composition preserves original PDF content");
+                com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject image =
+                    (com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject) first.getResources().getXObject(first.getResources().getXObjectNames().iterator().next());
+                check(image.getWidth() == 2 && image.getHeight() == 2, "Export retains source figure pixels");
+                check((image.getSoftMask() != null) == alpha, "PDF preserves figure transparency");
+            }
+        }
     }
 
     private static NotebookPage page(NotebookPdfAsset.Page metadata, int number) {

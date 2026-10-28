@@ -130,6 +130,10 @@ public final class NotebookDocument {
         return changed[0];
     }
 
+    public void setFigures(List<NotebookFigure> figures) throws IOException {
+        execute(() -> { requireEditor(); if (editor.setFigures(figures)) publishEdit(); });
+    }
+
     public boolean undo() throws IOException {
         final boolean[] changed = {false};
         execute(() -> {
@@ -202,6 +206,11 @@ public final class NotebookDocument {
                 acknowledged(store.replaceStrokes(intended.strokes));
                 disk = durablePage;
             }
+            if (!disk.figures.equals(intended.figures)) {
+                attemptedPage = disk.withFigures(intended.figures);
+                acknowledged(store.replaceContent(attemptedPage));
+                disk = durablePage;
+            }
             if (disk.template != intended.template) {
                 attemptedPage = disk.withTemplate(intended.template);
                 acknowledged(store.setTemplate(intended.template));
@@ -224,7 +233,7 @@ public final class NotebookDocument {
     private void publishEdit() throws IOException {
         requireWritable();
         attemptedPage = current();
-        acknowledged(store.replaceStrokes(current().strokes));
+        acknowledged(store.replaceContent(current()));
     }
 
     private void acknowledged(NotebookPage page) {
@@ -252,7 +261,7 @@ public final class NotebookDocument {
     static boolean samePage(NotebookPage a, NotebookPage b) {
         return a != null && b != null && a.width == b.width && a.height == b.height && a.pdfPage == b.pdfPage
             && java.util.Objects.equals(a.paperSize, b.paperSize)
-            && a.id.equals(b.id) && a.template == b.template && sameStrokes(a.strokes, b.strokes);
+            && a.figures.equals(b.figures) && a.id.equals(b.id) && a.template == b.template && sameStrokes(a.strokes, b.strokes);
     }
 
     private static boolean sameStrokes(List<NotebookPage.Stroke> a, List<NotebookPage.Stroke> b) {

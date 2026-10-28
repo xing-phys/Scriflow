@@ -217,6 +217,62 @@ final class NotebookSession {
     }
     void undo(int id, Callback callback) { submit(() -> document.undoOnPage(id), callback); }
     void redo(int id, Callback callback) { submit(() -> document.redoOnPage(id), callback); }
+    void insertFigure(int expectedBook, int number, String pageId, NotebookImages.Imported image, Callback callback) {
+        // Reject invalid input before the edit transaction so a capacity/target error never pauses writing.
+        worker.execute(() -> {
+            try {
+                if (document.error() != null) throw new IOException("Return to the note and retry saving before inserting another figure", document.error());
+                if (document.notebookId() != expectedBook) throw new IOException("The notebook changed; insert the figure again");
+                NotebookPage target = document.previewPage(number);
+                if (!target.id.toString().equals(pageId)) throw new IOException("The page changed; insert the figure again");
+                List<NotebookFigure> figures = new ArrayList<>(target.figures); figures.add(image.place(target));
+                target.withFigures(figures);
+                submit(() -> {
+                    if (document.notebookId() != expectedBook || !document.previewPage(number).id.toString().equals(pageId))
+                        throw new IOException("The page changed; insert the figure again");
+                    document.setFigures(number, figures);
+                }, callback);
+            } catch (IOException | IllegalArgumentException error) {
+                main.post(() -> callback.complete(null, new IOException(error.getMessage(), error)));
+            }
+        });
+    }
+    void previewFigurePlacement(NotebookPage page, PreviewCallback callback) {
+        final File source = pdfSource;
+        try { tasks.render.execute(() -> {
+            Bitmap bitmap = null; IOException error = null;
+            float scale = Math.min(1, 1024f / Math.max(page.width, page.height));
+            try { bitmap = NotebookPageThumbnail.render(page, source, Math.max(1, Math.round(page.width * scale)),
+                Math.max(1, Math.round(page.height * scale)), () -> false); }
+            catch (IOException | RuntimeException failure) { error = new IOException("Cannot prepare figure placement", failure); }
+            final Bitmap result = bitmap; final IOException failure = error;
+            main.post(() -> callback.complete(result, failure));
+        }); } catch (RejectedExecutionException error) {
+            main.post(() -> callback.complete(null, new IOException("Preview queue is busy. Try again.", error)));
+        }
+    }
+    void prepareSelection(Context context, NotebookPage source, TransferFileCallback callback) {
+        tasks.exports.execute(() -> {
+            File directory = null;
+            try {
+                directory = new File(context.getCacheDir(), "selection-source-" + UUID.randomUUID());
+                if (!directory.mkdir()) throw new IOException("Cannot prepare selection export");
+                try (java.io.FileOutputStream output = new java.io.FileOutputStream(new File(directory, "page.nbk"))) {
+                    NotebookStore.writeSnapshot(output, source); output.getFD().sync();
+                }
+                final File result = directory; main.post(() -> callback.complete(result, null));
+            } catch (IOException error) {
+                if (directory != null) { new File(directory, "page.nbk").delete(); directory.delete(); }
+                main.post(() -> callback.complete(null, error));
+            }
+        });
+    }
+    interface TransferFileCallback { void complete(File file, IOException error); }
+
+    void setFigures(int id, List<NotebookFigure> figures, Callback callback) {
+        final List<NotebookFigure> copy = new ArrayList<>(figures);
+        submit(() -> document.setFigures(id, copy), callback);
+    }
     void setTemplate(int id, NotebookPage.Template template, Callback callback) {
         submit(() -> document.setPageTemplate(id, template), callback);
     }
@@ -318,6 +374,37 @@ final class NotebookSession {
             if (request.cancelled) { if (result != null) result.recycle(); return; }
             callback.complete(result, error);
         });
+    }
+
+    interface CompanionCallback { void complete(Bitmap bitmap, int pages, IOException error); }
+    PreviewRequest previewCompanion(int id, int number, CompanionCallback callback) {
+        PreviewRequest request = new PreviewRequest();
+        worker.execute(() -> {
+            if (request.cancelled) return;
+            try {
+                final int count = document.companionCount(id);
+                final NotebookPage page = document.companionPage(id, Math.max(1, Math.min(count, number)));
+                final File source = document.notebookPdf(id);
+                tasks.render.execute(() -> {
+                    if (request.cancelled) return;
+                    Bitmap bitmap = null; IOException error = null;
+                    try {
+                        float scale = 1024f / Math.max(page.width, page.height);
+                        bitmap = NotebookPageThumbnail.render(page, source,
+                            Math.max(1, Math.round(page.width * scale)), Math.max(1, Math.round(page.height * scale)), () -> request.cancelled);
+                    }
+                    catch (IOException | RuntimeException failure) { error = new IOException("Cannot preview this note", failure); }
+                    final Bitmap result = bitmap; final IOException failure = error;
+                    main.post(() -> {
+                        if (request.cancelled) { if (result != null) result.recycle(); return; }
+                        callback.complete(result, count, failure);
+                    });
+                });
+            } catch (IOException | RejectedExecutionException error) {
+                main.post(() -> { if (!request.cancelled) callback.complete(null, 1, new IOException("Cannot open this note", error)); });
+            }
+        });
+        return request;
     }
 
     PreviewRequest previewNotebook(int id, PreviewCallback callback) {

@@ -39,7 +39,7 @@ single-page group can subsequently move to any page in the notebook.
 The original curve remains visible even when no strokes were selected.
 It is composed separately from saved page/PDF/thumbnail ink. A small nonmodal
 window beside the region shows its stroke count and **Move…**, Copy, Duplicate,
-Cut, Delete and Done. It stays within the viewport and avoids the main palette
+Cut, Delete, Export… and Done. It stays within the viewport and avoids the main palette
 when space allows. An empty region says "No strokes selected"; only Done is
 available.
 
@@ -142,3 +142,11 @@ On disposable notes, check:
 6. Compare blank/lined/PDF backgrounds and dense notes for lag, flashes, ghosting
    and stalls. Repeat immediate writing, erasing and navigation with normal pen
    pressure; live handwriting must keep its established native path.
+
+## Export selected ink (0.33 development)
+
+**Export…** prepares SVG, PNG, JPEG, WebP, or PDF from the selected pressure
+outlines. The crop excludes paper, figures, and unselected strokes. Vector
+formats retain vector ink; PNG/WebP preserve transparency. Save through the
+system picker; cancelling leaves the prepared file available for retry. See
+[figures and workspace](figures-and-workspace.md) for details.

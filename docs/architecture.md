@@ -5,6 +5,10 @@ Typed rich content and AI remain later milestones.
 The immediate target is MatePad Paper on Android 10. File models and transactions stay
 Android-independent so future device support does not require a new document format.
 
+Version 0.33 development adds [figures and a second-note workspace](figures-and-workspace.md),
+including page format 6, image-aware undo/backup/export, and serialized
+cross-notebook reads. The earlier milestones below are historical context.
+
 ## Decisions and ownership
 
 - Keep Java 8 and Android Views. Live handwriting remains the validated Huawei native path.

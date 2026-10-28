@@ -10,6 +10,7 @@
              is applied before content creation. Existing screens are synchronized in the
              back stack. Normal recreation rebuilds the native writing surface. -->
         <activity android:name=".notebook.NotebookActivity" android:exported="false" android:screenOrientation="behind" />
+        <activity android:name=".notebook.NotebookMediaActivity" android:exported="false" android:screenOrientation="behind" />
         <activity android:name=".notebook.NotebookTransferActivity" android:exported="false" android:screenOrientation="behind" />
         <activity android:name=".notebook.NotebookPdfImportActivity" android:exported="false" android:screenOrientation="behind" />
         <activity android:name=".notebook.NotebookPdfExportActivity" android:exported="false" android:screenOrientation="behind" />

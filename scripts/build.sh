@@ -13,7 +13,7 @@ PDF_DEPS="$ROOT/.tools/pdfbox"
 rm -rf build/classes build/dex build/generated-sources build/license-assets build/unsigned.apk build/aligned.apk
 mkdir -p build/classes build/dex build/generated-sources build/license-assets
 cp LICENSE build/license-assets/LICENSE
-cp licenses/pdfbox-android-* licenses/bouncycastle-* build/license-assets/
+cp licenses/pdfbox-android-* licenses/bouncycastle-* licenses/androidsvg-* build/license-assets/
 cp -R "$PDF_DEPS/assets/." build/license-assets/
 # The Android plugin owns the application ID/debug flag; the offline packager supplies them here.
 python3 - <<'MANIFEST'

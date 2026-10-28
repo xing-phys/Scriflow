@@ -358,7 +358,7 @@ public final class NotebookPdfEngine {
             for (int i = 1; i <= count; i++) {
                 NotebookPage page = source.page(i);
                 if (page == null || !page.isInitialized()) throw new IOException("The notebook page is unavailable");
-                pages.add(page.withStrokes(Collections.emptyList()));
+                pages.add(page.withStrokes(Collections.emptyList()).withFigures(Collections.emptyList()));
                 if (page.pdfPage > 0) {
                     if (page.pdfPage > originalPages.size()) throw new IOException("The original PDF page is unavailable");
                     PDPage originalPage = originalPages.get(page.pdfPage - 1);
@@ -486,7 +486,7 @@ public final class NotebookPdfEngine {
 
     private static void appendInk(PDDocument document, PDPage target, NotebookPage page,
             boolean paper, NotebookPdf.OutlineSource outlines) throws IOException {
-        if (!paper && page.strokes.isEmpty()) return;
+        if (!paper && page.strokes.isEmpty() && page.figures.isEmpty()) return;
         COSArray contents = target.getCOSObject().getCOSArray(COSName.CONTENTS);
         if (contents != null) {
             COSArray copy = new COSArray(); copy.addAll(contents);
@@ -514,6 +514,12 @@ public final class NotebookPdfEngine {
                     }
                     stream.stroke();
                 }
+            }
+            for (NotebookFigure figure : page.figures) {
+                com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject image =
+                    com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject.createFromByteArray(document, figure.png(), "figure.png");
+                // Page coordinates point downward; undo that reflection for the image pixels.
+                stream.drawImage(image, new Matrix(figure.width, 0, 0, -figure.height, figure.x, figure.y + figure.height));
             }
             Map<Integer, PDExtendedGraphicsState> alphas = new HashMap<>();
             for (NotebookPage.Stroke stroke : page.strokes) {
@@ -592,27 +598,26 @@ public final class NotebookPdfEngine {
         document.getDocumentCatalog().setDocumentOutline(outline);
     }
 
-    /** Notes retain the small streaming writer; PDFBox adds the optional bookmark tree. */
+    /** Compose paper, figures and vector ink in order, spilling PDF streams to disk after 16 MiB. */
     private static void writeNew(OutputStream output, String name, int count, NotebookPdf.PageSource source,
             NotebookPdf.Progress progress, NotebookPdf.OutlineSource ink, List<NotebookOutline.Entry> outline)
             throws IOException {
-        if (outline == null || outline.isEmpty()) { NotebookPdf.write(output, name, count, source, progress, ink); return; }
-        // Use a bounded disk staging file rather than retaining all vector content in heap.
-        File staging = File.createTempFile("scriflow-outline-", ".pdf", scratchDirectory);
-        List<NotebookPage> pages = new ArrayList<>(count);
-        try {
-            try (java.io.FileOutputStream file = new java.io.FileOutputStream(staging)) {
-                NotebookPdf.write(file, name, count, number -> {
-                    NotebookPage page = source.page(number);
-                    pages.add(page.withStrokes(Collections.emptyList())); return page;
-                }, progress, ink);
+        try (PDDocument document = new PDDocument(MemoryUsageSetting.setupMixed(16L * 1024 * 1024).setTempDir(scratchDirectory))) {
+            List<NotebookPage> pages = new ArrayList<>(count);
+            List<PDPage> pdfPages = new ArrayList<>(count);
+            document.getDocumentInformation().setTitle(name);
+            document.getDocumentInformation().setCreator("Scriflow");
+            for (int number = 1; number <= count; number++) {
+                NotebookPage page = source.page(number);
+                if (page == null || !page.isInitialized()) throw new IOException("The notebook page is unavailable");
+                PDPage target = blankPage(page); document.addPage(target);
+                appendInk(document, target, page, true, ink);
+                pages.add(page.withStrokes(Collections.emptyList()).withFigures(Collections.emptyList()));
+                pdfPages.add(target);
+                if (progress != null) progress.pageExported(number, count);
             }
-            try (PDDocument document = open(staging)) {
-                List<PDPage> pdfPages = new ArrayList<>();
-                for (PDPage page : document.getPages()) pdfPages.add(page);
-                setOutline(document, pages, pdfPages, outline); save(document, output);
-            }
-        } finally { staging.delete(); }
+            setOutline(document, pages, pdfPages, outline); save(document, output);
+        }
     }
 
     /** PDFBox closes its destination. The caller still owns flush, fsync, and final publication. */

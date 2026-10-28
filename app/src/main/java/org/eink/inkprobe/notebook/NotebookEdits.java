@@ -14,7 +14,8 @@ public final class NotebookEdits {
     private static final class History {
         final List<NotebookPage.Stroke> strokes;
         final Object link;
-        History(List<NotebookPage.Stroke> strokes, Object link) { this.strokes = strokes; this.link = link; }
+        final List<NotebookFigure> figures;
+        History(NotebookPage page, Object link) { this.strokes = page.strokes; this.figures = page.figures; this.link = link; }
     }
     private final Deque<History> undo = new ArrayDeque<>();
     private final Deque<History> redo = new ArrayDeque<>();
@@ -31,7 +32,7 @@ public final class NotebookEdits {
     Object redoLink() { return redo.isEmpty() ? null : redo.peekLast().link; }
     NotebookPage historyTarget(boolean forward) {
         History target = (forward ? redo : undo).peekLast();
-        return target == null ? null : page.withStrokes(target.strokes);
+        return target == null ? null : page.withStrokes(target.strokes).withFigures(target.figures);
     }
     void replaceLinked(NotebookPage next, Object link) {
         if (link == null) throw new IllegalArgumentException("Missing linked history token");
@@ -124,11 +125,16 @@ public final class NotebookEdits {
         return commit(page.withStrokes(kept));
     }
 
+    public boolean setFigures(List<NotebookFigure> figures) {
+        NotebookPage next = page.withFigures(figures);
+        return !page.figures.equals(next.figures) && commit(next);
+    }
+
     public boolean undo() {
         if (undo.isEmpty()) return false;
         History previous = undo.removeLast();
-        redo.addLast(new History(page.strokes, previous.link));
-        page = page.withStrokes(previous.strokes);
+        redo.addLast(new History(page, previous.link));
+        page = page.withStrokes(previous.strokes).withFigures(previous.figures);
         return true;
     }
 
@@ -166,8 +172,8 @@ public final class NotebookEdits {
     public boolean redo() {
         if (redo.isEmpty()) return false;
         History next = redo.removeLast();
-        undo.addLast(new History(page.strokes, next.link));
-        page = page.withStrokes(next.strokes);
+        undo.addLast(new History(page, next.link));
+        page = page.withStrokes(next.strokes).withFigures(next.figures);
         return true;
     }
 
@@ -176,7 +182,7 @@ public final class NotebookEdits {
     }
 
     private boolean commit(NotebookPage next, Object link) {
-        undo.addLast(new History(page.strokes, link));
+        undo.addLast(new History(page, link));
         if (undo.size() > HISTORY_LIMIT) undo.removeFirst();
         redo.clear();
         page = next;

@@ -316,7 +316,7 @@ public final class NotebookStoreTest {
         equal(2, reopened.strokes.size(), "release fixture supports edit then append");
         sameStroke(stroke(20), reopened.strokes.get(0));
         sameStroke(stroke(30), reopened.strokes.get(1));
-        equal(5, intAt(bytes(directory, "page.nbk"), 4), "editing atomically migrates to version 5");
+        equal(6, intAt(bytes(directory, "page.nbk"), 4), "editing atomically migrates to version 6");
     }
 
     private static void editSnapshotAndContinuedWriting() throws Exception {

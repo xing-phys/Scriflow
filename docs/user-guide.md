@@ -31,6 +31,22 @@ inherit the source page's dimensions. PDF export uses the chosen physical size;
 changing screen orientation or zoom does not change the paper. Existing notes
 keep their original coordinates and PDF printing scale.
 
+## Figures and two-note workspace (0.33 development)
+
+Use **⋮ → Insert figure…** for SVG or Android-supported images; use
+**⋮ → Figures…** to move, resize, or delete an inserted figure. These edits
+support undo/redo. SVG is rasterized into the stored PNG figure.
+Lasso actions now include **Export…** for SVG, PNG, JPEG, WebP, or PDF.
+
+Use **⋮ → Open another note…** for a left/right/top/bottom split or floating
+window. Tap **Activate** in the inactive pane to edit that note in place.
+The notes share one toolbox; the app’s top-left status bar shows the active
+note’s title, page and zoom. The inactive note retains independent navigation
+and zoom. **−** collapses the second pane and
+**Reopen note ▣** restores it. Use **Workspace…** for placement and size.
+See [figures and workspace](figures-and-workspace.md) for controls, limits,
+storage compatibility, and remaining hardware checks.
+
 ## Zoom and screen orientation
 
 For PDFs, choose **Import PDF** in the library. Each PDF becomes a separate

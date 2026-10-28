@@ -8,8 +8,9 @@ does not request Android's `INTERNET` permission.
 
 Notebooks are stored in the app's private directory. They contain handwriting
 coordinates, pressure, timing, pen styles, page order, paper choices, and notebook
-names. PDF notebooks also retain the complete original PDF and outline headings.
-App preferences remember tool widths, tool position, and reading position.
+names. Inserted figures are stored as PNG pixels within each page. PDF notebooks also retain the complete original PDF and outline headings.
+App preferences remember tool widths, tool position, reading position, and
+second-note workspace placement.
 Scriflow does not add encryption to its notebook files; protection of the
 tablet and its storage depends on the device and its configuration.
 
@@ -24,7 +25,7 @@ saved PDFs and backups also keep the content they contained when created.
 
 ## Exports and backups
 
-PDF export and editable backup use Android's system file picker. Scriflow
+Figure import, selected-ink export, PDF export and editable backup use Android's system file picker. Scriflow
 receives access to the location you choose rather than requesting broad storage
 permission. If you choose a cloud-backed file provider, that provider handles
 the transfer and its own privacy terms apply.
@@ -34,7 +35,7 @@ the transfer and its own privacy terms apply.
   PDFs also preserve original document metadata and catalog resources, including
   attachments when present. They are not a redaction tool.
 - `.inkbook` backups contain the notebook's name, ordered pages, handwriting
-  samples, pressure, styles, and persistent page/stroke IDs. They exclude undo
+  samples, pressure, styles, inserted figure pixels, and persistent object IDs. They exclude undo
   history and device settings. PDF notebooks include the entire original PDF,
   including source pages removed from the note, plus note outlines.
   **Backups are unencrypted.**

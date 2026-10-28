@@ -200,6 +200,9 @@ public final class NotebookBook {
     public boolean redoOnPage(int number) throws IOException {
         return changeInkHistory(number, true);
     }
+    public void setFigures(int number, List<NotebookFigure> figures) throws IOException {
+        execute(() -> targetDocument(number, false).setFigures(figures));
+    }
     public void setPageTemplate(int number, NotebookPage.Template template) throws IOException {
         execute(() -> targetDocument(number, false).setTemplate(template));
     }
@@ -402,6 +405,10 @@ public final class NotebookBook {
                         stroke.captureScale, stroke.captureWidth));
                 created = NotebookPage.empty().withSize(original.width, original.height)
                     .withPaperSize(original.paperSize).withTemplate(original.template).withStrokes(strokes);
+                List<NotebookFigure> figures = new ArrayList<>();
+                if (action == PageAction.DUPLICATE)
+                    for (NotebookFigure figure : original.figures) figures.add(figure.duplicate());
+                created = created.withFigures(figures);
                 if (action == PageAction.DUPLICATE) created = created.withPdfPage(original.pdfPage);
                 int after = action == PageAction.INSERT_AFTER && destination > 0 ? destination : source;
                 target = action == PageAction.INSERT_BEFORE ? source : after + 1;

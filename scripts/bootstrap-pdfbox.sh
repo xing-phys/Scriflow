@@ -12,6 +12,8 @@ import urllib.request
 target = Path('.tools/pdfbox')
 target.mkdir(parents=True, exist_ok=True)
 artifacts = [
+    ('com/caverock/androidsvg/1.4/androidsvg-1.4.jar',
+     '729c67ef475f19f112d01e4fc8e55b1f23841912f8e5090db27992801a04f79d'),
     ('com/tom-roush/pdfbox-android/2.0.27.0/pdfbox-android-2.0.27.0.aar',
      '30277f879cfd571db2a137582c95516a0d4ea6778e945519bc58ca93d57d88c7'),
     ('org/bouncycastle/bcprov-jdk15to18/1.72/bcprov-jdk15to18-1.72.jar',

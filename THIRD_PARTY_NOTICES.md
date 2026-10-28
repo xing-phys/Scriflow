@@ -62,6 +62,15 @@ archives are downloaded to ignored `.tools/pdfbox/`; they are packaged in the
 APK but are not checked into this repository. Gradle's dependency versions and
 the alternate builder's versions must remain synchronized.
 
+## SVG image import runtime
+
+Scriflow includes [AndroidSVG 1.4](https://bigbadaboom.github.io/androidsvg/)
+(`com.caverock:androidsvg:1.4`) under Apache License 2.0. The unmodified
+[license](licenses/androidsvg-LICENSE.txt) is retained and packaged in the APK.
+The library parses and rasterizes SVG imports with internal entity expansion
+disabled and no external file resolver. The offline dependency bootstrap pins
+the JAR SHA-256 to `729c67ef475f19f112d01e4fc8e55b1f23841912f8e5090db27992801a04f79d`.
+
 ## Downloaded development tools
 
 The full Gradle distribution, Android SDK/build tools, JDK, plugin dependencies,

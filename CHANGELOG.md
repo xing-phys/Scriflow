@@ -6,6 +6,25 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.33.0-dev.1 — Figures, selection export, and second-note workspace (2026-10-28)
+
+- Insert SVG/SVGZ and Android-supported images, stored as bounded PNG figures.
+  Move, resize and delete figures with undo/redo; retain them in thumbnails,
+  PDF exports, page duplication and editable backups.
+- Export lasso-selected handwriting as SVG, PNG, JPEG, WebP or PDF, cropped to
+  native pressure outlines. Vector formats retain vector ink; PNG/WebP retain
+  transparency.
+- Open another note to the left, right, top or bottom, or in a movable/resizable
+  floating window. Navigate the inactive note independently, activate either
+  note without moving it, share one toolbox and active-note status bar,
+  collapse/reopen the second pane, and retain placement across app restarts.
+- Introduce page format 6 with embedded figures; older page formats remain
+  readable and migrate on edit. Earlier APKs cannot read migrated pages.
+- Add pinned AndroidSVG 1.4 and its Apache-2.0 license to both builds.
+- VersionCode 47. Host regressions and build/lint checks cover the implementation;
+  native touch and handwriting acceptance on hardware remains pending.
+  See [figures and workspace](docs/figures-and-workspace.md).
+
 ## [0.32.0](https://github.com/xing-phys/Scriflow/releases/tag/v0.32.0) — First stable release (2026-10-27)
 
 - Publish the first stable GitHub release, incorporating all changes through

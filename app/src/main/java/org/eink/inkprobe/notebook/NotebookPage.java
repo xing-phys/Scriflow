@@ -115,9 +115,21 @@ public final class NotebookPage {
     public final Template template;
     public final List<Stroke> strokes;
     public final int pointCount;
+    public final List<NotebookFigure> figures;
 
     private NotebookPage(UUID id, int width, int height, NotebookPaperSize paperSize, int pdfPage, Template template,
                          List<Stroke> strokes, int pointCount) {
+        this(id, width, height, paperSize, pdfPage, template, strokes, pointCount, Collections.emptyList());
+    }
+
+    private NotebookPage(UUID id, int width, int height, NotebookPaperSize paperSize, int pdfPage, Template template,
+                         List<Stroke> strokes, int pointCount, List<NotebookFigure> figures) {
+        long encodedSize = 128L + 40L * strokes.size() + 20L * pointCount + 36L * figures.size();
+        for (NotebookFigure figure : figures) encodedSize += figure.byteCount();
+        // Composed viewports have no figure layer and may include ink from several stored pages.
+        // Apply the combined image/ink budget to durable figure pages, not transient viewports.
+        if (!figures.isEmpty() && encodedSize > 32L * 1024 * 1024)
+            throw new IllegalArgumentException("Page exceeds the 32 MiB snapshot limit");
         this.id = id;
         this.width = width;
         this.height = height;
@@ -126,6 +138,7 @@ public final class NotebookPage {
         this.template = template;
         this.strokes = Collections.unmodifiableList(new ArrayList<>(strokes));
         this.pointCount = pointCount;
+        this.figures = Collections.unmodifiableList(new ArrayList<>(figures));
     }
 
     public static NotebookPage empty() {
@@ -135,33 +148,33 @@ public final class NotebookPage {
     public boolean isInitialized() { return width > 0 && height > 0; }
 
     NotebookPage withSize(int width, int height) {
-        return new NotebookPage(id, width, height, paperSize, pdfPage, template, strokes, pointCount);
+        return new NotebookPage(id, width, height, paperSize, pdfPage, template, strokes, pointCount, figures);
     }
 
     NotebookPage withPaperSize(NotebookPaperSize paperSize) {
-        return new NotebookPage(id, width, height, paperSize, pdfPage, template, strokes, pointCount);
+        return new NotebookPage(id, width, height, paperSize, pdfPage, template, strokes, pointCount, figures);
     }
 
     public NotebookPage withPdfPage(int sourcePage) {
         if (sourcePage < 0 || sourcePage > NotebookIndex.MAX_PAGES)
             throw new IllegalArgumentException("Invalid source PDF page");
-        return new NotebookPage(id, width, height, paperSize, sourcePage, template, strokes, pointCount);
+        return new NotebookPage(id, width, height, paperSize, sourcePage, template, strokes, pointCount, figures);
     }
 
     NotebookPage withTemplate(Template template) {
-        return new NotebookPage(id, width, height, paperSize, pdfPage, template, strokes, pointCount);
+        return new NotebookPage(id, width, height, paperSize, pdfPage, template, strokes, pointCount, figures);
     }
 
     NotebookPage withStroke(Stroke stroke) {
         ArrayList<Stroke> copy = new ArrayList<>(strokes);
         copy.add(stroke);
-        return new NotebookPage(id, width, height, paperSize, pdfPage, template, copy, pointCount + stroke.points.size());
+        return new NotebookPage(id, width, height, paperSize, pdfPage, template, copy, pointCount + stroke.points.size(), figures);
     }
 
     NotebookPage withStrokes(List<Stroke> strokes) {
         int count = 0;
         for (Stroke stroke : strokes) count = Math.addExact(count, stroke.points.size());
-        return new NotebookPage(id, width, height, paperSize, pdfPage, template, strokes, count);
+        return new NotebookPage(id, width, height, paperSize, pdfPage, template, strokes, count, figures);
     }
 
     static NotebookPage restored(int width, int height, Template template, List<Stroke> strokes,
@@ -187,6 +200,21 @@ public final class NotebookPage {
         if (pdfPage < 0 || pdfPage > NotebookIndex.MAX_PAGES)
             throw new IllegalArgumentException("Invalid source PDF page");
         return new NotebookPage(id, width, height, paperSize, pdfPage, template, strokes, pointCount);
+    }
+
+    public NotebookPage withFigures(List<NotebookFigure> figures) {
+        if (figures == null || figures.size() > NotebookFigure.MAX_COUNT) throw new IllegalArgumentException("Too many figures");
+        java.util.HashSet<UUID> ids = new java.util.HashSet<>();
+        long bytes = 0;
+        for (NotebookFigure figure : figures) {
+            if (figure == null || !ids.add(figure.id) || !isInitialized()
+                    || (double) figure.x + figure.width > width + .001
+                    || (double) figure.y + figure.height > height + .001)
+                throw new IllegalArgumentException("Figure is outside the page or has a duplicate ID");
+            bytes += figure.byteCount();
+        }
+        if (bytes > NotebookFigure.MAX_PAGE_BYTES) throw new IllegalArgumentException("Figures exceed the 16 MiB page limit");
+        return new NotebookPage(id, width, height, paperSize, pdfPage, template, strokes, pointCount, figures);
     }
 
     static boolean finite(float value) { return !Float.isNaN(value) && !Float.isInfinite(value); }
