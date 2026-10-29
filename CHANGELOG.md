@@ -6,6 +6,17 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.33.2-dev.1 — Compact note navigation (2026-10-29)
+
+- Remove the fixed blank spacer from the top-left bar. Place previous/next page
+  arrows on either side of the page counter; tap the counter for page management,
+  the percentage for zoom, or the note name for the bookshelf.
+- Remove the corresponding four buttons from the toolbox. Reserve only the
+  current notebook's counter digits to keep the native ink boundary steady.
+  VersionCode 65; physical tablet validation remains pending.
+- Pass 246,339 host assertions in 61 suites, lint/builds and permanent-signature
+  verification. See the [navigation record](docs/compact-note-navigation.md).
+
 ## 0.33.1 — Floating-note controls and rendering efficiency (2026-10-29)
 
 - Drag floating-note corner controls without a hold delay. A thin resize boundary

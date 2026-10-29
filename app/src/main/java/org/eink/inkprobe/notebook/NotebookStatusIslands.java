@@ -20,21 +20,24 @@ final class NotebookStatusIslands {
     private final LinearLayout notebook, device;
     private final PopupWindow leftWindow, rightWindow;
     private final Rect leftBounds = new Rect(), rightBounds = new Rect();
-    private final int preferredLeftWidth;
     private View anchor;
     private final View.OnLayoutChangeListener layoutListener =
             (view, l, t, r, b, oldL, oldT, oldR, oldB) -> position();
 
-    NotebookStatusIslands(Activity activity, TextView pageLabel, TextView saveState,
+    NotebookStatusIslands(Activity activity, NotebookButton noteName, NotebookIconButton previous,
+                          NotebookButton pageLabel, NotebookIconButton next, NotebookButton zoom,
+                          TextView saveState,
                           NotebookButton more, NotebookDeviceStatus deviceStatus, Listener listener) {
         this.activity = activity;
         this.listener = listener;
-        // Reserve digits for page changes so updating the counter never moves the ink clip.
-        preferredLeftWidth = Math.max(dp(176), Math.min(dp(320),
-            (int) Math.ceil(pageLabel.getPaint().measureText(pageLabel.getText().toString())) + dp(96)));
         notebook = island();
         LinearLayout top = new LinearLayout(activity); top.setGravity(Gravity.CENTER_VERTICAL);
-        top.addView(pageLabel, new LinearLayout.LayoutParams(0, dp(28), 1));
+        // Only the title shrinks on constrained screens; the other tap targets stay distinct.
+        top.addView(noteName, new LinearLayout.LayoutParams(0, dp(28), 1));
+        top.addView(previous, new LinearLayout.LayoutParams(dp(28), dp(28)));
+        top.addView(pageLabel, new LinearLayout.LayoutParams(-2, dp(28)));
+        top.addView(next, new LinearLayout.LayoutParams(dp(28), dp(28)));
+        top.addView(zoom, new LinearLayout.LayoutParams(-2, dp(28)));
         top.addView(more, new LinearLayout.LayoutParams(dp(28), dp(28)));
         notebook.addView(top, new LinearLayout.LayoutParams(-1, -2));
         notebook.addView(saveState, new LinearLayout.LayoutParams(-1, dp(24)));
@@ -107,10 +110,10 @@ final class NotebookStatusIslands {
         device.measure(View.MeasureSpec.makeMeasureSpec(available.width(), View.MeasureSpec.AT_MOST), unspecified);
         int rightWidth = device.getMeasuredWidth();
         // On unusually narrow windows place the right island below the left, without overlap.
-        boolean stacked = available.width() < rightWidth + dp(96 + 8);
-        int leftWidth = Math.max(1, Math.min(preferredLeftWidth,
-            stacked ? available.width() : available.width() - rightWidth - dp(8)));
-        notebook.measure(View.MeasureSpec.makeMeasureSpec(leftWidth, View.MeasureSpec.EXACTLY), unspecified);
+        boolean stacked = available.width() < rightWidth + dp(224 + 8);
+        int maximumLeftWidth = Math.max(1, stacked ? available.width() : available.width() - rightWidth - dp(8));
+        notebook.measure(View.MeasureSpec.makeMeasureSpec(maximumLeftWidth, View.MeasureSpec.AT_MOST), unspecified);
+        int leftWidth = Math.max(1, notebook.getMeasuredWidth());
         leftBounds.set(available.left, available.top, available.left + leftWidth,
             available.top + notebook.getMeasuredHeight());
         int rightTop = stacked ? leftBounds.bottom + dp(8) : available.top;

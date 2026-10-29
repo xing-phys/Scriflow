@@ -4,14 +4,17 @@ Scriflow is designed for Huawei MatePad Paper HMW-W09 on Android 10/API 29,
 firmware `HMW-W09 2.1.0.222(C00E170R1P8)`. Other devices and firmware have not
 been verified. See the [README](../README.md) for installation and current limits.
 
+The compact top-left navigation controls described below start with local
+**0.33.2-dev.1**.
+
 ## Notebooks and pages
 
 Open **Scriflow** to see the library. Tap **My Notebook** to open existing
 pages, or **+ Notebook** to create and open a named notebook. Tap **⋮** beside
 a notebook for Rename, Move to folder, Backup, or Move to Trash. **Rename** changes
 its title without moving its files. Names may contain up to 80 Unicode
-characters; the library supports up to 200 notebooks. The editor's **books icon**
-is last in the dock and returns to the library. Each notebook remembers its own
+characters; the library supports up to 200 notebooks. Tap the **notebook name**
+in the editor's top-left bar to return to the library. Each notebook remembers its own
 reading position. **+ Folder** creates a folder at the bookshelf root; use its
 **⋮** menu to rename or remove it. Removing a folder keeps its notebooks.
 
@@ -71,7 +74,7 @@ is white. Ink stays attached to the page when you zoom or rotate.
 Faint grey lines mark the page edges on screen; these guides are not exported
 as ink or PDF content.
 
-Tap the notebook title/percentage in the top-left island to open the zoom
+Tap the **zoom percentage** in the top-left island to open the zoom
 controls and **App settings**.
 
 Tap the **time/battery/Wi-Fi area** to open Settings, or use **App settings** in the editor zoom menu. Choose **Portrait**,
@@ -101,7 +104,7 @@ For pinch zoom, place both fingers within 0.35 seconds, then deliberately
 change their separation. Small contact jitter does not zoom. If an accepted
 navigation gesture is cancelled as a palm/mixed-input gesture, its temporary
 zoom and pan are discarded. In **Settings → Touch gestures**, turn **Two-finger
-zoom** off to use the title/percentage menu for zoom while keeping one-finger
+zoom** off to use the percentage menu for zoom while keeping one-finger
 scrolling available.
 
 ## Writing and saving
@@ -118,7 +121,8 @@ clearing its writing. PDF pages keep their original backgrounds.
 then lift it to stop anywhere, including between pages. Write with the stylus
 on either visible page. Scrolling has no page snapping or inertial fling.
 
-The **left/right arrows** jump to page tops. The **page-plus icon** inserts an
+The **left/right arrows beside the page counter in the top-left bar** jump to
+page tops. The **page-plus icon** inserts an
 empty page immediately after the current page and selects it, using that page's paper. Each page keeps its own writing and
 paper choice. The page limit is 1,000; page management is available from 0.29.
 These limits are not demonstrated large-notebook performance guarantees.
@@ -130,7 +134,8 @@ saved per notebook. Existing pages keep their contents when their order changes.
 
 ## Overview and jumps
 
-Tap the **grid icon** to browse whole-page thumbnails. The current page has a
+Tap the **x/y page counter in the top-left bar** to manage pages and browse
+whole-page thumbnails. The current page has a
 black border and a **Current** label. Tap a thumbnail to jump to its page top,
 or enter a number beside **Go to page** and tap **Go**. **Close** or Android
 Back returns to the exact previous scroll position when the page order is
@@ -176,8 +181,9 @@ the tools.
 
 **Pen** uses a pencil symbol; **Eraser** uses a tilted eraser. A thick border
 marks the selected tool. **Lasso** uses a dashed loop (available in development
-builds after 0.28.0-beta.2). The curved arrows are Undo/Redo, the grid opens the
-overview. The vertical **⋮** menu beside the top-left zoom percentage offers
+builds after 0.28.0-beta.2). The curved arrows are Undo/Redo. Page management,
+page-turn arrows and the bookshelf action are in the top-left bar. The vertical
+**⋮** menu beside the top-left zoom percentage offers
 page information, PDF export, and
 **Reset tools**. Reset expands the dock and returns it to its initial horizontal
 position near the top center, below the status islands. Touching controls has

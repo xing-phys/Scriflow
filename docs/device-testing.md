@@ -4,6 +4,19 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## Offline compact note navigation 0.33.2-dev.1 (2026-10-29)
+
+The top-left bar has separate name, previous/counter/next, percentage and menu
+controls. Its width follows content; counter digits remain reserved for the
+current total page count. The four duplicate navigation buttons are removed
+from the toolbox. See the [navigation record](compact-note-navigation.md).
+
+VersionCode 65 passes **246,339 host assertions in 61 suites**, Debug/Release
+lint/builds and permanent-signature/checksum verification. The signed candidate
+is prepared at `build/releases/scriflow-0.33.2-dev.1.apk`. Continuing without the
+tablet, no installation or physical tap/refresh check was performed. Stable
+0.33.1 remains the published release.
+
 ## Release 0.33.1 verification (2026-10-29)
 
 The owner authorized GitHub publication while continuing without the tablet.
