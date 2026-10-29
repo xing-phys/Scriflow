@@ -6,6 +6,18 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.33.1-dev.3 — Prepare figure pixels off the UI thread (2026-10-29)
+
+- Decode visible figures on a worker at a resolution sufficient for their screen
+  size; retain original resolution for zoom/export. Apply the same preparation
+  to inactive readers and the figure editor, with complete-frame readiness.
+- Pin prepared visible pixels across shared-cache eviction and share immutable
+  duplicate assets safely. Skip stale loads after source, zoom and lifecycle
+  changes; preserve recoverable error handling.
+- Full host/lint/build checks and 37 tablet assertions pass. Two 2048² sources
+  used 2 MiB of fit-width prepared pixels versus 32 MiB as full decodes; zoom
+  reacquires original resolution. VersionCode 57, local signed candidate.
+
 ## 0.33.1-dev.2 — Reuse exact pressure outlines (2026-10-29)
 
 - Cache a bounded, stable subset of immutable stroke outlines for active previews

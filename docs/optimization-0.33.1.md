@@ -63,3 +63,31 @@ seven alternating timed samples after warmup) measured **784.888 ms uncached**
 versus **1.645 ms with warm paths**, with matching geometry checksums. This
 isolates repeated brush reconstruction; it excludes raster/display work and is
 not a claim of a comparable whole-app speedup. Live AHW callbacks remain unchanged.
+
+## Step 3: worker-prepared figures (0.33.1-dev.3, code 57)
+
+Active/inactive note layers and the figure placement editor consume prepared
+pixels; PNG decoding never runs from their draw callbacks. One worker request
+per layer is in flight, and queued obsolete zoom/source requests are skipped.
+Native writing resumes only after current visible figures are prepared, as for
+PDF tiles. A retained handoff frame also waits for figure readiness. Source
+changes, cancellation and hiding discard obsolete results without republishing
+old pixels. Decode errors retain the existing recoverable failure behavior.
+
+PNG sampling uses stored original dimensions and conservatively retains at least
+the pixels occupied on screen, up to the original resolution. Thumbnail workers
+also decode for their output size; full-size worker/export drawing remains
+available. Visible layers hold prepared bitmaps directly, avoiding repeated
+redecoding when the shared cache cannot retain all displayed images. Placement
+and duplication share an opaque immutable-asset key, while independent source
+images cannot alias merely because they have the same restored UUID.
+
+The full host suite and Debug/Release lint/builds passed. The signed update passed
+**37 device checks** covering real native/tool/workspace controls, cold UI-decode
+rejection, size/ownership/collision cases, figure editor loading, source/zoom
+races and sleep/Home return. In a two-figure fixture, each original was 2048²;
+fit-width prepared pixels totaled **2 MiB rather than 32 MiB** for full decodes.
+The zoomed figure reacquired original 2048-pixel resolution, then released the
+larger visible pixels after zooming back. Shared-cache eviction did not trigger
+UI decoding during native-paper redraw. These figures describe this fixture,
+not a fixed reduction in total app memory. Raw captures remain private/ignored.

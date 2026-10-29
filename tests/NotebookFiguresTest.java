@@ -21,6 +21,16 @@ public final class NotebookFiguresTest {
         NotebookFigure figure = new NotebookFigure(UUID.randomUUID(), 10, 20, 30, 40, bytes);
         bytes[0] = 0; byte[] copy = figure.png(); copy[0] = 0;
         check(Arrays.equals(original, figure.png()), "Figure never exposes mutable stored pixels");
+        check(figure.placed(0,0,30,40).imageKey==figure.imageKey&&figure.duplicate().imageKey==figure.imageKey,
+            "Placement/duplication share immutable source pixels without UUID-key collisions");
+        NotebookFigure independent=new NotebookFigure(figure.id,10,20,30,40,original);
+        check(independent.imageKey!=figure.imageKey,"Independent restored assets do not alias solely by UUID");
+        byte[] large=original.clone();ByteBuffer.wrap(large).putInt(16,2048).putInt(20,2048);
+        NotebookFigure source=new NotebookFigure(UUID.randomUUID(),0,0,100,100,large);
+        check(source.sampleForPixels(300,300)==4&&source.sampleForPixels(900,900)==2&&source.sampleForPixels(1600,1600)==1,
+            "Decode retains at least screen-resolution source pixels");
+        check(source.sampleForPixels(8000,8000)==1&&source.sampleForPixels(1,1)==2048,"Decode clamps to original resolution and smallest useful sample");
+        reject(()->source.sampleForPixels(0,100));reject(()->source.sampleForPixels(Double.NaN,100));
         NotebookPage page = NotebookPage.empty().withSize(200, 300).withFigures(Collections.singletonList(figure));
         check(page.withTemplate(NotebookPage.Template.LINED).withStroke(stroke()).withStrokes(Collections.emptyList()).figures.equals(page.figures), "Ink and paper copies retain figures");
         reject(() -> page.withFigures(Arrays.asList(figure, figure)));

@@ -243,6 +243,70 @@ public final class NotebookDeviceCheck extends Instrumentation {
         check(session.notebookId()==id&&session.current().strokes.size()==count,"Home and return restore same QA note without lost ink");
         metric("lifecycle-returned");
     }
+    private byte[] figurePng(boolean dark)throws Exception {
+        Bitmap bitmap=Bitmap.createBitmap(2048,2048,Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(bitmap);
+        canvas.drawColor(dark?0xffcccccc:0xffffffff);Paint p=new Paint();p.setColor(0xff000000);p.setStrokeWidth(5);
+        for(int n=0;n<2048;n+=64)canvas.drawLine(0,n,2048,2048-n,p);
+        try(ByteArrayOutputStream bytes=new ByteArrayOutputStream()){bitmap.compress(Bitmap.CompressFormat.PNG,100,bytes);return bytes.toByteArray();}finally{bitmap.recycle();}
+    }
+    private void figureIdle(NotebookFigureLayer layer)throws Exception {
+        long until=SystemClock.uptimeMillis()+15000;AtomicBoolean idle=new AtomicBoolean();
+        while(SystemClock.uptimeMillis()<until){main(()->idle.set(!(Boolean)field(layer,"working")));if(idle.get())return;SystemClock.sleep(25);}
+        throw new AssertionError("figure decode timeout");
+    }
+    private void replaceFigures(List<NotebookFigure> figures)throws Exception {
+        ready();CountDownLatch done=new CountDownLatch(1);AtomicReference<Throwable> error=new AtomicReference<>();
+        main(()->{call(activity,"pauseForEdit",new Class<?>[0]);int request=(Integer)field(activity,"generation");
+            session.setFigures(1,figures,(page,e)->{try{call(activity,"finishEdit",new Class<?>[]{int.class,NotebookPage.class,IOException.class},request,page,e);}catch(Throwable t){error.set(t);}done.countDown();});});
+        if(!done.await(20,TimeUnit.SECONDS))throw new AssertionError("figure save timeout");if(error.get()!=null)throw new Exception(error.get());ready();
+    }
+    private void figureZoom(float zoom)throws Exception {
+        main(()->{
+            NotebookViewport v=(NotebookViewport)field(activity,"viewport");float scroll=(Float)field(activity,"scrollY");
+            float fromX=v.pageLeft(1)+208*v.scale(1),fromY=v.pageTop(1,scroll)+208*v.scale(1);
+            call(activity,"pauseForEdit",new Class<?>[0]);
+            Field editing=NotebookActivity.class.getDeclaredField("editing");editing.setAccessible(true);editing.setBoolean(activity,false);
+            Field scrolling=NotebookActivity.class.getDeclaredField("scrolling");scrolling.setAccessible(true);scrolling.setBoolean(activity,true);
+            call(activity,"zoomAt",new Class<?>[]{float.class,float.class,float.class,float.class,float.class},zoom,fromX,fromY,v.width/2f,v.height/2f);
+        });ready();
+    }
+    private void auditFigures()throws Exception {
+        byte[] first=figurePng(false),second=figurePng(true);
+        NotebookFigure a=new NotebookFigure(UUID.randomUUID(),80,80,256,256,first);
+        NotebookFigure collision=new NotebookFigure(a.id,420,100,256,256,second);
+        NotebookFigure b=new NotebookFigure(UUID.randomUUID(),420,100,256,256,second);
+        AtomicBoolean denied=new AtomicBoolean();main(()->{NotebookImages.clearCache();try{NotebookImages.bitmap(a);}catch(IOException e){denied.set(true);}});
+        check(denied.get(),"cold PNG decoding is rejected on the UI thread");
+        Bitmap original=NotebookImages.bitmap(a);check(original.getWidth()==2048&&original.getHeight()==2048,"full-resolution figure source remains available to workers/exports");
+        int sample=a.sampleForPixels(400,400);Bitmap sampled=NotebookImages.bitmap(a,sample);
+        check(sampled.getWidth()>=400&&sampled.getHeight()>=400&&sampled.getAllocationByteCount()<original.getAllocationByteCount(),"figure decode matches screen size without undersampling");
+        check(NotebookImages.bitmap(a.duplicate(),sample)==sampled,"duplicated immutable figure assets share decoded pixels");
+        check(NotebookImages.bitmap(collision,sample)!=sampled,"same UUID with different source PNG cannot reuse the wrong bitmap");
+        main(NotebookImages::clearCache);replaceFigures(Arrays.asList(a,b));
+        NotebookFigureLayer layer=(NotebookFigureLayer)field(activity,"figureImages");figureIdle(layer);ready();
+        AtomicLong bytes=new AtomicLong();main(()->bytes.set(layer.preparedBytes()));
+        report("FIGURE_PIXELS originalBytes="+(2L*2048*2048*4)+" preparedBytes="+bytes.get());
+        check(bytes.get()>0&&bytes.get()<=8L*1024*1024,"two large source figures retain only screen-appropriate prepared pixels");screenshot("figures-fit-width");
+        // Global cache eviction must not cause PNG decoding from a native-paper redraw.
+        main(()->{NotebookImages.clearCache();call(activity,"pauseForEdit",new Class<?>[0]);Field edit=NotebookActivity.class.getDeclaredField("editing");edit.setAccessible(true);edit.setBoolean(activity,false);call(activity,"installViewport",new Class<?>[0]);});ready();
+        check(session.current().figures.size()==2,"visible figure pixels survive shared-cache eviction and native redraw");
+        main(()->{call(activity,"pauseForEdit",new Class<?>[0]);call(activity,"editFigure",new Class<?>[]{NotebookPage.class,int.class},session.current(),0);});
+        long until=SystemClock.uptimeMillis()+15000;Object editor=null;
+        while(SystemClock.uptimeMillis()<until){editor=field(activity,"figureEditor");if(editor!=null)break;SystemClock.sleep(30);}
+        check(editor!=null,"figure placement editor opens after worker-rendered background");
+        NotebookFigureLayer editorPixels=(NotebookFigureLayer)field(editor,"images");
+        until=SystemClock.uptimeMillis()+10000;do{SystemClock.sleep(40);main(()->bytes.set(editorPixels.preparedBytes()));}while(bytes.get()==0&&SystemClock.uptimeMillis()<until);
+        check(bytes.get()>0,"figure placement editor obtains pixels asynchronously");
+        final Object opened=editor;main(()->call(opened,"cancel",new Class<?>[0]));ready();
+        figureZoom(4);figureIdle(layer);main(()->bytes.set(layer.preparedBytes()));
+        check(bytes.get()>=16L*1024*1024,"zoomed figure obtains original 2048-pixel source resolution");
+        figureZoom(1);figureIdle(layer);main(()->bytes.set(layer.preparedBytes()));
+        check(bytes.get()<=8L*1024*1024,"zooming back releases oversized visible figure pixels");
+        AtomicReference<IOException> failure=new AtomicReference<>();NotebookFigureLayer race=new NotebookFigureLayer(new NotebookFigureLayer.Listener(){public void changed(){}public void failed(IOException e){failure.set(e);}});
+        main(()->{race.prepare(Collections.singletonList(new NotebookFigureLayer.Request(a,512,512)));race.clear();race.prepare(Collections.singletonList(new NotebookFigureLayer.Request(b,256,256)));});figureIdle(race);
+        AtomicBoolean correct=new AtomicBoolean();main(()->correct.set(((Map<?,?>)field(race,"ready")).containsKey(b.imageKey)&&!((Map<?,?>)field(race,"ready")).containsKey(a.imageKey)));
+        check(failure.get()==null&&correct.get(),"clearing in-flight figure loading cannot publish stale source pixels");main(race::close);
+    }
     private void pdfIdle(NotebookPdfBackgrounds pdf)throws Exception {
         long until=SystemClock.uptimeMillis()+15000;AtomicBoolean idle=new AtomicBoolean();
         while(SystemClock.uptimeMillis()<until){main(()->idle.set(!(Boolean)field(pdf,"working")));if(idle.get())return;SystemClock.sleep(20);}
@@ -328,6 +392,7 @@ public final class NotebookDeviceCheck extends Instrumentation {
         try(FileWriter out=new FileWriter(new File(output,"result.json"))){out.write("{\"checks\":"+checks+",\"firstId\":"+first+",\"secondId\":"+second+",\"prefix\":\""+prefix+"\"}");}
         if(args!=null&&"true".equals(args.getString("testStylus")))checkStylus();
         if(args!=null&&"true".equals(args.getString("audit"))){auditReaders(second);auditWorkspace(second);auditPdf();}
+        if(args!=null&&"true".equals(args.getString("figures")))auditFigures();
         if(args!=null&&"true".equals(args.getString("lifecycle")))auditLifecycle();
         if(args!=null&&"true".equals(args.getString("interactiveStylus")))interactiveStylus();
     }

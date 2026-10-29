@@ -27,6 +27,7 @@ final class NotebookReader extends View {
     private final NotebookWorkspace.Pane pane;
     private final Listener listener;
     private final NotebookPdfBackgrounds pdf;
+    private final NotebookFigureLayer images;
     private final ScaleGestureDetector scale;
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final Map<Integer, NotebookPage> pages = new LinkedHashMap<>();
@@ -37,7 +38,7 @@ final class NotebookReader extends View {
     private NotebookViewport viewport;
     private File source;
     private Bitmap retainedFrame;
-    private boolean pdfReady = true, pdfFailed;
+    private boolean pdfReady = true, pdfFailed, imagesReady = true, imagesFailed;
     private float scrollY, lastX, lastY;
     private boolean opened, loadingPage, stylusContact, contactAccepted;
     private int epoch;
@@ -50,6 +51,10 @@ final class NotebookReader extends View {
             public void changed() { preparePdf(); invalidate(); }
             public void failed(IOException error) { pdfFailed = true; message = "PDF unavailable. Reopen this note to retry."; invalidate(); }
         }, false);
+        images = new NotebookFigureLayer(new NotebookFigureLayer.Listener() {
+            public void changed() { preparePdf(); invalidate(); }
+            public void failed(IOException error) { imagesFailed = true; message = "Figure unavailable. Reopen this note to retry."; invalidate(); }
+        });
         scale = new ScaleGestureDetector(context, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
             @Override public boolean onScale(ScaleGestureDetector detector) {
                 if (viewport == null) return false;
@@ -132,9 +137,10 @@ final class NotebookReader extends View {
                 viewport.pageTop(number, scrollY), viewport.width, viewport.height));
         }
         pdfReady = pdf.prepare(source, tiles, sources);
+        imagesReady = images.prepare(NotebookFigureLayer.visible(viewport, pages, scrollY));
     }
     private boolean frameReady() {
-        if (viewport == null || !pdfReady && !pdfFailed) return false;
+        if (viewport == null || !pdfReady && !pdfFailed || !imagesReady && !imagesFailed) return false;
         for (int number : viewport.visiblePages(scrollY)) if (!pages.containsKey(number) && !errors.contains(number)) return false;
         return true;
     }
@@ -166,7 +172,7 @@ final class NotebookReader extends View {
                     paint.setColor(0xffd2d2d2); paint.setStrokeWidth(1); paint.setStyle(Paint.Style.STROKE);
                     for (int y = 72; y < height; y += 72) canvas.drawLine(0, y, width, y, paint);
                 }
-                NotebookImages.draw(canvas, page);
+                images.draw(canvas, page);
                 paint.setStyle(Paint.Style.FILL);
                 for (NotebookPage.Stroke stroke : page.strokes) {
                     Path path = paths.path(stroke, () -> false);
@@ -219,9 +225,9 @@ final class NotebookReader extends View {
         remember(); opened = false; ++epoch; loadingPage = false; stylusContact = false;
         if (metadataRequest != null) metadataRequest.cancel();
         if (pageRequest != null) pageRequest.cancel();
-        viewport = null; sizes = Collections.emptyList(); pages.clear(); paths.clear(); errors.clear(); pdf.clear();
-        retainedFrame = null; pdfReady = true; pdfFailed = false;
+        viewport = null; sizes = Collections.emptyList(); pages.clear(); paths.clear(); errors.clear(); pdf.clear(); images.clear();
+        retainedFrame = null; pdfReady = imagesReady = true; pdfFailed = imagesFailed = false;
     }
-    void close() { hide(); pdf.close(); }
+    void close() { hide(); pdf.close(); images.close(); }
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
 }

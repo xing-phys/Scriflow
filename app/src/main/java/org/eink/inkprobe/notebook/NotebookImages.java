@@ -7,6 +7,7 @@ import android.graphics.ImageDecoder;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.util.LruCache;
+import android.os.Looper;
 import com.caverock.androidsvg.SVG;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -29,10 +30,18 @@ final class NotebookImages {
             return new NotebookFigure(UUID.randomUUID(), (page.width - w) / 2, (page.height - h) / 2, w, h, png);
         }
     }
-    private static final LruCache<UUID, Bitmap> cache = new LruCache<UUID, Bitmap>(24 * 1024 * 1024) {
-        @Override protected int sizeOf(UUID id, Bitmap bitmap) { return bitmap.getAllocationByteCount(); }
-        // Display lists may still reference an evicted bitmap; allow GC to reclaim it.
+    private static final class Key {
+        final Object asset; final int sample;
+        Key(NotebookFigure figure, int sample) { asset = figure.imageKey; this.sample = sample; }
+        @Override public boolean equals(Object other) { return other instanceof Key && ((Key) other).asset == asset && ((Key) other).sample == sample; }
+        @Override public int hashCode() { return System.identityHashCode(asset) * 31 + sample; }
+    }
+    private static final LruCache<Key, Bitmap> cache = new LruCache<Key, Bitmap>(24 * 1024 * 1024) {
+        @Override protected int sizeOf(Key id, Bitmap bitmap) { return bitmap.getAllocationByteCount(); }
+        // Display lists/visible layers may still reference an evicted bitmap; allow GC to reclaim it.
     };
+    private static volatile int cacheEpoch;
+    static void clearCache() { ++cacheEpoch; cache.evictAll(); }
     static Imported read(InputStream input) throws IOException {
         byte[] bytes = readBounded(input, MAX_INPUT);
         if (bytes.length > 2 && bytes[0] == 31 && bytes[1] == (byte) 139)
@@ -78,21 +87,32 @@ final class NotebookImages {
         }
         return bytes.toByteArray();
     }
-    static Bitmap bitmap(NotebookFigure figure) throws IOException {
-        Bitmap bitmap = cache.get(figure.id);
+    static Bitmap bitmap(NotebookFigure figure) throws IOException { return bitmap(figure, 1); }
+    static Bitmap bitmap(NotebookFigure figure, int sample) throws IOException {
+        if (sample < 1 || sample > MAX_EDGE || (sample & (sample - 1)) != 0) throw new IllegalArgumentException("Invalid figure sample");
+        Key key = new Key(figure, sample); Bitmap bitmap = cache.get(key);
         if (bitmap != null) return bitmap;
-        BitmapFactory.Options bounds = new BitmapFactory.Options(); bounds.inJustDecodeBounds = true;
-        BitmapFactory.decodeStream(figure.open(), null, bounds);
-        if (bounds.outWidth < 1 || bounds.outHeight < 1 || bounds.outWidth > MAX_EDGE || bounds.outHeight > MAX_EDGE)
-            throw new IOException("Invalid saved figure dimensions");
-        bitmap = BitmapFactory.decodeStream(figure.open());
+        if (Looper.getMainLooper() != null && Looper.myLooper() == Looper.getMainLooper()) throw new IOException("Figure decoding must run on its worker");
+        int request = cacheEpoch;
+        BitmapFactory.Options options = new BitmapFactory.Options(); options.inSampleSize = sample;
+        options.inPreferredConfig = Bitmap.Config.ARGB_8888;
+        bitmap = BitmapFactory.decodeStream(figure.open(), null, options);
         if (bitmap == null) throw new IOException("Cannot decode the saved figure");
-        bitmap.setDensity(Bitmap.DENSITY_NONE); cache.put(figure.id, bitmap); return bitmap;
+        bitmap.setDensity(Bitmap.DENSITY_NONE);
+        synchronized (cache) {
+            Bitmap previous = cache.get(key);
+            if (previous != null) { bitmap.recycle(); return previous; }
+            if (request == cacheEpoch) cache.put(key, bitmap);
+        }
+        return bitmap;
     }
-    static void draw(Canvas canvas, NotebookPage page) {
+    static void draw(Canvas canvas, NotebookPage page) { draw(canvas, page, Double.POSITIVE_INFINITY); }
+    /** Worker-only complete drawing for thumbnails and exports. UI layers use prepared pixels. */
+    static void draw(Canvas canvas, NotebookPage page, double scale) {
         Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
         for (NotebookFigure figure : page.figures) {
-            try { canvas.drawBitmap(bitmap(figure), null,
+            int sample = Double.isInfinite(scale) ? 1 : figure.sampleForPixels(figure.width * scale, figure.height * scale);
+            try { canvas.drawBitmap(bitmap(figure, sample), null,
                 new RectF(figure.x, figure.y, figure.x + figure.width, figure.y + figure.height), paint); }
             catch (IOException error) { throw new IllegalStateException(error.getMessage(), error); }
         }

@@ -21,6 +21,7 @@ final class NotebookFigureEditor {
     private final Listener listener;
     private NotebookFigure figure;
     private boolean completed;
+    private NotebookFigureLayer images;
     NotebookFigureEditor(Context context, View anchor, NotebookPage page, int index, Bitmap background, Listener listener) {
         this.anchor = anchor; this.listener = listener; figure = page.figures.get(index);
         LinearLayout root = new LinearLayout(context); root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(Color.WHITE);
@@ -41,8 +42,9 @@ final class NotebookFigureEditor {
             @Override protected void onDraw(Canvas canvas) {
                 geometry(); paint.setStyle(Paint.Style.FILL);
                 canvas.drawBitmap(background, null, new RectF(left, top, left + page.width * scale, top + page.height * scale), paint);
-                try { canvas.drawBitmap(NotebookImages.bitmap(figure), null, box, paint); }
-                catch (java.io.IOException ignored) { }
+                images.prepare(java.util.Collections.singletonList(new NotebookFigureLayer.Request(figure, figure.width * (double) scale, figure.height * (double) scale)));
+                int saved = canvas.save(); canvas.translate(left, top); canvas.scale(scale, scale);
+                images.draw(canvas, figure); canvas.restoreToCount(saved);
                 paint.setColor(Color.BLACK); paint.setStrokeWidth(2); paint.setStyle(Paint.Style.STROKE); canvas.drawRect(box, paint);
                 paint.setStyle(Paint.Style.FILL); canvas.drawCircle(box.right, box.bottom, 10 * getResources().getDisplayMetrics().density, paint);
             }
@@ -68,6 +70,10 @@ final class NotebookFigureEditor {
                 return true;
             }
         };
+        images = new NotebookFigureLayer(new NotebookFigureLayer.Listener() {
+            public void changed() { editor.invalidate(); }
+            public void failed(java.io.IOException error) { editor.invalidate(); }
+        });
         editor.setContentDescription("Figure placement: drag to move, lower-right handle to resize");
         root.addView(editor, new LinearLayout.LayoutParams(-1, 0, 1));
         LinearLayout actions = new LinearLayout(context); root.addView(actions);
@@ -87,9 +93,9 @@ final class NotebookFigureEditor {
         if (!NotebookPopupHost.show(popup, anchor, Gravity.TOP | Gravity.LEFT, location[0], location[1])) finish(null, false);
     }
     void cancel() { finish(null, false); }
-    void dismiss() { completed = true; popup.dismiss(); }
+    void dismiss() { completed = true; images.close(); popup.dismiss(); }
     private void finish(NotebookFigure figure, boolean delete) {
         if (completed) return;
-        completed = true; popup.dismiss(); listener.complete(figure, delete);
+        completed = true; images.close(); popup.dismiss(); listener.complete(figure, delete);
     }
 }

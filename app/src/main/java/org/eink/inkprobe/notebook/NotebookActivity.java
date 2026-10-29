@@ -140,6 +140,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private final NotebookLinkTapGesture linkTap = new NotebookLinkTapGesture();
     private int writingRevision;
     private NotebookPdfBackgrounds pdfBackgrounds;
+    private NotebookFigureLayer figureImages;
     private final Runnable previewFrame = this::drawPreview;
     private final Runnable updateSaveState = this::showSaveState;
 
@@ -148,13 +149,12 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         session = NotebookSession.get(this);
         pdfBackgrounds = new NotebookPdfBackgrounds(this, new NotebookPdfBackgrounds.Listener() {
             @Override public void changed() {
-                if (!active || shownError != null) return;
-                tiles.clear(); selectionTiles.clear(); selectionTilePages.clear();
-                if (selectionDrag.isActive()) {
-                    selectionBackgroundDirty = true; scheduleSelectionFrame();
-                } else if (dragging) schedulePreview();
-                else if (scrolling) installViewport();
+                backgroundsChanged();
             }
+            @Override public void failed(IOException error) { if (active) showError(error); }
+        });
+        figureImages = new NotebookFigureLayer(new NotebookFigureLayer.Listener() {
+            @Override public void changed() { backgroundsChanged(); }
             @Override public void failed(IOException error) { if (active) showError(error); }
         });
         viewNotebookId = session.notebookId();
@@ -458,6 +458,14 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             width, height, dp(12), zoom, pan);
     }
 
+    private void backgroundsChanged() {
+        if (!active || shownError != null) return;
+        tiles.clear(); selectionTiles.clear(); selectionTilePages.clear();
+        if (selectionDrag.isActive()) { selectionBackgroundDirty = true; scheduleSelectionFrame(); }
+        else if (dragging) schedulePreview();
+        else if (scrolling) installViewport();
+    }
+
     /** Prepare only visible screen-resolution PDF regions before native handwriting resumes. */
     private boolean preparePdfBackgrounds() {
         File source = session.pdfSource();
@@ -472,7 +480,8 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                 current.width * (double) viewport.scale(id), current.height * (double) viewport.scale(id),
                 viewport.pageLeft(id), viewport.pageTop(id, scrollY), viewport.width, viewport.height));
         }
-        return pdfBackgrounds.prepare(source, visible, sourcePages);
+        boolean figuresReady = figureImages.prepare(NotebookFigureLayer.visible(viewport, pages, scrollY));
+        return pdfBackgrounds.prepare(source, visible, sourcePages) && figuresReady;
     }
 
     private List<Integer> wantedPages() {
@@ -869,7 +878,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             paint.setColor(0xffd2d2d2); paint.setStrokeWidth(1);
             for (int y = 72; y < current.height; y += 72) drawing.drawLine(0, y, current.width, y, paint);
         }
-        NotebookImages.draw(drawing, current);
+        figureImages.draw(drawing, current);
         if (includeInk) {
             for (NotebookPage.Stroke stroke : current.strokes)
                 strokePaths.draw(drawing, stroke, paint);
@@ -2200,7 +2209,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     /** A focus handoff reuses the paused native widget, including its already painted surface. */
     private void openWorkspaceCanvas(NotebookPage loaded) {
         page = loaded; clearSelection(); resetSelectionPreview(); linkTap.cancel();
-        pdfBackgrounds.clear(); viewport = null; pages.clear(); viewportBuffer.clear(); tiles.clear(); preview = null;
+        pdfBackgrounds.clear(); figureImages.clear(); viewport = null; pages.clear(); viewportBuffer.clear(); tiles.clear(); preview = null;
         fetching = dragging = false; scrolling = true; firstViewport = false; settleRead = true;
         geometryPending = true; ++viewportRevision;
         relayoutWorkspace();
@@ -2562,7 +2571,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         clearSelection(); resetSelectionPreview();
         dragging = false; pinching = false; gestureEngaged = false; gestureStartViewport = null;
         selectionViewportGesture = false;
-        linkTap.cancel(); pdfBackgrounds.clear(); strokePaths.clear();
+        linkTap.cancel(); pdfBackgrounds.clear(); figureImages.clear(); strokePaths.clear();
         if (zoomBadge != null) zoomBadge.dismiss();
         penDown = false;
         if (floatingTools != null) floatingTools.hide();
@@ -2574,7 +2583,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     @Override protected void onDestroy() {
         if (stylusGesture != null) stylusGesture.stop();
         if (toolHint != null) toolHint.hide();
-        pdfBackgrounds.close();
+        pdfBackgrounds.close(); figureImages.close();
         for (NotebookCompanion window : noteWindows.values()) window.close();
         if (statusIslands != null) statusIslands.hide();
         if (floatingTools != null) floatingTools.dispose();

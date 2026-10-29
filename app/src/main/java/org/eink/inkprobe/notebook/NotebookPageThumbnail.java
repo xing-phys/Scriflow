@@ -184,7 +184,7 @@ public final class NotebookPageThumbnail extends View {
                     canvas.drawLine(0, y, pageWidth, y, ink);
                 }
             }
-            NotebookImages.draw(canvas, page);
+            NotebookImages.draw(canvas, page, scale);
             for (NotebookPage.Stroke stroke : page.strokes) {
                 checkCancelled(cancelled);
                 NotebookStrokeRenderer.draw(canvas, stroke, ink, cancelled);

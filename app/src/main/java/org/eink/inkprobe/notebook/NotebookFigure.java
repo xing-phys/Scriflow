@@ -9,12 +9,14 @@ public final class NotebookFigure {
     public final UUID id;
     public final float x, y, width, height;
     private final byte[] png;
+    final int pixelsWide, pixelsHigh;
+    final Object imageKey;
 
     public NotebookFigure(UUID id, float x, float y, float width, float height, byte[] png) {
-        this(id, x, y, width, height, png, true);
+        this(id, x, y, width, height, png, true, null);
     }
 
-    private NotebookFigure(UUID id, float x, float y, float width, float height, byte[] png, boolean copy) {
+    private NotebookFigure(UUID id, float x, float y, float width, float height, byte[] png, boolean copy, Object imageKey) {
         if (id == null || !NotebookPage.finite(x) || !NotebookPage.finite(y)
                 || !NotebookPage.finite(width) || !NotebookPage.finite(height)
                 || x < 0 || y < 0 || width <= 0 || height <= 0
@@ -27,6 +29,8 @@ public final class NotebookFigure {
         if (header.getInt(8) != 13 || header.getInt(12) != 0x49484452 || pixelsWide < 1 || pixelsHigh < 1
                 || pixelsWide > 2048 || pixelsHigh > 2048) throw new IllegalArgumentException("Invalid figure PNG dimensions");
         this.id = id; this.x = x; this.y = y; this.width = width; this.height = height;
+        this.pixelsWide = pixelsWide; this.pixelsHigh = pixelsHigh;
+        this.imageKey = imageKey == null ? new Object() : imageKey;
         this.png = copy ? png.clone() : png;
     }
 
@@ -36,9 +40,19 @@ public final class NotebookFigure {
     java.io.InputStream open() { return new java.io.ByteArrayInputStream(png); }
 
     public NotebookFigure placed(float x, float y, float width, float height) {
-        return new NotebookFigure(id, x, y, width, height, png, false);
+        return new NotebookFigure(id, x, y, width, height, png, false, imageKey);
     }
-    NotebookFigure duplicate() { return new NotebookFigure(UUID.randomUUID(), x, y, width, height, png, false); }
+    NotebookFigure duplicate() { return new NotebookFigure(UUID.randomUUID(), x, y, width, height, png, false, imageKey); }
+
+    /** Decode no fewer source pixels than the figure occupies on screen, up to the original resolution. */
+    int sampleForPixels(double width, double height) {
+        if (!Double.isFinite(width) || !Double.isFinite(height) || width <= 0 || height <= 0)
+            throw new IllegalArgumentException("Invalid figure display size");
+        int sample = 1;
+        while (sample < 2048 && pixelsWide / (sample * 2) >= Math.ceil(width)
+                && pixelsHigh / (sample * 2) >= Math.ceil(height)) sample *= 2;
+        return sample;
+    }
 
     @Override public boolean equals(Object other) {
         if (!(other instanceof NotebookFigure)) return false;
