@@ -6,6 +6,14 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.33.1-dev.9 — Move background changes to the note menu (2026-10-29)
+
+- Remove the blank/lined background control from the toolbox. Offer **Use lined
+  background** or **Use blank background** in the top-left three-dot menu for
+  ordinary pages. PDF pages retain their original backgrounds. VersionCode 63.
+- Full host, lint/build and permanent-signature checks pass; physical tablet
+  validation remains pending. See the [device record](docs/device-testing.md).
+
 ## 0.33.1-dev.8 — Icons for minimized notes (2026-10-29)
 
 - Give every minimized note a page icon in the tray instead of a numbered text

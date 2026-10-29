@@ -22,7 +22,7 @@ import java.util.EnumMap;
 /** A separate, static window above the native ink surface, moved only by its grip. */
 public final class NotebookFloatingTools {
     public enum Action {
-        LIBRARY, NOTES, PREVIOUS, NEXT, ADD_PAGE, PEN, ERASER, LASSO, UNDO, REDO, PAPER, MORE, OVERVIEW, OUTLINE, VIEW_BACK, VIEW_FORWARD, ORIENTATION, COLLAPSE
+        LIBRARY, NOTES, PREVIOUS, NEXT, ADD_PAGE, PEN, ERASER, LASSO, UNDO, REDO, MORE, OVERVIEW, OUTLINE, VIEW_BACK, VIEW_FORWARD, ORIENTATION, COLLAPSE
     }
 
     public interface Listener {
@@ -101,7 +101,6 @@ public final class NotebookFloatingTools {
         add(Action.LASSO, NotebookIconDrawable.Icon.LASSO, "Lasso: select and move ink");
         add(Action.UNDO, NotebookIconDrawable.Icon.UNDO, "Undo");
         add(Action.REDO, NotebookIconDrawable.Icon.REDO, "Redo");
-        add(Action.PAPER, NotebookIconDrawable.Icon.PAPER_BLANK, "Change paper");
         add(Action.OVERVIEW, NotebookIconDrawable.Icon.OVERVIEW, "Page overview and jumps");
         add(Action.OUTLINE, NotebookIconDrawable.Icon.OUTLINE, "Table of contents; add and edit outline");
         add(Action.VIEW_BACK, NotebookIconDrawable.Icon.VIEW_BACK, "Go to previous view");
@@ -111,7 +110,7 @@ public final class NotebookFloatingTools {
             button(Action.REDO),
             button(Action.PREVIOUS), button(Action.NEXT), button(Action.ADD_PAGE),
             button(Action.OVERVIEW), button(Action.OUTLINE), button(Action.VIEW_BACK),
-            button(Action.VIEW_FORWARD), button(Action.PAPER), button(Action.NOTES), button(Action.LIBRARY)};
+            button(Action.VIEW_FORWARD), button(Action.NOTES), button(Action.LIBRARY)};
         popup = new PopupWindow(content, 0, 0, false);
         // A dedicated higher application sublayer keeps tools above notes, status and selection panels regardless of show order.
         popup.setWindowLayoutType(WindowManager.LayoutParams.TYPE_APPLICATION_SUB_PANEL);

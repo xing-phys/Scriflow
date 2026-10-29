@@ -111,8 +111,10 @@ there is no manual save button. The three-dot menu shows the page's save state.
 If a save fails, writing pauses and **Not saved · Retry** appears. Retry before
 leaving or stopping the app so unsaved work has a chance to be written.
 
-The **paper icon** switches the current page between blank and lined paper
-without clearing its writing. **Drag vertically with one finger** to scroll,
+In local **0.33.1-dev.9**, open the top-left **⋮** menu and choose **Use lined
+background** or **Use blank background** to switch the current page without
+clearing its writing. PDF pages keep their original backgrounds.
+**Drag vertically with one finger** to scroll,
 then lift it to stop anywhere, including between pages. Write with the stylus
 on either visible page. Scrolling has no page snapping or inertial fling.
 

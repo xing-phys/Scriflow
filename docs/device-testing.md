@@ -4,6 +4,20 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## Offline background-menu update 0.33.1-dev.9 (2026-10-29)
+
+The blank/lined background action moved from the toolbox to the top-left
+three-dot menu. The menu offers the other background for an ordinary page;
+PDF pages keep their original background. Existing page edits and handwriting
+storage are unchanged. On-screen help and the user guide use the new location.
+
+VersionCode 63 passes 246,324 host assertions in 60 suites, including the updated
+16-control toolbox geometry, plus Debug/Release lint/builds. The signed artifact
+`build/releases/scriflow-0.33.1-dev.9.apk` was prepared through
+`scripts/build-release.sh` and verified against the pinned permanent signing
+certificate; its adjacent checksum also passed. Physical tablet validation
+remains pending under the owner's instruction to continue without the device.
+
 ## Offline notes-tray placement 0.33.1-dev.7 (2026-10-29)
 
 The notes tray now opens beside its toolbox button in either orientation.

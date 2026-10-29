@@ -38,8 +38,9 @@ updates. **Page format 6 is written on edit and cannot be opened by older APKs.*
 Keep editable backups before updating. See [figures and workspace](docs/figures-and-workspace.md),
 [changelog](CHANGELOG.md), and [device records](docs/device-testing.md).
 
-Local development continues in **0.33.1-dev.8**, giving each minimized note a tray
-icon beside the notes button and adding direct finger selection of figures, immediate
+Local development continues in **0.33.1-dev.9**, moving blank/lined background
+changes to the top-left three-dot menu, giving each minimized note a tray icon
+beside the notes button and adding direct finger selection of figures, immediate
 floating-note drag/resize with a live boundary, indexed
 scrolling geometry, bounded exact ink-outline reuse, worker-prepared figures
 and coordinated optional cache budgets. See the [optimization record](docs/optimization-0.33.1.md)
@@ -119,7 +120,7 @@ when page management is first used; earlier APKs cannot open that managed book.
 Open **My Notebook** or choose **+ Notebook**, select a paper size, and create
 the note. New notes default to A5 and open fitted to the screen width. Pinch
 with two fingers to zoom. Write with the stylus and drag with one finger to
-scroll. The paper icon switches blank/lined paper;
+scroll. In local **0.33.1-dev.9**, the top-left **⋮** menu switches blank/lined backgrounds;
 the page-plus icon inserts a page after the current page. The grid opens page thumbnails.
 
 Tap an already-selected Pen or Eraser icon to adjust its width. Drag the
@@ -137,7 +138,8 @@ retains its captured geometry in both modes.
 External links ask before opening
 another app. See [PDF notebooks](docs/pdf-import.md).
 The vertical three-dot menu beside the top-left percentage contains image insertion,
-figure editing, and **Page information / Export PDF**, which opens save status,
+figure editing, the blank/lined background action (local **0.33.1-dev.9**), and
+**Page information / Export PDF**, which opens save status,
 PDF export, and **Reset tools**. The toolbox notes button opens and restores
 note windows. Tap the time/battery/Wi-Fi area to open
 **Settings** on any app screen, or use **App settings** in the compact zoom menu.

@@ -67,7 +67,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private NotebookDeviceStatus deviceStatus;
     private NotebookStatusIslands statusIslands;
     private final Rect notebookStatusBounds = new Rect(), deviceStatusBounds = new Rect();
-    private NotebookIconButton paperButton, penButton, eraserButton, lassoButton, undoButton, redoButton;
+    private NotebookIconButton penButton, eraserButton, lassoButton, undoButton, redoButton;
     private NotebookLasso.Selection selection;
     private List<NotebookPage.Point> selectionOutline;
     private int selectionPage;
@@ -216,7 +216,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         deviceStatus = new NotebookDeviceStatus(this,
             () -> canEdit() && SystemClock.uptimeMillis() - lastInputAt >= 1000);
         NotebookButton more = new NotebookButton(this); more.setText("⋮"); more.setTextSize(20);
-        more.setContentDescription("Note actions, figures and export");
+        more.setContentDescription("Note actions, background, figures and export");
         more.setOnClickListener(v -> noteActions());
         statusIslands = new NotebookStatusIslands(this, pageLabel, saveState, more, deviceStatus, (left, right) -> {
             if (notebookStatusBounds.equals(left) && deviceStatusBounds.equals(right)) return;
@@ -268,7 +268,6 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         lassoButton = floatingTools.button(NotebookFloatingTools.Action.LASSO);
         undoButton = floatingTools.button(NotebookFloatingTools.Action.UNDO);
         redoButton = floatingTools.button(NotebookFloatingTools.Action.REDO);
-        paperButton = floatingTools.button(NotebookFloatingTools.Action.PAPER);
         selectionTools = new NotebookSelectionTools(this, this::performSelectionAction);
         initializeWorkspace();
         toolHint = new NotebookToolHint(this, bounds -> { toolHintBounds.set(bounds); updateOverlayBounds(); });
@@ -325,7 +324,6 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         fetching = dragging = false; scrolling = true; firstViewport = true;
         settleRead = true; ++viewportRevision;
         activePage = session.pageNumber();
-        updatePaperIcon(loaded.template);
         updatePageLabel();
         updateControls();
         try {
@@ -565,28 +563,11 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                 return;
             }
             scrolling = false; cleanupInk = false;
-            updatePageLabel(); updatePaperButton(); updateControls();
+            updatePageLabel(); updateControls();
             ink.start();
             if (savePosition) { savePosition = false; persistPosition(); }
             scheduleSaveState();
         } catch (Exception error) { showError(new IOException("Could not display the notebook viewport", error)); }
-    }
-
-    private void updatePaperButton() {
-        NotebookPage current = pages.get(activePage);
-        if (current == null) return;
-        if (current.pdfPage > 0) {
-            paperButton.setIcon(NotebookIconDrawable.Icon.PAPER_BLANK);
-            paperButton.setContentDescription("Original PDF page background");
-            return;
-        }
-        updatePaperIcon(current.template);
-    }
-
-    private void updatePaperIcon(NotebookPage.Template template) {
-        boolean lined = template == NotebookPage.Template.LINED;
-        paperButton.setIcon(lined ? NotebookIconDrawable.Icon.PAPER_LINED : NotebookIconDrawable.Icon.PAPER_BLANK);
-        paperButton.setContentDescription(lined ? "Lined paper; switch to blank paper" : "Blank paper; switch to lined paper");
     }
 
     private void persistPosition() {
@@ -965,7 +946,6 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             case LASSO: selectTool(NotebookInk.Tool.LASSO); break;
             case UNDO: changeHistory(false); break;
             case REDO: changeHistory(true); break;
-            case PAPER: choosePaper(); break;
             case MORE: pageInformation(); break;
             case OVERVIEW: pageOverview(); break;
             case OUTLINE: showOutline(); break;
@@ -1009,8 +989,6 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         // canEdit() gates every action while the surface or writer is busy.
         boolean ready = active && shownError == null && session.error() == null
             && page != null && page.isInitialized();
-        NotebookPage current = pages.get(activePage);
-        paperButton.setAvailable(ready && (current == null || current.pdfPage == 0));
         penButton.setAvailable(ready); eraserButton.setAvailable(ready); lassoButton.setAvailable(ready);
         undoButton.setAvailable(ready && session.canUndo(activePage));
         redoButton.setAvailable(ready && session.canRedo(activePage));
@@ -2033,7 +2011,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             pauseForEdit(); editing = false; installViewport(); return;
         }
         // Saving stays automatic; routine save counts no longer occupy the status bar.
-        updatePageLabel(); updatePaperButton();
+        updatePageLabel();
         updateControls();
         deviceStatus.refresh();
         if (session.isSaving()) main.postDelayed(updateSaveState, 1000);
@@ -2075,8 +2053,9 @@ public final class NotebookActivity extends NotebookDisplayActivity {
 
     private void choosePaper() {
         if (!canEdit()) return;
-        if (pages.get(activePage).pdfPage > 0) return;
-        NotebookPage.Template selected = pages.get(activePage).template == NotebookPage.Template.LINED
+        NotebookPage current = pages.get(activePage);
+        if (current == null || current.pdfPage > 0) return;
+        NotebookPage.Template selected = current.template == NotebookPage.Template.LINED
             ? NotebookPage.Template.BLANK : NotebookPage.Template.LINED;
         pauseForEdit();
         if (shownError != null) return;
@@ -2408,10 +2387,15 @@ public final class NotebookActivity extends NotebookDisplayActivity {
 
     private void noteActions() {
         if (!canEdit()) return;
+        List<String> items = new ArrayList<>();
+        items.add("Insert figure…"); items.add("Figures…"); items.add("Page information / Export PDF");
+        NotebookPage current = pages.get(activePage);
+        if (current != null && current.pdfPage == 0)
+            items.add(current.template == NotebookPage.Template.LINED ? "Use blank background" : "Use lined background");
         pauseForEdit(); floatingTools.hide();
         final int[] chosen = {-1};
         AlertDialog menu = new AlertDialog.Builder(this).setTitle(session.notebookName())
-            .setItems(new String[]{"Insert figure…", "Figures…", "Page information / Export PDF"},
+            .setItems(items.toArray(new String[0]),
                 (dialog, which) -> chosen[0] = which).setNegativeButton("Close", null).create();
         viewMenu = menu;
         menu.setOnDismissListener(dialog -> {
@@ -2422,6 +2406,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                     case 0: insertFigure(); break;
                     case 1: chooseFigure(); break;
                     case 2: pageInformation(); break;
+                    case 3: choosePaper(); break;
                 }
             });
         });
@@ -2514,11 +2499,11 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             + "\n" + current.strokes.size() + " strokes\n"
             + (session.error() != null ? "Some writing has not been saved."
                 : session.isSaving() ? "Saving your latest writing…" : "Your completed strokes are saved on this tablet.")
-            + "\n\nDrag with one finger to scroll and pan. Pinch with two fingers to zoom around their midpoint. Tap the notebook title or zoom percentage for Fit width, Fit height, Fit page, zoom presets, and App settings. New notes start at Fit width; 100% means Fit width. Write with the stylus. Tap the grid icon for thumbnails and page-number jumps. Use the left/right arrows for adjacent pages. The page-plus icon inserts an empty page after the current page. The paper icon changes this page’s Blank/Lined background. The books icon returns to your library."
+            + "\n\nDrag with one finger to scroll and pan. Pinch with two fingers to zoom around their midpoint. Tap the notebook title or zoom percentage for Fit width, Fit height, Fit page, zoom presets, and App settings. New notes start at Fit width; 100% means Fit width. Write with the stylus. Tap the grid icon for thumbnails and page-number jumps. Use the left/right arrows for adjacent pages. The page-plus icon inserts an empty page after the current page. The top-left three-dot menu switches this page’s blank/lined background. The books icon returns to your library."
             + "\n\nEraser draws a temporary grey trail. Lift the pen to remove whole ink strokes touched by it, together with the trail. Tap the selected Eraser icon to adjust its width (4–240). Current eraser: " + NotebookWidthRange.ERASER.label(eraserWidth) + ". Each page remembers up to 100 Undo/Redo edits while the app process stays open."
             + "\n\nLasso draws a temporary dashed line. Lift the stylus to close the curve automatically. Drag inside with a finger or stylus to move the selected ink. Copy, Duplicate, Move…, Cut, Delete, and Done appear beside the region. Done or a tap outside clears the selection; tap the selected Lasso icon afterward for Paste or Select all. Copied ink stays inside Scriflow until the app restarts. Drag a selection to another page; hold near the top or bottom edge to scroll. Move… places it on any page. Cross-page moves preserve the ink and undo both pages together."
             + "\n\nNew writing or a successful edit clears Redo. Changing paper keeps your stroke history.";
-        message += "\n\nTap the dotted grip to collapse or expand the floating tools; drag it to move them, even when collapsed. The direction icon beside it switches between one row and one column. The thicker circle marks the selected tool. The page icon changes Blank/Lined paper; the grid opens the page overview."
+        message += "\n\nTap the dotted grip to collapse or expand the floating tools; drag it to move them, even when collapsed. The direction icon beside it switches between one row and one column. The thicker circle marks the selected tool. The grid opens the page overview."
             + "\n\nThe outline icon opens the table of contents. Add headings at the current view; hold a heading or tap Edit headings to rename, move, or delete it. Imported PDF outlines are ready to use. Tap PDF links with one finger; writing with the stylus keeps annotating. The previous-view and next-view arrows restore your page, scroll position, horizontal pan, and zoom after a link or outline jump, including after screen rotation."
             + "\n\nTap the selected Pen icon to open a small width slider. Slide the point and release to apply. The slider stays open for further adjustments; start writing, tap outside, or press Back to close. Current thickness: " + NotebookPenConfig.label(penWidth) + ". The small line below the pencil previews its width. Settings offers fixed width on the page (default) or fixed width on the screen while writing. Existing strokes keep their captured shape in either mode."
             + "\n\nExport PDF saves all pages in this notebook, including their paper backgrounds and handwriting.";
