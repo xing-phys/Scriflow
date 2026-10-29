@@ -159,6 +159,12 @@ public final class NotebookDeviceCheck extends Instrumentation {
         changed(()->workspace.add(second,NotebookWorkspace.Position.FLOATING));
         for(int id:extraIds)changed(()->workspace.add(id,NotebookWorkspace.Position.FLOATING));
         check(workspace.panes().size()==4,"three floating companions open simultaneously");
+        long points=(Integer)field(field(activity,"strokePaths"),"pointLimit");
+        Map<?,?> budgetWindows=(Map<?,?>)field(activity,"noteWindows");
+        for(NotebookWorkspace.Pane p:workspace.panes())if(p.notebookId!=session.notebookId()&&!p.collapsed)
+            points+=(Integer)field(field(field(budgetWindows.get(p),"reader"),"paths"),"pointLimit");
+        check(points<=131072&&(Long)field(field(activity,"pdfBackgrounds"),"cachePixelLimit")<=1500000,
+            "four visible notes share optional PDF and outline cache allowances");
         NotebookWorkspace.Pane pane=workspace.find(second);
         Map<?,?> windows=(Map<?,?>)field(activity,"noteWindows");NotebookReader reader=(NotebookReader)field(windows.get(pane),"reader");
         long until=SystemClock.uptimeMillis()+10000;while(field(reader,"viewport")==null&&SystemClock.uptimeMillis()<until)SystemClock.sleep(30);
@@ -281,6 +287,8 @@ public final class NotebookDeviceCheck extends Instrumentation {
         int sample=a.sampleForPixels(400,400);Bitmap sampled=NotebookImages.bitmap(a,sample);
         check(sampled.getWidth()>=400&&sampled.getHeight()>=400&&sampled.getAllocationByteCount()<original.getAllocationByteCount(),"figure decode matches screen size without undersampling");
         check(NotebookImages.bitmap(a.duplicate(),sample)==sampled,"duplicated immutable figure assets share decoded pixels");
+        NotebookFigure reloaded=new NotebookFigure(a.id,a.x,a.y,a.width,a.height,first);
+        check(NotebookImages.bitmap(reloaded,sample)==sampled,"independently reloaded identical figures reuse content-keyed decoded pixels");
         check(NotebookImages.bitmap(collision,sample)!=sampled,"same UUID with different source PNG cannot reuse the wrong bitmap");
         main(NotebookImages::clearCache);replaceFigures(Arrays.asList(a,b));
         NotebookFigureLayer layer=(NotebookFigureLayer)field(activity,"figureImages");figureIdle(layer);ready();
@@ -306,6 +314,41 @@ public final class NotebookDeviceCheck extends Instrumentation {
         main(()->{race.prepare(Collections.singletonList(new NotebookFigureLayer.Request(a,512,512)));race.clear();race.prepare(Collections.singletonList(new NotebookFigureLayer.Request(b,256,256)));});figureIdle(race);
         AtomicBoolean correct=new AtomicBoolean();main(()->correct.set(((Map<?,?>)field(race,"ready")).containsKey(b.imageKey)&&!((Map<?,?>)field(race,"ready")).containsKey(a.imageKey)));
         check(failure.get()==null&&correct.get(),"clearing in-flight figure loading cannot publish stale source pixels");main(race::close);
+    }
+    private long pdfPixels(NotebookPdfBackgrounds pdf)throws Exception {
+        AtomicLong pixels=new AtomicLong();main(()->{for(Object key:((Map<?,?>)field(pdf,"cache")).keySet())pixels.addAndGet(((NotebookPdfTiles.Tile)key).pixels());});return pixels.get();
+    }
+    private void auditCacheBudget()throws Exception {
+        File source=new File(getTargetContext().getExternalFilesDir(null),"qa-fixtures/large-source.pdf");
+        List<NotebookPdfBackgrounds> layers=new ArrayList<>();AtomicReference<IOException> failure=new AtomicReference<>();
+        for(int n=0;n<4;n++){
+            NotebookPdfBackgrounds pdf=new NotebookPdfBackgrounds(getTargetContext(),new NotebookPdfBackgrounds.Listener(){public void changed(){}public void failed(IOException e){failure.set(e);}},false);layers.add(pdf);
+            for(int z=1;z<=8;z++){final int zoom=z;main(()->pdf.prepare(source,NotebookPdfTiles.visible(300,600d*zoom,900d*zoom,0,0,600,700),Collections.singleton(300)));pdfIdle(pdf);}
+        }
+        if(failure.get()!=null)throw failure.get();long before=0,after=0;for(NotebookPdfBackgrounds pdf:layers)before+=pdfPixels(pdf);
+        NotebookCacheBudget budget=new NotebookCacheBudget(4);AtomicBoolean sharp=new AtomicBoolean(true);
+        for(NotebookPdfBackgrounds pdf:layers){main(()->{pdf.setCachePixelLimit(budget.pdfPixelsPerNote);if(!pdf.prepare(source,NotebookPdfTiles.visible(300,4800,7200,0,0,600,700),Collections.singleton(300)))sharp.set(false);});after+=pdfPixels(pdf);}
+        report("SHARED_PDF_CACHE beforePixels="+before+" afterPixels="+after);
+        check(after<before&&after<=NotebookCacheBudget.PDF_PIXELS&&sharp.get(),"shared PDF budget reduces fallback pixels while every sharp tile remains ready");
+        for(NotebookPdfBackgrounds pdf:layers){main(pdf::trimMemory);((ExecutorService)field(pdf,"worker")).submit(()->{}).get(5,TimeUnit.SECONDS);
+            main(()->{if(!pdf.prepare(source,NotebookPdfTiles.visible(300,4800,7200,0,0,600,700),Collections.singleton(300)))sharp.set(false);});
+            if(field(pdf,"renderer")!=null)throw new AssertionError("memory trim retained native PDF reader");}
+        check(sharp.get(),"memory pressure releases native readers without dropping current PDF pixels");
+        NotebookPdfBackgrounds first=layers.get(0);
+        main(()->first.prepare(source,NotebookPdfTiles.visible(301,600,900,0,0,600,700),Collections.singleton(301)));pdfIdle(first);
+        check(field(first,"renderer")!=null,"PDF renderer reopens lazily for new sharp tiles after pressure");
+        main(()->first.prepare(source,Collections.emptyList(),Collections.emptySet()));((ExecutorService)field(first,"worker")).submit(()->{}).get(5,TimeUnit.SECONDS);
+        check(field(first,"renderer")==null&&pdfPixels(first)==0,"blank/non-PDF viewport releases optional source reader and tile cache");
+        for(NotebookPdfBackgrounds pdf:layers){main(pdf::close);((ExecutorService)field(pdf,"worker")).awaitTermination(5,TimeUnit.SECONDS);}
+        Object backend=field(activity,"ink");int count=session.current().strokes.size();
+        NotebookFigureLayer figures=(NotebookFigureLayer)field(activity,"figureImages");AtomicLong retained=new AtomicLong();main(()->retained.set(figures.preparedBytes()));
+        main(()->activity.onTrimMemory(android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW));ready();
+        check(field(activity,"ink")==backend&&session.current().strokes.size()==count,"foreground memory pressure preserves native editor and saved ink");
+        AtomicLong current=new AtomicLong();main(()->current.set(figures.preparedBytes()));
+        check(retained.get()==current.get(),"memory trim retains prepared visible figure pixels");
+        Field imageCache=NotebookImages.class.getDeclaredField("cache");imageCache.setAccessible(true);
+        check(((android.util.LruCache<?,?>)imageCache.get(null)).size()==0,"memory pressure empties optional shared image cache");
+        main(activity::onLowMemory);ready();check(field(activity,"ink")==backend,"low-memory callback also preserves the writing surface");
     }
     private void pdfIdle(NotebookPdfBackgrounds pdf)throws Exception {
         long until=SystemClock.uptimeMillis()+15000;AtomicBoolean idle=new AtomicBoolean();
@@ -393,6 +436,7 @@ public final class NotebookDeviceCheck extends Instrumentation {
         if(args!=null&&"true".equals(args.getString("testStylus")))checkStylus();
         if(args!=null&&"true".equals(args.getString("audit"))){auditReaders(second);auditWorkspace(second);auditPdf();}
         if(args!=null&&"true".equals(args.getString("figures")))auditFigures();
+        if(args!=null&&"true".equals(args.getString("budget")))auditCacheBudget();
         if(args!=null&&"true".equals(args.getString("lifecycle")))auditLifecycle();
         if(args!=null&&"true".equals(args.getString("interactiveStylus")))interactiveStylus();
     }

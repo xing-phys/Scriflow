@@ -21,7 +21,7 @@ public final class NotebookWorkspaceDisplayTest {
             "static class Session {int id=1;int notebookId(){return id;}}",
             "static class Clearable {int clears;void clear(){clears++;}void cancel(){}}",
             "final Area canvas=new Area();final Ink ink=new Ink();final Session session=new Session();final NotebookWorkspace workspace=new NotebookWorkspace();",
-            "final Object mainReaderCache=new Object();final Clearable viewportBuffer=new Clearable(),pdfBackgrounds=new Clearable(),figureImages=new Clearable(),linkTap=new Clearable();",
+            "final Object mainReaderCache=new Object();final Clearable viewportBuffer=new Clearable(),pdfBackgrounds=new Clearable(),figureImages=new Clearable(),strokePaths=new Clearable(),linkTap=new Clearable();",
             "final Map<Integer,Object> pages=new HashMap<>(),tiles=new HashMap<>();NotebookPage page;Object preview;",
             "NotebookViewport viewport=new NotebookViewport(1,200,300,1000,1200,12);boolean active=true,workspaceLayoutPending,changingWorkspace,editing,scrolling,restoreCenter,fetching,dragging,firstViewport,settleRead,geometryPending,pdfDelayed;IOException shownError;int generation=8,inkGeneration=1,surfaceOwner=1,configured,accepted,acceptedGeneration;long viewportRevision;",
             "WorkspaceDisplayFixture(){workspace.add(1,NotebookWorkspace.Position.FLOATING);workspace.add(2,NotebookWorkspace.Position.FLOATING);}",

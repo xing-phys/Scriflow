@@ -789,10 +789,16 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         if (active && dragging && gestureEngaged && !main.hasCallbacks(previewFrame)) main.postDelayed(previewFrame, 24);
     }
 
+    private void prepareStrokePaths() {
+        List<NotebookPage> visible = new ArrayList<>();
+        for (int id : viewport.visiblePages(scrollY)) { NotebookPage source = pages.get(id); if (source != null) visible.add(source); }
+        strokePaths.prepare(visible);
+    }
+
     private void drawPreview() {
         if (!active || !dragging || !gestureEngaged || viewport == null || shownError != null) return;
         try {
-            strokePaths.prepare(pages.values());
+            prepareStrokePaths();
             preparePdfBackgrounds();
             if (preview == null) preview = Bitmap.createBitmap(viewport.width, viewport.height, Bitmap.Config.RGB_565);
             Canvas drawing = new Canvas(preview);
@@ -2169,9 +2175,13 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             noteWindows.remove(pane).close();
         }
         NotebookWorkspace.Pane editor = workspace.find(session.notebookId());
+        int visibleNotes = 0; for (NotebookWorkspace.Pane pane : workspace.panes()) if (!pane.collapsed) visibleNotes++;
+        NotebookCacheBudget budget = new NotebookCacheBudget(Math.max(1, visibleNotes));
+        strokePaths.setPointLimit(budget.activePoints); pdfBackgrounds.setCachePixelLimit(budget.pdfPixelsPerNote);
         for (NotebookWorkspace.Pane pane : workspace.panes()) {
             NotebookCompanion window = noteWindows.get(pane);
             if (window == null) { window = createNoteWindow(pane); noteWindows.put(pane, window); }
+            window.setCacheBudget(budget);
             if (pane != editor) window.show(notebookName(pane.notebookId), null);
         }
         noteWindows.get(editor).show(session.notebookName(), canvas);
@@ -2209,7 +2219,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     /** A focus handoff reuses the paused native widget, including its already painted surface. */
     private void openWorkspaceCanvas(NotebookPage loaded) {
         page = loaded; clearSelection(); resetSelectionPreview(); linkTap.cancel();
-        pdfBackgrounds.clear(); figureImages.clear(); viewport = null; pages.clear(); viewportBuffer.clear(); tiles.clear(); preview = null;
+        pdfBackgrounds.clear(); figureImages.clear(); strokePaths.clear(); viewport = null; pages.clear(); viewportBuffer.clear(); tiles.clear(); preview = null;
         fetching = dragging = false; scrolling = true; firstViewport = false; settleRead = true;
         geometryPending = true; ++viewportRevision;
         relayoutWorkspace();
@@ -2223,7 +2233,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             Canvas drawing = new Canvas(frame);
             drawPaper(drawing, viewport.width, viewport.height);
             Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            strokePaths.prepare(pages.values());
+            prepareStrokePaths();
             for (int number : viewport.visiblePages(scrollY)) {
                 NotebookPage source = pages.get(number); if (source == null) continue;
                 int saved = drawing.save();
@@ -2552,6 +2562,17 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         if (saveViewport) persistPosition();
         super.onPause();
     }
+    private void trimRenderCaches() {
+        strokePaths.clear();
+        if (pdfBackgrounds != null) pdfBackgrounds.trimMemory();
+        for (NotebookCompanion window : noteWindows.values()) window.trimCaches();
+    }
+    @Override public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) trimRenderCaches();
+    }
+    @Override public void onLowMemory() { super.onLowMemory(); trimRenderCaches(); }
+
     @Override protected void onSaveInstanceState(Bundle state) {
         captureViewCenter(); rememberEditor(); saveWorkspace();
         state.putInt("viewNotebookId", viewNotebookId);

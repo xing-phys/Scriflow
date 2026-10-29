@@ -9,7 +9,9 @@ import android.os.Looper;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 /** Main-thread visible figure layer. PNG decode runs on a worker, never from drawing or pen callbacks. */
 final class NotebookFigureLayer {
@@ -24,12 +26,13 @@ final class NotebookFigureLayer {
         final Bitmap bitmap; final int sample;
         Pixels(Bitmap bitmap, int sample) { this.bitmap = bitmap; this.sample = sample; }
     }
-    private static final ExecutorService decoder = Executors.newSingleThreadExecutor(r -> new Thread(r, "notebook-figure-display"));
+    private static final ExecutorService decoder = new ThreadPoolExecutor(0, 1, 30, TimeUnit.SECONDS,
+        new LinkedBlockingQueue<>(), r -> new Thread(r, "notebook-figure-display"));
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final RectF box = new RectF();
     private final Listener listener;
-    private final Map<Object, Pixels> ready = new IdentityHashMap<>();
+    private final Map<Object, Pixels> ready = new LinkedHashMap<>();
     private volatile Map<Object, Request> wanted = Collections.emptyMap();
     private volatile int epoch;
     private boolean working, failed, closed;
@@ -50,7 +53,7 @@ final class NotebookFigureLayer {
     }
     boolean prepare(List<Request> requests) {
         if (closed) return false;
-        Map<Object, Request> next = new IdentityHashMap<>();
+        Map<Object, Request> next = new LinkedHashMap<>();
         for (Request request : requests) {
             Object key = request.figure.imageKey; Request old = next.get(key);
             if (old == null || request.sample < old.sample) next.put(key, request);
@@ -72,7 +75,7 @@ final class NotebookFigureLayer {
         if (missing == null) return;
         final Request request = missing; final Object key = request.figure.imageKey; final int generation = epoch;
         working = true;
-        decoder.execute(() -> {
+        try { decoder.execute(() -> {
             Bitmap bitmap = null; IOException failure = null;
             try {
                 Request latest = wanted.get(key);
@@ -89,7 +92,9 @@ final class NotebookFigureLayer {
                 if (result != null) ready.put(key, new Pixels(result, request.sample));
                 schedule(); if (result != null) listener.changed();
             });
-        });
+        }); } catch (RuntimeException | OutOfMemoryError error) {
+            working = false; failed = true; listener.failed(new IOException("Could not load the figure", error));
+        }
     }
     /** Prepared exact-resolution pixels or the preceding zoom's fallback; no decoding. */
     void draw(Canvas canvas, NotebookPage page) { for (NotebookFigure figure : page.figures) draw(canvas, figure); }

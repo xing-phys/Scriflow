@@ -193,6 +193,8 @@ final class NotebookCompanion {
         }
         void cancel() { main.removeCallbacks(hold); moving = false; }
     }
+    void setCacheBudget(NotebookCacheBudget budget) { reader.setCacheBudget(budget); }
+    void trimCaches() { reader.trimCaches(); }
     void hide() {
         menuGrip.cancel(); resizeGrip.cancel(); reader.hide(); visible = editorPrepared = false;
         popup.dismiss(); if (content.getParent() == root) root.removeView(content);

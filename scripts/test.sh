@@ -17,6 +17,7 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPage.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookFigure.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookWorkspace.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookCacheBudget.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookStylusShortcut.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookSelectionExport.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPageCatalog.java \
@@ -64,7 +65,7 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPenSliderClose.java \
   tests/CallbackTimingTest.java tests/NotebookStoreTest.java \
   tests/NotebookFiguresTest.java tests/NotebookFigureFixture.java \
-  tests/NotebookWorkspaceActivationTest.java tests/NotebookWorkspaceTest.java tests/NotebookWorkspaceDisplayTest.java \
+  tests/NotebookWorkspaceActivationTest.java tests/NotebookWorkspaceTest.java tests/NotebookCacheBudgetTest.java tests/NotebookWorkspaceDisplayTest.java \
   tests/NotebookReaderInteractionTest.java tests/NotebookWindowGripTest.java \
   tests/NotebookPopupHostTest.java tests/NotebookPdfImportFlowTest.java tests/NotebookStylusShortcutTest.java \
   tests/NotebookEditsTest.java tests/NotebookDocumentTest.java tests/NotebookLassoTest.java \
@@ -89,6 +90,7 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookFiguresTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookWorkspaceActivationTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookWorkspaceTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookCacheBudgetTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookWorkspaceDisplayTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookReaderInteractionTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookWindowGripTest

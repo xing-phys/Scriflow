@@ -25,7 +25,7 @@ final class NotebookPdfBackgrounds {
         void changed();
         void failed(IOException error);
     }
-    private static final long CACHE_PIXELS = 6_000_000;
+    private long cachePixelLimit = NotebookCacheBudget.PDF_PIXELS;
     private final Context context;
     private final boolean loadLinks;
     private final Listener listener;
@@ -55,6 +55,7 @@ final class NotebookPdfBackgrounds {
         if (this.source == null ? source != null : !this.source.equals(source)) {
             clear(); this.source = source;
         }
+        if (visible.isEmpty() && visiblePages.isEmpty()) { clear(); return true; }
         wanted = new LinkedHashSet<>(visible); pages = new LinkedHashSet<>(visiblePages);
         trim(); schedule();
         for (NotebookPdfTiles.Tile tile : wanted) if (!cache.containsKey(tile)) return false;
@@ -140,7 +141,7 @@ final class NotebookPdfBackgrounds {
         for (NotebookPdfTiles.Tile tile : wanted) required += tile.pixels();
         // Keep at most two visible tile sets for zoom fallback. A small floating
         // pane should not accumulate the same cache as a full-screen editor.
-        long budget = Math.max(required, Math.min(CACHE_PIXELS, required * 2));
+        long budget = NotebookCacheBudget.retainedPdfPixels(required, cachePixelLimit);
         Iterator<Map.Entry<NotebookPdfTiles.Tile, Bitmap>> old = cache.entrySet().iterator();
         while (old.hasNext()) {
             Map.Entry<NotebookPdfTiles.Tile, Bitmap> item = old.next();
@@ -149,6 +150,24 @@ final class NotebookPdfBackgrounds {
             }
         }
         links.keySet().retainAll(pages);
+    }
+
+    void setCachePixelLimit(long pixels) {
+        if (pixels < 1) throw new IllegalArgumentException("Invalid PDF cache allowance");
+        if (cachePixelLimit == pixels || closed) return;
+        cachePixelLimit = pixels; trim();
+    }
+    /** Keep requested sharp pixels and drop only optional fallback/parser resources. */
+    void trimMemory() {
+        if (closed) return;
+        Iterator<Map.Entry<NotebookPdfTiles.Tile, Bitmap>> old = cache.entrySet().iterator();
+        while (old.hasNext()) {
+            Map.Entry<NotebookPdfTiles.Tile, Bitmap> item = old.next();
+            if (!wanted.contains(item.getKey())) { item.getValue().recycle(); old.remove(); }
+        }
+        if (resourceWork) worker.execute(() -> {
+            closeRenderer(); if (loadLinks) NotebookPdfEngine.closeNavigation();
+        });
     }
 
     void clear() {

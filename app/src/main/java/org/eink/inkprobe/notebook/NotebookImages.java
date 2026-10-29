@@ -33,11 +33,11 @@ final class NotebookImages {
     private static final class Key {
         final Object asset; final int sample;
         Key(NotebookFigure figure, int sample) { asset = figure.imageKey; this.sample = sample; }
-        @Override public boolean equals(Object other) { return other instanceof Key && ((Key) other).asset == asset && ((Key) other).sample == sample; }
-        @Override public int hashCode() { return System.identityHashCode(asset) * 31 + sample; }
+        @Override public boolean equals(Object other) { return other instanceof Key && ((Key) other).asset.equals(asset) && ((Key) other).sample == sample; }
+        @Override public int hashCode() { return asset.hashCode() * 31 + sample; }
     }
     private static final LruCache<Key, Bitmap> cache = new LruCache<Key, Bitmap>(24 * 1024 * 1024) {
-        @Override protected int sizeOf(Key id, Bitmap bitmap) { return bitmap.getAllocationByteCount(); }
+        @Override protected int sizeOf(Key id, Bitmap bitmap) { return bitmap.getAllocationByteCount() + 256; }
         // Display lists/visible layers may still reference an evicted bitmap; allow GC to reclaim it.
     };
     private static volatile int cacheEpoch;

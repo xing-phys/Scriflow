@@ -4,6 +4,24 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## Optimization follow-up 0.33.1-dev.4 (2026-10-29)
+
+The permanently signed **0.33.1-dev.4 / versionCode 58** update was installed on
+HMW-W09 firmware 2.1.0.222(C00E170R1P8). It passed 58 combined device assertions,
+245,280 host assertions, Debug/Release lint/builds, native rendering comparisons
+and permanent-certificate verification. See the [optimization record](optimization-0.33.1.md)
+for staged changes, workload-specific measurements and reproduction.
+
+Checks cover large-document geometry, exact outline caching, figures prepared
+outside UI drawing, multiple notes, memory pressure, native popup/tool behavior,
+repeated window operations and sleep/Home return. Current sharp pixels, the
+native editor and saved QA ink survived pressure callbacks. Test notes used
+unique names and synthetic content; cleanup only allowlisted QA notes created
+in this task and retained the latest check note. Personal notes and the previous
+check note were not edited/removed. Sensor orientation and system/firmware
+settings were retained. This local development APK does not change the public
+0.33.0 release or establish battery/optical/physical-cover measurements.
+
 ## Formal 0.33.0 release verification (2026-10-28)
 
 The exact permanently signed **0.33.0 / versionCode 54** APK was installed over

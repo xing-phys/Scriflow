@@ -72,6 +72,12 @@ public abstract class NotebookDisplayActivity extends Activity implements Notebo
         super.onPause();
     }
 
+    @Override public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) NotebookImages.clearCache();
+    }
+    @Override public void onLowMemory() { super.onLowMemory(); NotebookImages.clearCache(); }
+
     @Override protected void onDestroy() {
         if (displayState != null) displayState.detach(this);
         super.onDestroy();

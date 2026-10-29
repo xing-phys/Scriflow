@@ -81,16 +81,19 @@ public final class NotebookStrokeRenderer {
             // full-page repaint must not evict/replay every path on every frame.
             paths.keySet().retainAll(admitted);
         }
-        Path path(NotebookPage.Stroke stroke, BooleanSupplier cancelled) {
+        private Path prepared(NotebookPage.Stroke stroke, BooleanSupplier cancelled) {
             checkCancelled(cancelled);
             Path cached = paths.get(stroke);
-            if (cached != null) return new Path(cached); // Callers may transform their own copy.
+            if (cached != null) return cached;
             Path result = NotebookStrokeRenderer.path(stroke, cancelled);
-            if (admitted.contains(stroke)) paths.put(stroke, new Path(result));
+            if (admitted.contains(stroke)) paths.put(stroke, result);
             return result;
         }
+        Path path(NotebookPage.Stroke stroke, BooleanSupplier cancelled) {
+            return new Path(prepared(stroke, cancelled)); // Only escaped paths need an owned copy.
+        }
         void draw(Canvas canvas, NotebookPage.Stroke stroke, Paint paint) {
-            drawOutline(canvas, stroke, paint, path(stroke, NEVER_CANCELLED));
+            drawOutline(canvas, stroke, paint, prepared(stroke, NEVER_CANCELLED));
         }
         boolean isEmpty() { return paths.isEmpty(); }
         int cachedPoints() { int count = 0; for (NotebookPage.Stroke stroke : paths.keySet()) count += stroke.points.size(); return count; }

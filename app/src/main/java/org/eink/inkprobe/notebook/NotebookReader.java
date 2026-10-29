@@ -6,7 +6,6 @@ import android.graphics.Bitmap;
 import android.graphics.RectF;
 import android.graphics.Color;
 import android.graphics.Paint;
-import android.graphics.Path;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
@@ -174,13 +173,7 @@ final class NotebookReader extends View {
                 }
                 images.draw(canvas, page);
                 paint.setStyle(Paint.Style.FILL);
-                for (NotebookPage.Stroke stroke : page.strokes) {
-                    Path path = paths.path(stroke, () -> false);
-                    paint.setColor(stroke.color);
-                    int clip = canvas.save();
-                    if (stroke.clip != null) canvas.clipRect(stroke.clip.left, stroke.clip.top, stroke.clip.right, stroke.clip.bottom);
-                    canvas.drawPath(path, paint); canvas.restoreToCount(clip);
-                }
+                for (NotebookPage.Stroke stroke : page.strokes) paths.draw(canvas, stroke, paint);
             } else {
                 paint.setStyle(Paint.Style.FILL); paint.setColor(Color.DKGRAY); paint.setTextSize(16 / factor);
                 canvas.drawText(errors.contains(number) ? "Page unavailable. Reopen to retry." : "Loading…", 12 / factor, 28 / factor, paint);
@@ -221,6 +214,8 @@ final class NotebookReader extends View {
         return true;
     }
     @Override public boolean performClick() { super.performClick(); return true; }
+    void setCacheBudget(NotebookCacheBudget budget) { paths.setPointLimit(budget.readerPoints); pdf.setCachePixelLimit(budget.pdfPixelsPerNote); }
+    void trimCaches() { paths.clear(); pdf.trimMemory(); }
     void hide() {
         remember(); opened = false; ++epoch; loadingPage = false; stylusContact = false;
         if (metadataRequest != null) metadataRequest.cancel();

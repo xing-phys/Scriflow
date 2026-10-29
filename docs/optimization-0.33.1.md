@@ -91,3 +91,61 @@ The zoomed figure reacquired original 2048-pixel resolution, then released the
 larger visible pixels after zooming back. Shared-cache eviction did not trigger
 UI decoding during native-paper redraw. These figures describe this fixture,
 not a fixed reduction in total app memory. Raw captures remain private/ignored.
+
+## Step 4: shared optional caches and memory pressure (0.33.1-dev.4, code 58)
+
+Visible notes share the six-million-pixel optional PDF allowance. Current sharp
+tiles always remain resident; their required pixels may exceed the shared
+allowance to preserve resolution. Active and inactive outline allowances total
+at most 131,072 admitted points across the active view and visible readers.
+Only currently visible source pages enter the active outline admission plan,
+and a focus handoff promptly clears the retired active view's cache. Private
+cached paths draw directly without allocating owned wrappers on every repaint;
+paths returned to callers still have independent ownership.
+
+Memory-pressure callbacks discard optional image/outlining/fallback caches and
+close worker-owned PDF readers/navigation resources. Current native framebuffer
+contents, requested PDF tiles, prepared visible figures and stored ink remain
+available. A blank/non-PDF viewport releases an unused source-PDF reader.
+The figure decoder thread expires after 30 seconds idle and restarts on demand;
+submission failures enter the recoverable error path. Content-derived image
+keys reuse decoded pixels across independent loads and panes without retaining
+compressed PNG arrays in the shared cache keys. The optional image-cache byte
+allowance also charges an estimated per-entry overhead.
+
+Four synthetic 600×700 PDF panes were warmed through eight zoom levels each.
+The same sharp requested tiles stayed ready while aggregate cached pixels fell
+from **8,388,608 (32 MiB)** with independent allowances to **5,242,880 (20 MiB)**
+with shared allowances. Memory trimming then closed native readers while keeping
+current sharp pixels ready; new requests reopened readers lazily. These cache
+figures do not describe total process memory or guarantee fixed memory savings
+for arbitrary documents/pane layouts.
+
+The exact permanently signed code-58 APK was installed as an update on the same
+HMW-W09 firmware. The final combined helper passed **58 real-device checks**:
+workspace/native tool integration, three floating companions, inactive finger
+scroll/pinch/focus, split limits, 20 window cycles, PDF cleanup/races, figure
+sampling/editor/source identity/races, memory callbacks, and sleep/Home return.
+The full host suite passed **245,280 assertions in 57 suites**. Debug/Release lint
+and builds passed with no lint errors; all native pressure/capture-scale/PDF/
+clipping/cache comparisons passed. APK identity and the permanent signer were
+verified again. The helper was uninstalled after each run. Cleanup was restricted
+to QA names recorded during this optimization task, with the latest QA note
+retained and earlier task/user notebooks left alone.
+
+Raw local logs and synthetic captures remain in ignored
+`artifacts/optimization-0.33.1/`. The final local update APK is
+`build/releases/scriflow-0.33.1-dev.4.apk`, with its adjacent SHA-256 file.
+The public stable release remains 0.33.0. No system/firmware settings or document
+formats changed. USB-powered tests do not establish battery life, physical cover
+behavior or optical pen latency; those limits from the previous audit remain.
+
+Reproduce after preparing a signed release and pushing the generated large-PDF
+fixture as described in the previous audit:
+
+```sh
+bash scripts/check-device-workspace.sh -e testStylus true -e audit true \
+  -e expectReleased true -e figures true -e budget true -e lifecycle true
+bash scripts/check-stroke-rendering.sh
+bash scripts/check-viewport-performance.sh
+```

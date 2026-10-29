@@ -24,7 +24,7 @@ public final class NotebookFiguresTest {
         check(figure.placed(0,0,30,40).imageKey==figure.imageKey&&figure.duplicate().imageKey==figure.imageKey,
             "Placement/duplication share immutable source pixels without UUID-key collisions");
         NotebookFigure independent=new NotebookFigure(figure.id,10,20,30,40,original);
-        check(independent.imageKey!=figure.imageKey,"Independent restored assets do not alias solely by UUID");
+        check(independent.imageKey.equals(figure.imageKey),"Identical immutable source pixels share cache identity across independent loads");
         byte[] large=original.clone();ByteBuffer.wrap(large).putInt(16,2048).putInt(20,2048);
         NotebookFigure source=new NotebookFigure(UUID.randomUUID(),0,0,100,100,large);
         check(source.sampleForPixels(300,300)==4&&source.sampleForPixels(900,900)==2&&source.sampleForPixels(1600,1600)==1,

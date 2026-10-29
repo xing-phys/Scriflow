@@ -6,6 +6,21 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.33.1-dev.4 — Coordinate optional cache memory (2026-10-29)
+
+- Share PDF fallback and outline allowances across visible notes while retaining
+  required sharp pixels. Release unused source readers for blank viewports and
+  trim optional resources on Android memory callbacks without clearing native
+  framebuffer contents or visible figure pixels.
+- Cache only currently visible active-page outlines, clear retired handoff
+  caches promptly and avoid owned-path allocations for private cached drawing.
+- Share identical decoded image content across independent reloads, account for
+  cache-entry overhead and retire the figure decoder thread after idle.
+- The final signed update passes 58 tablet checks, 245,280 host assertions,
+  native rendering comparisons and lint/build/signature checks. A four-pane PDF
+  fixture reduced cached pixels from 32 to 20 MiB with all sharp tiles retained.
+  VersionCode 58; local candidate, public stable release unchanged.
+
 ## 0.33.1-dev.3 — Prepare figure pixels off the UI thread (2026-10-29)
 
 - Decode visible figures on a worker at a resolution sufficient for their screen

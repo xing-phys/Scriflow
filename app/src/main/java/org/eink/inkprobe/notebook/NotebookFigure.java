@@ -12,6 +12,17 @@ public final class NotebookFigure {
     final int pixelsWide, pixelsHigh;
     final Object imageKey;
 
+    private static final class ImageKey {
+        private final byte[] digest; private final int hash;
+        ImageKey(byte[] png) {
+            try { digest = java.security.MessageDigest.getInstance("SHA-256").digest(png); }
+            catch (java.security.NoSuchAlgorithmException unavailable) { throw new IllegalStateException(unavailable); }
+            hash = Arrays.hashCode(digest);
+        }
+        @Override public int hashCode() { return hash; }
+        @Override public boolean equals(Object other) { return other instanceof ImageKey && Arrays.equals(digest, ((ImageKey) other).digest); }
+    }
+
     public NotebookFigure(UUID id, float x, float y, float width, float height, byte[] png) {
         this(id, x, y, width, height, png, true, null);
     }
@@ -30,8 +41,8 @@ public final class NotebookFigure {
                 || pixelsWide > 2048 || pixelsHigh > 2048) throw new IllegalArgumentException("Invalid figure PNG dimensions");
         this.id = id; this.x = x; this.y = y; this.width = width; this.height = height;
         this.pixelsWide = pixelsWide; this.pixelsHigh = pixelsHigh;
-        this.imageKey = imageKey == null ? new Object() : imageKey;
         this.png = copy ? png.clone() : png;
+        this.imageKey = imageKey == null ? new ImageKey(this.png) : imageKey;
     }
 
     public byte[] png() { return png.clone(); }

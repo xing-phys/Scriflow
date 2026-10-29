@@ -38,8 +38,9 @@ updates. **Page format 6 is written on edit and cannot be opened by older APKs.*
 Keep editable backups before updating. See [figures and workspace](docs/figures-and-workspace.md),
 [changelog](CHANGELOG.md), and [device records](docs/device-testing.md).
 
-Local optimization work continues in **0.33.1-dev.3**, adding indexed
-scrolling geometry, bounded exact ink-outline reuse and worker-prepared figures. See the [optimization record](docs/optimization-0.33.1.md)
+Local optimization work continues in **0.33.1-dev.4**, adding indexed
+scrolling geometry, bounded exact ink-outline reuse, worker-prepared figures
+and coordinated optional cache budgets. See the [optimization record](docs/optimization-0.33.1.md)
 for measurements and device validation; the stable download above is unchanged.
 
 ## Features
