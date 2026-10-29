@@ -4,6 +4,19 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## Offline direct figure picker 0.33.2-dev.4 (2026-10-29)
+
+Insert figure opens the system picker directly after the Activity is resumed
+and attached. Success returns to the existing note automatically; cancellation
+returns without a confirmation screen. Retained/persisted state prevents an
+ordinary recreation from launching the picker again. Failures retain retry
+controls, and selected-ink export keeps its format/destination workflow.
+
+VersionCode 68 passes 246,393 host assertions in 65 suites, Debug/Release
+lint/builds and permanent-certificate verification. The signed candidate is
+`build/releases/scriflow-0.33.2-dev.4.apk`. Physical picker/landscape checks remain
+pending under the owner's instruction to continue without the tablet.
+
 ## Offline Zen display mode 0.33.2-dev.3 (2026-10-29)
 
 The toolbox Zen toggle hides the top-left bar and Undo/Redo, leaving a compact

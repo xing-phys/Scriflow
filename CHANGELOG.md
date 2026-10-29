@@ -6,6 +6,12 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.33.2-dev.4 — Direct figure picker (2026-10-29)
+
+- Open the system file picker directly for Insert figure and return to the note
+  after successful insertion or cancellation. Retain picker/import state across
+  recreation and keep explicit retry controls only for failures. VersionCode 68.
+
 ## 0.33.2-dev.3 — Zen display mode (2026-10-29)
 
 - Add a reversible fullscreen-corners toggle to the toolbox. Hide the top-left

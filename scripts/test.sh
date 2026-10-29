@@ -68,7 +68,7 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   tests/NotebookFiguresTest.java tests/NotebookFigureFixture.java tests/NotebookFigureHitTest.java tests/NotebookFigureTapTest.java \
   tests/NotebookWorkspaceActivationTest.java tests/NotebookWorkspaceTest.java tests/NotebookCacheBudgetTest.java tests/NotebookWorkspaceDisplayTest.java \
   tests/NotebookReaderInteractionTest.java tests/NotebookWindowGripTest.java tests/NotebookResizeOutlineTest.java \
-  tests/NotebookPopupHostTest.java tests/NotebookStatusControlsTest.java tests/NotebookWritingHistoryTest.java tests/NotebookZenModeTest.java tests/NotebookPdfImportFlowTest.java tests/NotebookStylusShortcutTest.java \
+  tests/NotebookPopupHostTest.java tests/NotebookStatusControlsTest.java tests/NotebookWritingHistoryTest.java tests/NotebookZenModeTest.java tests/NotebookPdfImportFlowTest.java tests/NotebookFigureImportFlowTest.java tests/NotebookStylusShortcutTest.java \
   tests/NotebookEditsTest.java tests/NotebookDocumentTest.java tests/NotebookLassoTest.java \
   tests/NotebookLassoInteractionTest.java \
   tests/NotebookSelectionMoveTest.java tests/NotebookInkTransferTest.java tests/NotebookEditRestoreTest.java \
@@ -103,6 +103,7 @@ java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookStatusControlsT
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookWritingHistoryTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookZenModeTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPdfImportFlowTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookFigureImportFlowTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookStylusShortcutTest
 java -ea -cp build/host-tests org.eink.inkprobe.CallbackTimingTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookStoreTest

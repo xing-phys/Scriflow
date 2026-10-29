@@ -33,7 +33,9 @@ public final class NotebookMediaActivity extends NotebookDisplayActivity {
     private Job job;
     private TextView status;
     private LinearLayout actions;
-    private boolean awaiting;
+    private LinearLayout root;
+    private boolean awaiting, resumed;
+    private final Runnable nextStep = this::advance;
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
         getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
@@ -48,11 +50,16 @@ public final class NotebookMediaActivity extends NotebookDisplayActivity {
             if (saved != null) {
                 job.format = saved.getInt("format", 1);
                 job.prepared = checkedFile(saved.getString("prepared"));
-                if (saved.getBoolean("busy")) job.message = "Transfer interrupted. Choose the image or prepare the export again.";
+                job.pickerStarted = saved.getBoolean("pickerStarted", saved.getBoolean("awaiting"));
+                job.complete = saved.getBoolean("complete"); job.failed = saved.getBoolean("failed");
+                String message = saved.getString("message"); if (message != null) job.message = message;
+                if (saved.getBoolean("busy")) {
+                    job.failed = true; job.message = "Transfer interrupted. Choose the image or prepare the export again.";
+                }
             }
         }
         awaiting = saved != null && saved.getBoolean("awaiting");
-        LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
+        root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Color.WHITE); root.setPadding(24, 20, 24, 20);
         TextView title = new TextView(this); title.setText(job.importing ? "Insert figure" : "Export selected ink");
         title.setTextColor(Color.BLACK); title.setTextSize(20); addScreenHeader(root, title);
@@ -69,10 +76,19 @@ public final class NotebookMediaActivity extends NotebookDisplayActivity {
                 && file.isFile() ? file : null;
         } catch (IOException error) { return null; }
     }
-    @Override protected void onResume() { super.onResume(); job.listener = this::render; render(); }
-    @Override protected void onPause() { job.listener = null; super.onPause(); }
+    @Override protected void onResume() { super.onResume(); resumed = true; job.listener = this::render; render(); }
+    @Override protected void onPostResume() { super.onPostResume(); root.post(nextStep); }
+    @Override protected void onPause() {
+        resumed = false; root.removeCallbacks(nextStep); job.listener = null; super.onPause();
+    }
     private void render() {
         status.setText(job.message); actions.removeAllViews();
+        if (job.importing) {
+            if (job.failed && !job.busy) {
+                add("Choose another image…", () -> pick(true)); add("Back to note", this::onBackPressed);
+            }
+            root.removeCallbacks(nextStep); root.post(nextStep); return;
+        }
         if (job.busy) return;
         if (!job.complete) {
             if (job.importing) add("Choose image…", () -> pick(true));
@@ -86,6 +102,11 @@ public final class NotebookMediaActivity extends NotebookDisplayActivity {
         }
         add("Back to note", this::onBackPressed);
     }
+    private void advance() {
+        if (!resumed || isFinishing() || isDestroyed() || !root.isAttachedToWindow() || !job.importing) return;
+        if (job.complete) { finish(); overridePendingTransition(0, 0); }
+        else if (!job.busy && !awaiting && !job.pickerStarted && !job.failed) pick(true);
+    }
     private void add(String label, Runnable action) {
         NotebookButton button = new NotebookButton(this); button.setText(label);
         button.setOnClickListener(v -> action.run()); actions.addView(button, new LinearLayout.LayoutParams(-1, Math.round(48 * getResources().getDisplayMetrics().density)));
@@ -95,8 +116,12 @@ public final class NotebookMediaActivity extends NotebookDisplayActivity {
         Intent intent = new Intent(importing ? Intent.ACTION_OPEN_DOCUMENT : Intent.ACTION_CREATE_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE); intent.setType(importing ? "*/*" : TYPES[job.format]);
         if (!importing) intent.putExtra(Intent.EXTRA_TITLE, "selected-ink." + EXTENSIONS[job.format]);
-        try { awaiting = true; startActivityForResult(intent, PICK); }
-        catch (android.content.ActivityNotFoundException error) { awaiting = false; job.message = "No system file picker is available."; render(); }
+        try {
+            awaiting = true; if (importing) { job.pickerStarted = true; job.failed = false; }
+            startActivityForResult(intent, PICK);
+        } catch (android.content.ActivityNotFoundException error) {
+            awaiting = false; job.failed = true; job.message = "No system file picker is available."; render();
+        }
     }
     @Override protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
@@ -104,11 +129,13 @@ public final class NotebookMediaActivity extends NotebookDisplayActivity {
         awaiting = false;
         if (result == RESULT_OK && data != null && data.getData() != null) {
             if (job.importing) job.insert(data.getData()); else job.save(data.getData());
-        }
+        } else if (job.importing) { finish(); overridePendingTransition(0, 0); }
     }
     @Override public Object onRetainNonConfigurationInstance() { return job; }
     @Override protected void onSaveInstanceState(Bundle state) {
         state.putBoolean("awaiting", awaiting); state.putBoolean("busy", job.busy); state.putInt("format", job.format);
+        state.putBoolean("pickerStarted", job.pickerStarted); state.putBoolean("complete", job.complete);
+        state.putBoolean("failed", job.failed); state.putString("message", job.message);
         if (job.prepared != null) state.putString("prepared", job.prepared.getPath());
         super.onSaveInstanceState(state);
     }
@@ -123,20 +150,20 @@ public final class NotebookMediaActivity extends NotebookDisplayActivity {
         final boolean importing;
         final Handler main = new Handler(Looper.getMainLooper());
         Runnable listener;
-        boolean busy, complete;
+        boolean busy, complete, pickerStarted, failed;
         int book, number, format = 1;
         String pageId, source;
         String message;
         File prepared;
         Job(android.content.Context context, boolean importing) {
             this.context = context.getApplicationContext(); this.importing = importing;
-            message = importing ? "Choose SVG, PNG, JPEG, WebP, GIF, BMP, or another image supported by this tablet. Animated images use their first frame. Figures can be moved and resized from the note menu."
+            message = importing ? "Opening image picker…"
                 : "Choose an export format. SVG and PDF keep vector handwriting; PNG and WebP have a transparent background, JPEG has white paper.";
         }
         void changed() { if (listener != null) listener.run(); }
-        void fail(Exception error) { busy = false; message = error.getMessage() == null ? "Transfer failed. Please retry." : error.getMessage(); changed(); }
+        void fail(Exception error) { busy = false; failed = true; message = error.getMessage() == null ? "Transfer failed. Please retry." : error.getMessage(); changed(); }
         void insert(Uri uri) {
-            busy = true; message = "Reading image…"; changed();
+            busy = true; failed = false; message = "Reading image…"; changed();
             files.execute(() -> {
                 try (InputStream input = context.getContentResolver().openInputStream(uri)) {
                     NotebookImages.Imported image = NotebookImages.read(input);
@@ -144,7 +171,7 @@ public final class NotebookMediaActivity extends NotebookDisplayActivity {
                     session.insertFigure(book, number, pageId, image, (page, error) -> {
                         busy = false;
                         if (error != null) { fail(error); return; }
-                        complete = true; message = "Figure inserted. Return to the note; use Figures… to move or resize it."; changed();
+                        complete = true; message = "Figure inserted."; changed();
                     });
                 } catch (Exception error) { main.post(() -> fail(error)); }
             });
