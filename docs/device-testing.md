@@ -4,6 +4,29 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## Offline inline figures 0.33.2-dev.5 (2026-10-29)
+
+The permanently signed **0.33.2-dev.5 / versionCode 69** candidate keeps figure
+manipulation in the current viewport: outside-tap dismissal, nearby actions,
+arbitrary-angle rotation and cross-page dragging with edge scrolling. There is
+no fitted single-page editor or Apply/Cancel footer. Dev.4’s direct picker flow
+is included. Edits write page format 7; existing notes read unchanged, but edited
+notes and backups require dev.5 or newer. Preserve independent editable backups.
+
+All **248,443 assertions in 67 host suites** pass, including 2,019 rotation,
+migration, history and interrupted-save checks, 22 production inline-input
+checks, and rotated PDF matrices/pixel preservation. A 37° exported fixture was
+rendered with Poppler and visually inspected. Debug/release lint and builds pass;
+the staged APK’s signer matches `release-signing-certificate.sha256`.
+Artifact: `build/releases/scriflow-0.33.2-dev.5.apk`, with its adjacent checksum.
+Logs and rendered fixture: `artifacts/inline-figures/final-host.txt`,
+`final-build.txt` and `rotated-pdf.png` in that directory.
+
+The owner chose to continue without the tablet. Native input routing, visible
+e-ink refresh/latency, floating-window gestures, rotation/resume and physical
+picker behavior remain unverified for this exact APK. See the
+[inline-figure acceptance checklist](inline-figures.md#tablet-acceptance).
+
 ## Offline direct figure picker 0.33.2-dev.4 (2026-10-29)
 
 Insert figure opens the system picker directly after the Activity is resumed

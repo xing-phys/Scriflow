@@ -152,7 +152,7 @@ public final class NotebookStoreTest {
         int[] offsets = { good.length - 5, good.length - 1, 8, 12, 0, 7 };
         for (int offset : offsets) {
             byte[] bad = good.clone();
-            bad[offset] ^= 1;
+            bad[offset] ^= offset == 7 ? 0x80 : 1;
             Files.write(new File(directory, "page.nbk").toPath(), bad);
             NotebookStore broken = new NotebookStore(directory);
             expectIo(() -> broken.load());
@@ -316,7 +316,7 @@ public final class NotebookStoreTest {
         equal(2, reopened.strokes.size(), "release fixture supports edit then append");
         sameStroke(stroke(20), reopened.strokes.get(0));
         sameStroke(stroke(30), reopened.strokes.get(1));
-        equal(6, intAt(bytes(directory, "page.nbk"), 4), "editing atomically migrates to version 6");
+        equal(7, intAt(bytes(directory, "page.nbk"), 4), "editing atomically migrates to version 7");
     }
 
     private static void editSnapshotAndContinuedWriting() throws Exception {

@@ -30,7 +30,7 @@ public final class NotebookDocument {
     /** Validate both participants before publishing the durable two-page intent. */
     void validateLinked(NotebookPage before, NotebookPage after, Object link, int historyStep) throws IOException {
         requireEditor(); requireWritable();
-        if (!samePage(current(), before) || !samePage(before.withStrokes(after.strokes), after))
+        if (!samePage(current(), before) || !samePage(before.withStrokes(after.strokes).withFigures(after.figures), after))
             throw new IOException("The selected page changed; move the ink again");
         if (historyStep != 0 && ((historyStep < 0 ? undoLink() : redoLink()) != link
                 || !samePage(historyTarget(historyStep > 0), after)))

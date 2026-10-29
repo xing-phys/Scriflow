@@ -85,7 +85,7 @@ public final class NotebookViewportSaveTest {
         check(gestures > 30, "Fixture persists repeated gestures, not only the first append");
         if (version == 4) for (int number = 1; number <= sizes.size(); number++) {
             byte[] current = Files.readAllBytes(pageFile(book, number).toPath());
-            check(java.nio.ByteBuffer.wrap(current).getInt(4) == 6, "First viewport edit migrates the legacy page to v6");
+            check(java.nio.ByteBuffer.wrap(current).getInt(4) == 7, "First viewport edit migrates the legacy page to v7");
             check(Arrays.equals(oldFiles.get(number), Files.readAllBytes(
                 new File(pageFile(book, number).getParentFile(), "page.nbk.bak").toPath())),
                 "Migration preserves the exact predecessor page as backup");

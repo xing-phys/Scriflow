@@ -519,7 +519,10 @@ public final class NotebookPdfEngine {
                 com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject image =
                     com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject.createFromByteArray(document, figure.png(), "figure.png");
                 // Page coordinates point downward; undo that reflection for the image pixels.
-                stream.drawImage(image, new Matrix(figure.width, 0, 0, -figure.height, figure.x, figure.y + figure.height));
+                float c = figure.cosine(), s = figure.sine();
+                stream.drawImage(image, new Matrix(figure.width * c, figure.width * s, figure.height * s, -figure.height * c,
+                    figure.centerX() - figure.width * c / 2 - figure.height * s / 2,
+                    figure.centerY() - figure.width * s / 2 + figure.height * c / 2));
             }
             Map<Integer, PDExtendedGraphicsState> alphas = new HashMap<>();
             for (NotebookPage.Stroke stroke : page.strokes) {

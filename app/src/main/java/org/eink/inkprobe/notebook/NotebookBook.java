@@ -203,6 +203,35 @@ public final class NotebookBook {
     public void setFigures(int number, List<NotebookFigure> figures) throws IOException {
         execute(() -> targetDocument(number, false).setFigures(figures));
     }
+
+    /** An immutable expected figure prevents stale gestures from editing a replaced page or image. */
+    public void editFigure(int sourceNumber, int destinationNumber, java.util.UUID expectedPage,
+            NotebookFigure expected, NotebookFigure replacement, boolean copy) throws IOException {
+        execute(() -> {
+            requireLoaded(); requireWritable(); requirePageNumber(sourceNumber); requirePageNumber(destinationNumber);
+            NotebookDocument source = targetDocument(sourceNumber, true), destination = targetDocument(destinationNumber, true);
+            NotebookPage beforeSource = source.current(), beforeDestination = destination.current();
+            if (!beforeSource.id.equals(expectedPage) || expected != null && !beforeSource.figures.contains(expected))
+                throw new IOException("The figure changed; select it again");
+            if (expected == null && (!copy || sourceNumber != destinationNumber || replacement == null))
+                throw new IOException("Invalid figure paste");
+            List<NotebookFigure> kept = new ArrayList<>(beforeSource.figures);
+            if (!copy) kept.remove(expected);
+            if (sourceNumber == destinationNumber) {
+                if (replacement != null) {
+                    if (copy) kept.add(replacement); else kept.add(beforeSource.figures.indexOf(expected), replacement);
+                }
+                beforeSource.withFigures(kept); source.setFigures(kept); return;
+            }
+            List<NotebookFigure> added = new ArrayList<>(beforeDestination.figures);
+            if (replacement != null) added.add(replacement);
+            NotebookPage afterSource = beforeSource.withFigures(kept), afterDestination = beforeDestination.withFigures(added);
+            if (copy) { destination.setFigures(added); return; }
+            retryDocuments();
+            InkMove link = new InkMove(storageSlot(sourceNumber), storageSlot(destinationNumber));
+            publishInkMove(link, beforeSource, afterSource, beforeDestination, afterDestination, 0);
+        });
+    }
     public void setPageTemplate(int number, NotebookPage.Template template) throws IOException {
         execute(() -> targetDocument(number, false).setTemplate(template));
     }

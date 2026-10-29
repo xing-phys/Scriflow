@@ -112,9 +112,14 @@ final class NotebookImages {
         Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
         for (NotebookFigure figure : page.figures) {
             int sample = Double.isInfinite(scale) ? 1 : figure.sampleForPixels(figure.width * scale, figure.height * scale);
-            try { canvas.drawBitmap(bitmap(figure, sample), null,
-                new RectF(figure.x, figure.y, figure.x + figure.width, figure.y + figure.height), paint); }
+            int saved = canvas.save();
+            try {
+                canvas.rotate(figure.angle, figure.centerX(), figure.centerY());
+                canvas.drawBitmap(bitmap(figure, sample), null,
+                    new RectF(figure.x, figure.y, figure.x + figure.width, figure.y + figure.height), paint);
+            }
             catch (IOException error) { throw new IllegalStateException(error.getMessage(), error); }
+            finally { canvas.restoreToCount(saved); }
         }
     }
 }

@@ -19,7 +19,7 @@ import java.util.zip.CRC32;
  * Single-writer page store. Call only from a serialized background worker, never pen callbacks.
  * A synced, checksummed record commits each completed stroke without rewriting previous points.
  * Size/template changes and stroke edits publish an atomic snapshot and retain the previous file
- * as a backup. Legacy reads are non-mutating; the first edit atomically migrates to version 6,
+ * as a backup. Legacy reads are non-mutating; the first edit atomically migrates to version 7,
  * retaining native input scale and self-contained figure images.
  */
 public final class NotebookStore {
@@ -29,7 +29,7 @@ public final class NotebookStore {
     public static final int MAX_DIMENSION = 32768;
 
     private static final int MAGIC = 0x4e424b31; // NBK1
-    private static final int VERSION = 6;
+    private static final int VERSION = 7;
     private static final int SNAPSHOT = 1, APPEND_STROKE = 2;
     private static final int MAX_RECORD_BYTES = 32 * 1024 * 1024;
     private static final long MAX_FILE_BYTES = 64L * 1024 * 1024;
@@ -420,12 +420,13 @@ public final class NotebookStore {
                 for (int i = 0; i < figures; i++) {
                     UUID id = readId(input);
                     float x = input.readFloat(), y = input.readFloat(), w = input.readFloat(), h = input.readFloat();
+                    float angle = state.version >= 7 ? input.readFloat() : 0;
                     int size = input.readInt();
                     if (size < 24 || size > NotebookFigure.MAX_BYTES || size > input.available()
                             || (total += size) > NotebookFigure.MAX_PAGE_BYTES || !figureIds.add(id))
                         throw corrupt("Invalid figure data");
                     byte[] png = new byte[size]; input.readFully(png);
-                    state.figures.add(new NotebookFigure(id, x, y, w, h, png));
+                    state.figures.add(new NotebookFigure(id, x, y, w, h, angle, png));
                 }
             }
             state.hasSnapshot = true;
@@ -518,6 +519,7 @@ public final class NotebookStore {
             writeId(output, figure.id);
             output.writeFloat(figure.x); output.writeFloat(figure.y);
             output.writeFloat(figure.width); output.writeFloat(figure.height);
+            output.writeFloat(figure.angle);
             output.writeInt(figure.byteCount()); figure.writeTo(output);
         }
         if (bytes.size() > MAX_RECORD_BYTES) throw new IOException("Page exceeds snapshot size limit");

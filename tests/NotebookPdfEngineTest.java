@@ -135,6 +135,7 @@ public final class NotebookPdfEngineTest {
         catch (IOException expected) { check(expected.getMessage().contains("unlocked copy"), "Encrypted PDF rejection is actionable"); }
         check(Arrays.equals(pristine, Files.readAllBytes(source.toPath())), "Source remains unchanged after all exports");
         figures(directory, source, a);
+        rotatedFigures(directory);
         System.out.println("NotebookPdfEngineTest: " + assertions + " assertions passed; fixtures in " + directory);
     }
 
@@ -155,6 +156,30 @@ public final class NotebookPdfEngineTest {
                     (com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject) first.getResources().getXObject(first.getResources().getXObjectNames().iterator().next());
                 check(image.getWidth() == 2 && image.getHeight() == 2, "Export retains source figure pixels");
                 check((image.getSoftMask() != null) == alpha, "PDF preserves figure transparency");
+            }
+        }
+    }
+
+    private static void rotatedFigures(File directory) throws Exception {
+        for (float angle : new float[]{37, 90, -53}) {
+            NotebookFigure figure = new NotebookFigure(UUID.randomUUID(), 140, 200, 100, 80, angle, NotebookFigureFixture.png(true));
+            NotebookPage page = NotebookPage.empty().withSize(480, 720).withFigures(Collections.singletonList(figure));
+            File output = new File(directory, "figure-angle-" + Math.round(angle) + ".pdf");
+            export(output, null, Collections.singletonList(page), Collections.emptyList());
+            try (PDDocument document = PDDocument.load(output)) {
+                String content = String.join("\n", streams(document.getPage(0)));
+                java.util.regex.Matcher matcher = java.util.regex.Pattern.compile(
+                    "([-+0-9.eE]+)\\s+([-+0-9.eE]+)\\s+([-+0-9.eE]+)\\s+([-+0-9.eE]+)\\s+([-+0-9.eE]+)\\s+([-+0-9.eE]+)\\s+cm").matcher(content);
+                float[] actual = null;
+                while (matcher.find()) { actual = new float[6]; for (int i=0;i<6;i++) actual[i]=Float.parseFloat(matcher.group(i+1)); }
+                float[] expected = {figure.cornerX(2)-figure.cornerX(3),figure.cornerY(2)-figure.cornerY(3),
+                    figure.cornerX(0)-figure.cornerX(3),figure.cornerY(0)-figure.cornerY(3),figure.cornerX(3),figure.cornerY(3)};
+                boolean matches = actual != null;
+                if (matches) for (int i=0;i<6;i++) matches &= Math.abs(actual[i]-expected[i])<.001;
+                check(matches, "PDF image transform follows the visible rotated corners at " + angle + " degrees");
+                com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject image = (com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject)
+                    document.getPage(0).getResources().getXObject(document.getPage(0).getResources().getXObjectNames().iterator().next());
+                check(image.getWidth()==2 && image.getHeight()==2 && image.getSoftMask()!=null, "Rotation preserves original pixels/transparency in PDF export");
             }
         }
     }

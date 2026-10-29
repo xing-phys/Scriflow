@@ -6,6 +6,20 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.33.2-dev.5 — In-note figure controls (2026-10-29)
+
+- Replace the separate figure editor/footer with a transparent selection overlay
+  in the current note. Drag to move/resize, rotate freely with a corner handle,
+  use nearby Copy/Cut/Delete/Paste icons, and tap outside to finish.
+- Move figures between pages with edge scrolling and one linked undo/redo action.
+  Preserve original PNG pixels through rotation, rendering, backups and PDF export.
+- Read existing pages without rewriting them; edits now write page format 7.
+  Older APKs, including 0.33.1, cannot open those edited notes or their backups.
+  Keep independent backups before updating. VersionCode 69.
+- Pass 248,443 host assertions in 67 suites, Android lint/builds and permanent
+  signature verification. Physical tablet checks remain pending; see
+  [inline figures](docs/inline-figures.md).
+
 ## 0.33.2-dev.4 — Direct figure picker (2026-10-29)
 
 - Open the system file picker directly for Insert figure and return to the note

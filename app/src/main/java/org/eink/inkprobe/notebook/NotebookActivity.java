@@ -133,7 +133,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private AlertDialog viewMenu;
     private int activePage = 1, fingerId = -1;
     private boolean scrolling, dragging, moved, fetching, firstViewport, savePosition, cleanupInk;
-    private boolean settleRead;
+    private boolean settleRead, figureNavigationPreview;
     private long viewportRevision;
     private NotebookScrollStore.State reopenPosition;
     private NotebookPageOverview overview;
@@ -392,6 +392,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                 @Override public void onReady() {
                     if (!active || surfaceOwner != inkGeneration || changingWorkspace) return;
                     if (session.error() != null) { showError(session.error()); return; }
+                    if (figureEditor != null) { figureEditor.update(viewport, pages, scrollY); figureEditor.nativeReady(); }
                     updateControls();
                     NotebookCompanion window = noteWindows.get(workspace.find(session.notebookId()));
                     if (window != null) window.editorReady();
@@ -425,11 +426,15 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                     if (active && surfaceOwner == inkGeneration) lasso(path);
                 }
                 @Override public void onSelectionEvent(MotionEvent event) {
-                    if (active && surfaceOwner == inkGeneration) selectionTouch(event);
+                    if (active && surfaceOwner == inkGeneration) {
+                        if (figureEditor != null) figureEditor.onTouchEvent(event); else selectionTouch(event);
+                    }
                 }
                 @Override public void onFingerEvent(MotionEvent event) {
                     lastInputAt = SystemClock.uptimeMillis();
-                    if (active && surfaceOwner == inkGeneration) finger(event);
+                    if (active && surfaceOwner == inkGeneration) {
+                        if (figureEditor != null) figureEditor.onTouchEvent(event); else finger(event);
+                    }
                 }
             });
             ink.setTool(tool);
@@ -483,8 +488,9 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private void backgroundsChanged() {
         if (!active || shownError != null) return;
         tiles.clear(); selectionTiles.clear(); selectionTilePages.clear();
+        if (figureEditor != null) figureEditor.update(viewport, pages, scrollY);
         if (selectionDrag.isActive()) { selectionBackgroundDirty = true; scheduleSelectionFrame(); }
-        else if (dragging) schedulePreview();
+        else if (dragging || figureNavigationPreview) schedulePreview();
         else if (scrolling) installViewport();
     }
 
@@ -539,7 +545,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             requestWindow();
             if (selectionDrag.isActive()) {
                 selectionBackgroundDirty = true; scheduleSelectionFrame();
-            } else if (dragging) schedulePreview();
+            } else if (dragging || figureNavigationPreview) schedulePreview();
         });
     }
 
@@ -548,6 +554,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         viewportBuffer.window(session.window(), wantedPages());
         updatePreviewPages();
         preparePdfBackgrounds();
+        if (figureEditor != null) figureEditor.update(viewport, pages, scrollY);
     }
 
     private void updatePreviewPages() {
@@ -558,7 +565,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     }
 
     private void installViewport() {
-        if (!active || dragging || editing || changingWorkspace || viewport == null || shownError != null) return;
+        if (!active || dragging || figureNavigationPreview || editing || changingWorkspace || viewport == null || shownError != null) return;
         if (settleRead) { requestWindow(); return; }
         for (int id : viewport.visiblePages(scrollY)) if (!pages.containsKey(id)) { requestWindow(); return; }
         if (!preparePdfBackgrounds()) return;
@@ -567,7 +574,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             if (shownError != null) return;
             ink.setPenWidth(fittedPenWidth());
             ink.setEraserWidth(fittedEraserWidth());
-            ink.setSelectionMode(selectionOutline != null);
+            ink.setSelectionMode(selectionOutline != null || figureEditor != null);
             updateOverlayBounds();
             NotebookPage composed = viewport.compose(pages, scrollY);
             if (firstViewport) {
@@ -794,7 +801,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     }
 
     private void schedulePreview() {
-        if (active && dragging && gestureEngaged && !main.hasCallbacks(previewFrame)) main.postDelayed(previewFrame, 24);
+        if (active && (dragging && gestureEngaged || figureNavigationPreview) && !main.hasCallbacks(previewFrame)) main.postDelayed(previewFrame, 24);
     }
 
     private void prepareStrokePaths() {
@@ -804,7 +811,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     }
 
     private void drawPreview() {
-        if (!active || !dragging || !gestureEngaged || viewport == null || shownError != null) return;
+        if (!active || !(dragging && gestureEngaged || figureNavigationPreview) || viewport == null || shownError != null) return;
         try {
             prepareStrokePaths();
             preparePdfBackgrounds();
@@ -892,7 +899,8 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             paint.setColor(0xffd2d2d2); paint.setStrokeWidth(1);
             for (int y = 72; y < current.height; y += 72) drawing.drawLine(0, y, current.width, y, paint);
         }
-        figureImages.draw(drawing, current);
+        for (NotebookFigure figure : current.figures)
+            if (figureEditor == null || !figureEditor.omits(figure)) figureImages.draw(drawing, figure);
         if (includeInk) {
             for (NotebookPage.Stroke stroke : current.strokes)
                 strokePaths.draw(drawing, stroke, paint);
@@ -1030,6 +1038,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
 
     private boolean canEdit() {
         return active && !changingWorkspace && !editing && !scrolling && !dragging && !selectionDrag.isActive() && !fetching && shownError == null && session.error() == null
+            && (figureEditor == null || !figureEditor.isBusy())
             && page != null && ink != null && ink.isReady() && !ink.isPenDown();
     }
 
@@ -1618,6 +1627,9 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         if (selectionTools != null) selectionTools.hide();
         editing = true;
         ink.pauseForEdit();
+        if (!keepHistory && figureEditor != null) {
+            dismissFigureEditor(); ink.setSelectionMode(selectionOutline != null);
+        }
         main.removeCallbacks(updateSaveState);
         updateControls();
     }
@@ -2485,10 +2497,16 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private void noteActions() {
         if (!canEdit()) return;
         List<String> items = new ArrayList<>();
-        items.add("Insert figure…"); items.add("Figures…"); items.add("Page information / Export PDF");
+        List<Runnable> actions = new ArrayList<>();
+        items.add("Insert figure…"); actions.add(this::insertFigure);
+        items.add("Figures…"); actions.add(this::chooseFigure);
+        items.add("Page information / Export PDF"); actions.add(this::pageInformation);
         NotebookPage current = pages.get(activePage);
-        if (current != null && current.pdfPage == 0)
+        if (current != null && current.pdfPage == 0) {
             items.add(current.template == NotebookPage.Template.LINED ? "Use blank background" : "Use lined background");
+            actions.add(this::choosePaper);
+        }
+        if (session.figureClipboard() != null) { items.add("Paste figure"); actions.add(this::pasteFigure); }
         pauseForEdit(); floatingTools.hide();
         final int[] chosen = {-1};
         AlertDialog menu = new AlertDialog.Builder(this).setTitle(session.notebookName())
@@ -2499,12 +2517,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             viewMenu = null;
             if (!active) return;
             resumeThen(() -> {
-                switch (chosen[0]) {
-                    case 0: insertFigure(); break;
-                    case 1: chooseFigure(); break;
-                    case 2: pageInformation(); break;
-                    case 3: choosePaper(); break;
-                }
+                if (chosen[0] >= 0) actions.get(chosen[0]).run();
             });
         });
         showStaticDialog(menu);
@@ -2563,23 +2576,118 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private void editFigureOnPage(NotebookPage target, int index, int number) {
         if (viewport == null) return;
         clearSelection();
-        int request = generation;
-        List<NotebookFigure> others = new ArrayList<>(target.figures); others.remove(index);
-        session.previewFigurePlacement(target.withFigures(others), (background, failure) -> {
-            if (!active || request != generation) { if (background != null) background.recycle(); return; }
-            if (failure != null) {
-                Toast.makeText(this, failure.getMessage(), Toast.LENGTH_LONG).show(); editing = false; installViewport(); return;
-            }
-            figureEditor = new NotebookFigureEditor(this, canvas, target, index, background, (figure, delete) -> {
-                figureEditor = null;
-                if (!active || request != generation) return;
-                if (figure == null && !delete) { editing = false; installViewport(); return; }
-                List<NotebookFigure> figures = new ArrayList<>(target.figures);
-                if (delete) figures.remove(index); else figures.set(index, figure);
-                session.setFigures(number, figures, (updated, error) -> finishEdit(request, updated, error));
+        figureEditor = new NotebookFigureEditor(this, canvas, viewport, pages, scrollY, number,
+            target.figures.get(index), new NotebookFigureEditor.Listener() {
+                public void preview() {
+                    ink.pauseForEdit();
+                    if (shownError != null) return;
+                    if (scrolling || settleRead || fetching) { editing = false; installViewport(); }
+                    else { ink.setPaperRenderer(NotebookActivity.this::drawPaper); ink.start(); }
+                }
+                public List<Rect> exclusions() {
+                    List<Rect> result = new ArrayList<>();
+                    for (NotebookCompanion window : noteWindows.values()) result.addAll(window.exclusions());
+                    result.add(notebookStatusBounds); result.add(deviceStatusBounds); result.add(toolsBounds);
+                    result.add(toolHintBounds); result.add(widthPopupBounds);
+                    if (noteTray != null) result.add(noteTray.bounds());
+                    return result;
+                }
+                public void fallback(Canvas drawing, NotebookFigure figure) { figureImages.draw(drawing, figure); }
+                public void change(int source, UUID pageId, NotebookFigure before, int destination, NotebookFigure after) {
+                    commitFigure(source, destination, pageId, before, after, false);
+                }
+                public void action(NotebookFigureEditor.Action action, int source, UUID pageId, NotebookFigure figure) {
+                    if (action == NotebookFigureEditor.Action.COPY) {
+                        session.copyFigure(figure); figureEditor.clipboard(true);
+                        Toast.makeText(NotebookActivity.this, "Figure copied", Toast.LENGTH_SHORT).show();
+                    } else if (action == NotebookFigureEditor.Action.PASTE) {
+                        NotebookFigure clip = session.figureClipboard(); if (clip == null) return;
+                        NotebookFigure pasted = clip.duplicate().placed(figure.centerX() + 16 - clip.width / 2,
+                            figure.centerY() + 16 - clip.height / 2, clip.width, clip.height)
+                            .fitted(viewport.pageWidth(source), viewport.pageHeight(source));
+                        commitFigure(source, source, pageId, figure, pasted, true);
+                    } else {
+                        if (action == NotebookFigureEditor.Action.CUT) { session.copyFigure(figure); figureEditor.clipboard(true); }
+                        commitFigure(source, source, pageId, figure, null, false);
+                    }
+                }
+                public void done() {
+                    ink.pauseForEdit(); dismissFigureEditor(); editing = false; installViewport();
+                }
+                public void navigate(float dx, float dy, float factor, float x, float y) { navigateFigure(dx, dy, factor, x, y); }
+                public void navigationFinished() {
+                    if (!figureNavigationPreview) return;
+                    figureNavigationPreview = false; pinching = false; main.removeCallbacks(previewFrame);
+                    scrolling = true; settleRead = true; requestWindow();
+                }
             });
-            figureEditor.show();
+        figureEditor.clipboard(session.figureClipboard() != null); figureEditor.show();
+        editing = false; installViewport();
+    }
+
+    private void navigateFigure(float dx, float dy, float factor, float x, float y) {
+        if (figureEditor == null || viewport == null || shownError != null) return;
+        ink.pauseForEdit();
+        if (shownError != null) return;
+        figureNavigationPreview = true;
+        if (factor != 1 && NotebookSettings.pinchZoomEnabled(this)) {
+            int number = viewport.nearestPage(y, scrollY);
+            float logicalX = (x - viewport.pageLeft(number)) / viewport.scale(number);
+            float logicalY = (y - viewport.pageTop(number, scrollY)) / viewport.scale(number);
+            float minimum = Math.min(.1f, viewport.fittedZoom(NotebookViewport.Fit.PAGE, number));
+            float maximum = Math.max(8f, viewport.fittedZoom(NotebookViewport.Fit.HEIGHT, number));
+            zoom = Math.max(minimum, Math.min(maximum, zoom * factor)); zoomFit = NotebookViewport.Fit.CUSTOM;
+            pinching = true; tiles.clear();
+            viewport = viewport.withView(zoom, 0);
+            viewport = viewport.withView(zoom, viewport.panForPoint(number, logicalX, x));
+            scrollY = viewport.scrollForPoint(number, logicalY, y);
+        } else {
+            viewport = viewport.withView(zoom, viewport.pan + dx); scrollY = viewport.clampScroll(scrollY + dy);
+        }
+        ++viewportRevision; settleRead = true; scrolling = true; editing = false; savePosition = true;
+        activePage = viewport.centeredPage(scrollY); updatePageLabel();
+        figureEditor.update(viewport, pages, scrollY); schedulePreview(); requestWindow();
+    }
+
+    private void commitFigure(int source, int destination, UUID pageId, NotebookFigure before,
+            NotebookFigure after, boolean copy) {
+        final NotebookFigureEditor owner = figureEditor;
+        final int request = generation;
+        ink.pauseForEdit(); editing = true;
+        if (owner != null) owner.saving();
+        session.editFigure(source, destination, pageId, before, after, copy, (updated, error) -> {
+            if (!active || request != generation) return;
+            if (error != null) {
+                if (session.error() != null) { showError(error); return; }
+                Toast.makeText(this, error.getMessage(), Toast.LENGTH_LONG).show();
+                if (owner != null && owner == figureEditor) owner.failed();
+            } else {
+                if (owner != null && owner == figureEditor) {
+                    if (after == null) dismissFigureEditor(); else owner.acknowledged(destination, after);
+                }
+                activePage = destination; updatePageLabel();
+            }
+            savePosition = true; settleRead = true; ++viewportRevision;
+            finishEdit(request, updated, null);
         });
+    }
+
+    private void dismissFigureEditor() {
+        figureNavigationPreview = false; main.removeCallbacks(previewFrame);
+        NotebookFigureEditor owner = figureEditor; figureEditor = null;
+        if (owner != null) owner.dismiss();
+    }
+
+    private void pasteFigure() {
+        if (!canEdit() || session.figureClipboard() == null) return;
+        int number = viewport.centeredPage(scrollY); NotebookPage target = pages.get(number);
+        if (target == null) return;
+        NotebookFigure clip = session.figureClipboard();
+        float cx = (viewport.width / 2f - viewport.pageLeft(number)) / viewport.scale(number);
+        float cy = (viewport.height / 2f - viewport.pageTop(number, scrollY)) / viewport.scale(number);
+        NotebookFigure pasted = clip.duplicate().placed(cx - clip.width / 2, cy - clip.height / 2, clip.width, clip.height)
+            .fitted(target.width, target.height);
+        commitFigure(number, number, target.id, null, pasted, true);
     }
 
     private void pageInformation() {
@@ -2699,6 +2807,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         super.onSaveInstanceState(state);
     }
     private void disposeCanvas() {
+        dismissFigureEditor();
         ++inkGeneration; workspaceLayoutPending = changingWorkspace = false;
         main.removeCallbacks(previewFrame);
         clearSelection(); resetSelectionPreview();

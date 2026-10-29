@@ -23,7 +23,7 @@ public final class NotebookEditRestoreTest {
             "final Map<Integer,NotebookPage> pages=new HashMap<>();",
             "final Drag selectionDrag=new Drag(); final Viewport viewport=new Viewport();",
             "final Session session=new Session(); int generation=1, reads, installs; long viewportRevision=10;",
-            "boolean active=true, editing=true, scrolling, dragging, fetching, settleRead=true, selectionBackgroundDirty;",
+            "boolean active=true, editing=true, scrolling, dragging, fetching, figureNavigationPreview, settleRead=true, selectionBackgroundDirty;",
             "boolean inkReady, pdfReady=true; IOException shownError;",
             "class Session { void window(List<Integer> wanted, Callback callback) { reads++; queue.add(()->callback.done(new NotebookPage(),null)); } }",
             "List<Integer> wantedPages(){return Arrays.asList(1,2);}",

@@ -4,15 +4,28 @@ Figures, export and multiple notes are included in stable **0.33.0**.
 **0.33.1** adds direct finger selection of figures and immediate
 corner dragging with a resize boundary. These latest interactions passed host
 checks and signed Android builds; their physical tablet checks remain pending.
+Local **0.33.2-dev.5** replaces the figure editor with the inline controls below
+and adds arbitrary rotation and cross-page dragging. Its tablet checks remain pending.
 
 ## Insert and edit figures
 
-Open the editor’s **⋮ → Insert figure…**, choose an image with the system file
-picker, then return to the note. The figure is centered on the current page.
-Tap the figure with one finger to open its controls, then
-drag it to move it. The **⋮ → Figures…** list remains available. Drag its
-lower-right handle to resize while retaining its aspect ratio. **Apply** saves
-one undoable edit; **Cancel** discards placement changes; **Delete** is undoable.
+Open **⋮ → Insert figure…** to go directly to the system file picker. Choosing
+an image inserts it at the current page’s center and returns to the note
+automatically. Cancelling returns without changing the note; failures offer retry.
+Tap a figure with one finger to select it, then drag its body to move it in the
+existing note view. The **⋮ → Figures…** list remains available. Drag its
+lower-right handle to resize while retaining its aspect ratio, or its upper-right
+rotation handle to turn to any angle. Move across page boundaries; holding near
+the top or bottom edge scrolls to further pages. The complete rotated image fits
+inside its destination page when released.
+
+Small Copy, Cut and Delete icons appear beside the selected figure. Copy/Cut make
+Paste available there and in the note’s **⋮** menu; the clipboard stays inside
+Scriflow until its process restarts. Pasting creates an independent figure.
+Tap outside to finish, with no separate editor, footer, Apply or Cancel buttons.
+Each completed gesture is one undoable edit; a cancelled gesture restores its
+starting position. Undoing a cross-page move restores both pages together.
+Dragging outside a selected figure pans the note; two fingers still zoom.
 Figures are drawn above paper/PDF content and below handwriting. The stroke
 eraser and stroke lasso do not select or erase figures.
 
@@ -94,13 +107,16 @@ the same Activity. Existing two-note preferences migrate on first open.
 
 ## Storage and architecture
 
-Page format **6** adds an ordered figure list after the version-5 stroke list.
-Each figure has a UUID, logical x/y/width/height, and length-prefixed PNG data.
+Stable 0.33.1 uses page format **6**, which adds an ordered figure list after
+the version-5 stroke list. Each figure has a UUID, logical x/y/width/height,
+and length-prefixed PNG data. Local **0.33.2-dev.5** writes format **7**, adding
+the figure’s clockwise rotation angle. Original PNG bytes stay unchanged when
+moving, resizing or rotating; raster sharpness remains limited by source pixels.
 Page framing, CRC checks, atomic snapshot publication and journaled stroke
-appends are unchanged. Versions 1–5 still read without modification; the first
-successful edit writes version 6 and retains the predecessor `.bak`. Older
-APKs cannot read version-6 pages or backups containing them. Preserve independent
-editable backups before testing the development build.
+appends are unchanged. Versions 1–6 still read without modification; the first
+successful edit writes version 7 and retains the predecessor `.bak`. Older
+APKs, including stable 0.33.1, cannot read version-7 pages or backups containing
+them. Preserve independent editable backups before testing this development build.
 
 Figures participate in the existing per-page undo history and retry/conflict
 checks. Page duplication creates fresh figure IDs. Inline image data keeps
@@ -137,7 +153,7 @@ was detached during pause.
 ## Verification
 
 `./scripts/test.sh` covers figure immutability and bounds, insertion/move/delete
-undo and redo, failed-save retry, v5 non-mutating reads and v6 migration,
+undo and redo, failed-save retry, legacy non-mutating reads and v7 migration,
 backup round trips, page duplication, cross-page ink undo with figures,
 independent cold/cached companion reads, all split positions, multiple floating
 notes, minimized-state persistence, the two-split limit,
@@ -160,6 +176,13 @@ with and without transparency on ordinary and imported PDF pages, their pixel
 sizes and transformation matrices, and retention of original content. Host
 PDF tests use ImageIO as the Android bitmap-decoder adapter; they do not prove
 the tablet’s codecs or native rendering.
+
+Dev.5 also exercises real v6-to-v7 migration, arbitrary-angle geometry/hit testing,
+linked figure-move undo/redo, interrupted two-page save recovery, backups and
+rotated PDF image matrices. Production inline gesture callbacks run with queued
+UI adapters for outside taps, nearby actions, pan/pinch cancellation, corner
+resize/rotation, edge scrolling and save/native-ready ordering. See
+[inline figures](inline-figures.md) for the implementation and acceptance checklist.
 
 For device acceptance, use disposable notes: insert SVG/transparent PNG/rotated
 JPEG, annotate and move figures, undo/redo and reopen, export all five lasso

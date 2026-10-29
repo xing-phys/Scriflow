@@ -34,7 +34,7 @@ Other hardware/firmware, overnight battery drain, cover-sensor behavior and
 optical latency remain unverified.
 
 The application ID and permanent signing certificate are retained for in-place
-updates. **Page format 6 is written on edit and cannot be opened by older APKs.**
+updates. Stable 0.33.1 writes **page format 6** on edit, which older APKs cannot open.
 Keep editable backups before updating. See [figures and workspace](docs/figures-and-workspace.md),
 [changelog](CHANGELOG.md), and [device records](docs/device-testing.md).
 
@@ -50,7 +50,15 @@ owner's instruction to continue without the device. See the
 [release notes](docs/releases/0.33.1.md), [optimization record](docs/optimization-0.33.1.md)
 and [interaction record](docs/window-figure-interactions.md) for scope and limits.
 
-Local **0.33.2-dev.3** adds a toolbox Zen toggle: hide the left bar and history
+Local **0.33.2-dev.5** adds direct figure picking and in-note editing: drag to move
+between pages, resize, rotate to any angle, or copy/cut/delete with nearby icons.
+Tap outside to finish; each completed gesture is saved without an Apply screen.
+**This development build writes page format 7 on edit. It reads existing notes,
+but edited notes require dev.5 or newer, including when restored from backup.
+Preserve independent editable backups before updating.** See [inline figures](docs/inline-figures.md)
+for validation and pending tablet checks.
+
+It also includes a toolbox Zen toggle: hide the left bar and history
 controls, keep a tiny seconds clock on the right, then tap again to restore.
 It also makes the top-left note bar compact and interactive:
 tap the name for the bookshelf, the page counter for page management, or the

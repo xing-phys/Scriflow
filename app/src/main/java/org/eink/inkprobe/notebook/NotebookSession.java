@@ -38,6 +38,7 @@ final class NotebookSession {
     // Writer-owned generation invalidates an export if its source changes between page reads.
     private long revision;
     private NotebookLasso.Clipboard clipboard;
+    private NotebookFigure figureClipboard;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final NotebookLibrary document;
     private final File directory;
@@ -102,6 +103,8 @@ final class NotebookSession {
 
     void load(Callback callback) { submit(() -> { prepareInitialPaper(); document.load(); }, callback); }
     NotebookLasso.Clipboard clipboard() { return clipboard; }
+    NotebookFigure figureClipboard() { return figureClipboard; }
+    void copyFigure(NotebookFigure figure) { figureClipboard = figure; }
     void copy(NotebookLasso.Selection selection) { clipboard = new NotebookLasso.Clipboard(selection); }
 
     void selectLasso(int id, List<NotebookPage.Point> path, LassoCallback callback) {
@@ -272,6 +275,25 @@ final class NotebookSession {
     void setFigures(int id, List<NotebookFigure> figures, Callback callback) {
         final List<NotebookFigure> copy = new ArrayList<>(figures);
         submit(() -> document.setFigures(id, copy), callback);
+    }
+    void editFigure(int source, int destination, java.util.UUID page, NotebookFigure expected,
+            NotebookFigure replacement, boolean copy, Callback callback) {
+        worker.execute(() -> {
+            try {
+                if (document.error() != null) throw new IOException("Retry saving before editing the figure", document.error());
+                NotebookPage before = document.previewPage(source), target = document.previewPage(destination);
+                if (!before.id.equals(page) || expected != null && !before.figures.contains(expected))
+                    throw new IOException("The figure changed; select it again");
+                List<NotebookFigure> kept = new ArrayList<>(before.figures);
+                if (!copy) kept.remove(expected);
+                List<NotebookFigure> added = source == destination ? kept : new ArrayList<>(target.figures);
+                if (replacement != null) added.add(replacement);
+                before.withFigures(kept); target.withFigures(added);
+                submit(() -> document.editFigure(source, destination, page, expected, replacement, copy), callback);
+            } catch (IOException | IllegalArgumentException error) {
+                main.post(() -> callback.complete(null, new IOException(error.getMessage(), error)));
+            }
+        });
     }
     void setTemplate(int id, NotebookPage.Template template, Callback callback) {
         submit(() -> document.setPageTemplate(id, template), callback);

@@ -44,8 +44,8 @@ final class NotebookFigureLayer {
             NotebookPage page = pages.get(number); if (page == null) continue;
             float scale = viewport.scale(number), left = viewport.pageLeft(number), top = viewport.pageTop(number, scroll);
             for (NotebookFigure f : page.figures) {
-                if (left + (f.x + f.width) * scale <= 0 || top + (f.y + f.height) * scale <= 0
-                        || left + f.x * scale >= viewport.width || top + f.y * scale >= viewport.height) continue;
+                if (left + f.right() * scale <= 0 || top + f.bottom() * scale <= 0
+                        || left + f.left() * scale >= viewport.width || top + f.top() * scale >= viewport.height) continue;
                 result.add(new Request(f, f.width * (double) scale, f.height * (double) scale));
             }
         }
@@ -99,6 +99,8 @@ final class NotebookFigureLayer {
     /** Prepared exact-resolution pixels or the preceding zoom's fallback; no decoding. */
     void draw(Canvas canvas, NotebookPage page) { for (NotebookFigure figure : page.figures) draw(canvas, figure); }
     void draw(Canvas canvas, NotebookFigure figure) {
+        int saved = figure.angle == 0 ? -1 : canvas.save();
+        if (saved >= 0) canvas.rotate(figure.angle, figure.centerX(), figure.centerY());
         Pixels pixels = ready.get(figure.imageKey);
         box.set(figure.x, figure.y, figure.x + figure.width, figure.y + figure.height);
         if (pixels != null) canvas.drawBitmap(pixels.bitmap, null, box, paint);
@@ -107,6 +109,7 @@ final class NotebookFigureLayer {
             paint.setStyle(Paint.Style.FILL); paint.setTextSize(Math.min(16, figure.height / 4));
             canvas.drawText(failed ? "Figure unavailable" : "Loading figure…", figure.x + 2, figure.y + Math.min(18, figure.height / 2), paint);
         }
+        if (saved >= 0) canvas.restoreToCount(saved);
     }
     long preparedBytes() { long bytes = 0; for (Pixels p : ready.values()) bytes += p.bitmap.getAllocationByteCount(); return bytes; }
     void clear() { ++epoch; wanted = Collections.emptyMap(); ready.clear(); failed = false; }

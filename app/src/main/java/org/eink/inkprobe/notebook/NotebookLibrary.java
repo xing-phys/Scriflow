@@ -341,6 +341,10 @@ public final class NotebookLibrary {
         edit(() -> book.appendStrokesToPage(number, strokes));
     }
     public void setFigures(int number, List<NotebookFigure> figures) throws IOException { edit(() -> book.setFigures(number, figures)); }
+    public void editFigure(int source, int destination, java.util.UUID page, NotebookFigure expected,
+            NotebookFigure replacement, boolean copy) throws IOException {
+        edit(() -> book.editFigure(source, destination, page, expected, replacement, copy));
+    }
     public void setPageTemplate(int number, NotebookPage.Template template) throws IOException { edit(() -> book.setPageTemplate(number, template)); }
     public void saveScrollPosition(int number, double fraction) throws IOException { edit(() -> book.saveScrollPosition(number, fraction)); }
     public boolean eraseOnPage(int number, List<NotebookPage.Point> path, float radius) throws IOException {

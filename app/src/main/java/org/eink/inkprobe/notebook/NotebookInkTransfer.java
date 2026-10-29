@@ -97,7 +97,7 @@ final class NotebookInkTransfer {
 
     private static void apply(Original original, NotebookPage after) throws IOException {
         // A recovered .tmp/.bak target must become a primary before discarding our final copy.
-        if (!original.primary || !NotebookDocument.samePage(original.current, after)) original.store.replaceStrokes(after.strokes);
+        if (!original.primary || !NotebookDocument.samePage(original.current, after)) original.store.replaceContent(after);
         original.store.sync();
     }
 
@@ -124,7 +124,7 @@ final class NotebookInkTransfer {
 
     private static void validateEnvelope(NotebookPage before, NotebookPage after) throws IOException {
         if (before == null || after == null || !before.isInitialized()
-                || !NotebookDocument.samePage(before.withStrokes(after.strokes), after))
+                || !NotebookDocument.samePage(before.withStrokes(after.strokes).withFigures(after.figures), after))
             throw new IOException("Cross-page move changes page metadata; files preserved");
     }
 

@@ -18,8 +18,7 @@ final class NotebookFigureHit {
         float logicalY = (y - viewport.pageTop(number, scroll)) / viewport.scale(number);
         for (int i = page.figures.size() - 1; i >= 0; i--) {
             NotebookFigure figure = page.figures.get(i);
-            if (logicalX >= figure.x && logicalX <= figure.x + figure.width
-                    && logicalY >= figure.y && logicalY <= figure.y + figure.height)
+            if (figure.contains(logicalX, logicalY))
                 return new Hit(number, page.id, figure.id);
         }
         return null;

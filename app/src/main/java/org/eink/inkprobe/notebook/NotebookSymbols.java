@@ -168,6 +168,33 @@ public final class NotebookSymbols {
                 line(out, 21, 15, 21, 21, 15, 21);
                 line(out, 9, 21, 3, 21, 3, 15);
                 break;
+            case "COPY":
+                polygon(out, false, 8, 8, 20, 8, 20, 21, 8, 21);
+                line(out, 16, 4, 4, 4, 4, 16);
+                break;
+            case "CUT":
+                circle(out, 6, 18, 3); circle(out, 18, 18, 3);
+                line(out, 4, 3, 17, 16); line(out, 20, 3, 7, 16);
+                break;
+            case "DELETE":
+                polygon(out, false, 6, 7, 18, 7, 17, 21, 7, 21);
+                line(out, 4, 5, 20, 5); line(out, 9, 5, 9, 2, 15, 2, 15, 5);
+                line(out, 10, 10, 10, 18); line(out, 14, 10, 14, 18);
+                break;
+            case "PASTE":
+                polygon(out, false, 5, 5, 19, 5, 19, 21, 5, 21);
+                polygon(out, false, 9, 2, 15, 2, 15, 7, 9, 7);
+                line(out, 8, 11, 16, 11); line(out, 8, 15, 16, 15);
+                break;
+            case "ROTATE":
+                out.begin(); out.moveTo(19, 9); out.cubicTo(15, 0, 3, 4, 4, 13);
+                out.cubicTo(5, 21, 16, 23, 20, 16); out.end(false);
+                line(out, 19, 3, 19, 9, 13, 9);
+                break;
+            case "RESIZE":
+                line(out, 4, 10, 4, 4, 10, 4); line(out, 4, 4, 20, 20);
+                line(out, 14, 20, 20, 20, 20, 14);
+                break;
             case "EXIT_FULLSCREEN":
                 line(out, 3, 8, 8, 8, 8, 3);
                 line(out, 16, 3, 16, 8, 21, 8);

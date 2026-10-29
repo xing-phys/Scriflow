@@ -4,8 +4,10 @@ Scriflow is designed for Huawei MatePad Paper HMW-W09 on Android 10/API 29,
 firmware `HMW-W09 2.1.0.222(C00E170R1P8)`. Other devices and firmware have not
 been verified. See the [README](../README.md) for installation and current limits.
 
-The navigation controls below are included in local **0.33.2-dev.3**; its compact
+The controls below are included in local **0.33.2-dev.5**; its compact
 top-left bar started with dev.1 and its writing-only history controls with dev.2.
+Dev.5 reads older notes but writes page format 7 on edit; those edited notes
+and their backups require dev.5 or newer. Keep independent backups before updating.
 
 ## Notebooks and pages
 
@@ -36,10 +38,15 @@ keep their original coordinates and PDF printing scale.
 
 ## Figures and multiple notes
 
-Use **⋮ → Insert figure…** for SVG or Android-supported images. Tap an inserted
-figure with one finger to open its
-move, resize and delete controls, including in an inactive note. The
-**⋮ → Figures…** list also remains available. These edits support undo/redo.
+Use **⋮ → Insert figure…** for SVG or Android-supported images. The file picker
+opens directly; choosing an image inserts it and returns to the note automatically.
+Tap an inserted figure with one finger to select it, including in an inactive note.
+Drag the body to move, the lower-right handle to resize, or the upper-right
+rotation handle to turn it to any angle. Drag across page boundaries; holding
+near the top or bottom scrolls to further pages. Nearby icons offer Copy, Cut,
+Delete, and Paste when a copied figure is available. Paste is also in the note’s
+**⋮** menu. Tap outside to finish; each completed gesture saves an undoable edit
+without a separate editor or Apply button. **⋮ → Figures…** remains available.
 SVG is rasterized into the stored PNG figure.
 Lasso actions now include **Export…** for SVG, PNG, JPEG, WebP, or PDF.
 

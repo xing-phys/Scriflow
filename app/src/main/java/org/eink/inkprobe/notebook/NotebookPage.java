@@ -130,7 +130,7 @@ public final class NotebookPage {
 
     private NotebookPage(UUID id, int width, int height, NotebookPaperSize paperSize, int pdfPage, Template template,
                          List<Stroke> strokes, int pointCount, List<NotebookFigure> figures) {
-        long encodedSize = 128L + 40L * strokes.size() + 20L * pointCount + 36L * figures.size();
+        long encodedSize = 128L + 40L * strokes.size() + 20L * pointCount + 40L * figures.size();
         for (NotebookFigure figure : figures) encodedSize += figure.byteCount();
         // Composed viewports have no figure layer and may include ink from several stored pages.
         // Apply the combined image/ink budget to durable figure pages, not transient viewports.
@@ -214,8 +214,9 @@ public final class NotebookPage {
         long bytes = 0;
         for (NotebookFigure figure : figures) {
             if (figure == null || !ids.add(figure.id) || !isInitialized()
-                    || (double) figure.x + figure.width > width + .001
-                    || (double) figure.y + figure.height > height + .001)
+                    || figure.left() < -.001 || figure.top() < -.001
+                    || !finite(figure.right()) || !finite(figure.bottom())
+                    || figure.right() > width + .001 || figure.bottom() > height + .001)
                 throw new IllegalArgumentException("Figure is outside the page or has a duplicate ID");
             bytes += figure.byteCount();
         }
