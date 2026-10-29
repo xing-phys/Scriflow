@@ -6,6 +6,16 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.33.2-dev.3 — Zen display mode (2026-10-29)
+
+- Add a reversible fullscreen-corners toggle to the toolbox. Hide the top-left
+  bar and history icons; reduce the right bar to a small clock with seconds.
+- Keep note layout, zoom and tools intact. Restore normal bars and eligible
+  history on exit. Stop seconds callbacks when paused or outside Zen mode;
+  retain the existing Retry path on errors. VersionCode 67.
+- Host checks (246,381 assertions in 64 suites), lint/builds and permanent
+  signing pass; physical tablet acceptance remains pending. See [Zen mode](docs/zen-mode.md).
+
 ## 0.33.2-dev.2 — Writing-only history controls (2026-10-29)
 
 - Move Undo/Redo from the toolbox to the top-right device-status bar. Show each

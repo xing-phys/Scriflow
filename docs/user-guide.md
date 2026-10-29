@@ -4,7 +4,7 @@ Scriflow is designed for Huawei MatePad Paper HMW-W09 on Android 10/API 29,
 firmware `HMW-W09 2.1.0.222(C00E170R1P8)`. Other devices and firmware have not
 been verified. See the [README](../README.md) for installation and current limits.
 
-The navigation controls below are included in local **0.33.2-dev.2**; its compact
+The navigation controls below are included in local **0.33.2-dev.3**; its compact
 top-left bar started with dev.1 and its writing-only history controls with dev.2.
 
 ## Notebooks and pages
@@ -189,6 +189,18 @@ page information, PDF export, and
 **Reset tools**. Reset expands the dock and returns it to its initial horizontal
 position near the top center, below the status islands. Touching controls has
 no ripple or pressed inversion; the page stays writable outside the tools.
+
+## Zen mode (0.33.2-dev.3)
+
+Tap the **fullscreen-corners icon in the toolbox** to enter Zen mode. The
+top-left bar and Undo/Redo disappear; the top-right bar becomes a small clock
+showing hours, minutes and seconds. Tap the icon again to restore the normal
+bars and eligible Undo/Redo controls. The toolbox, notes, zoom and writing tools
+keep their current state. If writing pauses because of an error, the normal
+Retry bar returns so recovery stays accessible.
+
+Zen mode survives rotation of the open editor. A newly opened editor starts in
+normal mode.
 
 ## Pen thickness
 

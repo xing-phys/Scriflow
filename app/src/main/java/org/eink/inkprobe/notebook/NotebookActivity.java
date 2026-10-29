@@ -141,7 +141,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private final NotebookViewHistory viewHistory = new NotebookViewHistory();
     private final NotebookLinkTapGesture linkTap = new NotebookLinkTapGesture();
     private int writingRevision;
-    private boolean writingHistory, updatingHistory;
+    private boolean writingHistory, updatingHistory, zenMode;
     private NotebookPdfBackgrounds pdfBackgrounds;
     private NotebookFigureLayer figureImages;
     private final Runnable previewFrame = this::drawPreview;
@@ -178,6 +178,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             .getFloat("eraserWidth", NotebookWidthRange.ERASER.defaultWidth));
         if (saved != null && saved.getBoolean("eraser", false)) tool = NotebookInk.Tool.ERASER;
         if (saved != null && saved.getBoolean("lasso", false)) tool = NotebookInk.Tool.LASSO;
+        zenMode = saved != null && saved.getBoolean("zenMode", false);
         verifyOnReady = (getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0
             && getIntent().getBooleanExtra("verifyRestore", false);
         getIntent().removeExtra("verifyRestore");
@@ -247,7 +248,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                 if (!canEdit()) return false;
                 lastInputAt = SystemClock.uptimeMillis();
                 toolsContact = true; toolsMoved = false; pendingToolAction = null;
-                pauseForEdit();
+                pauseForEdit(floatingTools.isZenContact());
                 if (shownError != null) toolsContact = false;
                 return shownError == null;
             }
@@ -280,6 +281,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         initializeWorkspace();
         toolHint = new NotebookToolHint(this, bounds -> { toolHintBounds.set(bounds); updateOverlayBounds(); });
         stylusGesture = new NotebookStylusGesture(this, this::stylusDoubleTap);
+        deviceStatus.setZenMode(zenMode); statusIslands.setZenMode(zenMode); updateZenButton();
         updateControls();
     }
 
@@ -943,6 +945,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         if (!toolsContact) return;
         lastInputAt = SystemClock.uptimeMillis();
         toolsContact = false;
+        if (pendingToolAction != NotebookFloatingTools.Action.ZEN) writingHistory = false;
         if (!active || shownError != null || ink == null) { pendingToolAction = null; return; }
         final int request = generation;
         final boolean restore = toolsMoved;
@@ -969,9 +972,37 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             case OUTLINE: showOutline(); break;
             case VIEW_BACK: changeViewHistory(false); break;
             case VIEW_FORWARD: changeViewHistory(true); break;
+            case ZEN: toggleZenMode(); break;
             case ORIENTATION: toggleToolsOrientation(); break;
             case COLLAPSE: toggleToolsCollapsed(); break;
         }
+    }
+
+    private void toggleZenMode() {
+        if (!canEdit()) return;
+        ink.pauseForEdit();
+        if (shownError != null) return;
+        zenMode = !zenMode;
+        deviceStatus.setZenMode(zenMode);
+        statusIslands.setZenMode(zenMode);
+        statusIslands.history(!zenMode && writingHistory && session.canUndo(activePage),
+            !zenMode && writingHistory && session.canRedo(activePage));
+        updateZenButton();
+        ink.redrawAfterOverlayChange(); ink.start();
+    }
+
+    private void updateZenButton() {
+        NotebookIconButton button = floatingTools.button(NotebookFloatingTools.Action.ZEN);
+        button.setIcon(zenMode ? NotebookIconDrawable.Icon.EXIT_FULLSCREEN : NotebookIconDrawable.Icon.FULLSCREEN);
+        button.setContentDescription(zenMode ? "Exit Zen mode" : "Enter Zen mode");
+        button.setToolSelected(zenMode);
+    }
+
+    private void leaveZenForError() {
+        if (!zenMode) return;
+        // A native/save failure hides the toolbox; keep the existing Retry bar reachable.
+        zenMode = false;
+        deviceStatus.setZenMode(false); statusIslands.setZenMode(false); updateZenButton();
     }
 
     private void toggleToolsOrientation() {
@@ -1037,7 +1068,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
 
     private void updateHistoryControls() {
         if (statusIslands == null || updatingHistory || ink != null && ink.isPenDown()) return;
-        boolean show = active && writingHistory && shownError == null && session.error() == null;
+        boolean show = active && !zenMode && writingHistory && shownError == null && session.error() == null;
         if (show && !canEdit()) return; // Retain the current controls through an Undo/Redo writer barrier.
         boolean undo = show && session.canUndo(activePage), redo = show && session.canRedo(activePage);
         if (statusIslands.historyMatches(undo, redo)) return;
@@ -2086,6 +2117,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         if (selectionTools != null) selectionTools.hide();
         resetSelectionPreview();
         if (ink != null) ink.stop();
+        leaveZenForError();
         if (floatingTools != null) floatingTools.hide();
         updateControls();
         main.removeCallbacks(updateSaveState);
@@ -2663,6 +2695,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         state.putFloat("viewCenterX", restoreCenterX); state.putFloat("viewCenterY", restoreCenterY);
         state.putBoolean("eraser", tool == NotebookInk.Tool.ERASER);
         state.putBoolean("lasso", tool == NotebookInk.Tool.LASSO);
+        state.putBoolean("zenMode", zenMode);
         super.onSaveInstanceState(state);
     }
     private void disposeCanvas() {

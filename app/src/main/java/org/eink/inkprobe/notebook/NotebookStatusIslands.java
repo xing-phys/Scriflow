@@ -21,6 +21,8 @@ final class NotebookStatusIslands {
     private final PopupWindow leftWindow, rightWindow;
     private final Rect leftBounds = new Rect(), rightBounds = new Rect();
     private final NotebookIconButton undo, redo;
+    private final NotebookDeviceStatus clock;
+    private boolean zenMode;
     private View anchor;
     private final View.OnLayoutChangeListener layoutListener =
             (view, l, t, r, b, oldL, oldT, oldR, oldB) -> position();
@@ -33,6 +35,7 @@ final class NotebookStatusIslands {
         this.activity = activity;
         this.listener = listener;
         this.undo = undo; this.redo = redo;
+        this.clock = deviceStatus;
         notebook = island();
         LinearLayout top = new LinearLayout(activity); top.setGravity(Gravity.CENTER_VERTICAL);
         // Only the title shrinks on constrained screens; the other tap targets stay distinct.
@@ -105,12 +108,24 @@ final class NotebookStatusIslands {
     /** Save failures can add a Retry line while native input is already stopped. */
     void refresh() { position(); }
 
+    void setZenMode(boolean value) {
+        zenMode = value;
+        device.setPadding(dp(value ? 4 : 10), dp(value ? 2 : 4), dp(value ? 4 : 10), dp(value ? 2 : 4));
+        clock.getLayoutParams().height = dp(value ? 18 : 24);
+        clock.requestLayout();
+        if (value) {
+            undo.setVisibility(View.GONE); redo.setVisibility(View.GONE);
+        }
+        position();
+    }
+
     boolean historyMatches(boolean canUndo, boolean canRedo) {
         return (undo.getVisibility() == View.VISIBLE) == canUndo && (redo.getVisibility() == View.VISIBLE) == canRedo;
     }
 
     /** Called between native strokes; hidden actions occupy no space or touch target. */
     void history(boolean canUndo, boolean canRedo) {
+        if (zenMode) canUndo = canRedo = false;
         undo.setAvailable(canUndo); redo.setAvailable(canRedo);
         undo.setVisibility(canUndo ? View.VISIBLE : View.GONE);
         redo.setVisibility(canRedo ? View.VISIBLE : View.GONE);
@@ -132,18 +147,22 @@ final class NotebookStatusIslands {
         device.measure(View.MeasureSpec.makeMeasureSpec(available.width(), View.MeasureSpec.AT_MOST), unspecified);
         int rightWidth = device.getMeasuredWidth();
         // On unusually narrow windows place the right island below the left, without overlap.
-        boolean stacked = available.width() < rightWidth + dp(224 + 8);
+        boolean stacked = !zenMode && available.width() < rightWidth + dp(224 + 8);
         int maximumLeftWidth = Math.max(1, stacked ? available.width() : available.width() - rightWidth - dp(8));
-        notebook.measure(View.MeasureSpec.makeMeasureSpec(maximumLeftWidth, View.MeasureSpec.AT_MOST), unspecified);
-        int leftWidth = Math.max(1, notebook.getMeasuredWidth());
-        leftBounds.set(available.left, available.top, available.left + leftWidth,
-            available.top + notebook.getMeasuredHeight());
+        if (zenMode) leftBounds.setEmpty();
+        else {
+            notebook.measure(View.MeasureSpec.makeMeasureSpec(maximumLeftWidth, View.MeasureSpec.AT_MOST), unspecified);
+            int leftWidth = Math.max(1, notebook.getMeasuredWidth());
+            leftBounds.set(available.left, available.top, available.left + leftWidth,
+                available.top + notebook.getMeasuredHeight());
+        }
         int rightTop = stacked ? leftBounds.bottom + dp(8) : available.top;
         rightBounds.set(available.right - rightWidth, rightTop, available.right,
             rightTop + device.getMeasuredHeight());
         // Install both holes before either window becomes visible.
         listener.onBoundsChanged(new Rect(leftBounds), new Rect(rightBounds));
-        boolean leftShown = place(leftWindow, leftBounds);
+        if (zenMode) leftWindow.dismiss();
+        boolean leftShown = zenMode || place(leftWindow, leftBounds);
         boolean rightShown = place(rightWindow, rightBounds);
         if (!leftShown || !rightShown) {
             if (!leftShown) leftBounds.setEmpty();

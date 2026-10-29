@@ -4,6 +4,19 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## Offline Zen display mode 0.33.2-dev.3 (2026-10-29)
+
+The toolbox Zen toggle hides the top-left bar and Undo/Redo, leaving a compact
+seconds clock on the right. It restores the normal bars and eligible history
+on exit. Note geometry and tools are unchanged. Seconds ticks invalidate only
+the clock view and stop on exit/pause. See the [Zen record](zen-mode.md).
+
+VersionCode 67 passes **246,381 host assertions in 64 suites**, Debug/Release
+lint/builds, permanent-certificate verification and the APK checksum. The signed
+candidate is `build/releases/scriflow-0.33.2-dev.3.apk`. The owner chose to continue
+without the tablet; physical readability, placement, e-ink refresh and latency
+remain untested. Public stable 0.33.1 is unchanged.
+
 ## Offline writing history controls 0.33.2-dev.2 (2026-10-29)
 
 Undo/Redo move from the toolbox to the top-right device-status bar. Each appears

@@ -25,7 +25,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 
-/** Minute clock and event-driven device indicators. No TextClock or animated widgets. */
+/** Event-driven status, with a small seconds clock only while Zen mode is visible. */
 final class NotebookDeviceStatus extends View {
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final BooleanSupplier idle;
@@ -36,8 +36,10 @@ final class NotebookDeviceStatus extends View {
     private final NotebookIconDrawable wifi = new NotebookIconDrawable(NotebookIconDrawable.Icon.WIFI_OFF);
     private final Set<Network> wifiNetworks = new HashSet<>();
     private final ConnectivityManager connectivity;
-    private final int clockWidth, percentWidth;
-    private boolean started, networkRegistered;
+    private int clockWidth;
+    private final int percentWidth;
+    private boolean started, networkRegistered, zenMode;
+    private final Runnable secondTick = this::tickSeconds;
     private int networkEpoch;
     private ConnectivityManager.NetworkCallback network;
 
@@ -74,6 +76,7 @@ final class NotebookDeviceStatus extends View {
             }
             state.clock(clock());
             refresh();
+            scheduleSeconds();
         }
     };
 
@@ -104,6 +107,7 @@ final class NotebookDeviceStatus extends View {
     void start() {
         if (started) return;
         started = true;
+        if (zenMode) { clockWidth = clockWidth(getContext()); requestLayout(); }
         network = networkCallback(++networkEpoch);
         state.clock(clock());
         IntentFilter filter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
@@ -129,9 +133,11 @@ final class NotebookDeviceStatus extends View {
             state.wifi(-1); refresh();
         }
         refresh();
+        scheduleSeconds();
     }
 
     void stop() {
+        main.removeCallbacks(secondTick);
         if (!started) return;
         started = false;
         ++networkEpoch;
@@ -144,15 +150,40 @@ final class NotebookDeviceStatus extends View {
         wifiNetworks.clear();
     }
 
-    /** Also called after pen-idle; pending events do not schedule a redraw while writing. */
+    /** Normal status waits for idle; Zen seconds repaint only this small clock view. */
     void refresh() {
         if (!started) return;
-        NotebookDeviceStatusState.Snapshot next = state.publish(idle.getAsBoolean());
+        NotebookDeviceStatusState.Snapshot next = state.publish(zenMode || idle.getAsBoolean());
         if (next == null) return;
+        boolean clockChanged = !next.clock.equals(shown.clock);
         shown = next;
         wifi.setIcon(next.wifi == 1 ? NotebookIconDrawable.Icon.WIFI : NotebookIconDrawable.Icon.WIFI_OFF);
         updateDescription();
+        if (zenMode && !clockChanged) return; // Hidden battery/Wi-Fi events need no repaint.
         invalidate();
+    }
+
+    void setZenMode(boolean value) {
+        if (zenMode == value) return;
+        zenMode = value;
+        paint.setTextSize((value ? 10 : 12) * getResources().getDisplayMetrics().scaledDensity);
+        clockWidth = clockWidth(getContext());
+        state.clock(clock());
+        NotebookDeviceStatusState.Snapshot next = state.publish(true);
+        if (next != null) shown = next;
+        wifi.setIcon(shown.wifi == 1 ? NotebookIconDrawable.Icon.WIFI : NotebookIconDrawable.Icon.WIFI_OFF);
+        updateDescription(); requestLayout(); invalidate(); scheduleSeconds();
+    }
+
+    private void tickSeconds() {
+        if (!started || !zenMode) return;
+        state.clock(clock()); refresh(); scheduleSeconds();
+    }
+
+    private void scheduleSeconds() {
+        main.removeCallbacks(secondTick);
+        if (started && zenMode)
+            main.postDelayed(secondTick, 1000 - Math.floorMod(System.currentTimeMillis(), 1000));
     }
 
     private void publishWifi() {
@@ -161,6 +192,7 @@ final class NotebookDeviceStatus extends View {
     }
 
     private void updateDescription() {
+        if (zenMode) { setContentDescription(shown.clock + "; tap to open settings"); return; }
         setContentDescription(shown.clock + ", battery "
             + (shown.battery < 0 ? "unavailable" : shown.battery + " percent")
             + (shown.wifi < 0 ? ", Wi-Fi status unavailable" : shown.wifi == 1 ? ", Wi-Fi connected" : ", Wi-Fi disconnected")
@@ -168,8 +200,8 @@ final class NotebookDeviceStatus extends View {
     }
 
     @Override protected void onMeasure(int widthSpec, int heightSpec) {
-        int width = clockWidth + percentWidth + dp(16 + 16 + 4 + 8 + 8);
-        int height = Math.max(dp(24), (int) Math.ceil(paint.descent() - paint.ascent()) + dp(4));
+        int width = zenMode ? clockWidth : clockWidth + percentWidth + dp(16 + 16 + 4 + 8 + 8);
+        int height = Math.max(dp(zenMode ? 18 : 24), (int) Math.ceil(paint.descent() - paint.ascent()) + dp(4));
         setMeasuredDimension(resolveSize(width, widthSpec), resolveSize(height, heightSpec));
     }
 
@@ -179,6 +211,7 @@ final class NotebookDeviceStatus extends View {
         paint.setColor(Color.BLACK);
         float baseline = getHeight() / 2f - (paint.ascent() + paint.descent()) / 2;
         canvas.drawText(shown.clock, clockWidth - paint.measureText(shown.clock), baseline, paint);
+        if (zenMode) return;
         int size = dp(16), top = (getHeight() - size) / 2;
         int left = clockWidth + dp(8);
         if (shown.battery > 0) {
@@ -195,18 +228,28 @@ final class NotebookDeviceStatus extends View {
         wifi.setBounds(left, top, left + size, top + size); wifi.draw(canvas);
     }
 
-    private String clock() { return DateFormat.getTimeFormat(getContext()).format(new Date()); }
+    private String clock() {
+        return (zenMode ? secondsFormat(getContext()) : DateFormat.getTimeFormat(getContext())).format(new Date());
+    }
+
+    private java.text.DateFormat secondsFormat(Context context) {
+        Locale locale = getResources().getConfiguration().getLocales().get(0);
+        return new SimpleDateFormat(DateFormat.getBestDateTimePattern(locale,
+            DateFormat.is24HourFormat(context) ? "Hms" : "hms"), locale);
+    }
 
     private int clockWidth(Context context) {
         Locale locale = getResources().getConfiguration().getLocales().get(0);
         java.text.DateFormat twelve = new SimpleDateFormat(DateFormat.getBestDateTimePattern(locale, "hm"), locale);
         java.text.DateFormat twentyFour = new SimpleDateFormat(DateFormat.getBestDateTimePattern(locale, "Hm"), locale);
-        java.text.DateFormat preferred = DateFormat.getTimeFormat(context);
-        Calendar sample = Calendar.getInstance(); sample.set(Calendar.MINUTE, 58);
+        java.text.DateFormat preferred = zenMode ? secondsFormat(context) : DateFormat.getTimeFormat(context);
+        java.text.DateFormat[] formats = zenMode ? new java.text.DateFormat[]{preferred}
+            : new java.text.DateFormat[]{twelve, twentyFour, preferred};
+        Calendar sample = Calendar.getInstance(); sample.set(Calendar.MINUTE, 58); sample.set(Calendar.SECOND, 58);
         float maximum = 0;
         for (int hour = 0; hour < 24; hour++) {
             sample.set(Calendar.HOUR_OF_DAY, hour);
-            for (java.text.DateFormat format : new java.text.DateFormat[]{twelve, twentyFour, preferred})
+            for (java.text.DateFormat format : formats)
                 maximum = Math.max(maximum, paint.measureText(format.format(sample.getTime())));
         }
         return (int) Math.ceil(maximum);

@@ -162,6 +162,18 @@ public final class NotebookSymbols {
                 polygon(out, false, 2, 7, 20, 7, 20, 17, 2, 17);
                 polygon(out, true, 20, 10, 22, 10, 22, 14, 20, 14);
                 break;
+            case "FULLSCREEN":
+                line(out, 3, 9, 3, 3, 9, 3);
+                line(out, 15, 3, 21, 3, 21, 9);
+                line(out, 21, 15, 21, 21, 15, 21);
+                line(out, 9, 21, 3, 21, 3, 15);
+                break;
+            case "EXIT_FULLSCREEN":
+                line(out, 3, 8, 8, 8, 8, 3);
+                line(out, 16, 3, 16, 8, 21, 8);
+                line(out, 21, 16, 16, 16, 16, 21);
+                line(out, 8, 21, 8, 16, 3, 16);
+                break;
             case "WIFI":
             case "WIFI_OFF":
                 out.begin(); out.moveTo(3, 9);

@@ -22,7 +22,7 @@ import java.util.EnumMap;
 /** A separate, static window above the native ink surface, moved only by its grip. */
 public final class NotebookFloatingTools {
     public enum Action {
-        NOTES, ADD_PAGE, PEN, ERASER, LASSO, MORE, OUTLINE, VIEW_BACK, VIEW_FORWARD, ORIENTATION, COLLAPSE
+        NOTES, ADD_PAGE, PEN, ERASER, LASSO, MORE, OUTLINE, VIEW_BACK, VIEW_FORWARD, ZEN, ORIENTATION, COLLAPSE
     }
 
     public interface Listener {
@@ -53,6 +53,7 @@ public final class NotebookFloatingTools {
     private int movingPointer = -1;
     private boolean gripGesture, moveAccepted, disposed;
     private boolean contactActive, contactAccepted;
+    private boolean zenContact;
     private float startRawX, startRawY;
     private int startLeft, startTop, pendingLeft, pendingTop;
     private float horizontalFraction, verticalFraction;
@@ -92,6 +93,7 @@ public final class NotebookFloatingTools {
             return consumed;
         });
         add(Action.NOTES, NotebookIconDrawable.Icon.NOTES, "Open notes and minimized windows");
+        add(Action.ZEN, NotebookIconDrawable.Icon.FULLSCREEN, "Enter Zen mode");
         add(Action.ADD_PAGE, NotebookIconDrawable.Icon.ADD_PAGE, "Add page");
         add(Action.PEN, NotebookIconDrawable.Icon.PEN, "Pen");
         add(Action.ERASER, NotebookIconDrawable.Icon.ERASER, "Eraser");
@@ -102,7 +104,7 @@ public final class NotebookFloatingTools {
         add(Action.ORIENTATION, NotebookIconDrawable.Icon.LAYOUT_VERTICAL, "Switch to vertical tools");
         order = new View[] {grip, button(Action.ORIENTATION), button(Action.PEN), button(Action.ERASER), button(Action.LASSO),
             button(Action.ADD_PAGE), button(Action.OUTLINE), button(Action.VIEW_BACK),
-            button(Action.VIEW_FORWARD), button(Action.NOTES)};
+            button(Action.VIEW_FORWARD), button(Action.ZEN), button(Action.NOTES)};
         popup = new PopupWindow(content, 0, 0, false);
         // A dedicated higher application sublayer keeps tools above notes, status and selection panels regardless of show order.
         popup.setWindowLayoutType(WindowManager.LayoutParams.TYPE_APPLICATION_SUB_PANEL);
@@ -152,6 +154,8 @@ public final class NotebookFloatingTools {
     public NotebookIconButton button(Action action) { return buttons.get(action); }
 
     public boolean isVertical() { return vertical; }
+
+    boolean isZenContact() { return zenContact; }
 
     public boolean isCollapsed() { return collapsed; }
 
@@ -415,6 +419,7 @@ public final class NotebookFloatingTools {
         contactActive = false;
         contactAccepted = false;
         if (accepted) listener.onContactEnd();
+        zenContact = false;
     }
 
     /** A contact pauses native ink even when it begins on an ordinary button. */
@@ -425,6 +430,11 @@ public final class NotebookFloatingTools {
             int action = event.getActionMasked();
             if (action == MotionEvent.ACTION_DOWN) {
                 finishContact();
+                NotebookIconButton zen = button(Action.ZEN);
+                int[] location = new int[2]; zen.getLocationOnScreen(location);
+                zenContact = zen.isShown() && event.getRawX() >= location[0]
+                    && event.getRawX() < location[0] + zen.getWidth() && event.getRawY() >= location[1]
+                    && event.getRawY() < location[1] + zen.getHeight();
                 contactActive = true;
                 contactAccepted = listener.onContactStart();
             }
