@@ -18,6 +18,14 @@ is connected for this release either; physical acceptance remains pending.
 
 ## Before publishing
 
+**0.33.2** (`versionCode` **71**) follows the owner's explicit release request
+on 2026-10-29 after dev.6, retaining the instruction to continue without the
+tablet. Promote dev.6 with version/documentation changes only; verify identical
+DEX code and the permanent signer. Publish **v0.33.2** as a normal Latest release
+with the signed APK and checksum. Disclose format-7 edits/new backups and pending
+physical UI/native/firmware checks. Verify the tag's exact source commit and
+re-download both release assets to compare their bytes with the staged files.
+
 **0.33.1** (`versionCode` **64**) follows the owner's explicit GitHub release
 request after dev.9, with continued authorization to work without the tablet.
 Promote dev.9 with version/release metadata changes only, retain the permanent
@@ -171,16 +179,21 @@ build unsigned release APKs without possessing the permanent key.
 
 ## Version numbers
 
-The current stable source/release is **0.32.0**, Android `versionCode` **46**,
-incorporating the compact bookshelf update and all fixes through the local
-**0.32.0-dev.4** (`versionCode` **45**) candidate. The previous public
-development prerelease is **0.32.0-dev.1** (`versionCode` **42**). It retains
-the direct native handwriting restored in **0.31.0-dev.5**, `versionCode` **41**. **0.31.0-dev.4**
-(`versionCode` **40**) added rotation history and pen modes, but its manual
-page-mode drawing was rejected for severe latency.
-**0.31.0-dev.3** (`versionCode` **39**) fixed the handwriting clipping failure from dev.2.
-**0.31.0-dev.2** (`versionCode` **38**) fixed PDF and ink regressions. **0.31.0-dev.1**
-(`versionCode` **37**) added PDF notebooks and outlines. The previous
+The current stable source/release is **0.33.2**, Android `versionCode` **71**,
+including all changes through **0.33.2-dev.6** (`versionCode` **70**). The previous
+stable is **0.33.1** (`versionCode` **64**); **0.33.0** used code 54 and **0.32.0**
+used code 46. Promotion retains dev.6's compiled application code and permanent
+signing identity. Format 7 begins with dev.5 and is the first public format-7
+release in 0.33.2. Existing versions 1–6 read without mutation; edits and new
+editable backups require this version (or dev.5+) to reopen. Physical acceptance
+of the exact stable APK and recent UI changes remains pending.
+
+Earlier releases are historical records. Direct native handwriting was restored
+in **0.31.0-dev.5** (code 41); **0.31.0-dev.4** (code 40) added rotation history
+and pen modes, but its manual page-mode drawing was rejected for latency.
+**0.31.0-dev.3** (code 39) fixed handwriting clipping; **0.31.0-dev.2** (code 38)
+fixed PDF/ink regressions; **0.31.0-dev.1** (code 37) added PDF notebooks/outlines.
+The previous
 **0.30.0-dev.3** (`versionCode` **36**) synchronized screen direction across the app. Version
 **0.30.0-dev.2** (`versionCode` **35**) added page outlines, direct sensor rotation,
 and palm/pinch safeguards; the owner reports those bugs are solved. Version **0.30.0-dev.1** (`versionCode` **34**) introduced physical
@@ -226,16 +239,16 @@ and [Android versioning](https://developer.android.com/studio/publish/versioning
    The helper runs release lint and assembly, copies the candidate privately,
    verifies those exact bytes and the configured signing certificate, then
    stages a versioned APK and SHA-256 checksum under
-   `build/releases/`. For this release these are `scriflow-0.32.0.apk` and
-   `scriflow-0.32.0.apk.sha256`. Debugging is disabled, diagnostic screens are
+   `build/releases/`. For this release these are `scriflow-0.33.2.apk` and
+   `scriflow-0.33.2.apk.sha256`. Debugging is disabled, diagnostic screens are
    absent from the manifest, and the library is the only exported component.
 
 4. Compare the printed signer certificate SHA-256 with the intended permanent
    certificate. For later builds, pin that known digest during verification:
 
    ```bash
-   python3 scripts/verify-apk.py build/releases/scriflow-0.32.0.apk --certificate-sha256 YOUR_KNOWN_CERTIFICATE_SHA256
-   (cd build/releases && sha256sum -c scriflow-0.32.0.apk.sha256)
+   python3 scripts/verify-apk.py build/releases/scriflow-0.33.2.apk --certificate-sha256 YOUR_KNOWN_CERTIFICATE_SHA256
+   (cd build/releases && sha256sum -c scriflow-0.33.2.apk.sha256)
    ```
 
    Substitute the current version and the actual known digest. The APK file's
@@ -303,6 +316,12 @@ Do not use raw private version-1 files as a portable migration format, downgrade
 an APK over version-2 pages, or assume a signature change preserves app data.
 
 ## Publish only after acceptance
+
+For **0.33.2**, the owner's explicit request authorizes commit, push, tag and
+formal publication without new tablet tests. Publish the verified signed APK
+and checksum as normal Latest, preserving previous releases. Record the exact
+commit, pin the permanent signer, compare downloaded assets byte-for-byte and
+retain the format-7 and physical-validation limits in the public notes.
 
 For **0.32.0**, the owner's explicit request authorizes the first formal release,
 including the commit, push, tag and signed APK publication. Publish without the

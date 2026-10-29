@@ -4,8 +4,8 @@ Figures, export and multiple notes are included in stable **0.33.0**.
 **0.33.1** adds direct finger selection of figures and immediate
 corner dragging with a resize boundary. These latest interactions passed host
 checks and signed Android builds; their physical tablet checks remain pending.
-Local **0.33.2-dev.5** replaces the figure editor with the inline controls below
-and adds arbitrary rotation and cross-page dragging. Its tablet checks remain pending.
+**0.33.2** includes the inline figure controls below, arbitrary rotation and
+cross-page dragging. Its latest UI and exact release APK remain physically untested.
 
 ## Insert and edit figures
 
@@ -107,16 +107,17 @@ the same Activity. Existing two-note preferences migrate on first open.
 
 ## Storage and architecture
 
-Stable 0.33.1 uses page format **6**, which adds an ordered figure list after
+Stable 0.33.1 used page format **6**, which adds an ordered figure list after
 the version-5 stroke list. Each figure has a UUID, logical x/y/width/height,
-and length-prefixed PNG data. Local **0.33.2-dev.5** writes format **7**, adding
+and length-prefixed PNG data. Stable **0.33.2** writes format **7**, adding
 the figure’s clockwise rotation angle. Original PNG bytes stay unchanged when
 moving, resizing or rotating; raster sharpness remains limited by source pixels.
 Page framing, CRC checks, atomic snapshot publication and journaled stroke
 appends are unchanged. Versions 1–6 still read without modification; the first
 successful edit writes version 7 and retains the predecessor `.bak`. Older
 APKs, including stable 0.33.1, cannot read version-7 pages or backups containing
-them. Preserve independent editable backups before testing this development build.
+them. New editable backups also contain version-7 pages. Preserve independent
+editable backups before updating.
 
 Figures participate in the existing per-page undo history and retry/conflict
 checks. Page duplication creates fresh figure IDs. Inline image data keeps

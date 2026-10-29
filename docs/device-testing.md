@@ -4,6 +4,28 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## Authorized stable release 0.33.2 (2026-10-29)
+
+The permanently signed **0.33.2 / versionCode 71** APK promotes dev.6 with only
+version/documentation changes. Its DEX code matches the verified dev.6 candidate.
+All **248,470 assertions in 68 host suites**, debug/release lint and builds,
+package checks and permanent-certificate verification pass. Logs are in
+`artifacts/release-0.33.2/`; the candidate is
+`build/releases/scriflow-0.33.2.apk` with its adjacent checksum.
+
+The owner explicitly requested a release and retained the instruction to work
+without the tablet. This exact APK has not been installed or physically tested.
+Recent compact-bar/history/Zen, figure picker/rotation/cross-page, and icon-strip
+interactions still need physical acceptance. Earlier connected tests and the
+M-Pencil acceptance do not establish their input/refresh behavior. Other devices
+and firmware, overnight battery life, optical latency, physical cover sensing
+and long sessions retain their documented limits.
+
+This is the first public format-7 release: old pages read unchanged, but edits
+and new editable backups require 0.33.2 or compatible dev.5+ builds. Older APKs,
+including 0.33.1, cannot open them. Keep independent backups before updating.
+See the [release notes](releases/0.33.2.md) and latest feature acceptance lists.
+
 ## Offline action icons 0.33.2-dev.6 (2026-10-29)
 
 The permanently signed **0.33.2-dev.6 / versionCode 70** candidate expands the

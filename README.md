@@ -16,13 +16,15 @@ Development and physical testing target **MatePad Paper HMW-W09**, Android
 rendering use Huawei APIs already present on that firmware; no proprietary
 Huawei code is bundled. Other tablets and firmware versions are unverified.
 
-The latest stable release is **[Scriflow 0.33.1](https://github.com/xing-phys/Scriflow/releases/tag/v0.33.1)**,
-released on 2026-10-29. It includes figures and lasso export, two split panes plus
-multiple floating notes, a toolbox notes tray, and stylus-tap editing focus.
-Inactive notes scroll continuously and pinch with fingers, while their vector
-ink and PDF tiles render at the current zoom. Window changes retain the main
-editor. The toolbox stays above note/status/selection panels; PDF import opens
-the system picker directly and opens the imported note on success.
+The latest stable release is **[Scriflow 0.33.2](https://github.com/xing-phys/Scriflow/releases/tag/v0.33.2)**,
+released on 2026-10-29. It adds compact interactive note navigation, writing-only
+history icons, a Zen clock mode, direct figure picking, inline figure editing
+with arbitrary rotation and cross-page dragging, and icon-only action strips.
+It retains figures/lasso export, two split panes plus multiple floating notes,
+the toolbox notes tray and stylus-tap editing focus. Inactive notes scroll and
+pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
+stays in front, window operations retain the main editor, and PDF import opens
+the file picker directly before opening the imported note.
 
 Double tapping the **M-Pencil body** switches Pen/Eraser and briefly shows the
 selected icon at the top center. The owner accepted the physical switches and
@@ -34,42 +36,35 @@ Other hardware/firmware, overnight battery drain, cover-sensor behavior and
 optical latency remain unverified.
 
 The application ID and permanent signing certificate are retained for in-place
-updates. Stable 0.33.1 writes **page format 6** on edit, which older APKs cannot open.
-Keep editable backups before updating. See [figures and workspace](docs/figures-and-workspace.md),
+updates. **0.33.2 writes page format 7 on edit and in new editable backups. Older
+APKs, including 0.33.1, cannot read those pages or new backups.** Existing page
+versions 1–6 and old backups remain readable without rewriting pages on open.
+Keep independent editable backups before updating. See [figures and workspace](docs/figures-and-workspace.md),
 [changelog](CHANGELOG.md), and [device records](docs/device-testing.md).
 
-**0.33.1** moves blank/lined background changes to the top-left three-dot menu,
-gives each minimized note an icon in the tray beside the notes button, and adds
-direct finger selection of figures and immediate floating-note drag/resize with
-a live boundary. It also includes indexed scrolling geometry, bounded exact
-ink-outline reuse, worker-prepared figures and shared optional cache budgets.
-The final APK passed 246,324 host assertions, lint/build and signing checks.
-Optimization candidates through dev.4 were tested on the tablet; the later UI
-changes and this exact release APK remain physically untested, following the
-owner's instruction to continue without the device. See the
-[release notes](docs/releases/0.33.1.md), [optimization record](docs/optimization-0.33.1.md)
-and [interaction record](docs/window-figure-interactions.md) for scope and limits.
+**0.33.2** makes the top-left bar compact and interactive: tap the note name
+for the bookshelf, the page counter for page management, or the percentage for
+zoom. Previous/next arrows flank the counter, and the three dots expand into
+function icons in the same bar. Undo/Redo live beside the right status bar and
+appear individually after writing; other interactions hide them until writing
+resumes. The toolbox Zen toggle hides the left bar and history while retaining
+a tiny clock with seconds. Tap again to restore the normal display.
 
-Local **0.33.2-dev.6** makes the top-left **⋮** expand into action icons in the
-same bar. Lasso selection actions are also icons, with tap-outside dismissal.
-It includes direct figure picking and in-note editing: drag to move
-between pages, resize, rotate to any angle, or copy/cut/delete with nearby icons.
-Tap outside to finish; each completed gesture is saved without an Apply screen.
-**This development build writes page format 7 on edit. It reads existing notes,
-but edited notes require dev.5 or newer, including when restored from backup.
-Preserve independent editable backups before updating.** See [inline figures](docs/inline-figures.md)
-for validation and pending tablet checks.
+Insert figure opens the picker directly and returns to the note. Select a figure
+to move, resize, rotate freely, or copy/cut/delete using nearby icons. Drag across
+pages with edge scrolling, then tap outside to finish. Lasso actions also use
+icons and outside-tap dismissal, without a Done button. See the
+[navigation record](docs/compact-note-navigation.md), [history controls](docs/writing-history-controls.md),
+[Zen mode](docs/zen-mode.md), [inline figures](docs/inline-figures.md) and
+[action icons](docs/icon-actions.md).
 
-It also includes a toolbox Zen toggle: hide the left bar and history
-controls, keep a tiny seconds clock on the right, then tap again to restore.
-It also makes the top-left note bar compact and interactive:
-tap the name for the bookshelf, the page counter for page management, or the
-percentage for zoom. Previous/next arrows flank the counter. Those four
-navigation buttons leave the toolbox. Undo/Redo move beside the top-right device
-status and appear individually when available after writing; other interactions
-hide them until writing resumes. See the [navigation record](docs/compact-note-navigation.md)
-and [history controls](docs/writing-history-controls.md). See [Zen mode](docs/zen-mode.md)
-for its display-only scope; physical checks remain pending.
+The final APK passed **248,470 host assertions in 68 suites**, debug/release
+lint and builds, and permanent-signature checks. Its DEX code matches dev.6;
+release promotion changes only version and documentation metadata.
+**This exact APK and the latest UI/figure interactions remain physically
+untested**, following the owner's instruction to continue without the tablet
+and explicit authorization to release. Earlier connected results do not replace
+acceptance of this APK. See [release notes](docs/releases/0.33.2.md) for scope and limits.
 
 ## Features
 
@@ -88,8 +83,8 @@ for its display-only scope; physical checks remain pending.
   finger/stylus dragging.
 - Manage pages from the overview: reorder, duplicate, insert blank pages, delete,
   and undo/redo page changes.
-- Insert images, then move, resize or delete them with undo; include figures in
-  thumbnails, PDF exports and editable backups.
+- Insert images, then move between pages, resize, rotate freely or delete them
+  with undo; include figures in thumbnails, PDF exports and editable backups.
 - Export selected ink as SVG, PNG, JPEG, WebP or PDF.
 - Keep up to two split notes and several floating notes open with one shared toolbox.
   Tap a note with the stylus to edit it; finger-scroll or pinch any note, and
@@ -107,8 +102,8 @@ makes no network requests. See [privacy and local storage](docs/privacy.md).
 
 ## Install and update
 
-Download the signed **[Scriflow 0.33.1 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.33.1/scriflow-0.33.1.apk)**
-from [GitHub Releases](https://github.com/xing-phys/Scriflow/releases/tag/v0.33.1),
+Download the signed **[Scriflow 0.33.2 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.33.2/scriflow-0.33.2.apk)**
+from [GitHub Releases](https://github.com/xing-phys/Scriflow/releases/tag/v0.33.2),
 where its file checksum and signing certificate fingerprint are recorded.
 Copy it to the supported tablet, open it with the tablet's file manager, and
 allow installation from that source when prompted.

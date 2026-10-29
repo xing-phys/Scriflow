@@ -6,6 +6,28 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.33.2 — In-note figures and compact controls (2026-10-29)
+
+- Make the top-left bar compact and interactive: title returns to the bookshelf,
+  arrows flank the page counter, the counter opens page management, zoom opens
+  its presets, and the three dots expand into function icons in the same bar.
+- Move writing-only Undo/Redo beside the right status bar. Add a reversible
+  toolbox Zen toggle that hides the left/history controls and shows a tiny
+  seconds clock while retaining the note's view and tools.
+- Open the figure picker directly and return automatically. Edit figures in
+  the note with move/resize/free rotation, nearby Copy/Cut/Delete/Paste icons,
+  outside-tap dismissal and linked cross-page moves with edge scrolling.
+- Use icon-only lasso actions without Done. Wrap in narrow panes and dismiss
+  by tapping outside. Retain tooltips and accessibility names.
+- Read existing pages without rewriting them; edits and newly created editable
+  backups use format 7. Older APKs, including 0.33.1, cannot open those pages or
+  new backups. Preserve independent editable backups before updating.
+- Promote dev.6 with version/documentation changes only, versionCode 71 and the
+  permanent release signer. Pass 248,470 host assertions in 68 suites and Android
+  lint/build checks. The exact APK and recent UI remain physically untested;
+  publication follows the owner's explicit authorization to continue without
+  the tablet. See [release notes](docs/releases/0.33.2.md).
+
 ## 0.33.2-dev.6 — Inline note and lasso action icons (2026-10-29)
 
 - Replace the top-left three-dot dialog with action icons expanding in the

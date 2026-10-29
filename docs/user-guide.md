@@ -4,10 +4,10 @@ Scriflow is designed for Huawei MatePad Paper HMW-W09 on Android 10/API 29,
 firmware `HMW-W09 2.1.0.222(C00E170R1P8)`. Other devices and firmware have not
 been verified. See the [README](../README.md) for installation and current limits.
 
-The controls below are included in local **0.33.2-dev.6**; its compact
-top-left bar started with dev.1 and its writing-only history controls with dev.2.
-Dev.5 reads older notes but writes page format 7 on edit; those edited notes
-and their backups require dev.5 or newer. Keep independent backups before updating.
+The controls below are included in stable **0.33.2**. This release reads older
+notes but writes page format 7 on edit and in new editable backups. Older APKs,
+including 0.33.1, cannot open those pages or new backups. Keep independent
+backups before updating. Physical checks of this exact APK remain pending.
 
 ## Notebooks and pages
 
