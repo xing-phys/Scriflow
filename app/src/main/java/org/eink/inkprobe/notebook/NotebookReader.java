@@ -21,13 +21,15 @@ import java.util.Set;
 
 /** Continuous read-only viewport using original vector ink and screen-resolution PDF tiles. */
 final class NotebookReader extends View {
-    interface Listener { void activate(); void save(); boolean allowInput(); }
+    interface Listener { void activate(); void figure(NotebookFigureHit.Hit hit); void save(); boolean allowInput(); int writingRevision(); }
     private final NotebookSession session;
     private final NotebookWorkspace.Pane pane;
     private final Listener listener;
     private final NotebookPdfBackgrounds pdf;
     private final NotebookFigureLayer images;
     private final ScaleGestureDetector scale;
+    private final NotebookLinkTapGesture figureTap = new NotebookLinkTapGesture();
+    private final float pixelsPerMm;
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final Map<Integer, NotebookPage> pages = new LinkedHashMap<>();
     private final NotebookStrokeRenderer.Cache paths = new NotebookStrokeRenderer.Cache(32768);
@@ -45,7 +47,10 @@ final class NotebookReader extends View {
 
     NotebookReader(Context context, NotebookSession session, NotebookWorkspace.Pane pane, Listener listener) {
         super(context); this.session = session; this.pane = pane; this.listener = listener;
-        setContentDescription("Note; scroll and pinch with fingers, tap with stylus to edit");
+        float dpi = getResources().getDisplayMetrics().xdpi;
+        if (dpi < 80 || dpi > 1000) dpi = getResources().getDisplayMetrics().density * 160;
+        pixelsPerMm = dpi / 25.4f;
+        setContentDescription("Note; scroll and pinch with fingers, tap a figure with a finger or tap with stylus to edit");
         pdf = new NotebookPdfBackgrounds(context, new NotebookPdfBackgrounds.Listener() {
             public void changed() { preparePdf(); invalidate(); }
             public void failed(IOException error) { pdfFailed = true; message = "PDF unavailable. Reopen this note to retry."; invalidate(); }
@@ -188,8 +193,9 @@ final class NotebookReader extends View {
     @Override public boolean onTouchEvent(MotionEvent event) {
         int action = event.getActionMasked(), type = event.getToolType(0);
         if (action == MotionEvent.ACTION_DOWN) contactAccepted = listener.allowInput();
-        if (!contactAccepted) return true;
+        if (!contactAccepted) { figureTap.cancel(); return true; }
         if (type == MotionEvent.TOOL_TYPE_STYLUS || type == MotionEvent.TOOL_TYPE_ERASER || stylusContact) {
+            figureTap.cancel();
             if (action == MotionEvent.ACTION_DOWN) stylusContact = true;
             if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
                 boolean activate = stylusContact && action == MotionEvent.ACTION_UP; stylusContact = false;
@@ -197,6 +203,13 @@ final class NotebookReader extends View {
             }
             return true;
         }
+        if (action == MotionEvent.ACTION_DOWN)
+            figureTap.begin(event.getX(), event.getY(), event.getEventTime(), dp(4), listener.writingRevision());
+        if (action == MotionEvent.ACTION_MOVE) figureTap.move(event.getX(), event.getY());
+        for (int i=0;i<event.getPointerCount();i++)
+            if (event.getToolType(i) != MotionEvent.TOOL_TYPE_FINGER
+                    || NotebookPalmGuard.broadContact(event.getTouchMajor(i), pixelsPerMm)) figureTap.cancel();
+        if (event.getPointerCount() != 1 || action == MotionEvent.ACTION_POINTER_DOWN) figureTap.cancel();
         scale.onTouchEvent(event);
         if (action == MotionEvent.ACTION_DOWN) { lastX = event.getX(); lastY = event.getY(); }
         else if (action == MotionEvent.ACTION_MOVE) {
@@ -209,7 +222,15 @@ final class NotebookReader extends View {
             int index = event.getActionIndex() == 0 ? 1 : 0;
             lastX = event.getX(index); lastY = event.getY(index);
         } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
-            remember(); listener.save(); if (action == MotionEvent.ACTION_UP) performClick();
+            remember(); listener.save();
+            boolean tapped = action == MotionEvent.ACTION_UP && figureTap.finish(event.getX(), event.getY(),
+                event.getEventTime(), listener.writingRevision(), !listener.allowInput());
+            figureTap.cancel();
+            if (tapped) {
+                NotebookFigureHit.Hit hit = NotebookFigureHit.find(viewport, pages, scrollY, event.getX(), event.getY());
+                if (hit != null) { listener.figure(hit); return true; }
+            }
+            if (action == MotionEvent.ACTION_UP) performClick();
         }
         return true;
     }
@@ -217,7 +238,7 @@ final class NotebookReader extends View {
     void setCacheBudget(NotebookCacheBudget budget) { paths.setPointLimit(budget.readerPoints); pdf.setCachePixelLimit(budget.pdfPixelsPerNote); }
     void trimCaches() { paths.clear(); pdf.trimMemory(); }
     void hide() {
-        remember(); opened = false; ++epoch; loadingPage = false; stylusContact = false;
+        figureTap.cancel(); remember(); opened = false; ++epoch; loadingPage = false; stylusContact = false;
         if (metadataRequest != null) metadataRequest.cancel();
         if (pageRequest != null) pageRequest.cancel();
         viewport = null; sizes = Collections.emptyList(); pages.clear(); paths.clear(); errors.clear(); pdf.clear(); images.clear();

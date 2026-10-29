@@ -31,19 +31,24 @@ inherit the source page's dimensions. PDF export uses the chosen physical size;
 changing screen orientation or zoom does not change the paper. Existing notes
 keep their original coordinates and PDF printing scale.
 
-## Figures and two-note workspace (0.33 development)
+## Figures and multiple notes
 
-Use **⋮ → Insert figure…** for SVG or Android-supported images; use
-**⋮ → Figures…** to move, resize, or delete an inserted figure. These edits
-support undo/redo. SVG is rasterized into the stored PNG figure.
+Use **⋮ → Insert figure…** for SVG or Android-supported images. In local
+development **0.33.1-dev.6**, tap an inserted figure with one finger to open its
+move, resize and delete controls, including in an inactive note. The
+**⋮ → Figures…** list also remains available. These edits support undo/redo.
+SVG is rasterized into the stored PNG figure.
 Lasso actions now include **Export…** for SVG, PNG, JPEG, WebP, or PDF.
 
-Use **⋮ → Open another note…** for a left/right/top/bottom split or floating
-window. Tap **Activate** in the inactive pane to edit that note in place.
-The notes share one toolbox; the app’s top-left status bar shows the active
-note’s title, page and zoom. The inactive note retains independent navigation
-and zoom. **−** collapses the second pane and
-**Reopen note ▣** restores it. Use **Workspace…** for placement and size.
+Use the **overlapping-notes button in the toolbox** for a left/right/top/bottom
+split or floating window. With several notes open, it toggles a tray containing
+**+** and any minimized notes. Tap inside a note with the stylus to edit it.
+The notes share one toolbox; the top-left status island shows the active note’s
+title, page and zoom. Fingers independently scroll and pinch every note.
+Tap the lower-left corner control for placement and closing options; tap the
+lower-right control to minimize. In local development **0.33.1-dev.6**, drag the
+left control to move a floating note or the right control to resize it without
+waiting for a hold. A boundary follows resizing; the note refits after release.
 See [figures and workspace](figures-and-workspace.md) for controls, limits,
 storage compatibility, and remaining hardware checks.
 

@@ -29,3 +29,33 @@ production corner callbacks, outline updates/footprint/layering and teardown.
 Debug/Release lint and builds passed. `scripts/build-release.sh` verified the
 code-59 APK against the permanent certificate. Physical finger tracking and
 actual e-ink refresh behavior remain pending tablet testing.
+
+## Direct finger selection — 0.33.1-dev.6 (code 60)
+
+A short one-finger tap on a figure opens its existing move/resize/delete
+controls. Hit testing follows the current page transform and chooses the
+topmost figure, ahead of PDF links beneath it. Scrolling, pinching, broad palm
+contacts and intervening handwriting cancel the tap candidate; stylus contacts
+retain their writing/focus behavior.
+
+Tapping a figure in an inactive reader first activates its note, then opens the
+controls after native readiness. Stable page and figure IDs are checked again
+after handoff. The editor captures the tapped page number explicitly, so a
+partly visible page is edited rather than the previously centered page. The
+existing figure list remains available for accessibility. Stored formats and
+native handwriting rendering are unchanged.
+
+The full host suite passed **246,324 assertions in 60 suites**, including
+zoom/pan/scroll hit transforms, overlap order, stale identities, correct-page
+editing and reader touch guards. Debug/Release lint and builds passed. The
+signed artifact is `build/releases/scriflow-0.33.1-dev.6.apk`, verified against
+`release-signing-certificate.sha256` using the permanent release certificate.
+APK SHA-256:
+
+```text
+df7112265a14475bb3d9c44e4f9465a9f09f3fcb5050f2710027f4f50c2a089d
+```
+
+The owner chose to continue without the tablet. This APK has not been installed
+or physically gesture-tested; finger/optical tracking measurements remain
+pending. Public stable **0.33.0** is unchanged.

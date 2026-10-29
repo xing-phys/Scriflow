@@ -4,6 +4,19 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## Offline interaction follow-up 0.33.1-dev.5–dev.6 (2026-10-29)
+
+The tablet was unavailable, and the owner requested continuing without it.
+The permanently signed **0.33.1-dev.6 / versionCode 60** APK passes 246,324 host
+assertions in 60 suites and Debug/Release lint/builds. It includes immediate
+corner dragging, thin live resize edges and direct finger selection of figures.
+The release APK was verified against the pinned permanent certificate. See the
+[interaction record](window-figure-interactions.md) for scope and artifact details.
+
+This candidate was not installed or physically tested. Finger tracking, optical
+refresh behavior and the new figure-tap interactions still require tablet
+acceptance. The code-58 device checks below apply to that earlier build.
+
 ## Optimization follow-up 0.33.1-dev.4 (2026-10-29)
 
 The permanently signed **0.33.1-dev.4 / versionCode 58** update was installed on

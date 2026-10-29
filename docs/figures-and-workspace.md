@@ -1,15 +1,16 @@
 # Figures, selected-ink export, and multiple notes
 
-Figures/export are available from **0.33.0-dev.1**; the window controls below
-are available in **0.33.0-dev.3**, a development build. Automated model/export checks
-and Android builds are available; touch, native handwriting clipping, and
-floating-window behavior on the MatePad still require physical acceptance.
+Figures, export and multiple notes are included in stable **0.33.0**. Local
+development **0.33.1-dev.6** adds direct finger selection of figures and immediate
+corner dragging with a resize boundary. These latest interactions passed host
+checks and signed Android builds; their physical tablet checks remain pending.
 
 ## Insert and edit figures
 
 Open the editor’s **⋮ → Insert figure…**, choose an image with the system file
 picker, then return to the note. The figure is centered on the current page.
-Choose **⋮ → Figures…**, select a figure, and drag it to move it. Drag its
+In **0.33.1-dev.6**, tap the figure with one finger to open its controls, then
+drag it to move it. The **⋮ → Figures…** list remains available. Drag its
 lower-right handle to resize while retaining its aspect ratio. **Apply** saves
 one undoable edit; **Cancel** discards placement changes; **Delete** is undoable.
 Figures are drawn above paper/PDF content and below handwriting. The stroke
@@ -61,8 +62,10 @@ window never deletes its notebook.
 before switching the writer, so it does not leave ink in either note. Notes
 retain their placement during focus switches. Fingers independently scroll
 through the continuous page stack and pinch to zoom in every visible note;
-finger navigation does not change editing focus. New readers start at **fit
-width**. Ink remains vector-rendered, and PDF tiles are requested at the current
+finger navigation does not change editing focus. Tapping a figure in an inactive
+note activates that note and opens the figure controls in **0.33.1-dev.6**.
+New readers start at **fit width**. Ink remains vector-rendered, and PDF tiles
+are requested at the current
 screen resolution after pan/zoom. Imported raster figures retain their source
 resolution limits.
 

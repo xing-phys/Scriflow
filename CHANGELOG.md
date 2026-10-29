@@ -6,6 +6,18 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.33.1-dev.6 — Select figures with a finger tap (2026-10-29)
+
+- Tap a figure directly to open its move/resize/delete controls, including in an
+  inactive note. Select the topmost figure and preserve its page identity across
+  the editing-focus handoff, zoom and scrolling.
+- Keep scrolling, pinching, palm contacts and stylus writing from opening figure
+  controls. Figures take precedence over PDF links beneath them.
+- Pass 246,324 host assertions in 60 suites and Debug/Release lint/builds. The
+  versionCode 60 APK uses the permanent release signer; tablet gesture checks
+  remain pending at the owner's request. See the
+  [interaction record](docs/window-figure-interactions.md).
+
 ## 0.33.1-dev.5 — Immediate floating-note drag and resize (2026-10-29)
 
 - Remove the corner-control hold timer. Movement begins dragging immediately;

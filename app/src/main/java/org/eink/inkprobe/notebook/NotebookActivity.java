@@ -717,7 +717,8 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                 boolean follow = action == MotionEvent.ACTION_UP && !scrolling
                     && linkTap.finish(event.getX(changed), event.getY(changed), event.getEventTime(),
                         writingRevision, ink.isPenDown());
-                if (follow && followPdfLink(event.getX(changed), event.getY(changed))) return;
+                if (follow && (selectFigureAt(event.getX(changed), event.getY(changed))
+                        || followPdfLink(event.getX(changed), event.getY(changed)))) return;
                 linkTap.cancel();
                 if (scrolling) requestWindow();
                 scheduleSaveState();
@@ -2153,6 +2154,12 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         return new NotebookCompanion(this, workspaceArea, workspace, pane, session, new NotebookCompanion.Listener() {
             public void menu() { workspaceMenu(pane); }
             public void activate() { activatePane(pane, null); }
+            public void figure(NotebookFigureHit.Hit hit) {
+                if (!canEdit() || changingWorkspace) return;
+                Runnable select = () -> { if (session.notebookId() == pane.notebookId) editTappedFigure(hit); };
+                if (session.notebookId() == pane.notebookId) select.run(); else activatePane(pane, select);
+            }
+            public int writingRevision() { return writingRevision; }
             public void collapse() { collapsePane(pane, false); }
             public void boundsChanged() { updateOverlayBounds(); }
             public boolean beginMove() {
@@ -2451,11 +2458,29 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         showStaticDialog(dialog);
     }
 
+    /** Clean finger taps select figures above underlying PDF links; stylus contacts still write. */
+    private boolean selectFigureAt(float x, float y) {
+        if (!canEdit()) return false;
+        NotebookFigureHit.Hit hit = NotebookFigureHit.find(viewport, pages, scrollY, x, y);
+        if (hit == null) return false;
+        editTappedFigure(hit); return true;
+    }
+    private void editTappedFigure(NotebookFigureHit.Hit hit) {
+        if (!canEdit() || figureEditor != null) return;
+        NotebookPage target = pages.get(hit.page);
+        if (target == null || !target.id.equals(hit.pageId)) return;
+        for (int index = target.figures.size() - 1; index >= 0; index--) if (target.figures.get(index).id.equals(hit.figureId)) {
+            pauseForEdit(); if (shownError != null) return;
+            activePage = hit.page; updatePageLabel(); editFigureOnPage(target, index, hit.page); return;
+        }
+    }
+
     private NotebookFigureEditor figureEditor;
-    private void editFigure(NotebookPage target, int index) {
+    private void editFigure(NotebookPage target, int index) { editFigureOnPage(target, index, activePage); }
+    private void editFigureOnPage(NotebookPage target, int index, int number) {
         if (viewport == null) return;
         clearSelection();
-        int number = activePage, request = generation;
+        int request = generation;
         List<NotebookFigure> others = new ArrayList<>(target.figures); others.remove(index);
         session.previewFigurePlacement(target.withFigures(others), (background, failure) -> {
             if (!active || request != generation) { if (background != null) background.recycle(); return; }
