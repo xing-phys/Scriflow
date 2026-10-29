@@ -18,6 +18,16 @@ is connected for this release either; physical acceptance remains pending.
 
 ## Before publishing
 
+**0.33.1** (`versionCode` **64**) follows the owner's explicit GitHub release
+request after dev.9, with continued authorization to work without the tablet.
+Promote dev.9 with version/release metadata changes only, retain the permanent
+signer, and publish **v0.33.1** as a normal Latest release with the signed APK
+and checksum. Verify the final host/lint/build results, unchanged compiled
+application code, exact source commit and downloaded release bytes. Clearly
+distinguish the device-tested optimization candidates through dev.4 from later
+UI changes and the final APK, which have no fresh physical validation. The
+existing firmware, battery, optical, cover and long-session limits still apply.
+
 **0.33.0** (`versionCode` **54**) follows the owner's request to install/test
 through USB, implement the M-Pencil body gesture, audit/optimize the app against
 the tablet system, and then release formally. Publish the verified dev.7

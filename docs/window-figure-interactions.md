@@ -4,6 +4,10 @@ The owner requested immediate corner dragging, a visible responsive resize
 boundary, and direct finger selection of figures. The tablet was unavailable;
 the owner chose to continue with host validation and signed APK preparation.
 
+These changes are included in **0.33.1**. The sections below retain each
+development build's original validation record; physical acceptance remains
+pending. See the [release notes](releases/0.33.1.md) for the published artifact.
+
 ## Immediate floating-window controls — 0.33.1-dev.5 (code 59)
 
 A movement past normal touch slop starts moving/resizing immediately. There is

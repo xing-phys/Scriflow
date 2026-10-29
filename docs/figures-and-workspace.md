@@ -1,7 +1,7 @@
 # Figures, selected-ink export, and multiple notes
 
-Figures, export and multiple notes are included in stable **0.33.0**. Local
-development **0.33.1-dev.6** adds direct finger selection of figures and immediate
+Figures, export and multiple notes are included in stable **0.33.0**.
+**0.33.1** adds direct finger selection of figures and immediate
 corner dragging with a resize boundary. These latest interactions passed host
 checks and signed Android builds; their physical tablet checks remain pending.
 
@@ -9,7 +9,7 @@ checks and signed Android builds; their physical tablet checks remain pending.
 
 Open the editor’s **⋮ → Insert figure…**, choose an image with the system file
 picker, then return to the note. The figure is centered on the current page.
-In **0.33.1-dev.6**, tap the figure with one finger to open its controls, then
+Tap the figure with one finger to open its controls, then
 drag it to move it. The **⋮ → Figures…** list remains available. Drag its
 lower-right handle to resize while retaining its aspect ratio. **Apply** saves
 one undoable edit; **Cancel** discards placement changes; **Delete** is undoable.
@@ -49,9 +49,9 @@ capped at 2,048 pixels on their longest edge. Export does not change the note.
 
 Tap the **overlapping-notes button in the toolbox**. With one note open, select
 another notebook and choose **Left, Right, Top, Bottom, or Floating window**.
-With several notes open, the button toggles a small tray beside that button
-(local **0.33.1-dev.7**): **+** opens another floating note. In local
-**0.33.1-dev.8**, each minimized note has its own page-icon button to restore it.
+With several notes open, the button toggles a small tray beside that button:
+**+** opens another floating note. Each minimized note has its own page-icon
+button to restore it.
 Each icon identifies its notebook through its tooltip/accessibility name.
 Only notebooks not already in the workspace appear in the picker.
 
@@ -64,7 +64,7 @@ before switching the writer, so it does not leave ink in either note. Notes
 retain their placement during focus switches. Fingers independently scroll
 through the continuous page stack and pinch to zoom in every visible note;
 finger navigation does not change editing focus. Tapping a figure in an inactive
-note activates that note and opens the figure controls in **0.33.1-dev.6**.
+note activates that note and opens the figure controls.
 New readers start at **fit width**. Ink remains vector-rendered, and PDF tiles
 are requested at the current
 screen resolution after pan/zoom. Imported raster figures retain their source

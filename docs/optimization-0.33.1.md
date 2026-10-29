@@ -3,8 +3,10 @@
 The owner authorized implementation on 2026-10-29 after the read-only review.
 Each step preserves saved data, native AHW input and the complete-frame buffering
 that prevents floating-window operations from exposing white intermediate frames.
-Development APKs retain the permanent signing certificate. They are local tablet
-test candidates; the public stable release remains 0.33.0.
+Development APKs retain the permanent signing certificate. The records below
+describe their original validation stages. These optimizations and the later UI
+changes are included in **0.33.1**; see the [release notes](releases/0.33.1.md)
+for the final artifact and the remaining physical-test limits.
 
 ## Step 1: page geometry (0.33.1-dev.1, code 55)
 
@@ -136,8 +138,8 @@ retained and earlier task/user notebooks left alone.
 Raw local logs and synthetic captures remain in ignored
 `artifacts/optimization-0.33.1/`. The final local update APK is
 `build/releases/scriflow-0.33.1-dev.4.apk`, with its adjacent SHA-256 file.
-The public stable release remains 0.33.0. No system/firmware settings or document
-formats changed. USB-powered tests do not establish battery life, physical cover
+At that stage the public stable release remained 0.33.0. No system/firmware
+settings or document formats changed. USB-powered tests do not establish battery life, physical cover
 behavior or optical pen latency; those limits from the previous audit remain.
 
 Reproduce after preparing a signed release and pushing the generated large-PDF

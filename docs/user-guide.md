@@ -33,8 +33,8 @@ keep their original coordinates and PDF printing scale.
 
 ## Figures and multiple notes
 
-Use **⋮ → Insert figure…** for SVG or Android-supported images. In local
-development **0.33.1-dev.6**, tap an inserted figure with one finger to open its
+Use **⋮ → Insert figure…** for SVG or Android-supported images. Tap an inserted
+figure with one finger to open its
 move, resize and delete controls, including in an inactive note. The
 **⋮ → Figures…** list also remains available. These edits support undo/redo.
 SVG is rasterized into the stored PNG figure.
@@ -46,7 +46,7 @@ split or floating window. With several notes open, it toggles a tray containing
 The notes share one toolbox; the top-left status island shows the active note’s
 title, page and zoom. Fingers independently scroll and pinch every note.
 Tap the lower-left corner control for placement and closing options; tap the
-lower-right control to minimize. In local development **0.33.1-dev.6**, drag the
+lower-right control to minimize. Drag the
 left control to move a floating note or the right control to resize it without
 waiting for a hold. A boundary follows resizing; the note refits after release.
 See [figures and workspace](figures-and-workspace.md) for controls, limits,
@@ -111,7 +111,7 @@ there is no manual save button. The three-dot menu shows the page's save state.
 If a save fails, writing pauses and **Not saved · Retry** appears. Retry before
 leaving or stopping the app so unsaved work has a chance to be written.
 
-In local **0.33.1-dev.9**, open the top-left **⋮** menu and choose **Use lined
+Open the top-left **⋮** menu and choose **Use lined
 background** or **Use blank background** to switch the current page without
 clearing its writing. PDF pages keep their original backgrounds.
 **Drag vertically with one finger** to scroll,

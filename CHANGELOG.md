@@ -6,6 +6,20 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.33.1 — Floating-note controls and rendering efficiency (2026-10-29)
+
+- Drag floating-note corner controls without a hold delay. A thin resize boundary
+  follows the drag while content refits once after release.
+- Tap figures directly with a finger, including in inactive notes. Open the notes
+  tray beside its toolbox button; restore each minimized note through a page icon.
+- Move blank/lined background changes into the top-left three-dot menu.
+- Reuse indexed page geometry and exact ink outlines, prepare figures on a worker,
+  and share optional cache budgets while retaining visible sharp content.
+- Promote dev.9 without application-source changes, using versionCode 64 and the
+  permanent release signer. Full host/lint/build checks pass; the latest UI changes
+  and this exact APK remain physically untested. The owner authorized publication
+  while continuing without the tablet. See the [release notes](docs/releases/0.33.1.md).
+
 ## 0.33.1-dev.9 — Move background changes to the note menu (2026-10-29)
 
 - Remove the blank/lined background control from the toolbox. Offer **Use lined

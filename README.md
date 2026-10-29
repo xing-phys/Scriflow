@@ -16,8 +16,8 @@ Development and physical testing target **MatePad Paper HMW-W09**, Android
 rendering use Huawei APIs already present on that firmware; no proprietary
 Huawei code is bundled. Other tablets and firmware versions are unverified.
 
-The latest stable release is **[Scriflow 0.33.0](https://github.com/xing-phys/Scriflow/releases/tag/v0.33.0)**,
-released on 2026-10-28. It adds figures and lasso export, two split panes plus
+The latest stable release is **[Scriflow 0.33.1](https://github.com/xing-phys/Scriflow/releases/tag/v0.33.1)**,
+released on 2026-10-29. It includes figures and lasso export, two split panes plus
 multiple floating notes, a toolbox notes tray, and stylus-tap editing focus.
 Inactive notes scroll continuously and pinch with fingers, while their vector
 ink and PDF tiles render at the current zoom. Window changes retain the main
@@ -26,7 +26,7 @@ the system picker directly and opens the imported note on success.
 
 Double tapping the **M-Pencil body** switches Pen/Eraser and briefly shows the
 selected icon at the top center. The owner accepted the physical switches and
-icons. Connected-tablet checks cover landscape PDF import, multiple floating
+icons. Earlier connected-tablet checks cover landscape PDF import, multiple floating
 notes, lasso panels, native rendering, sleep/wake and Home/return. The small-pane
 PDF cache fixture uses 64% fewer pixels and releases hidden native readers; see
 the [MatePad audit](docs/matepad-audit-0.33.md) for measurements and limits.
@@ -38,15 +38,17 @@ updates. **Page format 6 is written on edit and cannot be opened by older APKs.*
 Keep editable backups before updating. See [figures and workspace](docs/figures-and-workspace.md),
 [changelog](CHANGELOG.md), and [device records](docs/device-testing.md).
 
-Local development continues in **0.33.1-dev.9**, moving blank/lined background
-changes to the top-left three-dot menu, giving each minimized note a tray icon
-beside the notes button and adding direct finger selection of figures, immediate
-floating-note drag/resize with a live boundary, indexed
-scrolling geometry, bounded exact ink-outline reuse, worker-prepared figures
-and coordinated optional cache budgets. See the [optimization record](docs/optimization-0.33.1.md)
-for optimization measurements and device validation, and the
-[interaction record](docs/window-figure-interactions.md) for the latest offline checks;
-the stable download above is unchanged.
+**0.33.1** moves blank/lined background changes to the top-left three-dot menu,
+gives each minimized note an icon in the tray beside the notes button, and adds
+direct finger selection of figures and immediate floating-note drag/resize with
+a live boundary. It also includes indexed scrolling geometry, bounded exact
+ink-outline reuse, worker-prepared figures and shared optional cache budgets.
+The final APK passed 246,324 host assertions, lint/build and signing checks.
+Optimization candidates through dev.4 were tested on the tablet; the later UI
+changes and this exact release APK remain physically untested, following the
+owner's instruction to continue without the device. See the
+[release notes](docs/releases/0.33.1.md), [optimization record](docs/optimization-0.33.1.md)
+and [interaction record](docs/window-figure-interactions.md) for scope and limits.
 
 ## Features
 
@@ -84,8 +86,8 @@ makes no network requests. See [privacy and local storage](docs/privacy.md).
 
 ## Install and update
 
-Download the signed **[Scriflow 0.33.0 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.33.0/scriflow-0.33.0.apk)**
-from [GitHub Releases](https://github.com/xing-phys/Scriflow/releases/tag/v0.33.0),
+Download the signed **[Scriflow 0.33.1 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.33.1/scriflow-0.33.1.apk)**
+from [GitHub Releases](https://github.com/xing-phys/Scriflow/releases/tag/v0.33.1),
 where its file checksum and signing certificate fingerprint are recorded.
 Copy it to the supported tablet, open it with the tablet's file manager, and
 allow installation from that source when prompted.
@@ -120,7 +122,7 @@ when page management is first used; earlier APKs cannot open that managed book.
 Open **My Notebook** or choose **+ Notebook**, select a paper size, and create
 the note. New notes default to A5 and open fitted to the screen width. Pinch
 with two fingers to zoom. Write with the stylus and drag with one finger to
-scroll. In local **0.33.1-dev.9**, the top-left **⋮** menu switches blank/lined backgrounds;
+scroll. The top-left **⋮** menu switches blank/lined backgrounds;
 the page-plus icon inserts a page after the current page. The grid opens page thumbnails.
 
 Tap an already-selected Pen or Eraser icon to adjust its width. Drag the
@@ -138,7 +140,7 @@ retains its captured geometry in both modes.
 External links ask before opening
 another app. See [PDF notebooks](docs/pdf-import.md).
 The vertical three-dot menu beside the top-left percentage contains image insertion,
-figure editing, the blank/lined background action (local **0.33.1-dev.9**), and
+figure editing, the blank/lined background action, and
 **Page information / Export PDF**, which opens save status,
 PDF export, and **Reset tools**. The toolbox notes button opens and restores
 note windows. Tap the time/battery/Wi-Fi area to open

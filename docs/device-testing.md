@@ -4,6 +4,21 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## Release 0.33.1 verification (2026-10-29)
+
+The owner authorized GitHub publication while continuing without the tablet.
+The permanently signed **0.33.1 / versionCode 64** APK promotes dev.9 with only
+version/release metadata changes. Its DEX file matches dev.9 byte for byte.
+All **246,324 host assertions in 60 suites**, Debug/Release lint/builds,
+package/signature checks and permanent-certificate verification passed.
+
+This exact APK was not installed or physically tested. The code-58 optimization
+device results below remain evidence for that earlier build; new corner drags,
+resize tracking, figure taps, tray icons/placement and the background menu still
+need physical acceptance. Battery, optical, cover and long-session limits remain
+unchanged. See the [release notes](releases/0.33.1.md) for the artifact/checksum
+and supported firmware scope.
+
 ## Offline background-menu update 0.33.1-dev.9 (2026-10-29)
 
 The blank/lined background action moved from the toolbox to the top-left
