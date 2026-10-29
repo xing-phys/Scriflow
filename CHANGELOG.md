@@ -6,6 +6,17 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.33.1-dev.5 — Immediate floating-note drag and resize (2026-10-29)
+
+- Remove the corner-control hold timer. Movement begins dragging immediately;
+  stationary taps retain options/minimize actions, with busy/cancel protection.
+- Track resize bounds using four thin untouchable edge panels. Refit the actual
+  note once after release, retain its foreground border and pause native input
+  through pending layout/save callbacks.
+- Host tests and signed Debug/Release validation pass. VersionCode 59; physical
+  tablet checks remain pending at the owner's request. See the
+  [interaction record](docs/window-figure-interactions.md).
+
 ## 0.33.1-dev.4 — Coordinate optional cache memory (2026-10-29)
 
 - Share PDF fallback and outline allowances across visible notes while retaining

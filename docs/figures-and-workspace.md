@@ -68,10 +68,12 @@ resolution limits.
 
 Each note has two small controls over its lower corners, with no reserved top
 or bottom bar. Tap the **bottom-left options icon** for position, size presets,
-minimize, or close. In a floating note, **hold and drag** this icon to move the
-window. Tap the **bottom-right minimize icon** to hide the window in the toolbox
-tray; **hold and drag** it to resize a floating window from its lower-right
-corner. A short drag before the hold threshold does not move or resize it.
+minimize, or close. In a floating note, **drag** this icon to move the window
+without waiting for a hold. Tap the **bottom-right minimize icon** to hide the
+window in the toolbox tray; **drag** it to resize from its lower-right corner.
+A lightweight boundary follows the resize gesture while page rendering keeps
+its previous size; the note refits after release. Small finger jitter remains
+a tap. See the [interaction follow-up](window-figure-interactions.md) for validation.
 Minimizing or closing the editable window first hands editing to another
 visible note. The last visible note remains open.
 
@@ -142,7 +144,7 @@ failed-save rejection, stale/background continuations, and closing/collapsing
 any editable pane. Reader callbacks run with synthetic touch/drawing adapters
 to check continuous cross-page scrolling, pinch anchors, width fitting, vector
 replay, PDF tile resolution, cache retirement and minimized-note restoration.
-Corner-grip callbacks check tap/hold intent, movement, anchored resizing,
+Corner-grip callbacks check tap/drag intent, immediate movement, anchored resizing,
 cancel rollback, busy-writer rejection and delayed-callback retirement.
 Display callbacks check editor retention for float open/move/resize/close and
 minimize/restore, asynchronous layout/native-size races, background completion,

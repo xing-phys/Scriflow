@@ -368,7 +368,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                     if (!down) { scheduleSaveState(); if (stylusShortcut.hasPending()) main.post(applyStylusShortcut); }
                 }
                 @Override public void onReady() {
-                    if (!active || surfaceOwner != inkGeneration) return;
+                    if (!active || surfaceOwner != inkGeneration || changingWorkspace) return;
                     if (session.error() != null) { showError(session.error()); return; }
                     updateControls();
                     NotebookCompanion window = noteWindows.get(workspace.find(session.notebookId()));
@@ -536,7 +536,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     }
 
     private void installViewport() {
-        if (!active || dragging || editing || viewport == null || shownError != null) return;
+        if (!active || dragging || editing || changingWorkspace || viewport == null || shownError != null) return;
         if (settleRead) { requestWindow(); return; }
         for (int id : viewport.visiblePages(scrollY)) if (!pages.containsKey(id)) { requestWindow(); return; }
         if (!preparePdfBackgrounds()) return;
@@ -625,7 +625,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         if (viewport == null || shownError != null) return;
         int action = event.getActionMasked(), changed = event.getActionIndex();
         if (action == MotionEvent.ACTION_DOWN) {
-            boolean continueLoading = active && scrolling && !dragging && !editing
+            boolean continueLoading = active && !changingWorkspace && scrolling && !dragging && !editing
                 && shownError == null && session.error() == null && ink != null && !ink.isPenDown();
             if (!canEdit() && !continueLoading) return;
             linkTap.begin(event.getX(changed), event.getY(changed), event.getEventTime(), dp(4), writingRevision);
@@ -999,7 +999,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     }
 
     private boolean canEdit() {
-        return active && !editing && !scrolling && !dragging && !selectionDrag.isActive() && !fetching && shownError == null && session.error() == null
+        return active && !changingWorkspace && !editing && !scrolling && !dragging && !selectionDrag.isActive() && !fetching && shownError == null && session.error() == null
             && page != null && ink != null && ink.isReady() && !ink.isPenDown();
     }
 
@@ -2157,9 +2157,10 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             public void boundsChanged() { updateOverlayBounds(); }
             public boolean beginMove() {
                 if (!canEdit() || changingWorkspace) return false;
-                pauseForEdit(); captureViewCenter(); persistPosition(); rememberEditor(); return true;
+                pauseForEdit(); if (shownError != null) return false;
+                captureViewCenter(); persistPosition(); rememberEditor(); changingWorkspace = true; return true;
             }
-            public void endMove() { if (active) { saveWorkspace(); relayoutWorkspace(); } }
+            public void endMove() { if (active) relayoutWorkspace(); }
             public void save() { saveWorkspace(); }
             public boolean allowInput() { return canEdit() && !changingWorkspace; }
         });
@@ -2587,7 +2588,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         super.onSaveInstanceState(state);
     }
     private void disposeCanvas() {
-        ++inkGeneration; workspaceLayoutPending = false;
+        ++inkGeneration; workspaceLayoutPending = changingWorkspace = false;
         main.removeCallbacks(previewFrame);
         clearSelection(); resetSelectionPreview();
         dragging = false; pinching = false; gestureEngaged = false; gestureStartViewport = null;

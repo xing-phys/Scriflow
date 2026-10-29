@@ -4,8 +4,6 @@ import android.content.Context;
 import android.graphics.Color;
 import android.graphics.Bitmap;
 import android.graphics.Rect;
-import android.os.Handler;
-import android.os.Looper;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
@@ -37,15 +35,18 @@ final class NotebookCompanion {
     private final NotebookIconButton menu, minimize;
     private final NotebookReader reader;
     private boolean visible, editor, editorPrepared;
-    private final Handler main = new Handler(Looper.getMainLooper());
+    private final NotebookResizeOutline resizeOutline;
     private Grip menuGrip, resizeGrip;
 
     NotebookCompanion(Context context, FrameLayout root, NotebookWorkspace workspace, NotebookWorkspace.Pane pane,
             NotebookSession session, Listener listener) {
         this.context = context; this.root = root; this.workspace = workspace; this.pane = pane; this.listener = listener;
-        content = new FrameLayout(context); content.setPadding(1, 1, 1, 1);
+        content = new FrameLayout(context); content.setPadding(dp(2), dp(2), dp(2), dp(2));
+        resizeOutline = new NotebookResizeOutline(context);
         android.graphics.drawable.GradientDrawable background = new android.graphics.drawable.GradientDrawable();
-        background.setColor(Color.WHITE); background.setStroke(1, Color.BLACK); content.setBackground(background);
+        background.setColor(Color.WHITE); content.setBackground(background);
+        android.graphics.drawable.GradientDrawable border = new android.graphics.drawable.GradientDrawable();
+        border.setColor(Color.TRANSPARENT); border.setStroke(dp(2), Color.BLACK); content.setForeground(border);
         body = new FrameLayout(context); content.addView(body, new FrameLayout.LayoutParams(-1, -1));
         reader = new NotebookReader(context, session, pane, new NotebookReader.Listener() {
             public void activate() { listener.activate(); }
@@ -53,8 +54,8 @@ final class NotebookCompanion {
             public boolean allowInput() { return listener.allowInput(); }
         });
         body.addView(reader, new FrameLayout.LayoutParams(-1, -1));
-        menu = new NotebookIconButton(context, NotebookIconDrawable.Icon.MORE, "Note options; hold and drag to move floating note");
-        minimize = new NotebookIconButton(context, NotebookIconDrawable.Icon.MINIMIZE, "Minimize note; hold and drag to resize floating note");
+        menu = new NotebookIconButton(context, NotebookIconDrawable.Icon.MORE, "Note options; drag to move floating note");
+        minimize = new NotebookIconButton(context, NotebookIconDrawable.Icon.MINIMIZE, "Minimize note; drag to resize floating note");
         menu.setOnClickListener(v -> listener.menu()); minimize.setOnClickListener(v -> listener.collapse());
         FrameLayout.LayoutParams left = new FrameLayout.LayoutParams(dp(32), dp(32), Gravity.BOTTOM | Gravity.LEFT);
         left.setMargins(dp(5), 0, 0, dp(5)); content.addView(menu, left);
@@ -66,7 +67,9 @@ final class NotebookCompanion {
         popup.setTouchable(true); popup.setOutsideTouchable(false); popup.setClippingEnabled(false);
         popup.setIsLaidOutInScreen(true); popup.setAnimationStyle(0); popup.setElevation(0);
         popup.setEnterTransition(null); popup.setExitTransition(null);
-        content.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> listener.boundsChanged());
+        content.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
+            listener.boundsChanged(); finishResizeOutline();
+        });
     }
     void show(String name, View writingSurface) {
         if (pane.collapsed || !root.isAttachedToWindow() || root.getWidth() < 1) { hide(); return; }
@@ -80,8 +83,8 @@ final class NotebookCompanion {
                 body.addView(writingSurface, 0, new FrameLayout.LayoutParams(-1, -1));
             }
         } else { reader.setVisibility(View.VISIBLE); reader.bringToFront(); reader.open(); }
-        menu.setContentDescription(name + ": options; hold and drag to move floating note");
-        minimize.setContentDescription(name + ": minimize; hold and drag to resize floating note");
+        menu.setContentDescription(name + ": options; drag to move floating note");
+        minimize.setContentDescription(name + ": minimize; drag to resize floating note");
         boolean controls = workspace.panes().size() > 1;
         menu.setVisibility(controls ? View.VISIBLE : View.GONE); minimize.setVisibility(controls ? View.VISIBLE : View.GONE);
         position();
@@ -92,11 +95,11 @@ final class NotebookCompanion {
     }
 
     void editorReady() {
-        if (!editor || editorPrepared) return;
+        if (!editor || editorPrepared || resizeGrip.moving) return;
         editorPrepared = true;
         content.postOnAnimation(() -> {
             if (!editor || !editorPrepared) return;
-            reader.setVisibility(View.GONE); reader.hide();
+            reader.setVisibility(View.GONE); reader.hide(); finishResizeOutline();
         });
     }
 
@@ -122,7 +125,18 @@ final class NotebookCompanion {
             if (old == null || old.width != layout.width || old.height != layout.height
                     || old.leftMargin != layout.leftMargin || old.topMargin != layout.topMargin) content.setLayoutParams(layout);
         }
-        visible = true; listener.boundsChanged();
+        visible = true; listener.boundsChanged(); finishResizeOutline();
+    }
+    private void finishResizeOutline() {
+        if (resizeGrip.moving || !resizeOutline.showing() || !workspace.panes().contains(pane) || editor && !editorPrepared) return;
+        NotebookWorkspace.Box box = workspace.box(pane, root.getWidth(), root.getHeight());
+        if (content.getWidth() != box.width || content.getHeight() != box.height) return;
+        content.postOnAnimation(() -> {
+            if (!visible || !resizeOutline.showing() || !workspace.panes().contains(pane)) return;
+            NotebookWorkspace.Box current = workspace.box(pane, root.getWidth(), root.getHeight());
+            if (!resizeGrip.moving && (!editor || editorPrepared)
+                    && content.getWidth() == current.width && content.getHeight() == current.height) resizeOutline.hide();
+        });
     }
     List<Rect> exclusions() {
         List<Rect> bounds = new ArrayList<>();
@@ -143,60 +157,67 @@ final class NotebookCompanion {
     }
     private final class Grip implements View.OnTouchListener {
         final boolean resize;
+        final NotebookGripGesture gesture = new NotebookGripGesture(ViewConfiguration.get(context).getScaledTouchSlop());
         float downX, downY, startX, startY, startW, startH;
-        boolean moving, exceededSlop, held;
-        final Runnable hold = () -> {
-            held = true;
-            if (workspace.floating(pane) && !exceededSlop) moving = listener.beginMove();
-        };
+        boolean moving, rejected;
         Grip(boolean resize) { this.resize = resize; }
         @Override public boolean onTouch(View view, MotionEvent event) {
             int action = event.getActionMasked();
             if (action == MotionEvent.ACTION_DOWN) {
                 downX = event.getRawX(); downY = event.getRawY();
                 startX = pane.x; startY = pane.y; startW = pane.width; startH = pane.height;
-                moving = exceededSlop = held = false;
-                main.postDelayed(hold, ViewConfiguration.getLongPressTimeout()); return true;
+                moving = rejected = false; gesture.begin(downX, downY); return true;
             }
             if (action == MotionEvent.ACTION_MOVE) {
-                float dx = event.getRawX() - downX, dy = event.getRawY() - downY;
-                if (!moving && Math.hypot(dx, dy) > ViewConfiguration.get(context).getScaledTouchSlop()) {
-                    exceededSlop = true; main.removeCallbacks(hold);
-                }
-                if (moving) {
-                    if (resize) {
-                        float left = startX * (1 - startW), top = startY * (1 - startH);
-                        pane.width = NotebookWorkspace.clamp(startW + dx / Math.max(1, root.getWidth()), .3f, Math.min(.95f, 1 - left));
-                        pane.height = NotebookWorkspace.clamp(startH + dy / Math.max(1, root.getHeight()), .3f, Math.min(.95f, 1 - top));
-                        pane.x = NotebookWorkspace.clamp(left / (1 - pane.width), 0, 1);
-                        pane.y = NotebookWorkspace.clamp(top / (1 - pane.height), 0, 1);
-                    } else {
-                        pane.x = NotebookWorkspace.clamp(startX + dx / Math.max(1, root.getWidth() * (1 - pane.width)), 0, 1);
-                        pane.y = NotebookWorkspace.clamp(startY + dy / Math.max(1, root.getHeight() * (1 - pane.height)), 0, 1);
-                    }
-                    position();
-                }
+                begin(event.getRawX(), event.getRawY());
+                if (moving) update(event.getRawX(), event.getRawY());
                 return true;
             }
             if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
-                main.removeCallbacks(hold);
-                boolean wasMoving = moving; moving = false;
+                if (action == MotionEvent.ACTION_UP) begin(event.getRawX(), event.getRawY());
+                boolean click = gesture.finish(action == MotionEvent.ACTION_CANCEL);
+                boolean wasMoving = moving;
                 if (wasMoving) {
-                    if (action == MotionEvent.ACTION_CANCEL) {
-                        pane.x = startX; pane.y = startY; pane.width = startW; pane.height = startH; position();
-                    }
-                    listener.save(); listener.endMove();
-                } else if (!held && !exceededSlop && action == MotionEvent.ACTION_UP) view.performClick();
+                    if (action == MotionEvent.ACTION_CANCEL) { restore(); resizeOutline.hide(); }
+                    else update(event.getRawX(), event.getRawY());
+                    moving = false; listener.save(); listener.endMove();
+                } else if (click && !rejected && action == MotionEvent.ACTION_UP) view.performClick();
                 return true;
             }
             return true;
         }
-        void cancel() { main.removeCallbacks(hold); moving = false; }
+        private void begin(float x, float y) {
+            if (gesture.move(x, y) && !moving && !rejected && workspace.floating(pane)) {
+                moving = listener.beginMove(); rejected = !moving;
+                if (moving && resize && editor) editorPrepared = false;
+                if (moving && !resize) resizeOutline.hide();
+            }
+        }
+        private void update(float x, float y) {
+            float dx = x - downX, dy = y - downY;
+            if (resize) {
+                float left = startX * (1 - startW), top = startY * (1 - startH);
+                pane.width = NotebookWorkspace.clamp(startW + dx / Math.max(1, root.getWidth()), .3f, Math.min(.95f, 1 - left));
+                pane.height = NotebookWorkspace.clamp(startH + dy / Math.max(1, root.getHeight()), .3f, Math.min(.95f, 1 - top));
+                pane.x = NotebookWorkspace.clamp(left / (1 - pane.width), 0, 1);
+                pane.y = NotebookWorkspace.clamp(top / (1 - pane.height), 0, 1);
+                resizeOutline.show(root, workspace.box(pane, root.getWidth(), root.getHeight()));
+            } else {
+                pane.x = NotebookWorkspace.clamp(startX + dx / Math.max(1, root.getWidth() * (1 - pane.width)), 0, 1);
+                pane.y = NotebookWorkspace.clamp(startY + dy / Math.max(1, root.getHeight() * (1 - pane.height)), 0, 1);
+                position();
+            }
+        }
+        private void restore() { pane.x = startX; pane.y = startY; pane.width = startW; pane.height = startH; }
+        void cancel() {
+            if (moving) restore();
+            moving = false; gesture.finish(true); resizeOutline.hide();
+        }
     }
     void setCacheBudget(NotebookCacheBudget budget) { reader.setCacheBudget(budget); }
     void trimCaches() { reader.trimCaches(); }
     void hide() {
-        menuGrip.cancel(); resizeGrip.cancel(); reader.hide(); visible = editorPrepared = false;
+        menuGrip.cancel(); resizeGrip.cancel(); resizeOutline.hide(); reader.hide(); visible = editorPrepared = false;
         popup.dismiss(); if (content.getParent() == root) root.removeView(content);
         listener.boundsChanged();
     }
