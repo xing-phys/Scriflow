@@ -10,6 +10,7 @@ import java.util.List;
 public final class HandPen {
     public static final List<float[]> samples = new ArrayList<>();
     public static float capturedWidth;
+    public static int replays;
     private Path path;
     public HandPen(int type, boolean outline) { }
     public void setCanvasBoard(Canvas canvas) { }
@@ -21,5 +22,5 @@ public final class HandPen {
         samples.add(new float[]{action, x, y, time, pressure});
         if (action == MotionEvent.ACTION_UP) path.close();
     }
-    public IPenTrack getTrack() { return () -> path; }
+    public IPenTrack getTrack() { replays++; return () -> path; }
 }

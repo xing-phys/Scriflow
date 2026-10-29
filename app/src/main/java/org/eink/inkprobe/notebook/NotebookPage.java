@@ -37,6 +37,7 @@ public final class NotebookPage {
         // Viewport-only clipping. Keep full samples so scrolling cannot restart the brush
         // at a clipped MOVE and change its pressure/taper geometry.
         final Clip clip;
+        final float minX, minY, maxX, maxY, maxPressure;
 
         public Stroke(int penType, float width, int color, List<Point> points) {
             this(UUID.randomUUID(), penType, width, color, points);
@@ -77,11 +78,16 @@ public final class NotebookPage {
                 throw new IllegalArgumentException("Invalid stroke point count");
             }
             ArrayList<Point> copy = new ArrayList<>(points);
+            float minX = Float.MAX_VALUE, minY = Float.MAX_VALUE, maxX = -Float.MAX_VALUE, maxY = -Float.MAX_VALUE, maxPressure = 1;
             for (Point point : copy) {
                 if (point == null) throw new IllegalArgumentException("Missing pen point");
                 if (!finite(point.x * captureScale) || !finite(point.y * captureScale))
                     throw new IllegalArgumentException("Invalid native pen coordinate");
+                minX = Math.min(minX, point.x); minY = Math.min(minY, point.y);
+                maxX = Math.max(maxX, point.x); maxY = Math.max(maxY, point.y);
+                maxPressure = Math.max(maxPressure, point.pressure);
             }
+            this.minX = minX; this.minY = minY; this.maxX = maxX; this.maxY = maxY; this.maxPressure = maxPressure;
             this.penType = penType;
             this.width = width;
             this.color = color;

@@ -6,6 +6,18 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.33.1-dev.2 — Reuse exact pressure outlines (2026-10-29)
+
+- Cache a bounded, stable subset of immutable stroke outlines for active previews
+  and inactive readers; retain full-quality replay outside the cache budget.
+  Preserve caller path ownership and release old view caches on pause/minimize.
+- Reuse derived stroke bounds and source-page vectors during viewport composition
+  and focus handoff. Remove per-MOVE reader stroke-set reconstruction.
+- Native cached/uncached pixels match exactly; handoff threshold geometry is
+  unchanged. Full host/native regressions and 36 tablet checks pass. A geometry
+  replay microbenchmark improved from 785 ms to 1.6 ms with warm paths; raster
+  work and optical/display latency are excluded. VersionCode 56, local candidate.
+
 ## 0.33.1-dev.1 — Indexed scrolling geometry (2026-10-29)
 
 - Share immutable page geometry when panning; reuse unchanged viewports and avoid

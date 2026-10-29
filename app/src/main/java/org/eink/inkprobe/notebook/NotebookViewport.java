@@ -248,18 +248,11 @@ public final class NotebookViewport {
 
     private static boolean intersects(NotebookPage.Stroke stroke, float scale, float x, float y,
                                       float left, float top, float right, float bottom) {
-        float minX = Float.MAX_VALUE, minY = Float.MAX_VALUE, maxX = -Float.MAX_VALUE, maxY = -Float.MAX_VALUE;
-        float pressure = 1;
-        for (NotebookPage.Point point : stroke.points) {
-            minX = Math.min(minX, point.x); minY = Math.min(minY, point.y);
-            maxX = Math.max(maxX, point.x); maxY = Math.max(maxY, point.y);
-            pressure = Math.max(pressure, point.pressure);
-        }
         // Conservative native brush padding also retains thick edges whose
         // centreline is outside the viewport, without replaying distant ink.
-        float padding = 2 * Math.max(stroke.width * pressure, 1 / stroke.captureScale) * scale;
-        return maxX * scale + x + padding >= left && minX * scale + x - padding <= right
-            && maxY * scale + y + padding >= top && minY * scale + y - padding <= bottom;
+        float padding = 2 * Math.max(stroke.width * stroke.maxPressure, 1 / stroke.captureScale) * scale;
+        return stroke.maxX * scale + x + padding >= left && stroke.minX * scale + x - padding <= right
+            && stroke.maxY * scale + y + padding >= top && stroke.minY * scale + y - padding <= bottom;
     }
 
     /** Clips a completed screen stroke into independently stored page-local pieces. */

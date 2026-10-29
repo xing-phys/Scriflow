@@ -110,6 +110,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private final NotebookViewportBuffer viewportBuffer = new NotebookViewportBuffer();
     private final Map<Integer, Bitmap> tiles = new LinkedHashMap<>();
     private Bitmap preview;
+    private final NotebookStrokeRenderer.Cache strokePaths = new NotebookStrokeRenderer.Cache(65536);
     private float scrollY, fingerX, fingerY, fingerOriginX, fingerOrigin;
     private float pinchDistance, pinchX, pinchY;
     private boolean pinching;
@@ -782,6 +783,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private void drawPreview() {
         if (!active || !dragging || !gestureEngaged || viewport == null || shownError != null) return;
         try {
+            strokePaths.prepare(pages.values());
             preparePdfBackgrounds();
             if (preview == null) preview = Bitmap.createBitmap(viewport.width, viewport.height, Bitmap.Config.RGB_565);
             Canvas drawing = new Canvas(preview);
@@ -870,7 +872,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         NotebookImages.draw(drawing, current);
         if (includeInk) {
             for (NotebookPage.Stroke stroke : current.strokes)
-                NotebookStrokeRenderer.draw(drawing, stroke, paint);
+                strokePaths.draw(drawing, stroke, paint);
         }
         drawing.restore();
     }
@@ -2212,8 +2214,16 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             Canvas drawing = new Canvas(frame);
             drawPaper(drawing, viewport.width, viewport.height);
             Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            for (NotebookPage.Stroke stroke : viewport.compose(pages, scrollY).strokes)
-                NotebookStrokeRenderer.draw(drawing, stroke, paint);
+            strokePaths.prepare(pages.values());
+            for (int number : viewport.visiblePages(scrollY)) {
+                NotebookPage source = pages.get(number); if (source == null) continue;
+                int saved = drawing.save();
+                drawing.translate(viewport.pageLeft(number), viewport.pageTop(number, scrollY));
+                drawing.scale(viewport.scale(number), viewport.scale(number));
+                drawing.clipRect(0, 0, source.width, source.height);
+                for (NotebookPage.Stroke stroke : source.strokes) strokePaths.draw(drawing, stroke, paint);
+                drawing.restoreToCount(saved);
+            }
             window.retainEditorFrame(frame);
             return true;
         } catch (RuntimeException | OutOfMemoryError error) {
@@ -2552,7 +2562,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         clearSelection(); resetSelectionPreview();
         dragging = false; pinching = false; gestureEngaged = false; gestureStartViewport = null;
         selectionViewportGesture = false;
-        linkTap.cancel(); pdfBackgrounds.clear();
+        linkTap.cancel(); pdfBackgrounds.clear(); strokePaths.clear();
         if (zoomBadge != null) zoomBadge.dismiss();
         penDown = false;
         if (floatingTools != null) floatingTools.hide();

@@ -16,6 +16,7 @@ public final class NotebookStrokeRendererTest {
         emptyClipIsNotAnError();
         failedDrawingRestoresCallerState();
         captureGeometryIsUnchanged();
+        boundedCachePreservesExactInkAndOwnership();
         System.out.println("NotebookStrokeRenderer: " + assertions
             + " assertions passed (production renderer, Java2D contract fixtures; not native verification).");
     }
@@ -87,6 +88,32 @@ public final class NotebookStrokeRendererTest {
         check(full[1] == raw.points.get(0).x && full[2] == raw.points.get(0).y,
             "Returned geometry remains in logical page coordinates");
         check(raw.points == clipped.points || raw.points.equals(clipped.points), "Viewport clipping retains all raw samples");
+    }
+
+    private static void boundedCachePreservesExactInkAndOwnership() {
+        NotebookPage.Stroke a = square(), b = square();
+        NotebookPage page = NotebookPage.empty().withSize(100,100).withStrokes(Arrays.asList(a,b));
+        NotebookStrokeRenderer.Cache cache = new NotebookStrokeRenderer.Cache(4);
+        cache.prepare(java.util.Collections.singletonList(page));
+        Canvas expected = new Canvas(100,100), actual = new Canvas(100,100); Paint paint = new Paint();
+        for (NotebookPage.Stroke s : page.strokes) NotebookStrokeRenderer.draw(expected,s,paint);
+        for (NotebookPage.Stroke s : page.strokes) cache.draw(actual,s,paint);
+        for (int y=0;y<100;y++) for (int x=0;x<100;x++) check(expected.pixel(x,y)==actual.pixel(x,y),"cached exact outline preserves pixels");
+        int before = HandPen.replays;
+        for (NotebookPage.Stroke s : page.strokes) cache.path(s,()->false);
+        check(HandPen.replays==before+1&&cache.cachedPoints()==4,"over-budget page keeps a stable cached subset without cyclic eviction");
+        float[] original = cache.path(a,()->false).approximate(.05f);
+        android.graphics.Matrix scale = new android.graphics.Matrix();scale.setScale(2,2);
+        cache.path(a,()->false).transform(scale);
+        check(Arrays.equals(original,cache.path(a,()->false).approximate(.05f)),"caller transforms cannot mutate cached vectors");
+        boolean cancelled=false;try{cache.path(a,()->true);}catch(java.util.concurrent.CancellationException e){cancelled=true;}
+        check(cancelled,"cached lookup observes cancellation");
+        NotebookPage changed=page.withStrokes(java.util.Collections.singletonList(b));cache.prepare(java.util.Collections.singletonList(changed));
+        before=HandPen.replays;cache.path(b,()->false);
+        check(HandPen.replays==before+1&&cache.cachedPoints()==4,"page replacement releases old paths and admits new immutable strokes");
+        cache.setPointLimit(0);cache.prepare(java.util.Collections.singletonList(changed));cache.path(b,()->false);
+        check(cache.isEmpty(),"zero budget renders accurately without retaining geometry");
+        cache.clear();check(cache.isEmpty()&&cache.cachedPoints()==0,"cache cleanup releases paths and stroke owners");
     }
 
     private static NotebookPage.Stroke square() {

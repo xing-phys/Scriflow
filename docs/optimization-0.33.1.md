@@ -31,3 +31,35 @@ Seven timed samples alternate execution order after warmup. For 600 pages and
 before** and **11.140 ms after**, with identical result checksums. This is a
 geometry microbenchmark, not a claim of 64× faster scrolling or handwriting.
 Raw local logs remain ignored in `artifacts/optimization-0.33.1/`.
+
+## Step 2: exact ink geometry (0.33.1-dev.2, code 56)
+
+The active preview and inactive readers now retain bounded exact native outlines
+for immutable source strokes. A stable admission subset avoids cyclic cache
+thrashing on pages larger than the budget: uncached strokes still replay at full
+quality. The active view admits at most 65,536 points, each reader 32,768 points,
+and either cache at most 1,024 strokes. Returned paths are owned copies, so
+selection transforms cannot mutate cached vectors. Page changes prune stale
+owners; pausing/minimizing releases view caches. Reader moves no longer rebuild
+and prune a set of every loaded stroke on every input sample.
+
+Stroke bounds/maximum pressure are computed during existing immutable-stroke
+validation, then reused for viewport intersection instead of rescanning all its
+points. These derived fields do not change serialization. Focus handoff draws
+source-page outlines through the viewport transform rather than allocating a new
+screen-coordinate point list and replaying it for each stroke.
+
+Host cache tests verify exact pixels, ownership, cancellation, page replacement,
+zero-budget behavior, cleanup and stable over-budget admission. Full regressions
+and Debug/Release lint/builds passed. Native comparison had **zero ARGB pixel
+differences** for cached versus uncached ink. The source-coordinate handoff had
+29 antialiasing-value differences and zero threshold/boundary differences versus
+the previous composed replay. All prior pressure/capture-scale/PDF/clipping
+checks passed. The signed dev.2 update passed all **36 device checks**, including
+window stress, finger reading, native lasso/tool panels and sleep/Home return.
+
+A native-geometry-only workload (256 strokes, 32,768 points, eight replay passes,
+seven alternating timed samples after warmup) measured **784.888 ms uncached**
+versus **1.645 ms with warm paths**, with matching geometry checksums. This
+isolates repeated brush reconstruction; it excludes raster/display work and is
+not a claim of a comparable whole-app speedup. Live AHW callbacks remain unchanged.

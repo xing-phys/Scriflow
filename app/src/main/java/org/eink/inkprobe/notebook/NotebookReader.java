@@ -15,7 +15,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,7 +30,7 @@ final class NotebookReader extends View {
     private final ScaleGestureDetector scale;
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final Map<Integer, NotebookPage> pages = new LinkedHashMap<>();
-    private final Map<NotebookPage.Stroke, Path> paths = new IdentityHashMap<>();
+    private final NotebookStrokeRenderer.Cache paths = new NotebookStrokeRenderer.Cache(32768);
     private final Set<Integer> errors = new HashSet<>();
     private List<NotebookViewport.Size> sizes = Collections.emptyList();
     private NotebookSession.PreviewRequest metadataRequest, pageRequest;
@@ -108,9 +107,6 @@ final class NotebookReader extends View {
         if (!opened || viewport == null) return;
         List<Integer> visible = viewport.visiblePages(scrollY);
         pages.keySet().retainAll(visible); errors.retainAll(visible);
-        Set<NotebookPage.Stroke> retained = Collections.newSetFromMap(new IdentityHashMap<>());
-        for (NotebookPage page : pages.values()) retained.addAll(page.strokes);
-        paths.keySet().retainAll(retained);
         if (loadingPage) return;
         for (int number : visible) if (!pages.containsKey(number) && !errors.contains(number)) {
             loadingPage = true; final int request = epoch;
@@ -149,6 +145,7 @@ final class NotebookReader extends View {
             }
             retainedFrame = null; // Display lists may still reference the bitmap; let GC reclaim it.
         }
+        paths.prepare(pages.values());
         canvas.drawColor(0xffeeeeee);
         if (viewport == null) { label(canvas, message); return; }
         for (int number : viewport.visiblePages(scrollY)) {
@@ -172,8 +169,7 @@ final class NotebookReader extends View {
                 NotebookImages.draw(canvas, page);
                 paint.setStyle(Paint.Style.FILL);
                 for (NotebookPage.Stroke stroke : page.strokes) {
-                    Path path = paths.get(stroke);
-                    if (path == null) { path = NotebookStrokeRenderer.path(stroke, () -> false); paths.put(stroke, path); }
+                    Path path = paths.path(stroke, () -> false);
                     paint.setColor(stroke.color);
                     int clip = canvas.save();
                     if (stroke.clip != null) canvas.clipRect(stroke.clip.left, stroke.clip.top, stroke.clip.right, stroke.clip.bottom);

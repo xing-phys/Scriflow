@@ -8,6 +8,12 @@ import android.view.MotionEvent;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Set;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
@@ -28,7 +34,10 @@ public final class NotebookStrokeRenderer {
     }
 
     static void draw(Canvas canvas, NotebookPage.Stroke stroke, Paint paint, BooleanSupplier cancelled) {
-        Path outline = path(stroke, cancelled);
+        drawOutline(canvas, stroke, paint, path(stroke, cancelled));
+    }
+
+    private static void drawOutline(Canvas canvas, NotebookPage.Stroke stroke, Paint paint, Path outline) {
         paint.setStyle(Paint.Style.FILL);
         paint.setColor(stroke.color);
         if (stroke.clip == null) {
@@ -45,6 +54,47 @@ public final class NotebookStrokeRenderer {
         } finally {
             canvas.restoreToCount(saved);
         }
+    }
+
+    /** View-owned, bounded exact outlines; never used by live pen callbacks or shared between threads. */
+    static final class Cache {
+        private static final int MAX_STROKES = 1024;
+        private int pointLimit;
+        private final List<NotebookPage> owners = new ArrayList<>();
+        private final Set<NotebookPage.Stroke> admitted = Collections.newSetFromMap(new IdentityHashMap<>());
+        private final Map<NotebookPage.Stroke, Path> paths = new IdentityHashMap<>();
+        Cache(int pointLimit) { setPointLimit(pointLimit); }
+        void setPointLimit(int limit) {
+            if (limit < 0) throw new IllegalArgumentException("Negative outline budget");
+            if (pointLimit != limit) { pointLimit = limit; clear(); }
+        }
+        void prepare(Collection<NotebookPage> pages) {
+            boolean same = owners.size() == pages.size(); int index = 0;
+            if (same) for (NotebookPage page : pages) if (owners.get(index++) != page) { same = false; break; }
+            if (same) return;
+            owners.clear(); owners.addAll(pages); admitted.clear(); int points = 0;
+            outer: for (NotebookPage page : owners) for (NotebookPage.Stroke stroke : page.strokes) {
+                if (admitted.size() >= MAX_STROKES) break outer;
+                if (stroke.points.size() <= pointLimit - points && admitted.add(stroke)) points += stroke.points.size();
+            }
+            // Admit a stable subset when a dense page exceeds the budget. A cyclic
+            // full-page repaint must not evict/replay every path on every frame.
+            paths.keySet().retainAll(admitted);
+        }
+        Path path(NotebookPage.Stroke stroke, BooleanSupplier cancelled) {
+            checkCancelled(cancelled);
+            Path cached = paths.get(stroke);
+            if (cached != null) return new Path(cached); // Callers may transform their own copy.
+            Path result = NotebookStrokeRenderer.path(stroke, cancelled);
+            if (admitted.contains(stroke)) paths.put(stroke, new Path(result));
+            return result;
+        }
+        void draw(Canvas canvas, NotebookPage.Stroke stroke, Paint paint) {
+            drawOutline(canvas, stroke, paint, path(stroke, NEVER_CANCELLED));
+        }
+        boolean isEmpty() { return paths.isEmpty(); }
+        int cachedPoints() { int count = 0; for (NotebookPage.Stroke stroke : paths.keySet()) count += stroke.points.size(); return count; }
+        void clear() { owners.clear(); admitted.clear(); paths.clear(); }
     }
 
     public static NotebookStrokeOutline outline(NotebookPage.Stroke stroke) {

@@ -78,6 +78,7 @@ public final class NotebookRenderingCheck {
         result.put("captureScale", scaledReplay(directory, page, nativeReplay));
         result.put("transparentNativePlaceholders", transparentTracks(page));
         result.put("viewportClipping", viewportClipping(directory, page));
+        result.put("outlineCache", outlineCache(page, shared));
         boolean passed = result.getJSONObject("nativeVsCanvas").getInt("outsideOnePixel") == 0
             && result.getJSONObject("nativeVsPdf").getInt("outsideOnePixel") == 0
             && Math.abs(result.getInt("nativeLightWidth") - result.getInt("pdfLightWidth")) <= 1
@@ -86,7 +87,8 @@ public final class NotebookRenderingCheck {
             && result.getBoolean("parallelReplay")
             && result.getJSONObject("captureScale").getBoolean("passed")
             && result.getBoolean("transparentNativePlaceholders")
-            && result.getJSONObject("viewportClipping").getBoolean("passed");
+            && result.getJSONObject("viewportClipping").getBoolean("passed")
+            && result.getJSONObject("outlineCache").getBoolean("passed");
         result.put("passed", passed);
         try (FileOutputStream output = new FileOutputStream(new File(directory, "result.json"))) {
             output.write(result.toString(2).getBytes(StandardCharsets.UTF_8));
@@ -163,6 +165,52 @@ public final class NotebookRenderingCheck {
             for (java.util.concurrent.Future<Boolean> job : jobs) if (!job.get(30, java.util.concurrent.TimeUnit.SECONDS)) return false;
             return true;
         } finally { pool.shutdownNow(); }
+    }
+
+    private static volatile long cacheChecksum;
+    private static JSONObject outlineCache(NotebookPage page, Bitmap reference) throws Exception {
+        NotebookStrokeRenderer.Cache cache = new NotebookStrokeRenderer.Cache(65536);
+        cache.prepare(java.util.Collections.singletonList(page));Bitmap cached=paper(page);Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
+        for(NotebookPage.Stroke stroke:page.strokes)cache.draw(new Canvas(cached),stroke,paint);
+        JSONObject pixels=compare(reference,cached);cached.recycle();
+        Path escaped=cache.path(page.strokes.get(0),()->false);float[] before=escaped.approximate(.05f);
+        Matrix mutation=new Matrix();mutation.setScale(2,2);escaped.transform(mutation);
+        boolean owned=Arrays.equals(before,cache.path(page.strokes.get(0),()->false).approximate(.05f));
+        NotebookViewport viewport=new NotebookViewport(1,page.width,page.height,WIDTH,HEIGHT,24,1.125f,100);
+        float scroll=viewport.maxScroll()/2;
+        Bitmap oldFrame=paper(page),newFrame=paper(page);
+        for(NotebookPage.Stroke stroke:viewport.compose(java.util.Collections.singletonMap(1,page),scroll).strokes)
+            NotebookStrokeRenderer.draw(new Canvas(oldFrame),stroke,paint);
+        Canvas frame=new Canvas(newFrame);frame.translate(viewport.pageLeft(1),viewport.pageTop(1,scroll));frame.scale(viewport.scale(1),viewport.scale(1));frame.clipRect(0,0,page.width,page.height);
+        for(NotebookPage.Stroke stroke:page.strokes)cache.draw(frame,stroke,paint);
+        JSONObject handoff=compare(oldFrame,newFrame);oldFrame.recycle();newFrame.recycle();
+        List<NotebookPage.Stroke> dense=new ArrayList<>();
+        for(int n=0;n<256;n++){
+            List<NotebookPage.Point> points=new ArrayList<>();
+            for(int j=0;j<128;j++)points.add(point(40+j*8,60+(n%16)*75+(float)Math.sin(j*.12)*25,n*2000+j*8,.1f+.8f*(j%23)/22));
+            dense.add(new NotebookPage.Stroke(2,6,Color.BLACK,points,1.25f,7.5f));
+        }
+        NotebookPage workload=page.withStrokes(dense);NotebookStrokeRenderer.Cache warm=new NotebookStrokeRenderer.Cache(65536);
+        warm.prepare(java.util.Collections.singletonList(workload));
+        for(int i=0;i<2;i++){replayWork(workload,null);replayWork(workload,warm);}
+        long expected=replayWork(workload,null),actual=replayWork(workload,warm);
+        double[] uncached=new double[7],hot=new double[7];
+        for(int i=0;i<7;i++){
+            if(i%2==0){uncached[i]=replayTime(workload,null);hot[i]=replayTime(workload,warm);}
+            else{hot[i]=replayTime(workload,warm);uncached[i]=replayTime(workload,null);}
+        }
+        Arrays.sort(uncached);Arrays.sort(hot);
+        JSONObject result=new JSONObject();result.put("cachedVsUncached",pixels);result.put("handoffVsComposed",handoff);result.put("ownedPaths",owned);
+        result.put("strokes",256);result.put("points",32768);result.put("frames",8);result.put("samples",7);
+        result.put("uncachedMedianMs",uncached[3]);result.put("cachedMedianMs",hot[3]);result.put("cachedPoints",warm.cachedPoints());
+        result.put("passed",pixels.getInt("differentArgbPixels")==0&&handoff.getInt("outsideOnePixel")==0&&owned&&expected==actual&&warm.cachedPoints()<=65536);
+        cache.clear();warm.clear();return result;
+    }
+    private static double replayTime(NotebookPage page,NotebookStrokeRenderer.Cache cache){long begin=System.nanoTime();cacheChecksum=replayWork(page,cache);return(System.nanoTime()-begin)/1e6;}
+    private static long replayWork(NotebookPage page,NotebookStrokeRenderer.Cache cache){
+        long sum=0;RectF bounds=new RectF();for(int frame=0;frame<8;frame++)for(NotebookPage.Stroke stroke:page.strokes){
+            Path path=cache==null?NotebookStrokeRenderer.path(stroke,()->false):cache.path(stroke,()->false);path.computeBounds(bounds,true);sum+=Float.floatToIntBits(bounds.left)+Float.floatToIntBits(bounds.bottom);
+        }return sum;
     }
 
     /** Same physical native input, stored at several logical page scales and exported again. */
