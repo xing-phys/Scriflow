@@ -50,11 +50,13 @@ owner's instruction to continue without the device. See the
 [release notes](docs/releases/0.33.1.md), [optimization record](docs/optimization-0.33.1.md)
 and [interaction record](docs/window-figure-interactions.md) for scope and limits.
 
-Local **0.33.2-dev.1** makes the top-left note bar compact and interactive:
+Local **0.33.2-dev.2** makes the top-left note bar compact and interactive:
 tap the name for the bookshelf, the page counter for page management, or the
 percentage for zoom. Previous/next arrows flank the counter. Those four
-navigation buttons leave the toolbox. See the
-[navigation record](docs/compact-note-navigation.md); physical checks remain pending.
+navigation buttons leave the toolbox. Undo/Redo move beside the top-right device
+status and appear individually when available after writing; other interactions
+hide them until writing resumes. See the [navigation record](docs/compact-note-navigation.md)
+and [history controls](docs/writing-history-controls.md); physical checks remain pending.
 
 ## Features
 

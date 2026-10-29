@@ -1,5 +1,9 @@
 # Compact note navigation — 0.33.2-dev.1
 
+This record describes dev.1. In **dev.2**, Undo/Redo also leave the toolbox and
+become conditional controls beside device status; see
+[writing history controls](writing-history-controls.md).
+
 The top-left note bar now contains separate controls in this order:
 
 | Control | Action |

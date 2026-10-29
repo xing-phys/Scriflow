@@ -4,8 +4,8 @@ Scriflow is designed for Huawei MatePad Paper HMW-W09 on Android 10/API 29,
 firmware `HMW-W09 2.1.0.222(C00E170R1P8)`. Other devices and firmware have not
 been verified. See the [README](../README.md) for installation and current limits.
 
-The compact top-left navigation controls described below start with local
-**0.33.2-dev.1**.
+The navigation controls below are included in local **0.33.2-dev.2**; its compact
+top-left bar started with dev.1 and its writing-only history controls with dev.2.
 
 ## Notebooks and pages
 
@@ -181,7 +181,8 @@ the tools.
 
 **Pen** uses a pencil symbol; **Eraser** uses a tilted eraser. A thick border
 marks the selected tool. **Lasso** uses a dashed loop (available in development
-builds after 0.28.0-beta.2). The curved arrows are Undo/Redo. Page management,
+builds after 0.28.0-beta.2). Undo/Redo appear beside the top-right device status
+while writing, each only when available. Page management,
 page-turn arrows and the bookshelf action are in the top-left bar. The vertical
 **⋮** menu beside the top-left zoom percentage offers
 page information, PDF export, and
@@ -230,6 +231,13 @@ the ink intact. Very fast passes at the maximum width can show visible lag.
 Native offscreen checks verify the corrected constant-width brush geometry;
 the current build's optical latency and physical pen feel still need tablet
 acceptance. Choose **Pen** to resume writing.
+
+In **0.33.2-dev.2**, Undo/Redo are beside the top-right clock/battery/Wi-Fi bar,
+outside the toolbox. Each appears only when its action is available. Scrolling,
+zooming, navigation, window changes, reading another pane and opening controls
+hide both until another Pen writing contact. Availability updates between strokes.
+Tapping Undo/Redo keeps the controls available so repeated Undo and subsequent
+Redo remain possible. Hidden actions take no space or touch target.
 
 **Undo/Redo** retains up to 100 writing or erase actions **per page** within
 the current app process. It survives leaving and returning while the process

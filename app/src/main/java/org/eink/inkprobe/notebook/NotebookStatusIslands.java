@@ -20,6 +20,7 @@ final class NotebookStatusIslands {
     private final LinearLayout notebook, device;
     private final PopupWindow leftWindow, rightWindow;
     private final Rect leftBounds = new Rect(), rightBounds = new Rect();
+    private final NotebookIconButton undo, redo;
     private View anchor;
     private final View.OnLayoutChangeListener layoutListener =
             (view, l, t, r, b, oldL, oldT, oldR, oldB) -> position();
@@ -27,9 +28,11 @@ final class NotebookStatusIslands {
     NotebookStatusIslands(Activity activity, NotebookButton noteName, NotebookIconButton previous,
                           NotebookButton pageLabel, NotebookIconButton next, NotebookButton zoom,
                           TextView saveState,
-                          NotebookButton more, NotebookDeviceStatus deviceStatus, Listener listener) {
+                          NotebookButton more, NotebookDeviceStatus deviceStatus,
+                          NotebookIconButton undo, NotebookIconButton redo, Listener listener) {
         this.activity = activity;
         this.listener = listener;
+        this.undo = undo; this.redo = redo;
         notebook = island();
         LinearLayout top = new LinearLayout(activity); top.setGravity(Gravity.CENTER_VERTICAL);
         // Only the title shrinks on constrained screens; the other tap targets stay distinct.
@@ -42,7 +45,14 @@ final class NotebookStatusIslands {
         notebook.addView(top, new LinearLayout.LayoutParams(-1, -2));
         notebook.addView(saveState, new LinearLayout.LayoutParams(-1, dp(24)));
         device = island();
-        device.addView(deviceStatus, new LinearLayout.LayoutParams(-2, dp(24)));
+        LinearLayout right = new LinearLayout(activity); right.setGravity(Gravity.CENTER_VERTICAL);
+        for (NotebookIconButton button : new NotebookIconButton[]{undo, redo}) {
+            button.setVisibility(View.GONE);
+            LinearLayout.LayoutParams item = new LinearLayout.LayoutParams(dp(28), dp(28));
+            item.rightMargin = dp(4); right.addView(button, item);
+        }
+        right.addView(deviceStatus, new LinearLayout.LayoutParams(-2, dp(24)));
+        device.addView(right, new LinearLayout.LayoutParams(-2, -2));
         leftWindow = window(notebook);
         rightWindow = window(device);
     }
@@ -94,6 +104,18 @@ final class NotebookStatusIslands {
 
     /** Save failures can add a Retry line while native input is already stopped. */
     void refresh() { position(); }
+
+    boolean historyMatches(boolean canUndo, boolean canRedo) {
+        return (undo.getVisibility() == View.VISIBLE) == canUndo && (redo.getVisibility() == View.VISIBLE) == canRedo;
+    }
+
+    /** Called between native strokes; hidden actions occupy no space or touch target. */
+    void history(boolean canUndo, boolean canRedo) {
+        undo.setAvailable(canUndo); redo.setAvailable(canRedo);
+        undo.setVisibility(canUndo ? View.VISIBLE : View.GONE);
+        redo.setVisibility(canRedo ? View.VISIBLE : View.GONE);
+        position();
+    }
 
     private void position() {
         if (anchor == null || !anchor.isAttachedToWindow() || anchor.getWidth() < 1

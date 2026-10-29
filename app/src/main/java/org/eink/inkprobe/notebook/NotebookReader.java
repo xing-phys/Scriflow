@@ -21,7 +21,7 @@ import java.util.Set;
 
 /** Continuous read-only viewport using original vector ink and screen-resolution PDF tiles. */
 final class NotebookReader extends View {
-    interface Listener { void activate(); void figure(NotebookFigureHit.Hit hit); void save(); boolean allowInput(); int writingRevision(); }
+    interface Listener { void interact(); void activate(); void figure(NotebookFigureHit.Hit hit); void save(); boolean allowInput(); int writingRevision(); }
     private final NotebookSession session;
     private final NotebookWorkspace.Pane pane;
     private final Listener listener;
@@ -194,6 +194,7 @@ final class NotebookReader extends View {
         int action = event.getActionMasked(), type = event.getToolType(0);
         if (action == MotionEvent.ACTION_DOWN) contactAccepted = listener.allowInput();
         if (!contactAccepted) { figureTap.cancel(); return true; }
+        if (action == MotionEvent.ACTION_DOWN) listener.interact();
         if (type == MotionEvent.TOOL_TYPE_STYLUS || type == MotionEvent.TOOL_TYPE_ERASER || stylusContact) {
             figureTap.cancel();
             if (action == MotionEvent.ACTION_DOWN) stylusContact = true;

@@ -22,7 +22,7 @@ import java.util.EnumMap;
 /** A separate, static window above the native ink surface, moved only by its grip. */
 public final class NotebookFloatingTools {
     public enum Action {
-        NOTES, ADD_PAGE, PEN, ERASER, LASSO, UNDO, REDO, MORE, OUTLINE, VIEW_BACK, VIEW_FORWARD, ORIENTATION, COLLAPSE
+        NOTES, ADD_PAGE, PEN, ERASER, LASSO, MORE, OUTLINE, VIEW_BACK, VIEW_FORWARD, ORIENTATION, COLLAPSE
     }
 
     public interface Listener {
@@ -96,14 +96,11 @@ public final class NotebookFloatingTools {
         add(Action.PEN, NotebookIconDrawable.Icon.PEN, "Pen");
         add(Action.ERASER, NotebookIconDrawable.Icon.ERASER, "Eraser");
         add(Action.LASSO, NotebookIconDrawable.Icon.LASSO, "Lasso: select and move ink");
-        add(Action.UNDO, NotebookIconDrawable.Icon.UNDO, "Undo");
-        add(Action.REDO, NotebookIconDrawable.Icon.REDO, "Redo");
         add(Action.OUTLINE, NotebookIconDrawable.Icon.OUTLINE, "Table of contents; add and edit outline");
         add(Action.VIEW_BACK, NotebookIconDrawable.Icon.VIEW_BACK, "Go to previous view");
         add(Action.VIEW_FORWARD, NotebookIconDrawable.Icon.VIEW_FORWARD, "Go to next view");
         add(Action.ORIENTATION, NotebookIconDrawable.Icon.LAYOUT_VERTICAL, "Switch to vertical tools");
-        order = new View[] {grip, button(Action.ORIENTATION), button(Action.PEN), button(Action.ERASER), button(Action.LASSO), button(Action.UNDO),
-            button(Action.REDO),
+        order = new View[] {grip, button(Action.ORIENTATION), button(Action.PEN), button(Action.ERASER), button(Action.LASSO),
             button(Action.ADD_PAGE), button(Action.OUTLINE), button(Action.VIEW_BACK),
             button(Action.VIEW_FORWARD), button(Action.NOTES)};
         popup = new PopupWindow(content, 0, 0, false);

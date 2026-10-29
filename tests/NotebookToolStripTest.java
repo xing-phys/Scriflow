@@ -6,7 +6,7 @@ public final class NotebookToolStripTest {
     public static void main(String[] args) {
         NotebookToolStrip.Layout horizontal = layout(false, 686, 894, 1);
         equal(32, horizontal.button, "compact circular buttons");
-        equal(436, horizontal.width, "all twelve controls fit in one tablet row");
+        equal(364, horizontal.width, "all ten controls fit in one tablet row");
         equal(40, horizontal.height, "slim pill height");
         equal(32, horizontal.stripHeight, "no wrapped second row");
         check(!horizontal.scrolling, "tablet does not need horizontal scrolling");
@@ -17,9 +17,9 @@ public final class NotebookToolStripTest {
         check(!vertical.scrolling, "tablet does not need vertical scrolling");
         NotebookToolStrip.Layout densityTwo = layout(false, 1372, 1788, 2);
         equal(64, densityTwo.button, "physical pixels scale with actual tablet density");
-        equal(872, densityTwo.width, "physical palette width");
+        equal(728, densityTwo.width, "physical palette width");
         equal(80, densityTwo.height, "physical palette height");
-        NotebookToolStrip.Layout smaller = layout(false, 410, 894, 1);
+        NotebookToolStrip.Layout smaller = layout(false, 340, 894, 1);
         check(smaller.button < 32 && smaller.button >= 28, "limited width reduces buttons before scrolling");
         check(!smaller.scrolling, "reduced strip still fits");
         NotebookToolStrip.Layout narrow = layout(false, 320, 894, 1);
@@ -45,7 +45,7 @@ public final class NotebookToolStripTest {
                     check(result.height > 0 && result.height <= height, "bounded height");
                     check(result.button > 0 && result.button <= 32, "positive control size");
                     equal(result.button, axis ? result.stripWidth : result.stripHeight, "only one row/column");
-                    equal(12L * result.button + 11L * 4,
+                    equal(10L * result.button + 9L * 4,
                         axis ? result.stripHeight : result.stripWidth, "all controls and gaps accounted for");
                 }
             }
@@ -58,7 +58,7 @@ public final class NotebookToolStripTest {
         System.out.println("NotebookToolStrip: " + assertions + " assertions passed (single-axis palette).");
     }
     private static NotebookToolStrip.Layout layout(boolean vertical, int width, int height, int density) {
-        return NotebookToolStrip.measure(vertical, 12, width, height, 32*density, 28*density, 4*density, 4*density);
+        return NotebookToolStrip.measure(vertical, 10, width, height, 32*density, 28*density, 4*density, 4*density);
     }
     private static void reject(Runnable task) {
         try { task.run(); throw new AssertionError("Invalid layout accepted"); }

@@ -17,7 +17,7 @@ import java.util.List;
 /** Border-only note frame with two overlaid corner controls and one shared native editor. */
 final class NotebookCompanion {
     interface Listener {
-        void menu(); void activate(); void figure(NotebookFigureHit.Hit hit); void collapse(); void boundsChanged();
+        void interact(); void menu(); void activate(); void figure(NotebookFigureHit.Hit hit); void collapse(); void boundsChanged();
         boolean beginMove(); void endMove(); void save(); boolean allowInput(); int writingRevision();
     }
     static final class ReadingView {
@@ -49,6 +49,7 @@ final class NotebookCompanion {
         border.setColor(Color.TRANSPARENT); border.setStroke(dp(2), Color.BLACK); content.setForeground(border);
         body = new FrameLayout(context); content.addView(body, new FrameLayout.LayoutParams(-1, -1));
         reader = new NotebookReader(context, session, pane, new NotebookReader.Listener() {
+            public void interact() { listener.interact(); }
             public void activate() { listener.activate(); }
             public void figure(NotebookFigureHit.Hit hit) { listener.figure(hit); }
             public int writingRevision() { return listener.writingRevision(); }

@@ -6,6 +6,18 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.33.2-dev.2 — Writing-only history controls (2026-10-29)
+
+- Move Undo/Redo from the toolbox to the top-right device-status bar. Show each
+  only when available after writing. Other interactions hide both until Pen
+  writing resumes; Undo/Redo taps retain access for repeated history actions.
+- Apply visibility changes between strokes, repair newly exposed native ink
+  without clearing its framebuffer, and prevent late callbacks from restoring
+  dismissed controls. Hidden icons occupy no space. VersionCode 66.
+- Host checks (246,356 assertions), lint/builds and permanent signing pass;
+  physical tablet checks remain pending. See the
+  [history-control record](docs/writing-history-controls.md).
+
 ## 0.33.2-dev.1 — Compact note navigation (2026-10-29)
 
 - Remove the fixed blank spacer from the top-left bar. Place previous/next page

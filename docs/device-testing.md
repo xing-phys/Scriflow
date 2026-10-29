@@ -4,6 +4,20 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## Offline writing history controls 0.33.2-dev.2 (2026-10-29)
+
+Undo/Redo move from the toolbox to the top-right device-status bar. Each appears
+only when its action is available after Pen writing. Other interactions hide
+both; history taps retain access for repeated Undo/Redo. Visibility updates
+between strokes and uses native track repair without a framebuffer clear.
+See the [history-control record](writing-history-controls.md).
+
+VersionCode 66 passes 246,356 host assertions in 62 suites, a final targeted
+callback recheck, Debug/Release lint/builds, permanent-certificate verification
+and the APK checksum. The signed candidate is
+`build/releases/scriflow-0.33.2-dev.2.apk`. Continuing without the tablet, no
+installation, physical latency or e-ink refresh check was performed.
+
 ## Offline compact note navigation 0.33.2-dev.1 (2026-10-29)
 
 The top-left bar has separate name, previous/counter/next, percentage and menu

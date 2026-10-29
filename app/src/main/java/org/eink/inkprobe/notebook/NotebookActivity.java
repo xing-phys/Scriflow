@@ -141,6 +141,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private final NotebookViewHistory viewHistory = new NotebookViewHistory();
     private final NotebookLinkTapGesture linkTap = new NotebookLinkTapGesture();
     private int writingRevision;
+    private boolean writingHistory, updatingHistory;
     private NotebookPdfBackgrounds pdfBackgrounds;
     private NotebookFigureLayer figureImages;
     private final Runnable previewFrame = this::drawPreview;
@@ -202,6 +203,10 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         previousButton.setOnClickListener(v -> switchPage(-1));
         nextButton = new NotebookIconButton(this, NotebookIconDrawable.Icon.NEXT, "Next page");
         nextButton.setOnClickListener(v -> switchPage(1));
+        undoButton = new NotebookIconButton(this, NotebookIconDrawable.Icon.UNDO, "Undo");
+        undoButton.setOnClickListener(v -> changeHistory(false));
+        redoButton = new NotebookIconButton(this, NotebookIconDrawable.Icon.REDO, "Redo");
+        redoButton.setOnClickListener(v -> changeHistory(true));
         zoomBadgeText = new TextView(this);
         zoomBadgeText.setTextSize(18); zoomBadgeText.setTextColor(Color.BLACK);
         zoomBadgeText.setGravity(Gravity.CENTER);
@@ -225,7 +230,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         more.setContentDescription("Note actions, background, figures and export");
         more.setOnClickListener(v -> noteActions());
         statusIslands = new NotebookStatusIslands(this, noteNameButton, previousButton, pageLabel, nextButton,
-            zoomValue, saveState, more, deviceStatus, (left, right) -> {
+            zoomValue, saveState, more, deviceStatus, undoButton, redoButton, (left, right) -> {
             if (notebookStatusBounds.equals(left) && deviceStatusBounds.equals(right)) return;
             notebookStatusBounds.set(left); deviceStatusBounds.set(right);
             updateOverlayBounds();
@@ -271,8 +276,6 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         penButton = floatingTools.button(NotebookFloatingTools.Action.PEN);
         eraserButton = floatingTools.button(NotebookFloatingTools.Action.ERASER);
         lassoButton = floatingTools.button(NotebookFloatingTools.Action.LASSO);
-        undoButton = floatingTools.button(NotebookFloatingTools.Action.UNDO);
-        redoButton = floatingTools.button(NotebookFloatingTools.Action.REDO);
         selectionTools = new NotebookSelectionTools(this, this::performSelectionAction);
         initializeWorkspace();
         toolHint = new NotebookToolHint(this, bounds -> { toolHintBounds.set(bounds); updateOverlayBounds(); });
@@ -372,13 +375,17 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                     if (!active || surfaceOwner != inkGeneration) return;
                     penDown = down;
                     if (down) {
+                        writingHistory = tool == NotebookInk.Tool.PEN;
                         ++writingRevision; linkTap.cancel();
                         if (widthPopup != null && !widthContact) widthPopup.dismiss();
                     }
                     setWritingContact(down);
                     lastInputAt = SystemClock.uptimeMillis();
                     main.removeCallbacks(updateSaveState);
-                    if (!down) { scheduleSaveState(); if (stylusShortcut.hasPending()) main.post(applyStylusShortcut); }
+                    if (!down) {
+                        main.post(() -> updateHistoryControls());
+                        scheduleSaveState(); if (stylusShortcut.hasPending()) main.post(applyStylusShortcut);
+                    }
                 }
                 @Override public void onReady() {
                     if (!active || surfaceOwner != inkGeneration || changingWorkspace) return;
@@ -613,6 +620,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             updatePreviewPages();
             if (error != null) { showError(error); return; }
             if (dragging) schedulePreview();
+            updateHistoryControls();
             scheduleSaveState();
         });
     }
@@ -624,6 +632,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             boolean continueLoading = active && !changingWorkspace && scrolling && !dragging && !editing
                 && shownError == null && session.error() == null && ink != null && !ink.isPenDown();
             if (!canEdit() && !continueLoading) return;
+            hideHistoryControls();
             linkTap.begin(event.getX(changed), event.getY(changed), event.getEventTime(), dp(4), writingRevision);
             rememberGestureStart();
             // A resting palm must not switch off native handwriting. Pause it only once
@@ -956,8 +965,6 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             case PEN: selectTool(NotebookInk.Tool.PEN); break;
             case ERASER: selectTool(NotebookInk.Tool.ERASER); break;
             case LASSO: selectTool(NotebookInk.Tool.LASSO); break;
-            case UNDO: changeHistory(false); break;
-            case REDO: changeHistory(true); break;
             case MORE: pageInformation(); break;
             case OUTLINE: showOutline(); break;
             case VIEW_BACK: changeViewHistory(false); break;
@@ -1020,6 +1027,32 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             + (tool == NotebookInk.Tool.PEN ? "; tap for width slider" : "; select pen"));
         eraserButton.setContentDescription("Eraser, width " + NotebookWidthRange.ERASER.label(eraserWidth)
             + (tool == NotebookInk.Tool.ERASER ? "; tap for width slider" : "; select eraser"));
+        updateHistoryControls();
+    }
+
+    private void hideHistoryControls() {
+        writingHistory = false;
+        updateHistoryControls();
+    }
+
+    private void updateHistoryControls() {
+        if (statusIslands == null || updatingHistory || ink != null && ink.isPenDown()) return;
+        boolean show = active && writingHistory && shownError == null && session.error() == null;
+        if (show && !canEdit()) return; // Retain the current controls through an Undo/Redo writer barrier.
+        boolean undo = show && session.canUndo(activePage), redo = show && session.canRedo(activePage);
+        if (statusIslands.historyMatches(undo, redo)) return;
+        boolean resume = canEdit();
+        updatingHistory = true;
+        try {
+            if (resume) ink.pauseForEdit();
+            if (shownError != null || session.error() != null) { writingHistory = false; undo = redo = false; }
+            statusIslands.history(undo, redo);
+            // Repair newly exposed ink without clearing/rebinding the native framebuffer.
+            if (ink != null && shownError == null && (resume || editing)) {
+                ink.redrawAfterOverlayChange();
+                if (resume) ink.start();
+            }
+        } finally { updatingHistory = false; }
     }
 
     private boolean acceptsStylusShortcut() {
@@ -1046,13 +1079,14 @@ public final class NotebookActivity extends NotebookDisplayActivity {
 
     private void selectTool(NotebookInk.Tool selected) {
         if (!canEdit()) return;
+        writingHistory = false;
         stylusShortcut.discard();
         if (tool == selected) {
             if (selected == NotebookInk.Tool.LASSO) selectionMenu(); else chooseWidth(selected);
             return;
         }
         boolean redraw = selectionOutline != null;
-        if (redraw) { pauseForEdit(); clearSelection(); }
+        if (redraw) { pauseForEdit(); clearSelection(); } else hideHistoryControls();
         tool = selected;
         ink.setTool(selected);
         if (redraw) { editing = false; installViewport(); }
@@ -1123,7 +1157,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private void changeHistory(boolean redo) {
         if (!canEdit() || !(redo ? session.canRedo(activePage) : session.canUndo(activePage))) return;
         clearSelection();
-        pauseForEdit();
+        pauseForEdit(true);
         if (shownError != null) return;
         final int request = generation;
         NotebookSession.Callback completion = (updated, error) -> finishEdit(request, updated, error);
@@ -1545,6 +1579,11 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     }
 
     private void pauseForEdit() {
+        pauseForEdit(false);
+    }
+
+    private void pauseForEdit(boolean keepHistory) {
+        if (!keepHistory) writingHistory = false;
         if (selectionTools != null) selectionTools.hide();
         editing = true;
         ink.pauseForEdit();
@@ -2032,7 +2071,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private void showSaveState() {
         if (!active || penDown || dragging || scrolling || editing) return;
         if (cleanupInk && canEdit()) {
-            pauseForEdit(); editing = false; installViewport(); return;
+            pauseForEdit(true); editing = false; installViewport(); return;
         }
         // Saving stays automatic; routine save counts no longer occupy the status bar.
         updatePageLabel();
@@ -2041,6 +2080,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         if (session.isSaving()) main.postDelayed(updateSaveState, 1000);
     }
     private void showError(IOException error) {
+        writingHistory = false;
         shownError = error;
         final boolean saveFailed = session.error() != null;
         if (selectionTools != null) selectionTools.hide();
@@ -2155,6 +2195,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
 
     private NotebookCompanion createNoteWindow(NotebookWorkspace.Pane pane) {
         return new NotebookCompanion(this, workspaceArea, workspace, pane, session, new NotebookCompanion.Listener() {
+            public void interact() { hideHistoryControls(); }
             public void menu() { workspaceMenu(pane); }
             public void activate() { activatePane(pane, null); }
             public void figure(NotebookFigureHit.Hit hit) {
@@ -2566,6 +2607,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     }
 
     @Override protected void onPause() {
+        writingHistory = false;
         boolean saveViewport = overview == null || !overview.pagesChanged() && !overview.hasPendingPageChange();
         // Flush completed pen-UP events against the current layout before retiring its callbacks.
         if (ink != null) ink.pauseForEdit();
@@ -2582,6 +2624,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         setWritingContact(false);
         deviceStatus.stop();
         statusIslands.hide();
+        statusIslands.history(false, false);
         pendingToolAction = null; toolsContact = false;
         clearSelection(); resetSelectionPreview();
         if (lassoMenu != null) { lassoMenu.dismiss(); lassoMenu = null; }
