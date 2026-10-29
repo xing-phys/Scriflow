@@ -25,8 +25,60 @@ public final class NotebookViewportTest {
         sampledSegmentClipping();
         roundedClippingIsAcceptedByStorage();
         strictTransformedBounds();
+        indexedQueriesMatchLinearGeometry();
+        panReusesGeometry();
         invalidInput();
         System.out.println("NotebookViewport: " + assertions + " assertions passed (pure geometry).");
+    }
+
+    private static void indexedQueriesMatchLinearGeometry() {
+        Random random = new Random(20261029);
+        for (int run = 0; run < 100; run++) {
+            List<NotebookViewport.Size> sizes = new ArrayList<>();
+            int count = 1 + random.nextInt(1000);
+            for (int n = 0; n < count; n++) sizes.add(new NotebookViewport.Size(20 + random.nextInt(7000), 1 + random.nextInt(7000)));
+            float zoom = run == 0 ? Float.MIN_VALUE : .05f + random.nextFloat() * 8;
+            NotebookViewport v = new NotebookViewport(sizes, 1 + random.nextInt(1900), 1 + random.nextInt(1900), run % 3 == 0 ? 0 : 24, zoom, 40);
+            for (int query = 0; query < 120; query++) {
+                float scroll = random.nextFloat() * v.maxScroll();
+                int edge = 1 + random.nextInt(count);
+                if (query % 4 == 0) scroll = v.clampScroll(v.pageTop(edge, 0));
+                List<Integer> visible = new ArrayList<>(); int anchor = 1;
+                for (int p = 1; p <= count; p++) {
+                    float top = v.pageTop(p, 0), bottom = top + v.pageHeight(p) * v.scale(p);
+                    if (top < scroll + v.height && bottom > scroll) visible.add(p);
+                    if (scroll >= top) anchor = p;
+                }
+                check(v.visiblePages(scroll).equals(visible), "indexed visible pages match linear geometry");
+                check(v.anchorPage(scroll) == anchor, "indexed anchors retain exact gap/boundary rule");
+                float y = query % 3 == 0 ? v.pageTop(edge, 0) + v.pageHeight(edge) * v.scale(edge) - scroll
+                    : (random.nextFloat() * 3 - 1) * v.height;
+                float x = query % 2 == 0 ? v.width / 2f : v.width;
+                int hit = 0, nearest = 1; float distance = Float.MAX_VALUE, position = scroll + y;
+                for (int p = 1; p <= count; p++) {
+                    float top = v.pageTop(p, 0), height = v.pageHeight(p) * v.scale(p);
+                    if (hit == 0 && x >= 0 && x <= v.width && y >= 0 && y <= v.height
+                            && x >= v.pageLeft(p) && x <= v.pageRight(p) && position >= top && position <= top + height) hit = p;
+                    float delta = Math.max(top - position, Math.max(0, position - top - height));
+                    if (delta < distance) { distance = delta; nearest = p; }
+                }
+                check(v.pageAt(x, y, scroll) == hit, "indexed point hit retains inclusive boundary rule");
+                check(v.nearestPage(y, scroll) == nearest, "indexed nearest page matches linear geometry and ties: run="+run+" query="+query+" expected="+nearest+" actual="+v.nearestPage(y, scroll)+" center="+position+" top="+v.pageTop(nearest,0)+" bottom="+(v.pageTop(nearest,0)+v.pageHeight(nearest)*v.scale(nearest)));
+            }
+        }
+    }
+
+    private static void panReusesGeometry() throws Exception {
+        NotebookViewport v = new NotebookViewport(1000, 1404, 1872, 1404, 1872, 24, 2, 0);
+        check(v.withView(2, -100) == v, "unchanged/clamped pan reuses immutable viewport");
+        NotebookViewport moved = v.withView(2, 400);
+        for (String name : new String[]{"tops", "scales", "heights", "sizes"}) {
+            java.lang.reflect.Field f = NotebookViewport.class.getDeclaredField(name); f.setAccessible(true);
+            check(f.get(v) == f.get(moved), "pan shares immutable page geometry");
+        }
+        check(v.pan == 0 && moved.pan == 400, "pan does not mutate previous viewport");
+        near(v.maxScroll(), moved.maxScroll(), "pan preserves vertical geometry");
+        expectInvalid(() -> v.withView(Float.NaN, 0)); expectInvalid(() -> v.withView(2, Float.NaN));
     }
 
     private static void layoutAndArbitraryScroll() {

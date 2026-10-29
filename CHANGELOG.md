@@ -6,6 +6,18 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.33.1-dev.1 — Indexed scrolling geometry (2026-10-29)
+
+- Share immutable page geometry when panning; reuse unchanged viewports and avoid
+  copying page sizes on zoom anchor updates. Index visible/hit/anchor/nearest
+  searches while preserving page/gap/float boundary behavior.
+- Validate against linear reference geometry and the connected-tablet workspace
+  suite. The synthetic 600-page geometry workload improved from 713 ms to 11 ms
+  median, with identical results; this is not an overall app-speed measurement.
+- Retain direct native ink, complete-frame display updates, stored formats and
+  permanent signing identity. VersionCode 55; local signed tablet candidate.
+  See [optimization record](docs/optimization-0.33.1.md).
+
 ## 0.33.0 — Floating notes and M-Pencil shortcut (2026-10-28)
 
 - Promote the verified dev.7 implementation to stable, versionCode 54. Retain

@@ -53,6 +53,11 @@ public final class NotebookViewport {
     }
 
     public NotebookViewport(List<Size> sizes, int viewportWidth, int viewportHeight, float gap, float zoom, float pan) {
+        this(sizes, viewportWidth, viewportHeight, gap, zoom, pan, false);
+    }
+
+    private NotebookViewport(List<Size> sizes, int viewportWidth, int viewportHeight, float gap,
+                             float zoom, float pan, boolean ownedSizes) {
         if (sizes == null || sizes.isEmpty() || sizes.size() > NotebookIndex.MAX_PAGES
                 || viewportWidth <= 0 || viewportHeight <= 0 || !NotebookPage.finite(gap) || gap < 0
                 || !NotebookPage.finite(zoom) || zoom <= 0 || !NotebookPage.finite(pan)) {
@@ -61,7 +66,7 @@ public final class NotebookViewport {
         this.width = viewportWidth; this.height = viewportHeight; this.gap = gap;
         this.zoom = zoom;
         this.pan = Math.max(0, Math.min(Math.max(0, width * zoom - width), pan));
-        this.sizes = Collections.unmodifiableList(new ArrayList<>(sizes));
+        this.sizes = ownedSizes ? sizes : Collections.unmodifiableList(new ArrayList<>(sizes));
         pageCount = sizes.size();
         tops = new float[pageCount]; scales = new float[pageCount]; heights = new float[pageCount];
         float top = 0;
@@ -90,7 +95,32 @@ public final class NotebookViewport {
         if (!NotebookPage.finite(position)) throw new IllegalArgumentException("Invalid horizontal position");
         return Math.max(0, Math.min(maxPan(), position));
     }
-    public NotebookViewport withView(float zoom, float pan) { return new NotebookViewport(sizes, width, height, gap, zoom, pan); }
+    /** Pan changes share immutable geometry; a vertical drag at the same pan needs no allocation. */
+    public NotebookViewport withView(float zoom, float pan) {
+        if (!NotebookPage.finite(zoom) || zoom <= 0 || !NotebookPage.finite(pan))
+            throw new IllegalArgumentException("Invalid notebook viewport");
+        if (zoom != this.zoom) return new NotebookViewport(sizes, width, height, gap, zoom, pan, true);
+        float nextPan = clampPan(pan);
+        return nextPan == this.pan ? this : new NotebookViewport(this, nextPan);
+    }
+
+    private NotebookViewport(NotebookViewport layout, float pan) {
+        width = layout.width; height = layout.height; pageCount = layout.pageCount;
+        gap = layout.gap; zoom = layout.zoom; this.pan = pan;
+        sizes = layout.sizes; tops = layout.tops; scales = layout.scales; heights = layout.heights;
+        totalHeight = layout.totalHeight;
+    }
+
+    /** First page whose bottom reaches the position (or strictly passes it for visible area). */
+    private int firstEnding(float position, boolean strict) {
+        int low = 0, high = pageCount;
+        while (low < high) {
+            int middle = (low + high) >>> 1;
+            float end = tops[middle] + heights[middle];
+            if (strict ? end <= position : end < position) low = middle + 1; else high = middle;
+        }
+        return low;
+    }
 
     public float fittedZoom(Fit fit, int pageId) {
         float heightFit = (float) height * pageWidth(pageId) / (width * (float) pageHeight(pageId));
@@ -117,8 +147,12 @@ public final class NotebookViewport {
     /** Anchor belongs to the page above a gap, preserving an arbitrary continuous offset. */
     public int anchorPage(float scroll) {
         float offset = clampScroll(scroll);
-        for (int i = pageCount - 1; i >= 0; i--) if (offset >= tops[i]) return i + 1;
-        return 1;
+        int low = 0, high = pageCount;
+        while (low < high) {
+            int middle = (low + high) >>> 1;
+            if (tops[middle] <= offset) low = middle + 1; else high = middle;
+        }
+        return Math.max(1, low);
     }
 
     public double anchorFraction(float scroll) {
@@ -139,9 +173,8 @@ public final class NotebookViewport {
     public List<Integer> visiblePages(float scroll) {
         float offset = clampScroll(scroll);
         List<Integer> visible = new ArrayList<>();
-        for (int i = 0; i < pageCount; i++) {
-            if (tops[i] < offset + height && tops[i] + heights[i] > offset) visible.add(i + 1);
-        }
+        for (int i = firstEnding(offset, true); i < pageCount && tops[i] < offset + height; i++)
+            visible.add(i + 1);
         return Collections.unmodifiableList(visible);
     }
 
@@ -149,9 +182,8 @@ public final class NotebookViewport {
     public int pageAt(float x, float y, float scroll) {
         if (!NotebookPage.finite(x) || !NotebookPage.finite(y) || x < 0 || x > width || y < 0 || y > height) return 0;
         float position = y + clampScroll(scroll);
-        for (int i = 0; i < pageCount; i++) {
-            if (x >= pageLeft(i + 1) && x <= pageRight(i + 1)
-                    && position >= tops[i] && position <= tops[i] + heights[i]) return i + 1;
+        for (int i = firstEnding(position, false); i < pageCount && tops[i] <= position; i++) {
+            if (x >= pageLeft(i + 1) && x <= pageRight(i + 1)) return i + 1;
         }
         return 0;
     }
@@ -164,13 +196,28 @@ public final class NotebookViewport {
     public int nearestPage(float y, float scroll) {
         if (!NotebookPage.finite(y)) throw new IllegalArgumentException("Invalid page position");
         float center = clampScroll(scroll) + y;
-        int closest = 1;
+        if (!NotebookPage.finite(center)) return 1;
+        int next = firstEnding(center, false), closest = 0;
         float distance = Float.MAX_VALUE;
-        for (int i = 0; i < pageCount; i++) {
-            float delta = Math.max(tops[i] - center, Math.max(0, center - tops[i] - heights[i]));
-            if (delta < distance) { distance = delta; closest = i + 1; }
+        // At a shared edge the old subtraction order can round differently from
+        // top + height. Evaluate both neighbors with that same distance formula.
+        for (int i = Math.max(0, next - 1); i <= Math.min(pageCount - 1, next + 1); i++) {
+            float delta = distanceToPage(i, center);
+            if (delta < distance) { distance = delta; closest = i; }
         }
-        return closest;
+        if (distance == Float.MAX_VALUE) return 1;
+        // Multiple tiny/rounded pages can have equal distances. Preserve the
+        // original earliest-page tie rule, rather than picking the last one.
+        int low = 0, high = closest;
+        while (low < high) {
+            int middle = (low + high) >>> 1;
+            if (distanceToPage(middle, center) <= distance) high = middle; else low = middle + 1;
+        }
+        return low + 1;
+    }
+
+    private float distanceToPage(int index, float center) {
+        return Math.max(tops[index] - center, Math.max(0, center - tops[index] - heights[index]));
     }
 
     /** Builds only visible tracks; paper/background composition is handled by the native adapter. */
