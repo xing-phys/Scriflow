@@ -23,7 +23,7 @@ final class NotebookNoteTray {
     NotebookNoteTray(Context context, Listener listener) { this.context = context; this.listener = listener; }
     Rect bounds() { return new Rect(bounds); }
     boolean showing() { return popup != null && popup.isShowing(); }
-    void show(View anchor, Rect tools, boolean vertical, List<NotebookWorkspace.Pane> panes) {
+    void show(View anchor, View notesButton, Rect tools, boolean vertical, List<NotebookWorkspace.Pane> panes) {
         hide();
         LinearLayout row = new LinearLayout(context); row.setOrientation(vertical ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
         row.setPadding(dp(4), dp(4), dp(4), dp(4));
@@ -42,13 +42,15 @@ final class NotebookNoteTray {
             row.addView(button, new LinearLayout.LayoutParams(dp(40), dp(32))); count++;
         }
         int[] origin = new int[2]; anchor.getLocationOnScreen(origin);
+        int[] button = new int[2]; notesButton.getLocationOnScreen(button);
         int width = vertical ? dp(48) : Math.min(anchor.getWidth() - dp(16), dp(8 + 40 * count));
         int height = vertical ? Math.min(anchor.getHeight() - dp(16), dp(8 + 32 * count)) : dp(40);
         FrameLayout scroll;
         if (vertical) { ScrollView view = new ScrollView(context); view.setFillViewport(true); view.addView(row); scroll = view; }
         else { HorizontalScrollView view = new HorizontalScrollView(context); view.setFillViewport(true); view.addView(row); scroll = view; }
-        int x = vertical ? tools.right + dp(6) : tools.left;
-        int y = vertical ? tools.top : tools.bottom + dp(6);
+        // Align the first icon with its button, even when the toolbox strip has scrolled.
+        int x = vertical ? tools.right + dp(6) : button[0] + notesButton.getWidth() / 2 - dp(20);
+        int y = vertical ? button[1] + notesButton.getHeight() / 2 - dp(20) : tools.bottom + dp(6);
         if (vertical && x + width > origin[0] + anchor.getWidth() - dp(8)) x = tools.left - width - dp(6);
         if (!vertical && y + height > origin[1] + anchor.getHeight() - dp(8)) y = tools.top - height - dp(6);
         x = Math.max(origin[0] + dp(8), Math.min(origin[0] + anchor.getWidth() - width - dp(8), x));

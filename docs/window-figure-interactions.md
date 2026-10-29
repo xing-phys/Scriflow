@@ -59,3 +59,16 @@ df7112265a14475bb3d9c44e4f9465a9f09f3fcb5050f2710027f4f50c2a089d
 The owner chose to continue without the tablet. This APK has not been installed
 or physically gesture-tested; finger/optical tracking measurements remain
 pending. Public stable **0.33.0** is unchanged.
+
+## Notes tray anchor — 0.33.1-dev.7 (code 61)
+
+The notes tray now uses the notes button's actual screen position rather than
+the toolbox's starting edge. Its first icon aligns with that button in either
+toolbox orientation, including a scrolled strip. The existing screen-edge
+clamping and opposite-side fallback remain in place.
+
+All 246,324 host assertions in 60 suites and Debug/Release lint/builds passed.
+`scripts/build-release.sh` prepared `build/releases/scriflow-0.33.1-dev.7.apk`
+and verified its permanent signing certificate. No tablet installation or
+physical placement check was performed, following the owner's instruction to
+continue without the device.

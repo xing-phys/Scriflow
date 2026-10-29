@@ -49,7 +49,8 @@ capped at 2,048 pixels on their longest edge. Export does not change the note.
 
 Tap the **overlapping-notes button in the toolbox**. With one note open, select
 another notebook and choose **Left, Right, Top, Bottom, or Floating window**.
-With several notes open, the button toggles a small adjacent tray: **+** opens
+With several notes open, the button toggles a small tray beside that button
+(local **0.33.1-dev.7**): **+** opens
 another floating note, and numbered note icons restore individual minimized
 notes. Each icon identifies its notebook through its tooltip/accessibility name.
 Only notebooks not already in the workspace appear in the picker.

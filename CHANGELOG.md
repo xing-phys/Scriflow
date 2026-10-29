@@ -6,6 +6,12 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.33.1-dev.7 — Open the notes tray beside its button (2026-10-29)
+
+- Anchor the notes tray to the notes button in horizontal and vertical toolboxes,
+  including scrolled strips. Keep the tray within the screen and open it on the
+  opposite side when necessary. VersionCode 61.
+
 ## 0.33.1-dev.6 — Select figures with a finger tap (2026-10-29)
 
 - Tap a figure directly to open its move/resize/delete controls, including in an

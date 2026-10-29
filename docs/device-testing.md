@@ -4,6 +4,14 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## Offline notes-tray placement 0.33.1-dev.7 (2026-10-29)
+
+The notes tray now opens beside its toolbox button in either orientation.
+VersionCode 61 passes the full 246,324-assertion host suite, Debug/Release
+lint/builds and permanent-certificate verification. The signed APK is prepared;
+physical placement remains untested while continuing without the tablet.
+See the [interaction record](window-figure-interactions.md).
+
 ## Offline interaction follow-up 0.33.1-dev.5–dev.6 (2026-10-29)
 
 The tablet was unavailable, and the owner requested continuing without it.

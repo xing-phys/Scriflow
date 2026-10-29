@@ -2279,7 +2279,8 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         if (workspace.panes().size() == 1) { openCompanion(false); return; }
         pauseForEdit();
         if (noteTray.showing()) noteTray.hide();
-        else noteTray.show(workspaceRoot, floatingTools.bounds(), floatingTools.isVertical(), workspace.panes());
+        else noteTray.show(workspaceRoot, floatingTools.button(NotebookFloatingTools.Action.NOTES),
+            floatingTools.bounds(), floatingTools.isVertical(), workspace.panes());
         resumeThen(() -> {});
     }
 
