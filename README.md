@@ -50,7 +50,9 @@ owner's instruction to continue without the device. See the
 [release notes](docs/releases/0.33.1.md), [optimization record](docs/optimization-0.33.1.md)
 and [interaction record](docs/window-figure-interactions.md) for scope and limits.
 
-Local **0.33.2-dev.5** adds direct figure picking and in-note editing: drag to move
+Local **0.33.2-dev.6** makes the top-left **⋮** expand into action icons in the
+same bar. Lasso selection actions are also icons, with tap-outside dismissal.
+It includes direct figure picking and in-note editing: drag to move
 between pages, resize, rotate to any angle, or copy/cut/delete with nearby icons.
 Tap outside to finish; each completed gesture is saved without an Apply screen.
 **This development build writes page format 7 on edit. It reads existing notes,
@@ -158,7 +160,7 @@ zoom; identical pressure behavior across zoom is unresolved. Completed ink
 retains its captured geometry in both modes.
 External links ask before opening
 another app. See [PDF notebooks](docs/pdf-import.md).
-The vertical three-dot menu beside the top-left percentage contains image insertion,
+The vertical three-dot control beside the top-left percentage expands into icons for image insertion,
 figure editing, the blank/lined background action, and
 **Page information / Export PDF**, which opens save status,
 PDF export, and **Reset tools**. The toolbox notes button opens and restores

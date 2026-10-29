@@ -6,6 +6,18 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.33.2-dev.6 — Inline note and lasso action icons (2026-10-29)
+
+- Replace the top-left three-dot dialog with action icons expanding in the
+  same bar. Retain page-specific background and figure-paste availability;
+  collapse after an action, page interaction or Back, repairing exposed ink.
+- Replace the lasso’s text panel with six compact icons and remove Done.
+  Tap outside to finish; wrap icons in narrow panes and hide them for empty
+  selections. Keep tooltips and accessibility labels. VersionCode 70.
+- Pass 248,470 assertions in 68 host suites, debug/release lint and builds,
+  permanent-signer verification and icon artwork inspection. Tablet input and
+  e-ink checks remain pending. Page format remains 7; see [action icons](docs/icon-actions.md).
+
 ## 0.33.2-dev.5 — In-note figure controls (2026-10-29)
 
 - Replace the separate figure editor/footer with a transparent selection overlay

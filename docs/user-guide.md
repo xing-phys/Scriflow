@@ -4,7 +4,7 @@ Scriflow is designed for Huawei MatePad Paper HMW-W09 on Android 10/API 29,
 firmware `HMW-W09 2.1.0.222(C00E170R1P8)`. Other devices and firmware have not
 been verified. See the [README](../README.md) for installation and current limits.
 
-The controls below are included in local **0.33.2-dev.5**; its compact
+The controls below are included in local **0.33.2-dev.6**; its compact
 top-left bar started with dev.1 and its writing-only history controls with dev.2.
 Dev.5 reads older notes but writes page format 7 on edit; those edited notes
 and their backups require dev.5 or newer. Keep independent backups before updating.
@@ -191,9 +191,12 @@ marks the selected tool. **Lasso** uses a dashed loop (available in development
 builds after 0.28.0-beta.2). Undo/Redo appear beside the top-right device status
 while writing, each only when available. Page management,
 page-turn arrows and the bookshelf action are in the top-left bar. The vertical
-**⋮** menu beside the top-left zoom percentage offers
-page information, PDF export, and
-**Reset tools**. Reset expands the dock and returns it to its initial horizontal
+**⋮** beside the zoom percentage expands into icons in that same bar: Insert
+figure, Choose a figure, Page information/PDF export, the page’s blank/lined
+background action, and Paste figure when available. The bar stretches to fit.
+Selecting an action, tapping the page, or pressing Back restores the three dots.
+Hold an icon for its tooltip. Page information also offers **Reset tools**.
+Reset expands the dock and returns it to its initial horizontal
 position near the top center, below the status islands. Touching controls has
 no ripple or pressed inversion; the page stays writable outside the tools.
 
@@ -277,23 +280,24 @@ former wait of up to 256 ms for a native saved-track notification. Selection
 calculation and page restoration may still take processing time; this is not
 a guarantee of zero optical delay.
 
-A small action bar appears beside the region with its selected stroke count.
+A small strip of action icons appears beside a nonempty region.
 **Drag anywhere inside the curve with a finger or the stylus** to move the ink.
 The floating group follows your pointer across page edges. Hold near the top or
 bottom screen edge to scroll through more pages, then lift over the destination.
 The strokes stay together at their original logical size. On release the group
 is fitted wholly inside the destination page. A page too small for the complete
 group rejects the move; ink is not clipped or reduced to fit.
-The nearby actions are:
+The nearby icons are:
 
 - **Move…** targets any page by number and places the group near its centre,
   including pages too far away to drag to conveniently.
 - **Duplicate** makes an offset copy and selects it.
 - **Copy** keeps the selected ink on Scriflow's private clipboard.
 - **Cut** copies, then removes the selection; **Delete** removes it directly.
-- **Done** clears the selection. A tap outside the curve also clears it.
+- **Export** saves the selected ink in a chosen image/vector format.
 
-After Done, tap the already-selected Lasso icon for these additional actions:
+Tap outside the curve to finish; there is no Done button. Then tap the
+already-selected Lasso icon for these additional actions:
 
 - **Paste** places a fresh copy near the visible centre of the current page.
   You can then drag it into position. Copy/paste works across pages and
@@ -301,9 +305,9 @@ After Done, tap the already-selected Lasso icon for these additional actions:
   clipboard. Paste is offered when copied ink fits the destination page.
 - **Select all on this page** selects its ink and shows the action bar.
 
-If the region touches no strokes, it stays visible with **No strokes
-selected**. Tap Done or outside it, then draw a region that overlaps the desired ink.
-While a region is active, a finger inside moves it. Done or a tap outside clears
+If the region touches no strokes, its outline stays visible without an action
+strip. Tap outside it, then draw a region that overlaps the desired ink.
+While a region is active, a finger inside moves it. A tap outside clears
 it for ordinary scrolling; a two-finger navigation gesture also clears it.
 Change tools, navigate to another page, or press Back to clear the selection.
 Back or cancellation during a drag discards the unfinished move. Undo/Redo also

@@ -4,6 +4,28 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## Offline action icons 0.33.2-dev.6 (2026-10-29)
+
+The permanently signed **0.33.2-dev.6 / versionCode 70** candidate expands the
+top-left three dots into function icons in the existing bar and uses an icon-only
+lasso strip with outside-tap dismissal. No Done button or selected-count header
+remains. The toolbar keeps its higher application sublayer, and expanding or
+collapsing the status repairs newly exposed native ink without a viewport reset.
+
+All **248,470 assertions in 68 host suites** pass. New coverage includes 23
+production-callback checks for contextual action icons, pause/repair/resume,
+queued dispatch and busy/error rejection, plus expanded-bar geometry checks.
+Existing lasso outside-dismissal, host-token and narrow action-placement checks
+pass. Debug/release lint/builds and permanent-certificate verification pass.
+The new symbols were rendered from production paths and visually inspected.
+Artifact: `build/releases/scriflow-0.33.2-dev.6.apk` with its adjacent checksum.
+Logs and artwork preview are in `artifacts/icon-actions/`.
+
+The owner’s instruction to continue without the tablet still applies. This exact
+APK has no physical acceptance for popup/native input, portrait/landscape
+placement, e-ink refresh or latency. Page format remains 7, as introduced in
+dev.5; older APKs cannot reopen upgraded pages. See [action icons](icon-actions.md).
+
 ## Offline inline figures 0.33.2-dev.5 (2026-10-29)
 
 The permanently signed **0.33.2-dev.5 / versionCode 69** candidate keeps figure

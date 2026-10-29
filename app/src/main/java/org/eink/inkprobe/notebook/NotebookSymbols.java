@@ -168,6 +168,30 @@ public final class NotebookSymbols {
                 line(out, 21, 15, 21, 21, 15, 21);
                 line(out, 9, 21, 3, 21, 3, 15);
                 break;
+            case "INSERT_FIGURE":
+                polygon(out, false, 3, 4, 18, 4, 18, 18, 3, 18);
+                line(out, 4, 16, 9, 11, 13, 15, 16, 12, 18, 14); circle(out, 14, 8, 1.5f);
+                line(out, 18, 15, 18, 23); line(out, 14, 19, 22, 19);
+                break;
+            case "FIGURES":
+                polygon(out, false, 3, 7, 18, 7, 18, 21, 3, 21);
+                line(out, 7, 3, 22, 3, 22, 17);
+                line(out, 4, 19, 9, 14, 13, 18, 16, 15, 18, 17); circle(out, 14, 11, 1.5f);
+                break;
+            case "INFORMATION":
+                circle(out, 12, 7, 1);
+                line(out, 10, 11, 12, 11, 12, 17); line(out, 10, 17, 14, 17);
+                break;
+            case "DUPLICATE":
+                polygon(out, false, 8, 8, 21, 8, 21, 21, 8, 21);
+                line(out, 16, 4, 4, 4, 4, 16); line(out, 11, 14, 18, 14); line(out, 14.5f, 10.5f, 14.5f, 17.5f);
+                break;
+            case "MOVE_PAGE":
+                paper(out); line(out, 3, 14, 15, 14); line(out, 11, 10, 15, 14, 11, 18);
+                break;
+            case "EXPORT":
+                line(out, 4, 13, 4, 21, 20, 21, 20, 13); line(out, 12, 16, 12, 3); line(out, 7, 8, 12, 3, 17, 8);
+                break;
             case "COPY":
                 polygon(out, false, 8, 8, 20, 8, 20, 21, 8, 21);
                 line(out, 16, 4, 4, 4, 4, 16);

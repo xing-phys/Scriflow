@@ -10,9 +10,12 @@ import android.view.WindowManager;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
 import android.widget.TextView;
+import java.util.EnumMap;
 
 /** Two quiet windows above native ink, without reserving a header in the page. */
 final class NotebookStatusIslands {
+    enum Action { INSERT_FIGURE, FIGURES, INFORMATION, BACKGROUND, PASTE_FIGURE }
+    interface ActionListener { void onAction(Action action); }
     interface Listener { void onBoundsChanged(Rect left, Rect right); }
 
     private final Activity activity;
@@ -22,6 +25,9 @@ final class NotebookStatusIslands {
     private final Rect leftBounds = new Rect(), rightBounds = new Rect();
     private final NotebookIconButton undo, redo;
     private final NotebookDeviceStatus clock;
+    private final NotebookButton more;
+    private final LinearLayout actions;
+    private final EnumMap<Action, NotebookIconButton> actionButtons = new EnumMap<>(Action.class);
     private boolean zenMode;
     private View anchor;
     private final View.OnLayoutChangeListener layoutListener =
@@ -31,11 +37,12 @@ final class NotebookStatusIslands {
                           NotebookButton pageLabel, NotebookIconButton next, NotebookButton zoom,
                           TextView saveState,
                           NotebookButton more, NotebookDeviceStatus deviceStatus,
-                          NotebookIconButton undo, NotebookIconButton redo, Listener listener) {
+                          NotebookIconButton undo, NotebookIconButton redo, ActionListener actionListener, Listener listener) {
         this.activity = activity;
         this.listener = listener;
         this.undo = undo; this.redo = redo;
         this.clock = deviceStatus;
+        this.more = more;
         notebook = island();
         LinearLayout top = new LinearLayout(activity); top.setGravity(Gravity.CENTER_VERTICAL);
         // Only the title shrinks on constrained screens; the other tap targets stay distinct.
@@ -45,6 +52,14 @@ final class NotebookStatusIslands {
         top.addView(next, new LinearLayout.LayoutParams(dp(28), dp(28)));
         top.addView(zoom, new LinearLayout.LayoutParams(-2, dp(28)));
         top.addView(more, new LinearLayout.LayoutParams(dp(28), dp(28)));
+        actions = new LinearLayout(activity); actions.setGravity(Gravity.CENTER_VERTICAL);
+        addAction(Action.INSERT_FIGURE, NotebookIconDrawable.Icon.INSERT_FIGURE, "Insert figure", actionListener);
+        addAction(Action.FIGURES, NotebookIconDrawable.Icon.FIGURES, "Choose a figure", actionListener);
+        addAction(Action.INFORMATION, NotebookIconDrawable.Icon.INFORMATION, "Page information and PDF export", actionListener);
+        addAction(Action.BACKGROUND, NotebookIconDrawable.Icon.PAPER_LINED, "Use lined background", actionListener);
+        addAction(Action.PASTE_FIGURE, NotebookIconDrawable.Icon.PASTE, "Paste figure", actionListener);
+        actions.setVisibility(View.GONE);
+        top.addView(actions, new LinearLayout.LayoutParams(-2, dp(28)));
         notebook.addView(top, new LinearLayout.LayoutParams(-1, -2));
         notebook.addView(saveState, new LinearLayout.LayoutParams(-1, dp(24)));
         device = island();
@@ -58,6 +73,36 @@ final class NotebookStatusIslands {
         device.addView(right, new LinearLayout.LayoutParams(-2, -2));
         leftWindow = window(notebook);
         rightWindow = window(device);
+    }
+
+    private void addAction(Action action, NotebookIconDrawable.Icon icon, String label, ActionListener listener) {
+        NotebookIconButton button = new NotebookIconButton(activity, icon, label);
+        button.setTooltipText(label); button.setOnClickListener(v -> listener.onAction(action));
+        actionButtons.put(action, button); actions.addView(button, new LinearLayout.LayoutParams(dp(28), dp(28)));
+    }
+
+    void showActions(boolean paper, boolean lined, boolean paste) {
+        if (zenMode) return;
+        NotebookIconButton background = actionButtons.get(Action.BACKGROUND);
+        background.setIcon(lined ? NotebookIconDrawable.Icon.PAPER_BLANK : NotebookIconDrawable.Icon.PAPER_LINED);
+        String label = lined ? "Use blank background" : "Use lined background";
+        background.setContentDescription(label); background.setTooltipText(label);
+        background.setVisibility(paper ? View.VISIBLE : View.GONE);
+        actionButtons.get(Action.PASTE_FIGURE).setVisibility(paste ? View.VISIBLE : View.GONE);
+        more.setVisibility(View.GONE); actions.setVisibility(View.VISIBLE); position();
+    }
+
+    boolean actionsShowing() { return actions.getVisibility() == View.VISIBLE; }
+
+    boolean collapseActions() {
+        if (!actionsShowing()) return false;
+        actions.setVisibility(View.GONE); more.setVisibility(View.VISIBLE); position(); return true;
+    }
+
+    private int visibleActionCount() {
+        int count = 0;
+        for (NotebookIconButton button : actionButtons.values()) if (button.getVisibility() == View.VISIBLE) count++;
+        return count;
     }
 
     private LinearLayout island() {
@@ -110,6 +155,7 @@ final class NotebookStatusIslands {
 
     void setZenMode(boolean value) {
         zenMode = value;
+        if (value) collapseActions();
         device.setPadding(dp(value ? 4 : 10), dp(value ? 2 : 4), dp(value ? 4 : 10), dp(value ? 2 : 4));
         clock.getLayoutParams().height = dp(value ? 18 : 24);
         clock.requestLayout();
@@ -147,7 +193,8 @@ final class NotebookStatusIslands {
         device.measure(View.MeasureSpec.makeMeasureSpec(available.width(), View.MeasureSpec.AT_MOST), unspecified);
         int rightWidth = device.getMeasuredWidth();
         // On unusually narrow windows place the right island below the left, without overlap.
-        boolean stacked = !zenMode && available.width() < rightWidth + dp(224 + 8);
+        int minimumLeftWidth = dp(224 + (actionsShowing() ? (visibleActionCount() - 1) * 28 : 0));
+        boolean stacked = !zenMode && available.width() < rightWidth + minimumLeftWidth + dp(8);
         int maximumLeftWidth = Math.max(1, stacked ? available.width() : available.width() - rightWidth - dp(8));
         if (zenMode) leftBounds.setEmpty();
         else {
@@ -183,6 +230,7 @@ final class NotebookStatusIslands {
     void hide() {
         if (anchor != null) anchor.removeOnLayoutChangeListener(layoutListener);
         anchor = null;
+        collapseActions();
         leftWindow.dismiss(); rightWindow.dismiss();
         leftBounds.setEmpty(); rightBounds.setEmpty();
         listener.onBoundsChanged(new Rect(), new Rect());

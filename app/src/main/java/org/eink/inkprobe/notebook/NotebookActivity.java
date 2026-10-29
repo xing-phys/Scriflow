@@ -228,10 +228,10 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         deviceStatus = new NotebookDeviceStatus(this,
             () -> canEdit() && SystemClock.uptimeMillis() - lastInputAt >= 1000);
         NotebookButton more = new NotebookButton(this); more.setText("⋮"); more.setTextSize(20);
-        more.setContentDescription("Note actions, background, figures and export");
+        more.setContentDescription("Expand note action icons: background, figures and export");
         more.setOnClickListener(v -> noteActions());
         statusIslands = new NotebookStatusIslands(this, noteNameButton, previousButton, pageLabel, nextButton,
-            zoomValue, saveState, more, deviceStatus, undoButton, redoButton, (left, right) -> {
+            zoomValue, saveState, more, deviceStatus, undoButton, redoButton, this::performNoteAction, (left, right) -> {
             if (notebookStatusBounds.equals(left) && deviceStatusBounds.equals(right)) return;
             notebookStatusBounds.set(left); deviceStatusBounds.set(right);
             updateOverlayBounds();
@@ -385,7 +385,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                     lastInputAt = SystemClock.uptimeMillis();
                     main.removeCallbacks(updateSaveState);
                     if (!down) {
-                        main.post(() -> updateHistoryControls());
+                        main.post(() -> { collapseNoteActions(); updateHistoryControls(); });
                         scheduleSaveState(); if (stylusShortcut.hasPending()) main.post(applyStylusShortcut);
                     }
                 }
@@ -641,6 +641,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             boolean continueLoading = active && !changingWorkspace && scrolling && !dragging && !editing
                 && shownError == null && session.error() == null && ink != null && !ink.isPenDown();
             if (!canEdit() && !continueLoading) return;
+            collapseNoteActions();
             hideHistoryControls();
             linkTap.begin(event.getX(changed), event.getY(changed), event.getEventTime(), dp(4), writingRevision);
             rememberGestureStart();
@@ -1309,9 +1310,6 @@ public final class NotebookActivity extends NotebookDisplayActivity {
 
     private void performSelectionAction(NotebookSelectionTools.Action action) {
         if (!canEdit() || selectionOutline == null) return;
-        if (action == NotebookSelectionTools.Action.DONE) {
-            pauseForEdit(); clearSelection(); editing = false; installViewport(); return;
-        }
         if (selection == null) return;
         if (action == NotebookSelectionTools.Action.COPY) { session.copy(selection); selectionTools.copied(); return; }
         if (action == NotebookSelectionTools.Action.EXPORT) { exportSelection(); return; }
@@ -1627,6 +1625,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         if (selectionTools != null) selectionTools.hide();
         editing = true;
         ink.pauseForEdit();
+        if (statusIslands != null && statusIslands.collapseActions() && shownError == null) ink.redrawAfterOverlayChange();
         if (!keepHistory && figureEditor != null) {
             dismissFigureEditor(); ink.setSelectionMode(selectionOutline != null);
         }
@@ -2496,31 +2495,34 @@ public final class NotebookActivity extends NotebookDisplayActivity {
 
     private void noteActions() {
         if (!canEdit()) return;
-        List<String> items = new ArrayList<>();
-        List<Runnable> actions = new ArrayList<>();
-        items.add("Insert figure…"); actions.add(this::insertFigure);
-        items.add("Figures…"); actions.add(this::chooseFigure);
-        items.add("Page information / Export PDF"); actions.add(this::pageInformation);
+        pauseForEdit();
+        if (shownError != null) return;
         NotebookPage current = pages.get(activePage);
-        if (current != null && current.pdfPage == 0) {
-            items.add(current.template == NotebookPage.Template.LINED ? "Use blank background" : "Use lined background");
-            actions.add(this::choosePaper);
-        }
-        if (session.figureClipboard() != null) { items.add("Paste figure"); actions.add(this::pasteFigure); }
-        pauseForEdit(); floatingTools.hide();
-        final int[] chosen = {-1};
-        AlertDialog menu = new AlertDialog.Builder(this).setTitle(session.notebookName())
-            .setItems(items.toArray(new String[0]),
-                (dialog, which) -> chosen[0] = which).setNegativeButton("Close", null).create();
-        viewMenu = menu;
-        menu.setOnDismissListener(dialog -> {
-            viewMenu = null;
-            if (!active) return;
-            resumeThen(() -> {
-                if (chosen[0] >= 0) actions.get(chosen[0]).run();
-            });
+        statusIslands.showActions(current != null && current.pdfPage == 0,
+            current != null && current.template == NotebookPage.Template.LINED, session.figureClipboard() != null);
+        editing = false; ink.redrawAfterOverlayChange(); ink.start();
+    }
+
+    private void performNoteAction(NotebookStatusIslands.Action action) {
+        if (!canEdit() || !statusIslands.actionsShowing()) return;
+        pauseForEdit();
+        if (shownError != null) return;
+        resumeThen(() -> {
+            switch (action) {
+                case INSERT_FIGURE: insertFigure(); break;
+                case FIGURES: chooseFigure(); break;
+                case INFORMATION: pageInformation(); break;
+                case BACKGROUND: choosePaper(); break;
+                case PASTE_FIGURE: pasteFigure(); break;
+            }
         });
-        showStaticDialog(menu);
+    }
+
+    private boolean collapseNoteActions() {
+        if (statusIslands == null || !statusIslands.actionsShowing() || !canEdit()) return false;
+        ink.pauseForEdit();
+        if (shownError != null) return true;
+        statusIslands.collapseActions(); ink.redrawAfterOverlayChange(); ink.start(); return true;
     }
 
     private void insertFigure() {
@@ -2706,7 +2708,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                 : session.isSaving() ? "Saving your latest writing…" : "Your completed strokes are saved on this tablet.")
             + "\n\nDrag with one finger to scroll and pan. Pinch with two fingers to zoom around their midpoint. Tap the zoom percentage for Fit width, Fit height, Fit page, zoom presets, and App settings. Tap the notebook name to return to the bookshelf. New notes start at Fit width; 100% means Fit width. Write with the stylus. Tap the page counter in the top-left bar for page management and thumbnails. Use the arrows beside the counter for adjacent pages. The page-plus icon inserts an empty page after the current page. The top-left three-dot menu switches this page’s blank/lined background."
             + "\n\nEraser draws a temporary grey trail. Lift the pen to remove whole ink strokes touched by it, together with the trail. Tap the selected Eraser icon to adjust its width (4–240). Current eraser: " + NotebookWidthRange.ERASER.label(eraserWidth) + ". Each page remembers up to 100 Undo/Redo edits while the app process stays open."
-            + "\n\nLasso draws a temporary dashed line. Lift the stylus to close the curve automatically. Drag inside with a finger or stylus to move the selected ink. Copy, Duplicate, Move…, Cut, Delete, and Done appear beside the region. Done or a tap outside clears the selection; tap the selected Lasso icon afterward for Paste or Select all. Copied ink stays inside Scriflow until the app restarts. Drag a selection to another page; hold near the top or bottom edge to scroll. Move… places it on any page. Cross-page moves preserve the ink and undo both pages together."
+            + "\n\nLasso draws a temporary dashed line. Lift the stylus to close the curve automatically. Drag inside with a finger or stylus to move the selected ink. Copy, Duplicate, Move to page, Cut, Delete, and Export icons appear beside the region. Tap outside to clear the selection; tap the selected Lasso icon afterward for Paste or Select all. Copied ink stays inside Scriflow until the app restarts. Drag a selection to another page; hold near the top or bottom edge to scroll. Move… places it on any page. Cross-page moves preserve the ink and undo both pages together."
             + "\n\nNew writing or a successful edit clears Redo. Changing paper keeps your stroke history.";
         message += "\n\nTap the dotted grip to collapse or expand the floating tools; drag it to move them, even when collapsed. The direction icon beside it switches between one row and one column. The thicker circle marks the selected tool. The page counter in the top-left bar opens page management."
             + "\n\nThe outline icon opens the table of contents. Add headings at the current view; hold a heading or tap Edit headings to rename, move, or delete it. Imported PDF outlines are ready to use. Tap PDF links with one finger; writing with the stylus keeps annotating. The previous-view and next-view arrows restore your page, scroll position, horizontal pan, and zoom after a link or outline jump, including after screen rotation."
@@ -2833,6 +2835,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         super.onDestroy();
     }
     @Override public void onBackPressed() {
+        if (collapseNoteActions()) return;
         if (figureEditor != null) { figureEditor.cancel(); return; }
         if (widthPopup != null) { widthPopup.cancel(); return; }
         if (selectionDrag.isActive()) {

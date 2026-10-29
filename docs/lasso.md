@@ -38,10 +38,12 @@ single-page group can subsequently move to any page in the notebook.
 
 The original curve remains visible even when no strokes were selected.
 It is composed separately from saved page/PDF/thumbnail ink. A small nonmodal
-window beside the region shows its stroke count and **Move…**, Copy, Duplicate,
-Cut, Delete, Export… and Done. It stays within the viewport and avoids the main palette
-when space allows. An empty region says "No strokes selected"; only Done is
-available.
+window beside a nonempty region shows **Copy, Duplicate, Move to page, Cut,
+Delete and Export icons** in local 0.33.2-dev.6. There is no text header or Done
+button; tap outside the curve to finish. Icons retain tooltips and accessibility
+labels. The strip stays within the viewport, wraps in narrow panes and avoids
+the main palette when space allows. An empty region keeps its outline without
+showing an action strip; tap outside it to dismiss.
 
 From **0.33.0-dev.5**, the action panel uses the Activity's window token even
 when its placement belongs to a floating note. It stays beside that note rather
@@ -79,7 +81,7 @@ selection and hands over to navigation.
 
 **Move…** offers an alternative for distant destinations. Choose a page number,
 using the number controls, and move the group to that page's centre. The same
-complete-group size check applies. Done or a tap outside clears the region for
+complete-group size check applies. A tap outside clears the region for
 ordinary scrolling or drawing another lasso. With no region active, tapping the
 selected Lasso icon offers Paste and Select all.
 
