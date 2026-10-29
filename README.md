@@ -38,8 +38,8 @@ updates. **Page format 6 is written on edit and cannot be opened by older APKs.*
 Keep editable backups before updating. See [figures and workspace](docs/figures-and-workspace.md),
 [changelog](CHANGELOG.md), and [device records](docs/device-testing.md).
 
-Local development continues in **0.33.1-dev.7**, anchoring the notes tray beside
-its toolbox button and adding direct finger selection of figures, immediate
+Local development continues in **0.33.1-dev.8**, giving each minimized note a tray
+icon beside the notes button and adding direct finger selection of figures, immediate
 floating-note drag/resize with a live boundary, indexed
 scrolling geometry, bounded exact ink-outline reuse, worker-prepared figures
 and coordinated optional cache budgets. See the [optimization record](docs/optimization-0.33.1.md)

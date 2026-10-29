@@ -6,6 +6,12 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.33.1-dev.8 — Icons for minimized notes (2026-10-29)
+
+- Give every minimized note a page icon in the tray instead of a numbered text
+  button. Keep note names in tooltips and accessibility labels, with consistent
+  icon sizes and spacing in either orientation. VersionCode 62.
+
 ## 0.33.1-dev.7 — Open the notes tray beside its button (2026-10-29)
 
 - Anchor the notes tray to the notes button in horizontal and vertical toolboxes,

@@ -72,3 +72,15 @@ All 246,324 host assertions in 60 suites and Debug/Release lint/builds passed.
 and verified its permanent signing certificate. No tablet installation or
 physical placement check was performed, following the owner's instruction to
 continue without the device.
+
+## Minimized-note icons — 0.33.1-dev.8 (code 62)
+
+Every minimized note now uses a vector page-icon button instead of numbered
+text. Its tooltip and accessibility label retain the notebook name, and tapping
+it restores that specific pane. The plus and note icons share 32 dp controls
+with 4 dp gaps in either orientation; the tray dimensions follow those sizes.
+
+All 246,324 host assertions in 60 suites and Debug/Release lint/builds passed.
+`scripts/build-release.sh` prepared `build/releases/scriflow-0.33.1-dev.8.apk`
+using the verified permanent release signer. Physical tablet checking remains
+pending under the owner's instruction to continue without the device.

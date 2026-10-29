@@ -31,20 +31,22 @@ final class NotebookNoteTray {
         background.setStroke(dp(1), Color.BLACK); background.setCornerRadius(dp(12)); row.setBackground(background);
         NotebookIconButton add = new NotebookIconButton(context, NotebookIconDrawable.Icon.PLUS, "Open a new floating note");
         add.setOnClickListener(v -> listener.add()); row.addView(add, new LinearLayout.LayoutParams(dp(32), dp(32)));
-        int count = 1, number = 0;
+        int count = 1;
         for (NotebookWorkspace.Pane pane : panes) {
-            number++;
             if (!pane.collapsed) continue;
-            NotebookButton button = new NotebookButton(context); button.setText("▣" + number); button.setTextSize(12);
             String description = "Reopen " + listener.name(pane.notebookId);
-            button.setContentDescription(description); button.setTooltipText(description);
+            NotebookIconButton button = new NotebookIconButton(context, NotebookIconDrawable.Icon.PAPER_BLANK, description);
+            button.setTooltipText(description);
             button.setOnClickListener(v -> listener.reopen(pane));
-            row.addView(button, new LinearLayout.LayoutParams(dp(40), dp(32))); count++;
+            LinearLayout.LayoutParams item = new LinearLayout.LayoutParams(dp(32), dp(32));
+            if (vertical) item.topMargin = dp(4); else item.leftMargin = dp(4);
+            row.addView(button, item); count++;
         }
         int[] origin = new int[2]; anchor.getLocationOnScreen(origin);
         int[] button = new int[2]; notesButton.getLocationOnScreen(button);
-        int width = vertical ? dp(48) : Math.min(anchor.getWidth() - dp(16), dp(8 + 40 * count));
-        int height = vertical ? Math.min(anchor.getHeight() - dp(16), dp(8 + 32 * count)) : dp(40);
+        int length = dp(8 + 32 * count + 4 * (count - 1));
+        int width = vertical ? dp(40) : Math.min(anchor.getWidth() - dp(16), length);
+        int height = vertical ? Math.min(anchor.getHeight() - dp(16), length) : dp(40);
         FrameLayout scroll;
         if (vertical) { ScrollView view = new ScrollView(context); view.setFillViewport(true); view.addView(row); scroll = view; }
         else { HorizontalScrollView view = new HorizontalScrollView(context); view.setFillViewport(true); view.addView(row); scroll = view; }
