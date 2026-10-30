@@ -6,6 +6,18 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.34.0-alpha.1 — Offline Markdown blocks prerelease (2026-10-30)
+
+- Publish the Markdown implementation from dev.1 as an alpha, versionCode 73,
+  with version/documentation changes only and the existing permanent signer.
+  Native display/input and e-ink acceptance of this feature remain pending.
+- Include offline MathJax formulas, source/render toggles, figure-style controls,
+  typing recovery, native vector tiles and vector PDF export. Promotion retains
+  dev.1's app code and format-8 storage; older APKs cannot read edited notes or
+  new backups. Keep independent backups before updating.
+- Pass 250,255 JVM assertions in 71 suites, five browser cases, Android checks
+  and clean-checkout CI. See [release notes](docs/releases/0.34.0-alpha.1.md).
+
 ## 0.34.0-dev.1 — Editable Markdown blocks (2026-10-30)
 
 - Insert Markdown from the top-left action bar. Edit source inline; use nearby

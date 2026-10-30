@@ -4,6 +4,27 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## Authorized alpha release 0.34.0-alpha.1 (2026-10-30)
+
+The owner explicitly requested publication and delegated the label choice.
+Use **alpha** because the new Markdown feature has not had physical tablet
+acceptance. The permanently signed **versionCode 73** promotes dev.1 with
+version/documentation changes only. Its DEX bytes match the validated dev.1
+candidate, and the release helper verifies the permanent certificate.
+
+The implementation passes **250,255 JVM assertions in 71 suites**, five browser
+cases, Android debug/release checks and clean-checkout CI. Math, CJK, diagrams,
+source/vector storage, typing recovery and PDF export are host-validated.
+This does not establish native WebView/PDF display, keyboard/stylus routing,
+floating/split pane interactions, e-ink refresh or performance on the tablet.
+Battery, optical, cover, long-session and other-firmware limits remain.
+
+This is the first public **format-8** release: versions 1–7 read unchanged,
+but edited pages and new editable backups cannot be opened by older APKs,
+including 0.33.2. Preserve independent editable backups before updating.
+Publish as a GitHub prerelease; keep 0.33.2 as Latest stable. See the
+[alpha notes](releases/0.34.0-alpha.1.md) and [Markdown record](markdown-blocks.md).
+
 ## Authorized stable release 0.33.2 (2026-10-29)
 
 The permanently signed **0.33.2 / versionCode 71** APK promotes dev.6 with only

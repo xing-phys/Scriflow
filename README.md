@@ -26,12 +26,15 @@ pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
 stays in front, window operations retain the main editor, and PDF import opens
 the file picker directly before opening the imported note.
 
-Current development **0.34.0-dev.1** adds editable [Markdown blocks](docs/markdown-blocks.md)
+The **[0.34.0-alpha.1 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.34.0-alpha.1)**
+adds editable [Markdown blocks](docs/markdown-blocks.md)
 with offline MathJax formulas, tables, code, diagrams and CJK fonts. Blocks use
 the figure controls and retain sharp vector appearances through zoom and PDF
 export. This build writes **page format 8** on edit and in new backups; older
 APKs, including stable 0.33.2, cannot read those pages/backups. Preserve
-independent backups before updating. This feature still awaits tablet acceptance.
+independent backups before updating. This feature still awaits tablet acceptance;
+0.33.2 remains the latest stable release. Download the alpha's signed APK and
+SHA-256 file from its release page.
 
 Double tapping the **M-Pencil body** switches Pen/Eraser and briefly shows the
 selected icon at the top center. The owner accepted the physical switches and

@@ -18,6 +18,15 @@ is connected for this release either; physical acceptance remains pending.
 
 ## Before publishing
 
+**0.34.0-alpha.1** (`versionCode` **73**) follows the owner's explicit request
+on 2026-10-30, delegating the prerelease label. Use alpha because the new Markdown
+compiler, native tile display and source-editing input have not had tablet
+acceptance. Promote dev.1 with version/documentation changes only; compare DEX
+bytes, retain the permanent signer, and publish **v0.34.0-alpha.1** as a GitHub
+prerelease, keeping **0.33.2** as Latest stable. Attach only the signed APK and
+checksum; verify the tag/source commit and re-download both assets. Disclose
+format-8 edits/new backups and pending physical checks in the public notes.
+
 **0.33.2** (`versionCode` **71**) follows the owner's explicit release request
 on 2026-10-29 after dev.6, retaining the instruction to continue without the
 tablet. Promote dev.6 with version/documentation changes only; verify identical
@@ -179,7 +188,13 @@ build unsigned release APKs without possessing the permanent key.
 
 ## Version numbers
 
-The current stable source/release is **0.33.2**, Android `versionCode` **71**,
+The current prerelease is **0.34.0-alpha.1**, Android `versionCode` **73**,
+promoting **0.34.0-dev.1** (code **72**) without app-code changes. It introduces
+format 8 to public releases: versions 1–7 remain readable unchanged, but older
+APKs cannot read newly edited pages or new editable backups. Alpha status
+reflects pending physical acceptance of the new Markdown feature.
+
+The latest stable release is **0.33.2**, Android `versionCode` **71**,
 including all changes through **0.33.2-dev.6** (`versionCode` **70**). The previous
 stable is **0.33.1** (`versionCode` **64**); **0.33.0** used code 54 and **0.32.0**
 used code 46. Promotion retains dev.6's compiled application code and permanent
@@ -239,16 +254,16 @@ and [Android versioning](https://developer.android.com/studio/publish/versioning
    The helper runs release lint and assembly, copies the candidate privately,
    verifies those exact bytes and the configured signing certificate, then
    stages a versioned APK and SHA-256 checksum under
-   `build/releases/`. For this release these are `scriflow-0.33.2.apk` and
-   `scriflow-0.33.2.apk.sha256`. Debugging is disabled, diagnostic screens are
+   `build/releases/`. For this release these are `scriflow-0.34.0-alpha.1.apk` and
+   `scriflow-0.34.0-alpha.1.apk.sha256`. Debugging is disabled, diagnostic screens are
    absent from the manifest, and the library is the only exported component.
 
 4. Compare the printed signer certificate SHA-256 with the intended permanent
    certificate. For later builds, pin that known digest during verification:
 
    ```bash
-   python3 scripts/verify-apk.py build/releases/scriflow-0.33.2.apk --certificate-sha256 YOUR_KNOWN_CERTIFICATE_SHA256
-   (cd build/releases && sha256sum -c scriflow-0.33.2.apk.sha256)
+   python3 scripts/verify-apk.py build/releases/scriflow-0.34.0-alpha.1.apk --certificate-sha256 YOUR_KNOWN_CERTIFICATE_SHA256
+   (cd build/releases && sha256sum -c scriflow-0.34.0-alpha.1.apk.sha256)
    ```
 
    Substitute the current version and the actual known digest. The APK file's
@@ -316,6 +331,13 @@ Do not use raw private version-1 files as a portable migration format, downgrade
 an APK over version-2 pages, or assume a signature change preserves app data.
 
 ## Publish only after acceptance
+
+For **0.34.0-alpha.1**, the owner's explicit request authorizes choosing the
+prerelease label, committing, pushing, tagging and publishing. Publish as an
+alpha prerelease with the permanently signed APK and checksum; leave 0.33.2 as
+Latest stable. No additional tablet approval is required for this authorized
+prerelease. Record the exact source commit, verify downloaded bytes and retain
+the format-8 and physical-validation limits in the release notes.
 
 For **0.33.2**, the owner's explicit request authorizes commit, push, tag and
 formal publication without new tablet tests. Publish the verified signed APK

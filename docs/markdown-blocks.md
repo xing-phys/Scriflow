@@ -1,4 +1,4 @@
-# Markdown blocks — 0.34.0-dev.1
+# Markdown blocks — 0.34.0-alpha.1
 
 Open the top-left three dots and tap the Markdown **M↓** icon to insert a block.
 Type Markdown in the small editor beside the block. Tap its eye icon to finish
@@ -97,5 +97,8 @@ by `scripts/build-markdown-assets.sh`; upstream licenses ship in
 The owner authorized continuing without the tablet. This feature's native
 WebView/PDF display, physical keyboard/stylus routing, pane interactions,
 e-ink refresh and performance still need on-device acceptance. No new battery,
-optical-latency or firmware measurements are claimed. This development APK is
-not a new published GitHub release.
+optical-latency or firmware measurements are claimed. The owner explicitly
+authorized publication on 2026-10-30. **0.34.0-alpha.1** promotes dev.1 with
+version/documentation changes only and the permanent signer. It is a GitHub
+prerelease; 0.33.2 remains the latest stable release. See the
+[alpha release notes](releases/0.34.0-alpha.1.md).
