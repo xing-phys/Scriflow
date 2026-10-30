@@ -44,7 +44,8 @@ Term
 
 (async () => {
   fs.mkdirSync(output, { recursive: true });
-  const missing = [], egress = [], errors = [];
+  const missing = [], egress = [], errors = [], blockedAttackHandlers=[];
+  let currentCase='startup';
   const server = http.createServer((req, res) => {
     const file = path.resolve(assets, '.' + decodeURIComponent(req.url.split('?')[0]));
     if (!file.startsWith(assets + path.sep)) { res.writeHead(403); res.end(); return; }
@@ -63,7 +64,15 @@ Term
     await page.setRequestInterception(true);
     page.on('request', request => { if (!request.url().startsWith(origin) && !request.url().startsWith('data:')) { egress.push(request.url()); request.abort(); } else request.continue(); });
     page.on('pageerror', error => errors.push(error.message));
-    page.on('console', message => { if (message.type()==='error' && !message.text().includes('404')) errors.push(message.text()); });
+    page.on('console', message => {
+      if(message.type()!=='error'||message.text().includes('404'))return;
+      // Newer Chrome versions can report the intentionally malicious fixture's
+      // handler during inert parsing. CSP blocking it is the expected outcome;
+      // actual execution, external requests and unrelated errors still fail.
+      if(currentCase==='sanitized' && /Executing inline event handler violates.*Content Security Policy/.test(message.text()))
+        blockedAttackHandlers.push(message.text());
+      else errors.push(message.text());
+    });
     await page.goto(origin + '/index.html', { waitUntil:'networkidle0' });
     await page.waitForFunction('window.ScriflowMarkdown', { timeout:30000 });
     await page.evaluate(() => {
@@ -75,6 +84,7 @@ Term
       };
     });
     async function render(name, source, allowMathError=false) {
+      currentCase=name;
       console.log('Rendering:',name);
       await page.evaluate(source => { window.ScriflowMarkdown.render(source, 640); }, source);
       try { await page.waitForFunction("['ready','error'].includes(window.ScriflowMarkdown.info().phase)", { timeout:60000 }); }
@@ -115,6 +125,7 @@ Reference $\eqref{eq:energy}$.
     assert.equal(cjk.info.warning,'');
     assert(cjk.captures[0].svg.includes('ScriflowCJK'));
     const unsafe = await render('sanitized','<script>window.compromised=true</script><img src="https://invalid.example/image.png" onerror="window.compromised=true">\n\n[unsafe](javascript:alert(1))');
+    await page.evaluate(()=>new Promise(resolve=>setTimeout(resolve,100)));
     assert.equal(await page.evaluate(() => !!window.compromised),false);
     assert(!unsafe.captures[0].html.includes('onerror'));
     assert(unsafe.captures[0].html.includes('embedded image required'));
@@ -123,7 +134,7 @@ Reference $\eqref{eq:energy}$.
     assert.deepEqual(missing,[],`Missing local assets: ${missing}`);
     assert.deepEqual(egress,[],`Unexpected external request: ${egress}`);
     assert.deepEqual(errors,[],`Browser errors: ${errors}`);
-    fs.writeFileSync(path.join(output,'renderer-qa.json'),JSON.stringify({ cases:5, main:main.info, math:math.info, cjk:cjk.info, missing,egress,errors },null,2));
+    fs.writeFileSync(path.join(output,'renderer-qa.json'),JSON.stringify({ cases:5, main:main.info, math:math.info, cjk:cjk.info, missing,egress,errors,blockedAttackHandlers },null,2));
     console.log('Offline Markdown renderer: 5 browser cases passed; math, CJK, diagrams, source snapshots, sanitization and zero network egress.');
   } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
 })().catch(error => { console.error(error); process.exitCode=1; });
