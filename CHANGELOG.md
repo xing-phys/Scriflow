@@ -6,6 +6,25 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.35.0-alpha.1 — PDF reading controls (2026-10-30)
+
+- Add PDF crop Off/Auto/Manual/Semi-auto, exact corner/edge adjustment and
+  current/all/odd/even page scopes. Semi-auto detects inside the chosen area.
+- Add optional single-page reading with Fit page defaults, adjacent-page
+  arrows/swipes, and pinch/pan within the current page. Continuous/Fit width
+  remains the default.
+- Select a PDF word with a finger hold and automatically open Eudic floating
+  lookup. Offer Copy and lookup icons; preserve handwriting and cancel holds
+  on scroll, pinch, palm/stylus input and stale writing/navigation state.
+- Adjust PDF contrast on the display worker, keeping old tiles until replacement
+  pixels are ready. Retain the paused note beneath a transparent dictionary
+  activity and release resources on a full stop.
+- Keep original PDF bytes, page/ink coordinates, exports, permanent signer and
+  format-8 storage. View preferences are local and outside notebook backups.
+  New tablet interactions remain unverified; publish as an alpha, versionCode 74.
+  Pass 252,121 JVM assertions in 77 suites, five browser cases and both Android
+  variants’ lint/build/signature checks. See [release notes](docs/releases/0.35.0-alpha.1.md).
+
 ## 0.34.0-alpha.1 — Offline Markdown blocks prerelease (2026-10-30)
 
 - Publish the Markdown implementation from dev.1 as an alpha, versionCode 73,

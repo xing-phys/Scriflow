@@ -25,9 +25,13 @@ final class NotebookImages {
         final byte[] png; final int width, height;
         Imported(byte[] png, int width, int height) { this.png = png; this.width = width; this.height = height; }
         NotebookFigure place(NotebookPage page) {
-            float scale = Math.min(page.width * .7f / width, page.height * .7f / height);
+            return place(page,NotebookCropBox.FULL);
+        }
+        NotebookFigure place(NotebookPage page,NotebookCropBox area){
+            float scale = Math.min(page.width * area.width() * .7f / width, page.height * area.height() * .7f / height);
             float w = width * scale, h = height * scale;
-            return new NotebookFigure(UUID.randomUUID(), (page.width - w) / 2, (page.height - h) / 2, w, h, png);
+            return new NotebookFigure(UUID.randomUUID(), page.width*(area.left+area.right)/2-w/2,
+                page.height*(area.top+area.bottom)/2-h/2, w, h, png);
         }
     }
     private static final class Key {

@@ -42,6 +42,8 @@ final class NotebookSession {
     private final Handler main = new Handler(Looper.getMainLooper());
     private final NotebookLibrary document;
     private final File directory;
+    private final Map<Integer,NotebookReadingSettings> reading = new java.util.concurrent.ConcurrentHashMap<>();
+    private final Map<Integer,IOException> readingErrors = new java.util.concurrent.ConcurrentHashMap<>();
     private boolean initialPaperChecked, initialPaperRequired;
     private final AtomicInteger pending = new AtomicInteger();
     private volatile NotebookPage page;
@@ -93,6 +95,21 @@ final class NotebookSession {
     NotebookScrollStore.State scrollPosition() { return position; }
     File pdfSource() { return pdfSource; }
     List<NotebookViewport.Size> pageSizes() { return pageSizes; }
+    NotebookReadingSettings readingSettings(int book){NotebookReadingSettings value=reading.get(book);return value==null?NotebookReadingSettings.DEFAULT:value;}
+    IOException readingError(int book){return readingErrors.get(book);}
+    private void loadReadingSettings(int book){
+        if(reading.containsKey(book))return;
+        try{reading.put(book,new NotebookReadingStore(directory,book).read());}
+        catch(IOException error){reading.put(book,NotebookReadingSettings.DEFAULT);readingErrors.put(book,error);}
+    }
+    void saveReadingSettings(int book,NotebookReadingSettings settings,TransferCallback callback){
+        worker.execute(()->{
+            IOException error=null;
+            try{new NotebookReadingStore(directory,book).write(settings);reading.put(book,settings);readingErrors.remove(book);}
+            catch(IOException failure){error=failure;}
+            final IOException result=error;main.post(()->callback.complete(result));
+        });
+    }
     List<NotebookOutline.Entry> outline() { return outline; }
     UUID pageId(int number) { return pageIds.get(number); }
     int pageNumber(UUID id) { Integer number = pageNumbers.get(id); return number == null ? 0 : number; }
@@ -229,7 +246,11 @@ final class NotebookSession {
                 if (document.notebookId() != expectedBook) throw new IOException("The notebook changed; insert the figure again");
                 NotebookPage target = document.previewPage(number);
                 if (!target.id.toString().equals(pageId)) throw new IOException("The page changed; insert the figure again");
-                List<NotebookFigure> figures = new ArrayList<>(target.figures); figures.add(image.place(target));
+                NotebookReadingSettings settings=readingSettings(expectedBook);
+                NotebookCropBox roi=settings.crop==NotebookReadingSettings.Crop.AUTO?NotebookCropBox.FULL:settings.manual(number,target.id);
+                NotebookCropBox detected=pdfSource==null?null:NotebookPdfReading.cached(pdfSource,target.pdfPage,roi);
+                NotebookCropBox area=target.pdfPage==0?NotebookCropBox.FULL:settings.area(number,target.id,detected);
+                List<NotebookFigure> figures = new ArrayList<>(target.figures); figures.add(image.place(target,area));
                 target.withFigures(figures);
                 submit(() -> {
                     if (document.notebookId() != expectedBook || !document.previewPage(number).id.toString().equals(pageId))
@@ -410,6 +431,7 @@ final class NotebookSession {
         PreviewRequest request = new PreviewRequest();
         worker.execute(() -> {
             if (request.cancelled) return;
+            loadReadingSettings(id);
             List<NotebookViewport.Size> sizes = new ArrayList<>(); File source = document.notebookPdf(id); IOException failure = null;
             try {
                 List<NotebookPageCatalog.Entry> metadata = document.companionMetadata(id);
@@ -419,7 +441,7 @@ final class NotebookSession {
                 }
                 // A damaged offscreen page remains a local error, just as in the editor.
                 for (NotebookPageCatalog.Entry entry : metadata)
-                    sizes.add(entry == null || entry.width == 0 ? fallback : new NotebookViewport.Size(entry.width, entry.height));
+                    sizes.add(entry == null || entry.width == 0 ? fallback : new NotebookViewport.Size(entry.width, entry.height,entry.id,entry.pdfPage));
             } catch (IOException | RuntimeException error) { failure = new IOException("Cannot open this note", error); }
             final List<NotebookViewport.Size> result = Collections.unmodifiableList(sizes); final IOException error = failure;
             main.post(() -> { if (!request.cancelled) callback.complete(result, source, error); });
@@ -477,6 +499,7 @@ final class NotebookSession {
     /** Publish small identity maps once per page-order change; UI navigation never reads files. */
     private void publishNavigation() {
         pdfSource = document.sourcePdf();
+        if(document.current()!=null)loadReadingSettings(document.notebookId());
         if (document.current() == null) {
             outline = Collections.emptyList(); pageIds = Collections.emptyMap(); pageNumbers = Collections.emptyMap();
             pdfPages = Collections.emptyMap(); pageSizes = Collections.emptyList(); navigationBook = 0; return;
@@ -499,7 +522,7 @@ final class NotebookSession {
                 NotebookPageCatalog.Entry item = metadata.get(number - 1);
                 if (item == null) throw new IOException("Page navigation metadata unavailable");
                 ids.put(number, item.id); numbers.put(item.id, number);
-                sizes.add(new NotebookViewport.Size(Math.max(1, item.width), Math.max(1, item.height)));
+                sizes.add(new NotebookViewport.Size(Math.max(1, item.width), Math.max(1, item.height),item.id,item.pdfPage));
                 if (item.pdfPage > 0 && !sources.containsKey(item.pdfPage)) sources.put(item.pdfPage, number);
             } catch (IOException ignored) {
                 complete = false;

@@ -9,6 +9,13 @@ Version 0.33 development adds [figures and a multi-note workspace](figures-and-w
 including page format 6, image-aware undo/backup/export, and serialized
 cross-notebook reads. The earlier milestones below are historical context.
 
+Version 0.35 adds [reading preferences](pdf-reading.md) in a separate atomic
+store, without changing notebook format 8. Crop geometry keeps original source
+coordinates. Content detection and embedded-text extraction use a bounded
+optional worker, independently of the ink writer; screen-resolution PDF tiles
+apply contrast after rasterization. A transparent Eudic pause retains the
+paused native surface; a full stop releases it.
+
 ## Decisions and ownership
 
 - Keep Java 8 and Android Views. Live handwriting remains the validated Huawei native path.

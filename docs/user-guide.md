@@ -4,7 +4,7 @@ Scriflow is designed for Huawei MatePad Paper HMW-W09 on Android 10/API 29,
 firmware `HMW-W09 2.1.0.222(C00E170R1P8)`. Other devices and firmware have not
 been verified. See the [README](../README.md) for installation and current limits.
 
-This guide follows prerelease **0.34.0-alpha.1**; the published stable release is
+This guide follows prerelease **0.35.0-alpha.1**; the published stable release is
 **0.33.2**. The alpha reads older notes but writes page format 8 on
 edit and in new editable backups. Older APKs, including stable 0.33.2, cannot
 open those pages or new backups. Keep independent
@@ -76,6 +76,30 @@ left control to move a floating note or the right control to resize it without
 waiting for a hold. A boundary follows resizing; the note refits after release.
 See [figures and workspace](figures-and-workspace.md) for controls, limits,
 storage compatibility, and remaining hardware checks.
+
+## PDF crop, single-page reading, contrast and dictionary
+
+Open **⋮ → Reading view** (the page-with-lines icon) in the top-left bar.
+Choose Continuous or Single page. Continuous defaults to Fit width; Single page
+defaults to Fit page. Use the page arrows or a horizontal swipe at whole-page
+size to turn one page. You can still pinch and pan within a single page; zoomed
+horizontal drags pan rather than turn pages.
+
+PDF pages offer crop Off, Auto, Semi-auto and Manual. Auto finds the content;
+Manual uses your exact area; Semi-auto finds content inside your area. Tap two
+opposite corners, or drag edges/corners and the inside of the box. Choose the
+current page, all pages, odd pages or even pages with the scope control, then
+apply with the check icon. Use X to cancel. Increase PDF contrast for darker
+text and images; Reset contrast restores the original tones. These settings
+are remembered for each notebook and do not alter ink or exported PDFs.
+
+Hold a finger on a PDF word to select it and open Eudic's small dictionary
+window. Move the stylus away first so palm rejection allows finger input.
+Copy and dictionary icons appear near the word; tap elsewhere to dismiss.
+Install Eudic and allow its floating-window permission in the tablet's system
+settings. If it is absent, selection and Copy still work. Image-only scans need
+an existing text layer; Scriflow does not OCR them. See [PDF reading](pdf-reading.md)
+for behavior, storage and validation limits.
 
 ## Zoom and screen orientation
 

@@ -63,6 +63,12 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private NotebookMarkdownSourceEditor markdownEditor;
     private NotebookMarkdownDraft pendingMarkdownDraft;
     private boolean markdownRecoveryChecked, markdownRecovering;
+    private final Map<UUID,NotebookPdfReading.Request> cropRequests=new LinkedHashMap<>();
+    private final HashSet<UUID> cropFailures=new HashSet<>();
+    private boolean readingFlowKnown;
+    private NotebookReadingMenu readingMenu;
+    private NotebookCropEditor cropEditor;
+    private NotebookPdfReading.Request cropPreviewRequest;
     private boolean changingWorkspace, workspaceLayoutPending;
     private int inkGeneration;
     private final Map<Integer, byte[]> workspaceHistories = new LinkedHashMap<>();
@@ -114,11 +120,17 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private final Map<Integer, NotebookPage> pages = new LinkedHashMap<>();
     private final NotebookViewportBuffer viewportBuffer = new NotebookViewportBuffer();
     private final Map<Integer, Bitmap> tiles = new LinkedHashMap<>();
+    private NotebookPdfPress pdfPress;
+    private NotebookPdfTextTools pdfTextTools;
+    private NotebookPdfReading.Request pdfTextRequest;
+    private boolean dictionaryPending,dictionaryRetained;
+    private int fingerWritingRevision;
     private Bitmap preview;
     private final NotebookStrokeRenderer.Cache strokePaths = new NotebookStrokeRenderer.Cache(65536);
     private float scrollY, fingerX, fingerY, fingerOriginX, fingerOrigin;
     private float pinchDistance, pinchX, pinchY;
     private boolean pinching;
+    private boolean pageTurnEligible;
     private final NotebookPinchGesture pinchIntent = new NotebookPinchGesture();
     private boolean pinchAllowed, gestureEngaged;
     private NotebookViewport gestureStartViewport;
@@ -153,6 +165,9 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
         session = NotebookSession.get(this);
+        // Cold-start word extraction also needs the bundled PDF fonts/CMaps, even
+        // when only an inactive PDF is visible and no PDF link reader has run.
+        NotebookPdfEngine.initialize(this);
         pdfBackgrounds = new NotebookPdfBackgrounds(this, new NotebookPdfBackgrounds.Listener() {
             @Override public void changed() {
                 backgroundsChanged();
@@ -200,6 +215,15 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         canvas = new FrameLayout(this); canvas.setBackgroundColor(Color.WHITE);
         workspaceArea.addView(canvas, new FrameLayout.LayoutParams(-1, -1));
         setContentView(root);
+        pdfTextTools=new NotebookPdfTextTools(canvas,this::lookupPdfText,this::updateOverlayBounds);
+        float readingDpi=getResources().getDisplayMetrics().xdpi;
+        if(readingDpi<80||readingDpi>1000)readingDpi=getResources().getDisplayMetrics().density*160;
+        pdfPress=new NotebookPdfPress(new NotebookPdfPress.Listener(){
+            public boolean eligible(float x,float y){return pdfWordEligible(x,y);}
+            public int revision(){return writingRevision;}
+            public boolean penDown(){return ink==null||ink.isPenDown();}
+            public void held(float x,float y){dragging=false;fingerId=-1;pageTurnEligible=false;linkTap.cancel();selectPdfWord(x,y);}
+        },dp(4),readingDpi/25.4f);
         noteNameButton = statusButton(session.notebookName(), "Return to bookshelf", this::returnToLibrary);
         noteNameButton.setMaxWidth(dp(160));
         noteNameButton.setEllipsize(TextUtils.TruncateAt.END);
@@ -309,15 +333,40 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             viewNotebookId = session.notebookId();
             zoom = 1; zoomFit = NotebookViewport.Fit.WIDTH; restoreCenter = false; viewport = null;
             viewHistory.clear();
+            readingFlowKnown=false;
             ensureWorkspace(); restoreWorkspaceView();
         }
         active = true;
         stylusGesture.start();
         deviceStatus.start();
+        if(resumeDictionaryEditor())return;
         workspaceRoot.post(() -> {
             if (!active) return;
             layoutWorkspace(); statusIslands.show(workspaceRoot); loadPage();
         });
+    }
+
+    private boolean resumeDictionaryEditor(){
+        if(!dictionaryRetained||ink==null){dictionaryRetained=false;return false;}
+        dictionaryRetained=false;editing=false;dragging=false;fingerId=-1;
+        statusIslands.history(false,false);ink.start();updateControls();showFloatingTools();return true;
+    }
+    private boolean retainDictionaryEditor(){
+        if(!dictionaryPending||ink==null)return false;
+        dictionaryPending=false;dictionaryRetained=true;
+        ink.pauseForEdit();captureViewCenter();rememberEditor();persistPosition();saveWorkspace();
+        active=false;dragging=false;fingerId=-1;whenReady=null;
+        if(pdfPress!=null)pdfPress.cancel();
+        if(stylusGesture!=null)stylusGesture.stop();stylusShortcut.reset();main.removeCallbacks(applyStylusShortcut);
+        deviceStatus.stop();statusIslands.history(false,false);setWritingContact(false);
+        if(toolHint!=null)toolHint.hide();main.removeCallbacks(updateSaveState);main.removeCallbacks(previewFrame);
+        return true;
+    }
+    private void stopDictionaryEditor(){
+        if(!dictionaryRetained)return;
+        dictionaryRetained=false;++generation;
+        for(NotebookCompanion window:noteWindows.values())window.hide();
+        statusIslands.hide();if(floatingTools!=null)floatingTools.hide();disposeCanvas();
     }
 
     private void loadPage() {
@@ -385,7 +434,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                     penDown = down;
                     if (down) {
                         writingHistory = tool == NotebookInk.Tool.PEN;
-                        ++writingRevision; linkTap.cancel();
+                        ++writingRevision; linkTap.cancel(); clearPdfText();
                         if (widthPopup != null && !widthContact) widthPopup.dismiss();
                     }
                     setWritingContact(down);
@@ -459,8 +508,15 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private void configureViewport(int width, int height) {
         viewport = createViewport(width, height, 0);
         int centerPage = Math.max(1, Math.min(session.pageCount(), restoreCenterPage));
+        NotebookScrollStore.State initialPosition = reopenPosition == null ? session.scrollPosition() : reopenPosition;
+        int initialPage=pendingReadingView!=null?pendingReadingPage:restoreCenter?centerPage:initialPosition==null?session.pageNumber():initialPosition.page;
+        viewport=viewport.forPage(Math.max(1,Math.min(session.pageCount(),initialPage)));
+        if(!readingFlowKnown){
+            if(viewport.singlePage!=0&&zoomFit==NotebookViewport.Fit.WIDTH&&!restoreCenter&&pendingReadingView==null)zoomFit=NotebookViewport.Fit.PAGE;
+            readingFlowKnown=true;
+        }
         if (zoomFit != NotebookViewport.Fit.CUSTOM) {
-            zoom = viewport.fittedZoom(zoomFit, restoreCenter ? centerPage : session.pageNumber());
+            zoom = viewport.fittedZoom(zoomFit, viewport.singlePage!=0?viewport.singlePage:restoreCenter ? centerPage : session.pageNumber());
             viewport = viewport.withView(zoom, 0);
         }
         NotebookScrollStore.State position = reopenPosition == null ? session.scrollPosition() : reopenPosition;
@@ -474,6 +530,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         restoreCenter = false;
         if (pendingReadingView != null) {
             int target = Math.max(1, Math.min(session.pageCount(), pendingReadingPage));
+            viewport=viewport.forPage(target);
             zoomFit = NotebookViewport.Fit.CUSTOM;
             zoom = pendingReadingView.zoom;
             viewport = viewport.withView(zoom, 0); zoom = viewport.zoom;
@@ -487,10 +544,48 @@ public final class NotebookActivity extends NotebookDisplayActivity {
 
     private NotebookViewport createViewport(int width, int height, float pan) {
         List<NotebookViewport.Size> sizes = session.pageSizes();
+        NotebookReadingSettings settings=session.readingSettings(session.notebookId());
+        NotebookViewport result;
         if (sizes.size() == session.pageCount())
-            return new NotebookViewport(sizes, width, height, dp(12), zoom, pan);
-        return new NotebookViewport(session.pageCount(), page.width, page.height,
-            width, height, dp(12), zoom, pan);
+            result=new NotebookViewport(NotebookPdfReading.layout(sizes,session.pdfSource(),settings),width,height,dp(12),zoom,pan);
+        else result=new NotebookViewport(session.pageCount(),page.width,page.height,width,height,dp(12),zoom,pan);
+        return result.withSinglePage(settings.singlePage?Math.max(1,Math.min(session.pageCount(),activePage)):0);
+    }
+
+    private void refreshReadingViewport(){
+        clearPdfText();
+        if(viewport==null)return;
+        int anchor=viewport.centeredPage(scrollY);float x=(viewport.width/2f-viewport.pageLeft(anchor))/viewport.scale(anchor);
+        float y=(viewport.height/2f-viewport.pageTop(anchor,scrollY))/viewport.scale(anchor),oldScale=viewport.scale(anchor);
+        NotebookViewport next=createViewport(viewport.width,viewport.height,0).forPage(anchor);
+        if(zoomFit==NotebookViewport.Fit.CUSTOM)zoom=oldScale*next.pageWidth(anchor)*next.crop(anchor).width()/next.width;
+        else zoom=next.fittedZoom(zoomFit,anchor);
+        viewport=next.withView(zoom,0);viewport=viewport.withView(zoom,viewport.panForPoint(anchor,x,viewport.width/2f));
+        scrollY=viewport.scrollForPoint(anchor,y,viewport.height/2f);activePage=anchor;
+        tiles.clear();selectionTiles.clear();selectionTilePages.clear();scrolling=true;settleRead=true;++viewportRevision;
+        updatePageLabel();requestWindow();
+    }
+
+    private boolean prepareCrop(){
+        NotebookReadingSettings settings=session.readingSettings(session.notebookId());
+        if(session.pdfSource()==null||settings.crop==NotebookReadingSettings.Crop.NONE||settings.crop==NotebookReadingSettings.Crop.MANUAL)return true;
+        boolean ready=true;HashSet<UUID> visibleIds=new HashSet<>();
+        for(int number:viewport.visiblePages(scrollY)){
+            NotebookPage current=pages.get(number);if(current==null||current.pdfPage==0)continue;visibleIds.add(current.id);
+            NotebookCropBox area=settings.crop==NotebookReadingSettings.Crop.AUTO?NotebookCropBox.FULL:settings.manual(number,current.id);
+            if(NotebookPdfReading.cached(session.pdfSource(),current.pdfPage,area)!=null||cropFailures.contains(current.id))continue;
+            ready=false;if(cropRequests.containsKey(current.id))continue;
+            final int request=generation;
+            cropRequests.put(current.id,NotebookPdfReading.crop(session.pdfSource(),current.pdfPage,current.width,current.height,area,(box,error)->{
+                cropRequests.remove(current.id);
+                if(!active||request!=generation||!settings.equals(session.readingSettings(session.notebookId())))return;
+                if(error!=null){cropFailures.add(current.id);Toast.makeText(this,error.getMessage(),Toast.LENGTH_LONG).show();}
+                refreshReadingViewport();
+            }));
+        }
+        java.util.Iterator<Map.Entry<UUID,NotebookPdfReading.Request>> old=cropRequests.entrySet().iterator();
+        while(old.hasNext()){Map.Entry<UUID,NotebookPdfReading.Request> e=old.next();if(!visibleIds.contains(e.getKey())){e.getValue().cancel();old.remove();}}
+        return ready;
     }
 
     private void backgroundsChanged() {
@@ -506,6 +601,8 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private boolean preparePdfBackgrounds() {
         File source = session.pdfSource();
         if (viewport == null) return true;
+        if(!prepareCrop())return false;
+        pdfBackgrounds.setContrast(session.readingSettings(session.notebookId()).contrast);
         List<NotebookPdfTiles.Tile> visible = new ArrayList<>();
         HashSet<Integer> sourcePages = new HashSet<>();
         if (source != null) for (int id : viewport.visiblePages(scrollY)) {
@@ -645,6 +742,8 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private void finger(MotionEvent event) {
         if (viewport == null || shownError != null) return;
         int action = event.getActionMasked(), changed = event.getActionIndex();
+        if(action==MotionEvent.ACTION_DOWN)clearPdfText();
+        if(pdfPress!=null&&pdfPress.touch(event))return;
         if (action == MotionEvent.ACTION_DOWN) {
             boolean continueLoading = active && !changingWorkspace && scrolling && !dragging && !editing
                 && shownError == null && session.error() == null && ink != null && !ink.isPenDown();
@@ -653,6 +752,8 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             hideHistoryControls();
             linkTap.begin(event.getX(changed), event.getY(changed), event.getEventTime(), dp(4), writingRevision);
             rememberGestureStart();
+            fingerWritingRevision=writingRevision;
+            pageTurnEligible=event.getPointerCount()==1&&event.getToolType(changed)==MotionEvent.TOOL_TYPE_FINGER;
             // A resting palm must not switch off native handwriting. Pause it only once
             // movement establishes an actual navigation gesture.
             dragging = true; moved = false; gestureEngaged = false;
@@ -664,6 +765,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             return;
         }
         if (!dragging) return;
+        if(event.getPointerCount()!=1||action==MotionEvent.ACTION_POINTER_DOWN)pageTurnEligible=false;
         if (action == MotionEvent.ACTION_POINTER_DOWN) linkTap.cancel();
         if (action == MotionEvent.ACTION_MOVE) {
             int pointer = event.findPointerIndex(fingerId);
@@ -736,6 +838,10 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             dragging = false; fingerId = -1;
             zoomBadge.dismiss();
             main.removeCallbacks(previewFrame);
+            if(action==MotionEvent.ACTION_UP&&pageTurnEligible&&fingerWritingRevision==writingRevision&&!ink.isPenDown()){
+                int target=NotebookPageTurn.target(viewport,event.getX(changed)-fingerOriginX,event.getY(changed)-fingerOrigin,dp(48));
+                if(target>0){linkTap.cancel();pauseForEdit();if(shownError==null)jumpToPage(target);return;}
+            }
             if (!gestureEngaged) {
                 boolean follow = action == MotionEvent.ACTION_UP && !scrolling
                     && linkTap.finish(event.getX(changed), event.getY(changed), event.getEventTime(),
@@ -763,6 +869,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     }
 
     private boolean engageNavigation() {
+        clearPdfText();
         if (gestureEngaged) return true;
         if (ink == null || ink.isPenDown()) return false;
         pauseForEdit();
@@ -828,6 +935,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             Canvas drawing = new Canvas(preview);
             drawing.drawColor(Color.WHITE);
             for (int id : viewport.visiblePages(scrollY)) {
+                int clipped=drawing.save();clipReadingPage(drawing,id);
                 float top = viewport.pageTop(id, scrollY), left = viewport.pageLeft(id);
                 NotebookPage current = pages.get(id);
                 if (current == null) {
@@ -835,7 +943,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                     drawing.drawRect(left, top, viewport.pageRight(id), top + viewport.pageHeight(id) * viewport.scale(id), paint);
                     paint.setColor(0xff555555); paint.setTextSize(dp(16));
                     drawing.drawText("Loading page " + id + "…", dp(20), Math.max(dp(30), top + dp(30)), paint);
-                    continue;
+                    drawing.restoreToCount(clipped);continue;
                 }
                 int width = Math.max(1, (int) Math.ceil(current.width * viewport.scale(id)));
                 int height = Math.max(1, (int) Math.ceil(current.height * viewport.scale(id)));
@@ -858,6 +966,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                     drawing.scale(viewport.scale(id), viewport.scale(id));
                     drawPage(drawing, current, true); drawing.restore();
                 }
+                drawing.restoreToCount(clipped);
             }
             drawPageBoundaries(drawing);
             ink.showScrollPreview(preview);
@@ -871,7 +980,9 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             NotebookPage current = pages.get(id);
             if (current == null) continue;
             drawing.save(); drawing.translate(viewport.pageLeft(id), viewport.pageTop(id, scrollY));
+            NotebookCropBox crop=viewport.crop(id);
             drawing.scale(viewport.scale(id), viewport.scale(id));
+            drawing.clipRect(crop.left*current.width,crop.top*current.height,crop.right*current.width,crop.bottom*current.height);
             drawPage(drawing, current, false); drawing.restore();
         }
         drawPageBoundaries(drawing);
@@ -887,8 +998,8 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         boundary.setStrokeWidth(width);
         float inset = width / 2;
         for (int id : viewport.visiblePages(scrollY)) {
-            float left = viewport.pageLeft(id), top = viewport.pageTop(id, scrollY);
-            float right = viewport.pageRight(id), bottom = top + viewport.pageHeight(id) * viewport.scale(id);
+            float left = viewport.viewLeft(id), top = viewport.viewTop(id, scrollY);
+            float right = viewport.viewRight(id), bottom = viewport.viewBottom(id,scrollY);
             if (right - left > width && bottom - top > width)
                 drawing.drawRect(left + inset, top + inset, right - inset, bottom - inset, boundary);
         }
@@ -896,6 +1007,9 @@ public final class NotebookActivity extends NotebookDisplayActivity {
 
     private void drawPage(Canvas drawing, NotebookPage current, boolean includeInk) {
         drawing.save(); drawing.clipRect(0, 0, current.width, current.height);
+        int number=session.pageNumber(current.id);
+        if(viewport!=null&&number>0&&number<=viewport.pageCount){NotebookCropBox box=viewport.crop(number);
+            drawing.clipRect(box.left*current.width,box.top*current.height,box.right*current.width,box.bottom*current.height);}
         drawing.drawColor(Color.WHITE);
         Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         if (current.pdfPage > 0) {
@@ -916,6 +1030,9 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         }
         drawing.restore();
     }
+    private void clipReadingPage(Canvas drawing,int number){
+        drawing.clipRect(viewport.viewLeft(number),viewport.viewTop(number,scrollY),viewport.viewRight(number),viewport.viewBottom(number,scrollY));
+    }
 
     private void showFloatingTools() {
         if (floatingTools != null && !floatingTools.isShowing() && canEdit() && overview == null) {
@@ -933,20 +1050,21 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         List<Rect> bounds = new ArrayList<>();
         for (NotebookCompanion window : noteWindows.values()) bounds.addAll(window.exclusions());
         if (noteTray != null) bounds.add(noteTray.bounds());
+        if(pdfTextTools!=null)bounds.add(pdfTextTools.bounds());
         bounds.add(toolHintBounds);
         bounds.add(toolsBounds); bounds.add(notebookStatusBounds); bounds.add(deviceStatusBounds); bounds.add(widthPopupBounds);
         if (viewport != null) {
             int[] origin = new int[2]; ink.view().getLocationOnScreen(origin);
-            int left = Math.max(0, (int) Math.floor(viewport.pageLeft(1)));
-            int right = Math.min(viewport.width, (int) Math.ceil(viewport.pageRight(1)));
+            int left = Math.max(0, (int) Math.floor(viewport.viewLeft(1)));
+            int right = Math.min(viewport.width, (int) Math.ceil(viewport.viewRight(1)));
             addPageExclusion(bounds, origin, 0, 0, left, viewport.height);
             addPageExclusion(bounds, origin, right, 0, viewport.width, viewport.height);
             int bottom = 0;
             for (int id : viewport.visiblePages(scrollY)) {
-                int top = Math.max(0, Math.min(viewport.height, (int) Math.floor(viewport.pageTop(id, scrollY))));
+                int top = Math.max(0, Math.min(viewport.height, (int) Math.floor(viewport.viewTop(id, scrollY))));
                 addPageExclusion(bounds, origin, 0, bottom, viewport.width, top);
                 bottom = Math.max(bottom, Math.min(viewport.height,
-                    (int) Math.ceil(viewport.pageTop(id, scrollY) + viewport.pageHeight(id) * viewport.scale(id))));
+                    (int) Math.ceil(viewport.viewBottom(id, scrollY))));
             }
             addPageExclusion(bounds, origin, 0, bottom, viewport.width, viewport.height);
         }
@@ -1045,8 +1163,9 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         session.load((loaded, error) -> finishEdit(request, loaded, error));
     }
 
-    private boolean canEdit() {
-        return active && !changingWorkspace && !editing && !scrolling && !dragging && !selectionDrag.isActive() && !fetching && shownError == null && session.error() == null
+    private boolean canEdit() {return canEdit(false);}
+    private boolean canEdit(boolean stationaryFinger) {
+        return active && !changingWorkspace && !editing && !scrolling && (!dragging||stationaryFinger&&!gestureEngaged&&!moved&&!pinching) && !selectionDrag.isActive() && !fetching && shownError == null && session.error() == null
             && markdownEditor == null
             && (figureEditor == null || !figureEditor.isBusy())
             && page != null && ink != null && ink.isReady() && !ink.isPenDown();
@@ -1804,6 +1923,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         if (shownError != null) return;
         clearSelection();
         zoomFit = target.fitMode();
+        viewport=viewport.forPage(number);
         zoom = target.zoomFor(viewport, number);
         viewport = viewport.withView(zoom, 0);
         viewport = viewport.withView(zoom, viewport.panForPoint(number, target.x, viewport.width / 2f));
@@ -1815,8 +1935,11 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     }
 
     private void jumpToLocation(int target, double fraction, NotebookViewHistory.Navigation navigation) {
+        NotebookViewHistory.State origin=currentView();
+        int oldPage=viewport.centeredPage(scrollY);
+        prepareReadingPage(target);
         float destination = viewport.scrollForPoint(target, (float) fraction * viewport.pageHeight(target), 0);
-        if (scrollY != destination || viewport.pan != 0) rememberView(navigation);
+        if ((oldPage!=target||scrollY != destination || viewport.pan != 0)&&origin!=null) viewHistory.record(origin,navigation);
         clearSelection();
         viewport = viewport.withView(zoom, 0);
         scrollY = destination;
@@ -1891,10 +2014,19 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     /** Input has already been paused; the window read precedes native restoration. */
     private void jumpToPage(int target) {
         clearSelection();
+        prepareReadingPage(target);
         editing = false; scrolling = true; savePosition = true;
         scrollY = viewport.pageScroll(target); activePage = target;
         settleRead = true; ++viewportRevision;
         requestWindow();
+    }
+    private void prepareReadingPage(int target){
+        clearPdfText();
+        viewport=viewport.forPage(target);
+        if(viewport.singlePage!=0){
+            if(zoomFit!=NotebookViewport.Fit.CUSTOM)zoom=viewport.fittedZoom(zoomFit,target);
+            viewport=viewport.withView(zoom,0);tiles.clear();
+        }
     }
 
     private void pageOverview() {
@@ -2247,7 +2379,8 @@ public final class NotebookActivity extends NotebookDisplayActivity {
 
     private NotebookCompanion createNoteWindow(NotebookWorkspace.Pane pane) {
         return new NotebookCompanion(this, workspaceArea, workspace, pane, session, new NotebookCompanion.Listener() {
-            public void interact() { hideHistoryControls(); }
+            public void interact() { hideHistoryControls(); clearPdfText(); }
+            public void lookup(String word) { lookupPdfText(word); }
             public void menu() { workspaceMenu(pane); }
             public void activate() { activatePane(pane, null); }
             public void figure(NotebookFigureHit.Hit hit) {
@@ -2341,6 +2474,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             for (int number : viewport.visiblePages(scrollY)) {
                 NotebookPage source = pages.get(number); if (source == null) continue;
                 int saved = drawing.save();
+                clipReadingPage(drawing,number);
                 drawing.translate(viewport.pageLeft(number), viewport.pageTop(number, scrollY));
                 drawing.scale(viewport.scale(number), viewport.scale(number));
                 drawing.clipRect(0, 0, source.width, source.height);
@@ -2475,6 +2609,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             saveWorkspace();
             if (!active || request != generation) return;
             viewNotebookId = target; viewHistory.clear();
+            readingFlowKnown=false;
             viewHistory.restore(target, workspaceHistories.get(target));
             viewport = null; restoreCenter = false; zoom = 1; zoomFit = NotebookViewport.Fit.WIDTH;
             pendingReadingPage = Math.max(1, Math.min(session.pageCount(), targetPage));
@@ -2520,6 +2655,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             switch (action) {
                 case INSERT_FIGURE: insertFigure(); break;
                 case INSERT_MARKDOWN: insertMarkdown(); break;
+                case READING: readingOptions(); break;
                 case FIGURES: chooseFigure(); break;
                 case INFORMATION: pageInformation(); break;
                 case BACKGROUND: choosePaper(); break;
@@ -2544,16 +2680,66 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             .putExtra("notebookId", session.notebookId()).putExtra("page", activePage).putExtra("pageId", target.id.toString()));
     }
 
+    private void readingOptions(){
+        if(!canEdit()||viewport==null)return;
+        pauseForEdit();if(shownError!=null)return;clearSelection();
+        NotebookPage current=pages.get(activePage);final int request=generation;
+        if(session.readingError(session.notebookId())!=null)Toast.makeText(this,"View settings could not be read. Choosing a setting will save a new copy.",Toast.LENGTH_LONG).show();
+        readingMenu=new NotebookReadingMenu(this,workspaceRoot,session.readingSettings(session.notebookId()),current!=null&&current.pdfPage>0,(settings,area)->{
+            readingMenu=null;if(!active||request!=generation)return;
+            if(area&&current!=null&&current.pdfPage>0)editCropArea(current,settings);
+            else applyReadingSettings(settings);
+        });
+        readingMenu.show(notebookStatusBounds);
+    }
+
+    private void applyReadingSettings(NotebookReadingSettings settings){
+        final int request=generation,book=session.notebookId();NotebookReadingSettings old=session.readingSettings(book);
+        if(old.equals(settings)){editing=false;installViewport();return;}
+        session.saveReadingSettings(book,settings,error->{
+            if(!active||request!=generation||session.notebookId()!=book)return;
+            if(error!=null){Toast.makeText(this,error.getMessage(),Toast.LENGTH_LONG).show();editing=false;installViewport();return;}
+            for(NotebookPdfReading.Request pending:cropRequests.values())pending.cancel();cropRequests.clear();cropFailures.clear();
+            if(old.singlePage!=settings.singlePage||old.crop!=settings.crop||!old.odd.equals(settings.odd)||!old.even.equals(settings.even)||!old.pages.equals(settings.pages))
+                zoomFit=settings.singlePage?NotebookViewport.Fit.PAGE:NotebookViewport.Fit.WIDTH;
+            readingFlowKnown=true;editing=false;
+            for(Map.Entry<NotebookWorkspace.Pane,NotebookCompanion> entry:noteWindows.entrySet())if(entry.getKey().notebookId==book)entry.getValue().refreshReadingSettings();
+            refreshReadingViewport();
+        });
+    }
+
+    private void editCropArea(NotebookPage current,NotebookReadingSettings settings){
+        final int request=generation,number=activePage;final File source=session.pdfSource();
+        if(source==null){editing=false;installViewport();return;}
+        cropPreviewRequest=NotebookPdfReading.preview(source,current.pdfPage,current.width,current.height,(bitmap,error)->{
+            cropPreviewRequest=null;
+            if(!active||request!=generation){if(bitmap!=null)bitmap.recycle();return;}
+            if(error!=null){Toast.makeText(this,error.getMessage(),Toast.LENGTH_LONG).show();editing=false;installViewport();return;}
+            NotebookCropBox box=settings.manual(number,current.id);
+            if(box.equals(NotebookCropBox.FULL)){
+                NotebookCropBox detected=NotebookPdfReading.cached(source,current.pdfPage,NotebookCropBox.FULL);
+                if(detected!=null)box=detected;
+            }
+            View anchor=canvas.getWidth()<dp(260)||canvas.getHeight()<dp(300)?workspaceRoot:canvas;
+            cropEditor=new NotebookCropEditor(this,anchor,bitmap,box,number,(result,scope)->{
+                cropEditor=null;if(!active||request!=generation)return;
+                if(result==null){editing=false;installViewport();}
+                else applyReadingSettings(settings.area(scope,current.id,result));
+            });
+            cropEditor.show();
+        });
+    }
+
     private void insertMarkdown() {
         if (!canEdit() || viewport == null) return;
         int number = viewport.centeredPage(scrollY);
         NotebookPage target = pages.get(number);
         if (target == null) return;
-        float width = target.width * .8f, height = Math.min(target.height * .4f, width * .6f);
+        float width = target.width * viewport.crop(number).width() * .8f, height = Math.min(target.height * viewport.crop(number).height() * .4f, width * .6f);
         float cx = (viewport.width / 2f - viewport.pageLeft(number)) / viewport.scale(number);
         float cy = (viewport.height / 2f - viewport.pageTop(number, scrollY)) / viewport.scale(number);
-        float x = Math.max(0, Math.min(target.width - width, cx - width / 2));
-        float y = Math.max(0, Math.min(target.height - height, cy - height / 2));
+        float x = Math.max(viewport.cropLeft(number), Math.min(target.width*viewport.crop(number).right - width, cx - width / 2));
+        float y = Math.max(viewport.cropTop(number), Math.min(target.height*viewport.crop(number).bottom - height, cy - height / 2));
         openMarkdownSource(new NotebookMarkdownDraft(UUID.randomUUID(), session.notebookId(), number, target.id,
             UUID.randomUUID(), true, x, y, width, height, 0, "", ""), null);
     }
@@ -2688,6 +2874,45 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         showStaticDialog(dialog);
     }
 
+    private boolean pdfWordEligible(float x,float y){
+        if(!canEdit(true)||viewport==null||session.pdfSource()==null||figureEditor!=null)return false;
+        int number=viewport.pageAt(x,y,scrollY);NotebookPage target=pages.get(number);
+        return target!=null&&target.pdfPage>0&&x>=viewport.viewLeft(number)&&x<=viewport.viewRight(number)
+            &&NotebookFigureHit.find(viewport,pages,scrollY,x,y)==null;
+    }
+    private void selectPdfWord(float x,float y){
+        if(!pdfWordEligible(x,y))return;
+        int number=viewport.pageAt(x,y,scrollY);NotebookPage target=pages.get(number);
+        final int request=generation,revision=writingRevision;final long view=viewportRevision;
+        final float nx=(x-viewport.pageLeft(number))/(viewport.scale(number)*target.width);
+        final float ny=(y-viewport.pageTop(number,scrollY))/(viewport.scale(number)*target.height);
+        pdfTextRequest=NotebookPdfReading.text(session.pdfSource(),target.pdfPage,(text,error)->{
+            pdfTextRequest=null;
+            if(!canEdit()||request!=generation||revision!=writingRevision||view!=viewportRevision)return;
+            if(error!=null){Toast.makeText(this,error.getMessage(),Toast.LENGTH_LONG).show();return;}
+            NotebookPdfText.Word word=text.at(nx,ny);
+            if(word==null){if(text.words.isEmpty())Toast.makeText(this,"This page has no selectable text layer",Toast.LENGTH_SHORT).show();return;}
+            float scale=viewport.scale(number),left=viewport.pageLeft(number),top=viewport.pageTop(number,scrollY);
+            pdfTextTools.show(word,new RectF(left+word.left*target.width*scale,top+word.top*target.height*scale,
+                left+word.right*target.width*scale,top+word.bottom*target.height*scale));
+            lookupPdfText(word.text);
+        });
+    }
+    private void clearPdfText(){
+        if(pdfPress!=null)pdfPress.cancel();
+        if(pdfTextRequest!=null){pdfTextRequest.cancel();pdfTextRequest=null;}
+        if(pdfTextTools!=null)pdfTextTools.hide();
+    }
+    private void lookupPdfText(String word){
+        if(!active||ink==null||ink.isPenDown())return;
+        Intent intent=NotebookEudic.lookup(this,word);
+        if(intent==null){Toast.makeText(this,"Install Eudic to open its floating dictionary. You can still copy the selected text.",Toast.LENGTH_LONG).show();return;}
+        dictionaryPending=true;
+        try{startActivity(intent);overridePendingTransition(0,0);}
+        catch(android.content.ActivityNotFoundException|SecurityException error){dictionaryPending=false;Toast.makeText(this,"Eudic could not open its floating dictionary",Toast.LENGTH_LONG).show();}
+        main.postDelayed(()->dictionaryPending=false,2000);
+    }
+
     /** Clean finger taps select figures above underlying PDF links; stylus contacts still write. */
     private boolean selectFigureAt(float x, float y) {
         if (!canEdit()) return false;
@@ -2743,9 +2968,8 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                         Toast.makeText(NotebookActivity.this, figure.markdown==null?"Figure copied":"Markdown block copied", Toast.LENGTH_SHORT).show();
                     } else if (action == NotebookFigureEditor.Action.PASTE) {
                         NotebookFigure clip = session.figureClipboard(); if (clip == null) return;
-                        NotebookFigure pasted = clip.duplicate().placed(figure.centerX() + 16 - clip.width / 2,
-                            figure.centerY() + 16 - clip.height / 2, clip.width, clip.height)
-                            .fitted(viewport.pageWidth(source), viewport.pageHeight(source));
+                        NotebookFigure pasted = viewport.fitFigure(source,clip.duplicate().placed(figure.centerX() + 16 - clip.width / 2,
+                            figure.centerY() + 16 - clip.height / 2, clip.width, clip.height));
                         commitFigure(source, source, pageId, figure, pasted, true);
                     } else {
                         if (action == NotebookFigureEditor.Action.CUT) { session.copyFigure(figure); figureEditor.clipboard(true); }
@@ -2826,8 +3050,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         NotebookFigure clip = session.figureClipboard();
         float cx = (viewport.width / 2f - viewport.pageLeft(number)) / viewport.scale(number);
         float cy = (viewport.height / 2f - viewport.pageTop(number, scrollY)) / viewport.scale(number);
-        NotebookFigure pasted = clip.duplicate().placed(cx - clip.width / 2, cy - clip.height / 2, clip.width, clip.height)
-            .fitted(target.width, target.height);
+        NotebookFigure pasted = viewport.fitFigure(number,clip.duplicate().placed(cx - clip.width / 2, cy - clip.height / 2, clip.width, clip.height));
         commitFigure(number, number, target.id, null, pasted, true);
     }
 
@@ -2850,6 +3073,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             + "\n\nLasso draws a temporary dashed line. Lift the stylus to close the curve automatically. Drag inside with a finger or stylus to move the selected ink. Copy, Duplicate, Move to page, Cut, Delete, and Export icons appear beside the region. Tap outside to clear the selection; tap the selected Lasso icon afterward for Paste or Select all. Copied ink stays inside Scriflow until the app restarts. Drag a selection to another page; hold near the top or bottom edge to scroll. Move… places it on any page. Cross-page moves preserve the ink and undo both pages together."
             + "\n\nNew writing or a successful edit clears Redo. Changing paper keeps your stroke history.";
         message += "\n\nTap the dotted grip to collapse or expand the floating tools; drag it to move them, even when collapsed. The direction icon beside it switches between one row and one column. The thicker circle marks the selected tool. The page counter in the top-left bar opens page management."
+            + "\n\nReading view in the top-left action icons offers Continuous or Single page. Single page starts at Fit page; pinch and pan remain available. At whole-page size, swipe horizontally or use the page arrows to turn. PDF pages also offer Auto, Manual and Semi-auto cropping, separate odd/even areas and contrast. Crop and contrast affect display only. Hold a finger on a PDF word to select and open Eudic floating lookup; Copy and dictionary icons appear beside it. A PDF text layer and installed Eudic are required."
             + "\n\nThe outline icon opens the table of contents. Add headings at the current view; hold a heading or tap Edit headings to rename, move, or delete it. Imported PDF outlines are ready to use. Tap PDF links with one finger; writing with the stylus keeps annotating. The previous-view and next-view arrows restore your page, scroll position, horizontal pan, and zoom after a link or outline jump, including after screen rotation."
             + "\n\nTap the selected Pen icon to open a small width slider. Slide the point and release to apply. The slider stays open for further adjustments; start writing, tap outside, or press Back to close. Current thickness: " + NotebookPenConfig.label(penWidth) + ". The small line below the pencil previews its width. Settings offers fixed width on the page (default) or fixed width on the screen while writing. Existing strokes keep their captured shape in either mode."
             + "\n\nExport PDF saves all pages in this notebook, including their paper backgrounds and handwriting.";
@@ -2889,6 +3113,9 @@ public final class NotebookActivity extends NotebookDisplayActivity {
 
     @Override protected void onPause() {
         writingHistory = false;
+        // Keep paper visible beneath Eudic's transparent activity, with native input paused.
+        if(retainDictionaryEditor()){super.onPause();return;}
+        dictionaryPending=false;
         boolean saveViewport = overview == null || !overview.pagesChanged() && !overview.hasPendingPageChange();
         // Flush completed pen-UP events against the current layout before retiring its callbacks.
         if (ink != null) ink.pauseForEdit();
@@ -2923,8 +3150,14 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         if (saveViewport) persistPosition();
         super.onPause();
     }
+    @Override protected void onStop(){
+        super.onStop();
+        // A fully covering activity or sleep releases resources; a floating lookup retains them.
+        stopDictionaryEditor();
+    }
     private void trimRenderCaches() {
         NotebookMarkdownRasterizer.trim();
+        NotebookPdfReading.trim();
         strokePaths.clear();
         if (pdfBackgrounds != null) pdfBackgrounds.trimMemory();
         for (NotebookCompanion window : noteWindows.values()) window.trimCaches();
@@ -2952,6 +3185,11 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         super.onSaveInstanceState(state);
     }
     private void disposeCanvas() {
+        clearPdfText();
+        if(readingMenu!=null){readingMenu.retire();readingMenu=null;}
+        if(cropEditor!=null){cropEditor.retire();cropEditor=null;}
+        if(cropPreviewRequest!=null){cropPreviewRequest.cancel();cropPreviewRequest=null;}
+        for(NotebookPdfReading.Request request:cropRequests.values())request.cancel();cropRequests.clear();cropFailures.clear();
         pauseMarkdown();
         dismissFigureEditor();
         ++inkGeneration; workspaceLayoutPending = changingWorkspace = false;
@@ -2979,6 +3217,12 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         super.onDestroy();
     }
     @Override public void onBackPressed() {
+        clearPdfText();
+        if(cropEditor!=null||cropPreviewRequest!=null){
+            if(cropEditor!=null){cropEditor.retire();cropEditor=null;}
+            if(cropPreviewRequest!=null){cropPreviewRequest.cancel();cropPreviewRequest=null;}
+            editing=false;installViewport();return;
+        }
         if (collapseNoteActions()) return;
         if (figureEditor != null) { figureEditor.cancel(); return; }
         if (widthPopup != null) { widthPopup.cancel(); return; }

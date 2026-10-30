@@ -26,15 +26,20 @@ pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
 stays in front, window operations retain the main editor, and PDF import opens
 the file picker directly before opening the imported note.
 
-The **[0.34.0-alpha.1 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.34.0-alpha.1)**
-adds editable [Markdown blocks](docs/markdown-blocks.md)
-with offline MathJax formulas, tables, code, diagrams and CJK fonts. Blocks use
-the figure controls and retain sharp vector appearances through zoom and PDF
-export. This build writes **page format 8** on edit and in new backups; older
-APKs, including stable 0.33.2, cannot read those pages/backups. Preserve
-independent backups before updating. This feature still awaits tablet acceptance;
-0.33.2 remains the latest stable release. Download the alpha's signed APK and
-SHA-256 file from its release page.
+The **[0.35.0-alpha.1 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.35.0-alpha.1)**
+adds [PDF reading controls](docs/pdf-reading.md): auto/manual/semi-auto cropping,
+odd/even crop areas, optional single-page reading with zoom, adjustable PDF
+contrast, and long-press word selection with Eudic floating lookup. Continuous
+scrolling at Fit width remains the default. Crop and contrast affect display;
+original PDF bytes, saved annotation coordinates and PDF exports are preserved.
+
+It also includes editable [Markdown blocks](docs/markdown-blocks.md) with offline
+MathJax, tables, code, diagrams and CJK fonts. This build writes **page format 8**
+on edit and in new backups, as in 0.34. Older APKs, including stable 0.33.2,
+cannot read those pages/backups. Preserve independent backups before updating.
+The new reading and Markdown interactions await tablet acceptance; 0.33.2
+remains the latest stable release. Download the alpha's signed APK and SHA-256
+file from its release page.
 
 Double tapping the **M-Pencil body** switches Pen/Eraser and briefly shows the
 selected icon at the top center. The owner accepted the physical switches and

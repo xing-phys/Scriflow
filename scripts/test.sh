@@ -49,6 +49,14 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookCatalog.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookLibrary.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookViewport.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookCropBox.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookReadingSettings.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookReadingStore.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookPdfCrop.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookPdfContrast.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookPageTurn.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookPdfHold.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookPdfText.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookScrollStore.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookFingerStream.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPalmGuard.java \
@@ -69,7 +77,7 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPenSliderState.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPenSliderClose.java \
   tests/CallbackTimingTest.java tests/NotebookStoreTest.java \
-  tests/NotebookFiguresTest.java tests/NotebookMarkdownTest.java tests/NotebookMarkdownInteractionTest.java tests/NotebookFigureFixture.java tests/NotebookFigureHitTest.java tests/NotebookFigureTapTest.java tests/NotebookFigureTransformTest.java tests/NotebookInlineFigureTest.java \
+  tests/NotebookReadingTest.java tests/NotebookPdfReadingInteractionTest.java tests/NotebookFiguresTest.java tests/NotebookMarkdownTest.java tests/NotebookMarkdownInteractionTest.java tests/NotebookFigureFixture.java tests/NotebookFigureHitTest.java tests/NotebookFigureTapTest.java tests/NotebookFigureTransformTest.java tests/NotebookInlineFigureTest.java \
   tests/NotebookWorkspaceActivationTest.java tests/NotebookWorkspaceTest.java tests/NotebookCacheBudgetTest.java tests/NotebookWorkspaceDisplayTest.java \
   tests/NotebookReaderInteractionTest.java tests/NotebookWindowGripTest.java tests/NotebookResizeOutlineTest.java \
   tests/NotebookPopupHostTest.java tests/NotebookStatusControlsTest.java tests/NotebookNoteActionsTest.java tests/NotebookWritingHistoryTest.java tests/NotebookZenModeTest.java tests/NotebookPdfImportFlowTest.java tests/NotebookFigureImportFlowTest.java tests/NotebookStylusShortcutTest.java \
@@ -92,6 +100,8 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   tests/NotebookPenConfigTest.java tests/NotebookPenSliderTest.java \
   tests/NotebookPenSliderCloseTest.java tests/NotebookEraserTest.java tests/NotebookEraserCommitTest.java tests/NotebookFoundationTest.java \
   tests/NotebookStrokeScaleTest.java tests/NotebookViewportSaveTest.java
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPdfReadingInteractionTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookReadingTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookMarkdownTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookMarkdownInteractionTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookFiguresTest

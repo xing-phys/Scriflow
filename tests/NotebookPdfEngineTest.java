@@ -27,6 +27,7 @@ public final class NotebookPdfEngineTest {
         File directory = new File(args[0]), source = new File(directory, "source.pdf");
         fixture(source);
         byte[] pristine = Files.readAllBytes(source.toPath());
+        textSelection(directory);
         NotebookPdfAsset asset = NotebookPdfEngine.inspect(source);
         check(asset.pages.size() == 2, "Two PDF source pages");
         check(asset.title.equals("Original PDF title"), "Title metadata imported");
@@ -138,6 +139,47 @@ public final class NotebookPdfEngineTest {
         rotatedFigures(directory);
         markdown(directory);
         System.out.println("NotebookPdfEngineTest: " + assertions + " assertions passed; fixtures in " + directory);
+    }
+
+    private static void textSelection(File directory)throws Exception{
+        for(int rotation:new int[]{0,90,180,270}){
+            File file=new File(directory,"text-rotation-"+rotation+".pdf");
+            com.tom_roush.pdfbox.pdmodel.font.PDFont font=com.tom_roush.pdfbox.pdmodel.font.PDType1Font.HELVETICA;
+            float advance=font.getStringWidth("Physics")/1000*18;
+            try(PDDocument document=new PDDocument()){
+                PDPage page=new PDPage(new PDRectangle(300,400));page.setCropBox(new PDRectangle(20,30,240,320));page.setRotation(rotation);document.addPage(page);
+                try(PDPageContentStream content=new PDPageContentStream(document,page)){
+                    content.beginText();content.setFont(font,18);content.newLineAtOffset(60,220);content.showText("Physics, quantum dynamics!");content.endText();
+                }
+                document.save(file);
+            }
+            NotebookPdfText text=NotebookPdfEngine.text(file,1);
+            check(text.words.size()==3,"Punctuation excluded from extracted words at rotation "+rotation);
+            float x=40+advance/2,y=190+4,px=0,py=0;
+            if(rotation==0){px=x/240;py=1-y/320;}
+            if(rotation==90){px=y/320;py=x/240;}
+            if(rotation==180){px=1-x/240;py=y/320;}
+            if(rotation==270){px=1-y/320;py=1-x/240;}
+            NotebookPdfText.Word word=text.at(px,py);
+            check(word!=null&&word.text.equals("Physics"),"Word hit honors rotated crop "+rotation+" at "+px+","+py);
+            check(text.at(.99f,.99f)==null,"Blank area does not select remote text");
+        }
+        File unicode=new File(directory,"text-unicode.pdf");
+        try(PDDocument document=new PDDocument()){
+            PDPage page=new PDPage(new PDRectangle(400,500));document.addPage(page);
+            try(InputStream fontData=com.tom_roush.pdfbox.android.PDFBoxResourceLoader.getStream("com/tom_roush/pdfbox/resources/ttf/LiberationSans-Regular.ttf")){
+                com.tom_roush.pdfbox.pdmodel.font.PDFont font=com.tom_roush.pdfbox.pdmodel.font.PDType0Font.load(document,fontData);
+                try(PDPageContentStream content=new PDPageContentStream(document,page)){
+                    content.beginText();content.setFont(font,18);content.newLineAtOffset(50,350);content.showText("énergie ψ café");content.endText();
+                }
+            }
+            document.save(unicode);
+        }
+        NotebookPdfText unicodeText=NotebookPdfEngine.text(unicode,1);
+        check(unicodeText.words.size()==3&&unicodeText.words.get(0).text.equals("énergie")&&unicodeText.words.get(1).text.equals("ψ")&&unicodeText.words.get(2).text.equals("café"),"embedded ToUnicode fonts retain accents and Greek text for lookup");
+        File blank=new File(directory,"text-scan-empty.pdf");
+        try(PDDocument document=new PDDocument()){document.addPage(new PDPage());document.save(blank);}
+        check(NotebookPdfEngine.text(blank,1).words.isEmpty(),"Image-only/empty page has no invented OCR text");
     }
 
     private static void figures(File directory, File source, NotebookPage pdfPage) throws Exception {

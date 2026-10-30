@@ -173,6 +173,16 @@ public final class NotebookSymbols {
                 line(out, 5, 16, 5, 9, 8, 12, 11, 9, 11, 16);
                 line(out, 17, 9, 17, 16); line(out, 14, 13, 17, 16, 20, 13);
                 break;
+            case "DICTIONARY":
+                polygon(out,false,3,3,16,3,16,20,3,20);line(out,6,7,12,7);line(out,6,11,10,11);
+                circle(out,16,15,4);line(out,19,18,23,22);break;
+            case "READING":
+                polygon(out,false,4,2,20,2,20,22,4,22);line(out,8,7,16,7);line(out,8,11,16,11);line(out,8,15,13,15);
+                break;
+            case "CLOSE":
+                line(out,5,5,19,19);line(out,19,5,5,19);break;
+            case "CHECK":
+                line(out,3,12,9,18,21,5);break;
             case "CODE":
                 line(out, 7, 5, 2, 12, 7, 19); line(out, 17, 5, 22, 12, 17, 19); line(out, 14, 4, 10, 20);
                 break;

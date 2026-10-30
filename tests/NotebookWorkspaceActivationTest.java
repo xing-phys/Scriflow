@@ -30,7 +30,7 @@ public final class NotebookWorkspaceActivationTest {
             "NotebookViewport.Fit zoomFit=NotebookViewport.Fit.WIDTH; float zoom=1; boolean restoreCenter;",
             "NotebookCompanion.ReadingView pendingReadingView; NotebookScrollStore.State reopenPosition; Runnable whenReady;",
             "int activePage=3,generation=1,viewNotebookId=1,pendingReadingPage,editable=1,statusNote=1,openCount;",
-            "boolean active=true,editing,changingWorkspace,ink=true; IOException shownError,failure;",
+            "boolean active=true,editing,changingWorkspace,ink=true,readingFlowKnown; IOException shownError,failure;",
             "WorkspaceActivationFixture(){workspace.add(1,NotebookWorkspace.Position.FLOATING); NotebookWorkspace.Pane p=workspace.add(2,NotebookWorkspace.Position.RIGHT);p.page=7;p.hasView=true;p.zoom=2;p.centerX=.3f;p.centerY=.4f;workspace.add(3,NotebookWorkspace.Position.FLOATING);workspace.add(4,NotebookWorkspace.Position.FLOATING);for(NotebookWorkspace.Pane pane:workspace.panes())noteWindows.put(pane,new NotebookCompanion(pane));}",
             "class Session {int id=1; int notebookId(){return id;} int pageCount(){return 10;} void openNotebook(int target,Callback callback){events.add(\"open\");queue.add(()->{if(failure==null)id=target;callback.complete(new NotebookPage(),failure);});}}",
             "class Area {void post(Runnable r){queue.add(r);}}",

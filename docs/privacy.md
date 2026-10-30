@@ -11,7 +11,9 @@ coordinates, pressure, timing, pen styles, page order, paper choices, and notebo
 names. Inserted figures are stored as PNG pixels within each page. Markdown blocks
 retain their original text and source/rendered vector appearances. PDF notebooks also retain the complete original PDF and outline headings.
 App preferences remember tool widths, tool position, reading position, and
-second-note workspace placement.
+second-note workspace placement, PDF crop areas, page mode and PDF contrast.
+Reading preferences are stored separately from page content and excluded from
+editable notebook backups, like other local view settings.
 Scriflow does not add encryption to its notebook files; protection of the
 tablet and its storage depends on the device and its configuration.
 
@@ -57,7 +59,11 @@ the transfer and its own privacy terms apply.
 state for the Wi-Fi indicator; it does not let Scriflow send data over the
 network. The status bar also shows the tablet's time and battery level.
 Following an external PDF link opens another installed app, such as a browser;
-that app handles its network access.
+that app handles its network access. Long-pressing a PDF word sends that selected
+word to the installed Eudic app through its documented floating-window URL
+scheme. Eudic handles its own permissions, storage and any network use. Text
+extraction stays on the tablet; Scriflow does not upload PDFs or run cloud OCR.
+The clipboard changes only when you explicitly tap Copy.
 
 Development builds include diagnostic screens and checks. Diagnostics can
 export firmware metadata and captured diagnostic handwriting when explicitly

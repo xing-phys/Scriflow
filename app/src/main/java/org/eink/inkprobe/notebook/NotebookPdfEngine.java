@@ -145,6 +145,46 @@ public final class NotebookPdfEngine {
         }
     }
 
+    /** Extract just the held page on the optional reading worker, never on the ink writer. */
+    static NotebookPdfText text(File source,int number)throws IOException{
+        try(PDDocument document=open(source)){
+            if(number<1||number>document.getNumberOfPages())throw new IOException("The PDF page is unavailable");
+            PDPage page=document.getPage(number-1);PDRectangle crop=page.getCropBox();
+            int rotation=((page.getRotation()%360)+360)%360;
+            final float width=rotation==90||rotation==270?crop.getHeight():crop.getWidth();
+            final float height=rotation==90||rotation==270?crop.getWidth():crop.getHeight();
+            List<NotebookPdfText.Word> words=new ArrayList<>();
+            com.tom_roush.pdfbox.text.PDFTextStripper stripper=new com.tom_roush.pdfbox.text.PDFTextStripper(){
+                int glyphCount;
+                @Override protected void writeString(String text,List<com.tom_roush.pdfbox.text.TextPosition> positions)throws IOException{
+                    if((glyphCount+=positions.size())>100_000)throw new IOException("This PDF page has too much text to select");
+                    List<NotebookPdfText.Glyph> glyphs=new ArrayList<>();
+                    for(com.tom_roush.pdfbox.text.TextPosition p:positions){
+                        if(p.getUnicode()==null||p.getUnicode().isEmpty())continue;
+                        double angle=Math.toRadians(rotation)-Math.atan2(p.getTextMatrix().getShearY(),p.getTextMatrix().getScaleX());
+                        float dx=(float)Math.cos(angle),dy=(float)Math.sin(angle);
+                        com.tom_roush.pdfbox.pdmodel.font.PDFontDescriptor descriptor=p.getFont().getFontDescriptor();
+                        float ascent=descriptor==null?.8f:Math.max(.35f,Math.min(1.2f,descriptor.getAscent()/1000));
+                        float descent=descriptor==null?.2f:Math.max(0,Math.min(.5f,-descriptor.getDescent()/1000));
+                        float advance=p.getWidthDirAdj(),rise=Math.max(p.getHeightDir(),p.getYScale()*ascent),drop=p.getYScale()*descent;
+                        float x=p.getX(),y=p.getY(),l=x,t=y,r=x,b=y;
+                        for(int i=0;i<4;i++){
+                            float px=x+((i&1)!=0?dx*advance:0)+dy*((i&2)!=0?rise:-drop);
+                            float py=y+((i&1)!=0?dy*advance:0)-dx*((i&2)!=0?rise:-drop);
+                            l=Math.min(l,px);r=Math.max(r,px);t=Math.min(t,py);b=Math.max(b,py);
+                        }
+                        glyphs.add(new NotebookPdfText.Glyph(p.getUnicode(),l/width,t/height,r/width,b/height));
+                    }
+                    NotebookPdfText.append(words,glyphs);
+                }
+            };
+            stripper.setStartPage(number);stripper.setEndPage(number);stripper.setSortByPosition(true);
+            stripper.setShouldSeparateByBeads(false);
+            stripper.writeText(document,new java.io.Writer(){public void write(char[] c,int off,int len){}public void flush(){}public void close(){}});
+            return new NotebookPdfText(words);
+        }
+    }
+
     private static final class Navigation {
         final PDDocument document;
         final String key;

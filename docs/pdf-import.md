@@ -1,4 +1,4 @@
-# PDF notebooks, outlines, and view history — 0.31
+# PDF notebooks, outlines, and view history
 
 Choose **Import PDF** in the library to open the system file picker directly.
 Select a PDF and wait for import to finish; the imported notebook opens
@@ -51,9 +51,9 @@ deleted from the note cannot navigate to a visible page in that note.
 
 Use **Backup** for an editable `.inkbook`: the original PDF bytes, ink, page
 order, and note outline are included. Restore creates a separate notebook.
-Backups remain unencrypted. This version writes page snapshots version 5 and
-backup archives version 2; it reads earlier formats, but earlier app versions
-cannot read these new files. Keep independent backups before updating.
+Backups remain unencrypted. The current alpha writes page format 8 on edit and in new backups, retaining
+the format introduced in 0.34. It reads earlier formats; APKs before 0.34 cannot
+read edited pages or new backups. Keep independent backups before updating.
 
 PDF import is limited to 256 MiB and 1,000 pages. Password-protected PDFs need
 an unlocked copy. Large PDF memory use, picker behavior, PDF ink restoration,
@@ -63,8 +63,10 @@ Implementation: `NotebookPdfEngine` inspects and exports with PDFBox Android;
 Android's `PdfRenderer` rasterizes visible 512-pixel tiles at the current zoom.
 The renderer and current page stay open between tiles; this display cache never
 replaces or rasterizes the original source PDF. A bitmap-only source page still
-has the resolution of its original image. In-app text selection is not yet
-implemented; exported PDF text remains selectable in a PDF reader.
+has the resolution of its original image. Long-press word selection reads the
+PDF text layer and opens Eudic floating lookup. Scans need a text layer.
+[Reading controls](pdf-reading.md) add crop, contrast and single-page mode;
+these preferences do not change the original PDF, annotations or exports.
 The immutable `source.pdf`
 is stored with each PDF notebook, and page snapshots reference its one-based
 source page. `NotebookOutline` stores checksummed, atomic outline metadata

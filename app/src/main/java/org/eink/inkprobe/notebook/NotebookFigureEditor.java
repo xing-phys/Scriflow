@@ -290,7 +290,7 @@ final class NotebookFigureEditor extends FrameLayout {
             listener.navigationFinished();
             boolean changed = action == MotionEvent.ACTION_UP && moved && mode != 0 && !navigating;
             if (changed) {
-                figure = figure.fitted(viewport.pageWidth(page), viewport.pageHeight(page)); saving();
+                figure = viewport.fitFigure(page,figure); saving();
                 listener.change(storedPage, pageId, stored, page, figure);
             } else {
                 page = storedPage; figure = stored; placeControls(); invalidate();

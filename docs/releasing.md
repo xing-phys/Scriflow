@@ -18,6 +18,16 @@ is connected for this release either; physical acceptance remains pending.
 
 ## Before publishing
 
+**0.35.0-alpha.1** (`versionCode` **74**) follows the owner's explicit request
+for PDF cropping, single-page reading, Eudic word lookup and contrast, followed
+by GitHub publication with version selection delegated. Publish as an alpha
+prerelease because the new interactions lack tablet acceptance. Retain format 8
+and the permanent signer; keep **0.33.2** as Latest stable. Validate host/browser
+regressions, real PDF text geometry, debug/release lint/builds, exact source/tag,
+and downloaded signed release assets. Disclose text-layer/Eudic requirements,
+display-only crop/contrast, local view preferences outside backups and pending
+physical tests. Attach only the verified APK and checksum.
+
 **0.34.0-alpha.1** (`versionCode` **73**) follows the owner's explicit request
 on 2026-10-30, delegating the prerelease label. Use alpha because the new Markdown
 compiler, native tile display and source-editing input have not had tablet

@@ -17,7 +17,7 @@ import java.util.List;
 /** Border-only note frame with two overlaid corner controls and one shared native editor. */
 final class NotebookCompanion {
     interface Listener {
-        void interact(); void menu(); void activate(); void figure(NotebookFigureHit.Hit hit); void collapse(); void boundsChanged();
+        void lookup(String word); void interact(); void menu(); void activate(); void figure(NotebookFigureHit.Hit hit); void collapse(); void boundsChanged();
         boolean beginMove(); void endMove(); void save(); boolean allowInput(); int writingRevision();
     }
     static final class ReadingView {
@@ -50,6 +50,8 @@ final class NotebookCompanion {
         body = new FrameLayout(context); content.addView(body, new FrameLayout.LayoutParams(-1, -1));
         reader = new NotebookReader(context, session, pane, new NotebookReader.Listener() {
             public void interact() { listener.interact(); }
+            public void textBoundsChanged() { listener.boundsChanged(); }
+            public void lookup(String word) { listener.lookup(word); }
             public void activate() { listener.activate(); }
             public void figure(NotebookFigureHit.Hit hit) { listener.figure(hit); }
             public int writingRevision() { return listener.writingRevision(); }
@@ -96,6 +98,7 @@ final class NotebookCompanion {
         editorPrepared = false; reader.retainFrame(frame);
         reader.setVisibility(View.VISIBLE); reader.bringToFront();
     }
+    void refreshReadingSettings(){reader.refreshReadingSettings();}
 
     void editorReady() {
         if (!editor || editorPrepared || resizeGrip.moving) return;
@@ -144,6 +147,7 @@ final class NotebookCompanion {
     List<Rect> exclusions() {
         List<Rect> bounds = new ArrayList<>();
         if (!visible) return bounds;
+        bounds.add(reader.textBounds());
         if (!editor && workspace.floating(pane)) bounds.add(screenBounds(content));
         else if (editor) {
             if (menu.getVisibility() == View.VISIBLE) bounds.add(screenBounds(menu));

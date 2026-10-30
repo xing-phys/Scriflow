@@ -26,19 +26,20 @@ final class NotebookSelectionMove {
         viewport.pageWidth(sourcePage); // Reject a stale source page before producing a drop target.
         int page = viewport.nearestPage(screenY, scroll);
         float scale = viewport.scale(page);
-        float width = viewport.pageWidth(page), height = viewport.pageHeight(page);
+        float width = viewport.pageWidth(page)*viewport.crop(page).width(), height = viewport.pageHeight(page)*viewport.crop(page).height();
+        float minX=viewport.cropLeft(page),minY=viewport.cropTop(page);
         float boundsX = bounds.left / 2 + bounds.right / 2;
         float boundsY = bounds.top / 2 + bounds.bottom / 2;
         float centerX = (screenX - viewport.pageLeft(page)) / scale - grabX;
         float centerY = (screenY - viewport.pageTop(page, scroll)) / scale - grabY;
         boolean fits = bounds.right - bounds.left <= width && bounds.bottom - bounds.top <= height;
         if (fits) {
-            centerX = boundsX + clamp(centerX - boundsX, -bounds.left, width - bounds.right);
-            centerY = boundsY + clamp(centerY - boundsY, -bounds.top, height - bounds.bottom);
+            centerX = boundsX + clamp(centerX - boundsX, minX-bounds.left, minX+width - bounds.right);
+            centerY = boundsY + clamp(centerY - boundsY, minY-bounds.top, minY+height - bounds.bottom);
         } else {
             // A complete-bounds fit does not exist. Keep a neutral logical center;
             // callers must reject the drop, while the floating preview stays anchored.
-            centerX = width / 2; centerY = height / 2;
+            centerX = minX+width / 2; centerY = minY+height / 2;
         }
         float left = screenX - (boundsX + grabX) * scale;
         float top = screenY - (boundsY + grabY) * scale;

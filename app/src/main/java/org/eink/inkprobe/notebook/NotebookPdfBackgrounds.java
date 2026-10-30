@@ -32,6 +32,9 @@ final class NotebookPdfBackgrounds {
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService worker = Executors.newSingleThreadExecutor(r -> new Thread(r, "notebook-pdf-display"));
     private final Map<NotebookPdfTiles.Tile, Bitmap> cache = new LinkedHashMap<>();
+    private final Map<NotebookPdfTiles.Tile, Bitmap> fallback = new LinkedHashMap<>();
+    private float contrast=1;
+    private int[] contrastTable;
     private final Map<Integer, List<NotebookPdfAsset.Link>> links = new LinkedHashMap<>();
     private Set<NotebookPdfTiles.Tile> wanted = Collections.emptySet();
     private Set<Integer> pages = Collections.emptySet();
@@ -66,10 +69,26 @@ final class NotebookPdfBackgrounds {
         List<NotebookPdfAsset.Link> result = links.get(page);
         return result == null ? Collections.emptyList() : result;
     }
+    void setContrast(float value){
+        if(value==contrast)return;
+        int[] table=NotebookPdfContrast.table(value);
+        ++epoch;failed=false;contrast=value;contrastTable=value==1?null:table;
+        Iterator<Map.Entry<NotebookPdfTiles.Tile,Bitmap>> previous=fallback.entrySet().iterator();
+        while(previous.hasNext()){Map.Entry<NotebookPdfTiles.Tile,Bitmap> item=previous.next();
+            if(!wanted.contains(item.getKey())){item.getValue().recycle();previous.remove();}}
+        for(Map.Entry<NotebookPdfTiles.Tile,Bitmap> item:cache.entrySet())
+            if(wanted.contains(item.getKey())){Bitmap old=fallback.put(item.getKey(),item.getValue());if(old!=null)old.recycle();}
+            else item.getValue().recycle();
+        cache.clear();
+        trim();schedule();
+    }
 
     /** Drawing only consumes completed pixels; native rendering and link parsing never run in pen callbacks. */
     boolean draw(Canvas canvas, int page, int width, int height, Paint paint) {
         boolean drawn = false;
+        for(Map.Entry<NotebookPdfTiles.Tile,Bitmap> item:fallback.entrySet())if(item.getKey().page==page){
+            NotebookPdfTiles.Tile t=item.getKey();canvas.drawBitmap(item.getValue(),null,new RectF(t.leftIn(width),t.topIn(height),t.rightIn(width),t.bottomIn(height)),paint);drawn=true;
+        }
         // Retain a bounded fallback while a pinch asks for a sharper resolution, then paint exact tiles above it.
         for (int pass = 0; pass < 2; pass++) {
             for (Map.Entry<NotebookPdfTiles.Tile, Bitmap> item : cache.entrySet()) {
@@ -93,6 +112,7 @@ final class NotebookPdfBackgrounds {
         final NotebookPdfTiles.Tile tile = missing;
         final int page = linkPage, request = epoch;
         final File file = source;
+        final int[] table=contrastTable;
         working = true; resourceWork = true;
         worker.execute(() -> {
             Bitmap bitmap = null;
@@ -105,6 +125,9 @@ final class NotebookPdfBackgrounds {
                             closeRenderer(); renderer = new NotebookPdfDisplayRenderer(file); rendererSource = file;
                         }
                         bitmap = renderer.render(tile);
+                        if(table!=null){int[] pixels=new int[bitmap.getWidth()*bitmap.getHeight()];
+                            bitmap.getPixels(pixels,0,bitmap.getWidth(),0,0,bitmap.getWidth(),bitmap.getHeight());
+                            NotebookPdfContrast.apply(pixels,table);bitmap.setPixels(pixels,0,bitmap.getWidth(),0,0,bitmap.getWidth(),bitmap.getHeight());}
                     } else resultLinks = NotebookPdfEngine.links(context, file, page);
                 }
             } catch (IOException | RuntimeException | OutOfMemoryError error) {
@@ -150,6 +173,10 @@ final class NotebookPdfBackgrounds {
             }
         }
         links.keySet().retainAll(pages);
+        boolean complete=cache.keySet().containsAll(wanted);
+        Iterator<Map.Entry<NotebookPdfTiles.Tile,Bitmap>> previous=fallback.entrySet().iterator();
+        while(previous.hasNext()){Map.Entry<NotebookPdfTiles.Tile,Bitmap> item=previous.next();
+            if(complete||!pages.contains(item.getKey().page)){item.getValue().recycle();previous.remove();}}
     }
 
     void setCachePixelLimit(long pixels) {
@@ -174,6 +201,7 @@ final class NotebookPdfBackgrounds {
         ++epoch; wanted = Collections.emptySet(); pages = Collections.emptySet(); failed = false;
         for (Bitmap bitmap : cache.values()) bitmap.recycle();
         cache.clear(); links.clear();
+        for(Bitmap bitmap:fallback.values())bitmap.recycle();fallback.clear();
         // Native readers own descriptors and parser memory even after pixels are gone.
         // Queue behind in-flight work, before any replacement request. Blank notes do
         // not start a PDF worker just to close an unused reader.
