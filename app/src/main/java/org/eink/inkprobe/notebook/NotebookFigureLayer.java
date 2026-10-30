@@ -18,8 +18,18 @@ final class NotebookFigureLayer {
     interface Listener { void changed(); void failed(IOException error); }
     static final class Request {
         final NotebookFigure figure; final int sample;
+        final List<NotebookPdfTiles.Tile> tiles;
         Request(NotebookFigure figure, double width, double height) {
-            this.figure = figure; sample = figure.sampleForPixels(width, height);
+            this(figure, width, height, Collections.emptyList());
+        }
+        private Request(NotebookFigure figure, double width, double height, List<NotebookPdfTiles.Tile> tiles) {
+            this.figure = figure; sample = figure.sampleForPixels(width, height); this.tiles = tiles;
+        }
+        static Request inView(NotebookFigure figure, NotebookViewport viewport, int page, float scroll) {
+            float scale = viewport.scale(page);
+            return new Request(figure, figure.width * (double) scale, figure.height * (double) scale,
+                figure.markdown == null ? Collections.emptyList() : NotebookMarkdownTiles.visible(figure, scale,
+                    viewport.pageLeft(page), viewport.pageTop(page, scroll), viewport.width, viewport.height));
         }
     }
     private static final class Pixels {
@@ -32,11 +42,12 @@ final class NotebookFigureLayer {
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final RectF box = new RectF();
     private final Listener listener;
+    private final NotebookMarkdownLayer markdown;
     private final Map<Object, Pixels> ready = new LinkedHashMap<>();
     private volatile Map<Object, Request> wanted = Collections.emptyMap();
     private volatile int epoch;
     private boolean working, failed, closed;
-    NotebookFigureLayer(Listener listener) { this.listener = listener; }
+    NotebookFigureLayer(Listener listener) { this.listener = listener; markdown = new NotebookMarkdownLayer(decoder, listener); }
 
     static List<Request> visible(NotebookViewport viewport, Map<Integer, NotebookPage> pages, float scroll) {
         List<Request> result = new ArrayList<>();
@@ -46,7 +57,7 @@ final class NotebookFigureLayer {
             for (NotebookFigure f : page.figures) {
                 if (left + f.right() * scale <= 0 || top + f.bottom() * scale <= 0
                         || left + f.left() * scale >= viewport.width || top + f.top() * scale >= viewport.height) continue;
-                result.add(new Request(f, f.width * (double) scale, f.height * (double) scale));
+                result.add(Request.inView(f, viewport, number, scroll));
             }
         }
         return result;
@@ -55,15 +66,17 @@ final class NotebookFigureLayer {
         if (closed) return false;
         Map<Object, Request> next = new LinkedHashMap<>();
         for (Request request : requests) {
+            if (request.figure.markdown != null) continue;
             Object key = request.figure.imageKey; Request old = next.get(key);
             if (old == null || request.sample < old.sample) next.put(key, request);
         }
         wanted = Collections.unmodifiableMap(next); ready.keySet().retainAll(next.keySet()); schedule();
+        boolean markdownReady = markdown.prepare(requests);
         for (Map.Entry<Object, Request> item : next.entrySet()) {
             Pixels pixels = ready.get(item.getKey());
             if (pixels == null || pixels.sample != item.getValue().sample) return false;
         }
-        return true;
+        return markdownReady;
     }
     private void schedule() {
         if (working || failed || closed) return;
@@ -101,6 +114,11 @@ final class NotebookFigureLayer {
     void draw(Canvas canvas, NotebookFigure figure) {
         int saved = figure.angle == 0 ? -1 : canvas.save();
         if (saved >= 0) canvas.rotate(figure.angle, figure.centerX(), figure.centerY());
+        if (figure.markdown != null) {
+            markdown.draw(canvas, figure, paint);
+            if (saved >= 0) canvas.restoreToCount(saved);
+            return;
+        }
         Pixels pixels = ready.get(figure.imageKey);
         box.set(figure.x, figure.y, figure.x + figure.width, figure.y + figure.height);
         if (pixels != null) canvas.drawBitmap(pixels.bitmap, null, box, paint);
@@ -111,7 +129,7 @@ final class NotebookFigureLayer {
         }
         if (saved >= 0) canvas.restoreToCount(saved);
     }
-    long preparedBytes() { long bytes = 0; for (Pixels p : ready.values()) bytes += p.bitmap.getAllocationByteCount(); return bytes; }
-    void clear() { ++epoch; wanted = Collections.emptyMap(); ready.clear(); failed = false; }
-    void close() { closed = true; clear(); }
+    long preparedBytes() { long bytes = markdown.preparedBytes(); for (Pixels p : ready.values()) bytes += p.bitmap.getAllocationByteCount(); return bytes; }
+    void clear() { ++epoch; wanted = Collections.emptyMap(); ready.clear(); failed = false; markdown.clear(); }
+    void close() { closed = true; clear(); markdown.close(); }
 }

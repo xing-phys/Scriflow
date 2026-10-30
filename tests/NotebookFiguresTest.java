@@ -88,7 +88,7 @@ public final class NotebookFiguresTest {
         check(NotebookDocument.samePage(page, document.current()), "v5 page reads with an empty figure layer");
         check(Arrays.equals(fixture.toByteArray(), Files.readAllBytes(path.toPath())), "Reading v5 does not migrate it");
         document.setFigures(Collections.singletonList(figure()));
-        check(ByteBuffer.wrap(Files.readAllBytes(path.toPath())).getInt(4) == 7, "Figure edit publishes v7");
+        check(ByteBuffer.wrap(Files.readAllBytes(path.toPath())).getInt(4) == 8, "Figure edit publishes v8");
         check(Arrays.equals(fixture.toByteArray(), Files.readAllBytes(new File(root, "page.nbk.bak").toPath())), "Migration preserves exact v5 predecessor");
     }
     private static void companionReads() throws Exception {

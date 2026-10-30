@@ -26,6 +26,13 @@ pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
 stays in front, window operations retain the main editor, and PDF import opens
 the file picker directly before opening the imported note.
 
+Current development **0.34.0-dev.1** adds editable [Markdown blocks](docs/markdown-blocks.md)
+with offline MathJax formulas, tables, code, diagrams and CJK fonts. Blocks use
+the figure controls and retain sharp vector appearances through zoom and PDF
+export. This build writes **page format 8** on edit and in new backups; older
+APKs, including stable 0.33.2, cannot read those pages/backups. Preserve
+independent backups before updating. This feature still awaits tablet acceptance.
+
 Double tapping the **M-Pencil body** switches Pen/Eraser and briefly shows the
 selected icon at the top center. The owner accepted the physical switches and
 icons. Earlier connected-tablet checks cover landscape PDF import, multiple floating

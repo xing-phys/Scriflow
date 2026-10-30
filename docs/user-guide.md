@@ -4,9 +4,10 @@ Scriflow is designed for Huawei MatePad Paper HMW-W09 on Android 10/API 29,
 firmware `HMW-W09 2.1.0.222(C00E170R1P8)`. Other devices and firmware have not
 been verified. See the [README](../README.md) for installation and current limits.
 
-The controls below are included in stable **0.33.2**. This release reads older
-notes but writes page format 7 on edit and in new editable backups. Older APKs,
-including 0.33.1, cannot open those pages or new backups. Keep independent
+This guide follows development **0.34.0-dev.1**; the published stable release is
+**0.33.2**. The development build reads older notes but writes page format 8 on
+edit and in new editable backups. Older APKs, including stable 0.33.2, cannot
+open those pages or new backups. Keep independent
 backups before updating. Physical checks of this exact APK remain pending.
 
 ## Notebooks and pages
@@ -35,6 +36,20 @@ with width and height in millimetres. Newly added or inserted blank pages
 inherit the source page's dimensions. PDF export uses the chosen physical size;
 changing screen orientation or zoom does not change the paper. Existing notes
 keep their original coordinates and PDF printing scale.
+
+## Markdown blocks
+
+Use the top-left **⋮ → Markdown M↓ icon** to insert a block. Type Markdown,
+then tap the small eye for rendered content, or tap outside to keep code visible.
+Select a block with a finger; its code/eye icon switches views and its pen icon
+in code mode reopens editing. Move, resize, rotate, copy/cut/delete and drag
+between pages just like a figure. Tap outside to finish.
+
+Tables, lists, task checkboxes, highlighted code, footnotes, Mermaid/callouts
+and mathematical LaTeX render offline. Use `$…$` for inline math and `$$…$$`
+for display math; aligned equations, matrices, physics and chemistry notation
+are supported. Original source stays editable. See [Markdown blocks](markdown-blocks.md)
+for syntax, recovery, size limits and compatibility.
 
 ## Figures and multiple notes
 
@@ -370,8 +385,8 @@ An ordinary update requires the same application ID and signing certificate.
 If an APK is rejected for a signature mismatch, follow the
 [signing migration procedure](releasing.md#moving-from-a-development-key).
 
-The app can read legacy version-1 pages without changing them on open. Their
-first edit atomically upgrades them to version 2 and retains the predecessor
+The development app can read page formats 1–7 without changing them on open. Their
+first edit atomically upgrades them to format 8 and retains the predecessor
 as a backup. Older APKs cannot read upgraded pages. Do not downgrade by
 installing an old APK over current notes, or move raw legacy page files as a
 substitute for editable backup/restore.

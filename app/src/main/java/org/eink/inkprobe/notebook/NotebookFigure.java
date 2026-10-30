@@ -8,6 +8,7 @@ public final class NotebookFigure {
     public static final int MAX_COUNT = 64, MAX_BYTES = 8 * 1024 * 1024, MAX_PAGE_BYTES = 16 * 1024 * 1024;
     public final UUID id;
     public final float x, y, width, height, angle;
+    public final NotebookMarkdown markdown;
     private final byte[] png;
     private final float cos, sin;
     final int pixelsWide, pixelsHigh;
@@ -25,14 +26,19 @@ public final class NotebookFigure {
     }
 
     public NotebookFigure(UUID id, float x, float y, float width, float height, byte[] png) {
-        this(id, x, y, width, height, 0, png, true, null);
+        this(id, x, y, width, height, 0, png, null, true, null);
     }
 
     public NotebookFigure(UUID id, float x, float y, float width, float height, float angle, byte[] png) {
-        this(id, x, y, width, height, angle, png, true, null);
+        this(id, x, y, width, height, angle, png, null, true, null);
     }
 
-    private NotebookFigure(UUID id, float x, float y, float width, float height, float angle, byte[] png, boolean copy, Object imageKey) {
+    public NotebookFigure(UUID id, float x, float y, float width, float height, float angle, byte[] png, NotebookMarkdown markdown) {
+        this(id, x, y, width, height, angle, png, markdown, true, null);
+    }
+
+    private NotebookFigure(UUID id, float x, float y, float width, float height, float angle, byte[] png,
+            NotebookMarkdown markdown, boolean copy, Object imageKey) {
         if (id == null || !NotebookPage.finite(x) || !NotebookPage.finite(y)
                 || !NotebookPage.finite(width) || !NotebookPage.finite(height)
                 || !NotebookPage.finite(angle) || width <= 0 || height <= 0
@@ -50,19 +56,31 @@ public final class NotebookFigure {
         sin = this.angle == 0 ? 0 : (float) Math.sin(Math.toRadians(this.angle));
         this.pixelsWide = pixelsWide; this.pixelsHigh = pixelsHigh;
         this.png = copy ? png.clone() : png;
-        this.imageKey = imageKey == null ? new ImageKey(this.png) : imageKey;
+        this.markdown = markdown;
+        this.imageKey = imageKey == null ? new ImageKey(markdown == null ? this.png : markdown.appearance()) : imageKey;
     }
 
     public byte[] png() { return png.clone(); }
     public int byteCount() { return png.length; }
+    public int storedBytes() { return png.length + (markdown == null ? 0 : markdown.byteCount()); }
     void writeTo(java.io.DataOutputStream output) throws java.io.IOException { output.write(png); }
     java.io.InputStream open() { return new java.io.ByteArrayInputStream(png); }
 
     public NotebookFigure placed(float x, float y, float width, float height) {
-        return new NotebookFigure(id, x, y, width, height, angle, png, false, imageKey);
+        return new NotebookFigure(id, x, y, width, height, angle, png, markdown, false, imageKey);
     }
-    public NotebookFigure turned(float degrees) { return new NotebookFigure(id, x, y, width, height, degrees, png, false, imageKey); }
-    NotebookFigure duplicate() { return new NotebookFigure(UUID.randomUUID(), x, y, width, height, angle, png, false, imageKey); }
+    public NotebookFigure turned(float degrees) { return new NotebookFigure(id, x, y, width, height, degrees, png, markdown, false, imageKey); }
+    NotebookFigure duplicate() { return new NotebookFigure(UUID.randomUUID(), x, y, width, height, angle, png, markdown, false, imageKey); }
+    public NotebookFigure withMarkdown(NotebookMarkdown value) {
+        if (value == null) throw new IllegalArgumentException("Markdown source is required");
+        float h = width * value.height() / value.width();
+        return new NotebookFigure(id, centerX() - width / 2, centerY() - h / 2, width, h, angle, png, value, false, null);
+    }
+    static NotebookFigure markdown(UUID id, float centerX, float centerY, float width, float angle, NotebookMarkdown value) {
+        byte[] blank = java.util.Base64.getDecoder().decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGNgAAIAAAUAAXpeqz8AAAAASUVORK5CYII=");
+        float height = width * value.height() / value.width();
+        return new NotebookFigure(id, centerX-width/2, centerY-height/2, width, height, angle, blank, value);
+    }
     public float centerX() { return x + width / 2; }
     public float centerY() { return y + height / 2; }
     public float cosine() { return cos; }
@@ -111,7 +129,7 @@ public final class NotebookFigure {
         if (!(other instanceof NotebookFigure)) return false;
         NotebookFigure f = (NotebookFigure) other;
         return id.equals(f.id) && x == f.x && y == f.y && width == f.width && height == f.height && angle == f.angle
-            && Arrays.equals(png, f.png);
+            && java.util.Objects.equals(markdown, f.markdown) && Arrays.equals(png, f.png);
     }
     @Override public int hashCode() { return id.hashCode(); }
 }

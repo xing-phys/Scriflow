@@ -68,6 +68,7 @@ final class NotebookSession {
     private int navigationBook, navigationCount;
 
     private NotebookSession(Context context) {
+        NotebookMarkdownRasterizer.configure(context.getCacheDir());
         directory = new File(context.getFilesDir(), "notebook");
         document = new NotebookLibrary(directory);
     }

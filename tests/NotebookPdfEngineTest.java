@@ -136,6 +136,7 @@ public final class NotebookPdfEngineTest {
         check(Arrays.equals(pristine, Files.readAllBytes(source.toPath())), "Source remains unchanged after all exports");
         figures(directory, source, a);
         rotatedFigures(directory);
+        markdown(directory);
         System.out.println("NotebookPdfEngineTest: " + assertions + " assertions passed; fixtures in " + directory);
     }
 
@@ -180,6 +181,55 @@ public final class NotebookPdfEngineTest {
                 com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject image = (com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject)
                     document.getPage(0).getResources().getXObject(document.getPage(0).getResources().getXObjectNames().iterator().next());
                 check(image.getWidth()==2 && image.getHeight()==2 && image.getSoftMask()!=null, "Rotation preserves original pixels/transparency in PDF export");
+            }
+        }
+    }
+
+    private static void markdown(File directory)throws Exception {
+        File fixtures=new File("artifacts/markdown-blocks");
+        byte[] rendered=Files.readAllBytes(new File(fixtures,"markdown-rendered.pdf").toPath());
+        byte[] code=Files.readAllBytes(new File(fixtures,"markdown-source.pdf").toPath());
+        float rw,rh,sw,sh;
+        try(PDDocument a=PDDocument.load(rendered);PDDocument b=PDDocument.load(code)) {
+            check(a.getNumberOfPages()==1&&b.getNumberOfPages()==1,"real browser appearances are single-page PDFs");
+            rw=a.getPage(0).getMediaBox().getWidth();rh=a.getPage(0).getMediaBox().getHeight();
+            sw=b.getPage(0).getMediaBox().getWidth();sh=b.getPage(0).getMediaBox().getHeight();
+        }
+        NotebookMarkdown markdown=new NotebookMarkdown("# Quantum dynamics",false,rw/ .75f,rh/ .75f,rendered,sw/ .75f,sh/ .75f,code);
+        for(boolean sourceMode:new boolean[]{false,true})for(float angle:new float[]{0,37,90,-53}) {
+            NotebookFigure figure=NotebookFigure.markdown(UUID.randomUUID(),400,600,500,angle,markdown.asSource(sourceMode)).fitted(800,1200);
+            NotebookPage page=NotebookPage.empty().withSize(800,1200).withFigures(Collections.singletonList(figure));
+            File output=new File(directory,"markdown-"+(sourceMode?"source":"rendered")+"-"+(int)angle+".pdf");
+            export(output,null,Collections.singletonList(page),Collections.emptyList());
+            try(PDDocument document=PDDocument.load(output)) {
+                PDResources resources=document.getPage(0).getResources();
+                com.tom_roush.pdfbox.pdmodel.graphics.PDXObject object=resources.getXObject(resources.getXObjectNames().iterator().next());
+                check(object instanceof com.tom_roush.pdfbox.pdmodel.graphics.form.PDFormXObject,"Markdown exports as a vector form, never the schema's PNG sentinel");
+                com.tom_roush.pdfbox.pdmodel.graphics.form.PDFormXObject form=(com.tom_roush.pdfbox.pdmodel.graphics.form.PDFormXObject)object;
+                int fonts=0;for(COSName name:form.getResources().getFontNames()){
+                    fonts++;check(form.getResources().getFont(name).isEmbedded(),"export retains the exact bundled text/code font");
+                }
+                check(fonts>0,"text remains real embedded PDF text");
+                Process text=new ProcessBuilder("pdftotext","-raw",output.getPath(),"-").start();
+                ByteArrayOutputStream extracted=new ByteArrayOutputStream();
+                try(InputStream input=text.getInputStream()){byte[] buffer=new byte[8192];int count;while((count=input.read(buffer))!=-1)extracted.write(buffer,0,count);}
+                check(text.waitFor()==0&&extracted.toString("UTF-8").replaceAll("\\s+","").contains("Quantumdynamics"),"Poppler extracts rendered/source text after the app imports it as a form");
+                String content=String.join("\n",streams(document.getPage(0)));
+                java.util.regex.Matcher matcher=java.util.regex.Pattern.compile("([-+0-9.eE]+)\\s+([-+0-9.eE]+)\\s+([-+0-9.eE]+)\\s+([-+0-9.eE]+)\\s+([-+0-9.eE]+)\\s+([-+0-9.eE]+)\\s+cm").matcher(content);
+                float[] actual=null;while(matcher.find()){actual=new float[6];for(int n=0;n<6;n++)actual[n]=Float.parseFloat(matcher.group(n+1));}
+                float w=sourceMode?sw:rw,h=sourceMode?sh:rh;
+                float[] expected={(figure.cornerX(2)-figure.cornerX(3))/w,(figure.cornerY(2)-figure.cornerY(3))/w,
+                    (figure.cornerX(0)-figure.cornerX(3))/h,(figure.cornerY(0)-figure.cornerY(3))/h,figure.cornerX(3),figure.cornerY(3)};
+                boolean matches=actual!=null;if(matches)for(int n=0;n<6;n++)matches&=Math.abs(actual[n]-expected[n])<.001;
+                check(matches,"Markdown form follows independently computed rotated corners in mode "+sourceMode+" at "+angle);
+                if(!sourceMode){
+                    String vector;
+                    try(InputStream input=form.getCOSObject().createInputStream();ByteArrayOutputStream bytes=new ByteArrayOutputStream()) {
+                        byte[] buffer=new byte[8192];int count;while((count=input.read(buffer))!=-1)bytes.write(buffer,0,count);
+                        vector=bytes.toString("ISO-8859-1");
+                    }
+                    check(vector.contains(" c")&&vector.length()>10000,"typeset math retains its vector paths through the app exporter");
+                }
             }
         }
     }

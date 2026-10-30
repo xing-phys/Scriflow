@@ -168,6 +168,18 @@ public final class NotebookSymbols {
                 line(out, 21, 15, 21, 21, 15, 21);
                 line(out, 9, 21, 3, 21, 3, 15);
                 break;
+            case "MARKDOWN":
+                polygon(out, false, 2, 5, 22, 5, 22, 20, 2, 20);
+                line(out, 5, 16, 5, 9, 8, 12, 11, 9, 11, 16);
+                line(out, 17, 9, 17, 16); line(out, 14, 13, 17, 16, 20, 13);
+                break;
+            case "CODE":
+                line(out, 7, 5, 2, 12, 7, 19); line(out, 17, 5, 22, 12, 17, 19); line(out, 14, 4, 10, 20);
+                break;
+            case "RENDER_MARKDOWN":
+                out.begin(); out.moveTo(2, 12); out.cubicTo(7, 3, 17, 3, 22, 12);
+                out.cubicTo(17, 21, 7, 21, 2, 12); out.close(); out.end(false); circle(out, 12, 12, 3);
+                break;
             case "INSERT_FIGURE":
                 polygon(out, false, 3, 4, 18, 4, 18, 18, 3, 18);
                 line(out, 4, 16, 9, 11, 13, 15, 16, 12, 18, 14); circle(out, 14, 8, 1.5f);

@@ -14,7 +14,7 @@ import java.util.EnumMap;
 
 /** Two quiet windows above native ink, without reserving a header in the page. */
 final class NotebookStatusIslands {
-    enum Action { INSERT_FIGURE, FIGURES, INFORMATION, BACKGROUND, PASTE_FIGURE }
+    enum Action { INSERT_FIGURE, INSERT_MARKDOWN, FIGURES, INFORMATION, BACKGROUND, PASTE_FIGURE }
     interface ActionListener { void onAction(Action action); }
     interface Listener { void onBoundsChanged(Rect left, Rect right); }
 
@@ -54,6 +54,7 @@ final class NotebookStatusIslands {
         top.addView(more, new LinearLayout.LayoutParams(dp(28), dp(28)));
         actions = new LinearLayout(activity); actions.setGravity(Gravity.CENTER_VERTICAL);
         addAction(Action.INSERT_FIGURE, NotebookIconDrawable.Icon.INSERT_FIGURE, "Insert figure", actionListener);
+        addAction(Action.INSERT_MARKDOWN, NotebookIconDrawable.Icon.MARKDOWN, "Insert Markdown block", actionListener);
         addAction(Action.FIGURES, NotebookIconDrawable.Icon.FIGURES, "Choose a figure", actionListener);
         addAction(Action.INFORMATION, NotebookIconDrawable.Icon.INFORMATION, "Page information and PDF export", actionListener);
         addAction(Action.BACKGROUND, NotebookIconDrawable.Icon.PAPER_LINED, "Use lined background", actionListener);

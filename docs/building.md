@@ -17,6 +17,13 @@ The bootstrap scripts support **Linux x86_64**. Install a JDK providing `java`,
 `javac`, and `keytool`, plus Python 3.8+, curl, and unzip. ADB is optional for USB
 installation and device checks. Android Studio is not required.
 
+Markdown asset compilation also requires **Node.js 20+ and npm**. The first
+build downloads the lockfile-pinned renderer packages and commit/checksum-pinned
+fonts into `.tools/markdown-renderer`; subsequent cached builds work offline.
+Both builders call `scripts/build-markdown-assets.sh`. Host renderer/export
+tests additionally require Google Chrome (override its executable with
+`CHROME_BIN`) and Poppler's `pdftotext` (`poppler-utils` on Ubuntu).
+
 Tool downloads are version-pinned and checksum-verified. They remain in ignored
 `.tools/`; project state and generated artifacts are ignored too. The first
 bootstrap and Gradle dependency resolution need network access. A cached build
@@ -37,9 +44,12 @@ and writes ignored `local.properties` if it does not exist. Gradle is pinned to
 8.11.1 and the Android plugin to 8.9.2. Set the IDE's Gradle JDK to the same
 local JDK when importing the project. Nothing changes the system Java install.
 
-`hostTest` runs the core tests and PDF import/export structural tests in
-`scripts/test.sh`. The PDF tests execute the shipped PDFBox Android bytecode
-on the host with a logging stub; display rendering still requires Android.
+`hostTest` runs the core tests, offline browser Markdown checks and PDF
+import/export structural tests in `scripts/test.sh`. The PDF tests execute the
+shipped PDFBox Android bytecode with host logging/bitmap/AssetManager adapters
+and the exact AAR font/CMap resources. Markdown fixtures run the packaged assets
+in Chrome and pass through the production exporter, with Poppler checking text.
+Native display/input still requires Android.
 Full lint
 is a separate check from APK assembly. The API-29 target is deliberate for this
 firmware-specific sideloaded app; raising it requires device acceptance.

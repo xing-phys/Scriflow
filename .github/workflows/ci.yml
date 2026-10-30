@@ -36,6 +36,16 @@ jobs:
           yes | "$sdkmanager" --licenses >/dev/null
           set -o pipefail
           "$sdkmanager" --install 'platforms;android-29' 'build-tools;35.0.0'
+      - name: Check offline renderer test prerequisites
+        shell: bash
+        run: |
+          node --version
+          npm --version
+          google-chrome --version
+          if ! command -v pdftotext >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y poppler-utils
+          fi
       - name: Test, lint, and build both variants
         run: ./gradlew --no-daemon --stacktrace hostTest :app:lintDebug :app:lintRelease :app:assembleDebug :app:assembleRelease
       - name: Verify the debug APK

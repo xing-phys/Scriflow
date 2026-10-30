@@ -8,11 +8,19 @@ does not request Android's `INTERNET` permission.
 
 Notebooks are stored in the app's private directory. They contain handwriting
 coordinates, pressure, timing, pen styles, page order, paper choices, and notebook
-names. Inserted figures are stored as PNG pixels within each page. PDF notebooks also retain the complete original PDF and outline headings.
+names. Inserted figures are stored as PNG pixels within each page. Markdown blocks
+retain their original text and source/rendered vector appearances. PDF notebooks also retain the complete original PDF and outline headings.
 App preferences remember tool widths, tool position, reading position, and
 second-note workspace placement.
 Scriflow does not add encryption to its notebook files; protection of the
 tablet and its storage depends on the device and its configuration.
+
+Markdown compilation uses a short-lived local WebView with bundled scripts and
+fonts, no Java bridge and blocked network loads. Reading saved blocks uses native
+PDF rendering. External Markdown images require embedding; remote URLs are
+shown as placeholders. Unsaved typing has private recovery drafts, retained
+across interruption until successful publication to the note. Those drafts are
+not included in notebook backups until the block is committed.
 
 Uninstalling the app or clearing its storage removes its private notes and
 settings. Android automatic app backup is disabled. Make editable `.inkbook`
@@ -35,7 +43,8 @@ the transfer and its own privacy terms apply.
   PDFs also preserve original document metadata and catalog resources, including
   attachments when present. They are not a redaction tool.
 - `.inkbook` backups contain the notebook's name, ordered pages, handwriting
-  samples, pressure, styles, inserted figure pixels, and persistent object IDs. They exclude undo
+  samples, pressure, styles, inserted figure pixels, Markdown source/appearances,
+  and persistent object IDs. They exclude undo
   history and device settings. PDF notebooks include the entire original PDF,
   including source pages removed from the note, plus note outlines.
   **Backups are unencrypted.**

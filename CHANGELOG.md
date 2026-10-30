@@ -6,6 +6,20 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.34.0-dev.1 — Editable Markdown blocks (2026-10-30)
+
+- Insert Markdown from the top-left action bar. Edit source inline; use nearby
+  code/eye icons for source/rendered views and the existing figure controls for
+  move, resize, free rotation, clipboard, deletion and linked cross-page moves.
+- Bundle CommonMark/GitHub-style syntax, tables/tasks/footnotes, highlighted
+  code, Mermaid/callouts, CJK fonts and MathJax 4 with AMS/physics/chemistry math
+  offline. Display at current-zoom native tile resolution and export vectors.
+- Retain typing recovery before rendering and until successful page publication.
+  Read previous page formats unchanged; edits/new backups write format 8, which
+  older APKs cannot read. Keep independent backups before updating. Code 72.
+- Host/browser/export checks and signed Android builds are documented in the
+  [Markdown record](docs/markdown-blocks.md). Tablet acceptance remains pending.
+
 ## 0.33.2 — In-note figures and compact controls (2026-10-29)
 
 - Make the top-left bar compact and interactive: title returns to the bookshelf,

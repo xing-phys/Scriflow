@@ -41,6 +41,14 @@ tasks.register('prepareLocalDebugKey', Exec) {
     outputs.file rootProject.file('.tools/debug.keystore')
 }
 def licenseAssets = layout.buildDirectory.dir('generated/license-assets')
+def markdownAssets = layout.buildDirectory.dir('generated/markdown-assets')
+tasks.register('prepareMarkdownAssets', Exec) {
+    workingDir rootDir
+    commandLine 'bash', rootProject.file('scripts/build-markdown-assets.sh').absolutePath
+    inputs.dir rootProject.file('renderer/markdown')
+    inputs.files rootProject.file('scripts/build-markdown-assets.sh'), rootProject.file('scripts/build-markdown-assets.cjs')
+    outputs.dir markdownAssets
+}
 tasks.register('prepareLicenseAssets', Copy) {
     from rootProject.file('LICENSE')
     from(rootProject.file('licenses')) {
@@ -94,9 +102,10 @@ android {
     }
     buildFeatures { buildConfig false }
     sourceSets.main.assets.srcDir(licenseAssets)
+    sourceSets.main.assets.srcDir(markdownAssets)
 }
 tasks.matching { it.name == 'preBuild' }.configureEach {
-    dependsOn tasks.named('prepareLicenseAssets')
+    dependsOn tasks.named('prepareLicenseAssets'), tasks.named('prepareMarkdownAssets')
 }
 tasks.matching { it.name == 'validateSigningDebug' }.configureEach {
     dependsOn tasks.named('prepareLocalDebugKey')

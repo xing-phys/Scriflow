@@ -71,6 +71,29 @@ The library parses and rasterizes SVG imports with internal entity expansion
 disabled and no external file resolver. The offline dependency bootstrap pins
 the JAR SHA-256 to `729c67ef475f19f112d01e4fc8e55b1f23841912f8e5090db27992801a04f79d`.
 
+## Offline Markdown runtime and fonts
+
+The Markdown renderer is built from the pinned npm lockfile in
+[`renderer/markdown`](renderer/markdown/package-lock.json). It packages:
+
+- markdown-it 15.0.3, its Markdown extensions and markdown-it-texmath 1.0.0
+  (MIT); MathJax 4.1.3, NewCM SVG data and math-font extensions (Apache-2.0).
+- Mermaid 12.2.0, dom-to-svg 0.12.2, pdfmake 0.2.23 and core-js 3.51.0 (MIT);
+  highlight.js 11.11.1 (BSD-3-Clause); DOMPurify 3.4.17
+  (Apache-2.0 or MPL-2.0).
+- Roboto font data from pdfmake (Apache-2.0), Noto Sans Mono and Noto Sans CJK
+  (SIL Open Font License 1.1). Official font sources are commit-pinned and
+  SHA-256 verified in [`fonts.json`](renderer/markdown/fonts.json).
+
+The asset builder collects the runtime packages' upstream license/notice files,
+including transitive dependencies and font licenses, into
+`assets/markdown-NOTICES.txt` inside every APK. It retains the generated asset
+SHA-256 inventory as `assets/markdown-assets.sha256.json`. Font files and npm
+packages are fetched into ignored build caches, rather than checked into the
+source repository. esbuild and Puppeteer are development tools and are not
+packaged in the APK. See [Markdown blocks](docs/markdown-blocks.md) for the
+offline compilation/display architecture.
+
 ## Downloaded development tools
 
 The full Gradle distribution, Android SDK/build tools, JDK, plugin dependencies,

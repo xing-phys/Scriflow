@@ -18,7 +18,7 @@ import java.util.*;
 
 /** In-note selection overlay: existing viewport, nearby actions and per-gesture durable edits. */
 final class NotebookFigureEditor extends FrameLayout {
-    enum Action { COPY, CUT, DELETE, PASTE }
+    enum Action { COPY, CUT, DELETE, PASTE, MARKDOWN, EDIT_SOURCE }
     interface Listener {
         void preview();
         List<Rect> exclusions();
@@ -67,6 +67,9 @@ final class NotebookFigureEditor extends FrameLayout {
         addAction(Action.DELETE, NotebookIconDrawable.Icon.DELETE, "Delete figure");
         addAction(Action.PASTE, NotebookIconDrawable.Icon.PASTE, "Paste figure");
         buttons.get(Action.PASTE).setVisibility(GONE);
+        addAction(Action.MARKDOWN, NotebookIconDrawable.Icon.CODE, "Show Markdown source");
+        addAction(Action.EDIT_SOURCE, NotebookIconDrawable.Icon.PEN, "Edit Markdown source");
+        markdownActions();
         rotate = handle(NotebookIconDrawable.Icon.ROTATE, "Drag to rotate figure freely", 3);
         resize = handle(NotebookIconDrawable.Icon.RESIZE, "Drag to resize figure", 2);
         scaleGesture = new ScaleGestureDetector(context, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -117,6 +120,7 @@ final class NotebookFigureEditor extends FrameLayout {
         awaitingSave = false;
         previewing = false; restorePending = true;
         page = storedPage = target; figure = stored = value; pageId = null;
+        markdownActions();
         prepareImage(); placeControls(); invalidate();
     }
     void saving() { busy = awaitingSave = true; placeControls(); }
@@ -131,9 +135,7 @@ final class NotebookFigureEditor extends FrameLayout {
     }
     private void prepareImage() {
         if (viewport == null || closed) return;
-        float scale = viewport.scale(page);
-        imageReady = images.prepare(Collections.singletonList(new NotebookFigureLayer.Request(figure,
-            figure.width * (double) scale, figure.height * (double) scale)));
+        imageReady = images.prepare(Collections.singletonList(NotebookFigureLayer.Request.inView(figure, viewport, page, scroll)));
     }
     @Override public void draw(Canvas canvas) {
         if (closed) return;
@@ -164,7 +166,8 @@ final class NotebookFigureEditor extends FrameLayout {
     private float screenY(float y) { return viewport.pageTop(page, scroll) + y * viewport.scale(page); }
     private void placeControls() {
         if (viewport == null) return;
-        int count = buttons.get(Action.PASTE).getVisibility() == VISIBLE ? 4 : 3;
+        int count = 0;
+        for (NotebookIconButton button : buttons.values()) if (button.getVisibility() == VISIBLE) count++;
         float x = screenX(figure.left()), y = screenY(figure.top()) - dp(44);
         if (y < 0) y = screenY(figure.bottom()) + dp(16);
         float[] group = freePosition(x, y, dp(count * 30), dp(28)); x = group[0]; y = group[1];
@@ -178,6 +181,22 @@ final class NotebookFigureEditor extends FrameLayout {
         corner = freePosition(screenX(figure.cornerX(2)) - dp(14), screenY(figure.cornerY(2)) - dp(14), dp(28), dp(28));
         position(resize, corner[0], corner[1]);
     }
+    private void markdownActions() {
+        boolean isMarkdown = stored.markdown != null, code = isMarkdown && stored.markdown.sourceMode;
+        String kind=isMarkdown?"Markdown block":"figure";
+        setContentDescription("Selected "+kind+"; drag to move between pages, lower-right handle resizes, upper-right handle rotates. Tap outside to finish.");
+        for(Action action:new Action[]{Action.COPY,Action.CUT,Action.DELETE,Action.PASTE}) {
+            String verb=action.name().substring(0,1)+action.name().substring(1).toLowerCase(java.util.Locale.ROOT);
+            String label=verb+" "+kind;buttons.get(action).setContentDescription(label);buttons.get(action).setTooltipText(label);
+        }
+        NotebookIconButton mode = buttons.get(Action.MARKDOWN);
+        mode.setVisibility(isMarkdown ? VISIBLE : GONE);
+        mode.setIcon(code ? NotebookIconDrawable.Icon.RENDER_MARKDOWN : NotebookIconDrawable.Icon.CODE);
+        String label = code ? "Show rendered Markdown" : "Show Markdown source";
+        mode.setContentDescription(label); mode.setTooltipText(label);
+        buttons.get(Action.EDIT_SOURCE).setVisibility(code ? VISIBLE : GONE);
+    }
+
     private float[] freePosition(float x, float y, int width, int height) {
         int[] origin = new int[2]; anchor.getLocationOnScreen(origin);
         List<Rect> blocked = listener.exclusions();

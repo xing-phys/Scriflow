@@ -54,7 +54,7 @@ public final class NotebookFigureTransformTest {
         NotebookDocument document=new NotebookDocument(root);document.load();
         check(document.current().figures.get(0).angle==0&&Arrays.equals(bytes.toByteArray(),Files.readAllBytes(file.toPath())),"v6 reads unchanged with zero rotation");
         NotebookFigure rotated=value.turned(37).fitted(200,300);document.setFigures(Collections.singletonList(rotated));
-        check(ByteBuffer.wrap(Files.readAllBytes(file.toPath())).getInt(4)==7,"an edit publishes rotation-capable v7");
+        check(ByteBuffer.wrap(Files.readAllBytes(file.toPath())).getInt(4)==8,"an edit publishes rotation-capable v8");
         check(Arrays.equals(bytes.toByteArray(),Files.readAllBytes(new File(root,"page.nbk.bak").toPath())),"migration preserves exact v6 predecessor");
         check(new NotebookStore(root).load().figures.get(0).equals(rotated),"rotation, PNG and identity survive reopening");
         document.undo();check(document.current().figures.get(0).equals(value),"rotation is undoable");

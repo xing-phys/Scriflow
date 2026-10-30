@@ -484,6 +484,26 @@ public final class NotebookPdfEngine {
         }
     }
 
+    private static void appendMarkdown(PDDocument document, PDPageContentStream stream, NotebookFigure figure) throws IOException {
+        MemoryUsageSetting memory = MemoryUsageSetting.setupMixed(8L * 1024 * 1024);
+        if (scratchDirectory != null) memory.setTempDir(scratchDirectory);
+        try (PDDocument source = PDDocument.load(new java.io.ByteArrayInputStream(figure.markdown.appearance()), memory)) {
+            if (source.getNumberOfPages() != 1) throw new IOException("Markdown appearance must have one page");
+            PDPage page = source.getPage(0); PDRectangle bounds = page.getMediaBox();
+            float w = bounds.getWidth(), h = bounds.getHeight();
+            if (page.getRotation() != 0 || bounds.getLowerLeftX() != 0 || bounds.getLowerLeftY() != 0
+                    || !Float.isFinite(w) || !Float.isFinite(h) || w <= 0 || h <= 0 || w > 32768 || h > 32768)
+                throw new IOException("Invalid Markdown vector appearance");
+            com.tom_roush.pdfbox.pdmodel.graphics.form.PDFormXObject form =
+                new com.tom_roush.pdfbox.multipdf.LayerUtility(document).importPageAsForm(source, 0);
+            float c = figure.cosine(), s = figure.sine();
+            stream.saveGraphicsState();
+            stream.transform(new Matrix(figure.width*c/w, figure.width*s/w, figure.height*s/h, -figure.height*c/h,
+                figure.centerX()-figure.width*c/2-figure.height*s/2, figure.centerY()-figure.width*s/2+figure.height*c/2));
+            stream.drawForm(form); stream.restoreGraphicsState();
+        }
+    }
+
     private static void appendInk(PDDocument document, PDPage target, NotebookPage page,
             boolean paper, NotebookPdf.OutlineSource outlines) throws IOException {
         if (!paper && page.strokes.isEmpty() && page.figures.isEmpty()) return;
@@ -516,6 +536,10 @@ public final class NotebookPdfEngine {
                 }
             }
             for (NotebookFigure figure : page.figures) {
+                if (figure.markdown != null) {
+                    appendMarkdown(document, stream, figure);
+                    continue;
+                }
                 com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject image =
                     com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject.createFromByteArray(document, figure.png(), "figure.png");
                 // Page coordinates point downward; undo that reflection for the image pixels.

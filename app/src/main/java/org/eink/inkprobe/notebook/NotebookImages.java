@@ -115,8 +115,17 @@ final class NotebookImages {
             int saved = canvas.save();
             try {
                 canvas.rotate(figure.angle, figure.centerX(), figure.centerY());
-                canvas.drawBitmap(bitmap(figure, sample), null,
-                    new RectF(figure.x, figure.y, figure.x + figure.width, figure.y + figure.height), paint);
+                Bitmap pixels;
+                if (figure.markdown == null) pixels = bitmap(figure, sample);
+                else {
+                    double factor = Double.isInfinite(scale) ? 1 : scale;
+                    factor = Math.min(factor, Math.min(2048.0 / figure.width, 2048.0 / figure.height));
+                    pixels = NotebookMarkdownRasterizer.bitmap(figure, Math.max(1, (int)Math.ceil(figure.width*factor)),
+                        Math.max(1, (int)Math.ceil(figure.height*factor)));
+                }
+                try { canvas.drawBitmap(pixels, null,
+                    new RectF(figure.x, figure.y, figure.x + figure.width, figure.y + figure.height), paint); }
+                finally { if (figure.markdown != null) pixels.recycle(); }
             }
             catch (IOException error) { throw new IllegalStateException(error.getMessage(), error); }
             finally { canvas.restoreToCount(saved); }

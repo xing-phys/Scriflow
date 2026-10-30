@@ -60,6 +60,9 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private NotebookCompanion.ReadingView pendingReadingView;
     private int pendingReadingPage;
     private Runnable whenReady;
+    private NotebookMarkdownSourceEditor markdownEditor;
+    private NotebookMarkdownDraft pendingMarkdownDraft;
+    private boolean markdownRecoveryChecked, markdownRecovering;
     private boolean changingWorkspace, workspaceLayoutPending;
     private int inkGeneration;
     private final Map<Integer, byte[]> workspaceHistories = new LinkedHashMap<>();
@@ -179,6 +182,10 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         if (saved != null && saved.getBoolean("eraser", false)) tool = NotebookInk.Tool.ERASER;
         if (saved != null && saved.getBoolean("lasso", false)) tool = NotebookInk.Tool.LASSO;
         zenMode = saved != null && saved.getBoolean("zenMode", false);
+        if (saved != null && saved.getByteArray("markdownDraft") != null) {
+            try { pendingMarkdownDraft = NotebookMarkdownDraft.fromSnapshot(saved.getByteArray("markdownDraft")); }
+            catch (IOException ignored) { /* The independently saved typing draft remains recoverable. */ }
+        }
         verifyOnReady = (getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0
             && getIntent().getBooleanExtra("verifyRestore", false);
         getIntent().removeExtra("verifyRestore");
@@ -414,6 +421,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                     }
                     scheduleSaveState();
                     if (stylusShortcut.hasPending()) applyStylusShortcut();
+                    maybeRecoverMarkdown();
                 }
                 @Override public void onError(String message) {
                     if (!active || surfaceOwner != inkGeneration) return;
@@ -1039,6 +1047,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
 
     private boolean canEdit() {
         return active && !changingWorkspace && !editing && !scrolling && !dragging && !selectionDrag.isActive() && !fetching && shownError == null && session.error() == null
+            && markdownEditor == null
             && (figureEditor == null || !figureEditor.isBusy())
             && page != null && ink != null && ink.isReady() && !ink.isPenDown();
     }
@@ -2510,6 +2519,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         resumeThen(() -> {
             switch (action) {
                 case INSERT_FIGURE: insertFigure(); break;
+                case INSERT_MARKDOWN: insertMarkdown(); break;
                 case FIGURES: chooseFigure(); break;
                 case INFORMATION: pageInformation(); break;
                 case BACKGROUND: choosePaper(); break;
@@ -2534,6 +2544,128 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             .putExtra("notebookId", session.notebookId()).putExtra("page", activePage).putExtra("pageId", target.id.toString()));
     }
 
+    private void insertMarkdown() {
+        if (!canEdit() || viewport == null) return;
+        int number = viewport.centeredPage(scrollY);
+        NotebookPage target = pages.get(number);
+        if (target == null) return;
+        float width = target.width * .8f, height = Math.min(target.height * .4f, width * .6f);
+        float cx = (viewport.width / 2f - viewport.pageLeft(number)) / viewport.scale(number);
+        float cy = (viewport.height / 2f - viewport.pageTop(number, scrollY)) / viewport.scale(number);
+        float x = Math.max(0, Math.min(target.width - width, cx - width / 2));
+        float y = Math.max(0, Math.min(target.height - height, cy - height / 2));
+        openMarkdownSource(new NotebookMarkdownDraft(UUID.randomUUID(), session.notebookId(), number, target.id,
+            UUID.randomUUID(), true, x, y, width, height, 0, "", ""), null);
+    }
+
+    private void editMarkdown(int number, UUID pageId, NotebookFigure before) {
+        if (before.markdown == null || !canEdit()) return;
+        openMarkdownSource(new NotebookMarkdownDraft(UUID.randomUUID(), session.notebookId(), number, pageId,
+            before.id, false, before.x, before.y, before.width, before.height, before.angle,
+            before.markdown.source, before.markdown.source), before);
+    }
+
+    private void openMarkdownSource(NotebookMarkdownDraft draft, NotebookFigure before) {
+        if (!canEdit() || viewport == null || draft.book != session.notebookId()) return;
+        pauseForEdit();
+        if (shownError != null) return;
+        clearSelection(); ink.setSelectionMode(false);
+        final int request = generation;
+        float scale = viewport.scale(draft.page);
+        int[] origin = new int[2]; canvas.getLocationOnScreen(origin);
+        RectF bounds = new RectF(origin[0] + viewport.pageLeft(draft.page) + draft.x * scale,
+            origin[1] + viewport.pageTop(draft.page, scrollY) + draft.y * scale,
+            origin[0] + viewport.pageLeft(draft.page) + (draft.x + draft.width) * scale,
+            origin[1] + viewport.pageTop(draft.page, scrollY) + (draft.y + draft.height) * scale);
+        markdownEditor = new NotebookMarkdownSourceEditor(this, workspaceRoot, canvas, bounds, draft, before,
+            new NotebookMarkdownSourceEditor.Listener() {
+                public void save(NotebookMarkdownSourceEditor owner, NotebookMarkdownDraft current,
+                        NotebookMarkdown value, boolean selectAfter) {
+                    if (!active || request != generation || owner != markdownEditor) return;
+                    NotebookPage target = pages.get(current.page);
+                    if (target == null || !target.id.equals(current.pageId)) {
+                        owner.failed(new IOException("The page changed. Your Markdown source draft is retained.")); return;
+                    }
+                    final NotebookFigure replacement = (before == null
+                        ? NotebookFigure.markdown(current.figureId, current.x + current.width/2,
+                            current.y + current.height/2, current.width, current.angle, value)
+                        : before.withMarkdown(value)).fitted(target.width, target.height);
+                    session.editFigure(current.page, current.page, current.pageId, before, replacement, before == null,
+                        (updated, error) -> {
+                            if (!active || request != generation || owner != markdownEditor) return;
+                            if (error != null) {
+                                if (session.error() == null) owner.failed(error);
+                                else { pendingMarkdownDraft=owner.draft(); owner.pause(); markdownEditor=null; showError(error); }
+                                return;
+                            }
+                            owner.saved(); markdownEditor=null; pendingMarkdownDraft=null;
+                            activePage=current.page; updatePageLabel();
+                            if (selectAfter) selectMarkdownWhenReady(current.pageId, replacement.id);
+                            savePosition=true; settleRead=true; ++viewportRevision;
+                            finishEdit(request,updated,null);
+                        });
+                }
+                public void dismissed(NotebookMarkdownSourceEditor owner, boolean selectAfter) {
+                    if (!active || request != generation || owner != markdownEditor) return;
+                    markdownEditor=null; pendingMarkdownDraft=null;
+                    if (selectAfter && before != null) selectMarkdownWhenReady(draft.pageId,before.id);
+                    editing=false; installViewport();
+                }
+            });
+        markdownEditor.show();
+    }
+
+    private void selectMarkdownWhenReady(UUID pageId, UUID figureId) {
+        whenReady=()->{
+            int number=session.pageNumber(pageId); NotebookPage target=pages.get(number);
+            if (target==null || !target.id.equals(pageId)) return;
+            for(int index=0;index<target.figures.size();index++) if(target.figures.get(index).id.equals(figureId)) {
+                pauseForEdit(); if(shownError==null)editFigureOnPage(target,index,number); return;
+            }
+        };
+    }
+
+    private void maybeRecoverMarkdown() {
+        if (!canEdit() || markdownRecovering) return;
+        if (pendingMarkdownDraft != null && pendingMarkdownDraft.book == session.notebookId()) {
+            NotebookMarkdownDraft draft=pendingMarkdownDraft; pendingMarkdownDraft=null; markdownRecoveryChecked=true;
+            int number=session.pageNumber(draft.pageId);
+            if(number<1)number=viewport.centeredPage(scrollY);
+            final int destination=number;
+            if(!pages.containsKey(destination)) {
+                pendingMarkdownDraft=draft;
+                whenReady=this::maybeRecoverMarkdown; pauseForEdit(); jumpToPage(destination); return;
+            }
+            NotebookPage target=pages.get(destination); NotebookFigure before=null;
+            if(target.id.equals(draft.pageId)) for(NotebookFigure figure:target.figures) if(figure.id.equals(draft.figureId)) { before=figure;break; }
+            if(before!=null && before.markdown!=null && before.markdown.source.equals(draft.source)) {
+                NotebookMarkdownSourceEditor.retire(getFilesDir(),draft); return;
+            }
+            boolean conflict=before==null || before.markdown==null || !before.markdown.source.equals(draft.baseSource);
+            if(conflict)before=null;
+            NotebookMarkdownDraft recovered=new NotebookMarkdownDraft(draft.token,draft.book,destination,target.id,
+                before==null?UUID.randomUUID():before.id,before==null,
+                before==null?draft.x:before.x,before==null?draft.y:before.y,
+                before==null?draft.width:before.width,before==null?draft.height:before.height,
+                before==null?draft.angle:before.angle,before==null?"":before.markdown.source,draft.source);
+            Toast.makeText(this,"Recovered Markdown source",Toast.LENGTH_SHORT).show(); openMarkdownSource(recovered,before); return;
+        }
+        if(markdownRecoveryChecked)return;
+        markdownRecoveryChecked=true;markdownRecovering=true;
+        final int book=session.notebookId(),request=generation;
+        NotebookMarkdownSourceEditor.recover(getFilesDir(),book,(draft,error)->{
+            markdownRecovering=false;
+            if(!active||request!=generation){markdownRecoveryChecked=false;return;}
+            if(error!=null)Toast.makeText(this,error.getMessage(),Toast.LENGTH_LONG).show();
+            if(draft!=null){pendingMarkdownDraft=draft;maybeRecoverMarkdown();}
+        });
+    }
+
+    private void pauseMarkdown() {
+        if(markdownEditor!=null){pendingMarkdownDraft=markdownEditor.draft();markdownEditor.pause();markdownEditor=null;}
+        markdownRecoveryChecked=false;
+    }
+
     private void chooseFigure() {
         if (!canEdit()) return;
         NotebookPage target = pages.get(activePage);
@@ -2542,7 +2674,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         }
         pauseForEdit(); floatingTools.hide();
         String[] labels = new String[target.figures.size()];
-        for (int i = 0; i < labels.length; i++) labels[i] = "Figure " + (i + 1);
+        for (int i = 0; i < labels.length; i++) labels[i] = (target.figures.get(i).markdown==null?"Figure ":"Markdown block ") + (i + 1);
         final int[] chosen = {-1};
         AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Move, resize or delete figure")
             .setItems(labels, (choice, which) -> chosen[0] = which).setNegativeButton("Cancel", null).create();
@@ -2599,9 +2731,16 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                     commitFigure(source, destination, pageId, before, after, false);
                 }
                 public void action(NotebookFigureEditor.Action action, int source, UUID pageId, NotebookFigure figure) {
-                    if (action == NotebookFigureEditor.Action.COPY) {
+                    if (action == NotebookFigureEditor.Action.EDIT_SOURCE) {
+                        editMarkdown(source,pageId,figure);
+                    } else if (action == NotebookFigureEditor.Action.MARKDOWN) {
+                        if(figure.markdown==null)return;
+                        if(figure.markdown.sourceMode) commitFigure(source,source,pageId,figure,
+                            figure.withMarkdown(figure.markdown.asSource(false)).fitted(viewport.pageWidth(source),viewport.pageHeight(source)),false);
+                        else editMarkdown(source,pageId,figure);
+                    } else if (action == NotebookFigureEditor.Action.COPY) {
                         session.copyFigure(figure); figureEditor.clipboard(true);
-                        Toast.makeText(NotebookActivity.this, "Figure copied", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(NotebookActivity.this, figure.markdown==null?"Figure copied":"Markdown block copied", Toast.LENGTH_SHORT).show();
                     } else if (action == NotebookFigureEditor.Action.PASTE) {
                         NotebookFigure clip = session.figureClipboard(); if (clip == null) return;
                         NotebookFigure pasted = clip.duplicate().placed(figure.centerX() + 16 - clip.width / 2,
@@ -2755,6 +2894,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         if (ink != null) ink.pauseForEdit();
         captureViewCenter();
         active = false; ++generation; whenReady = null;
+        pauseMarkdown();
         if (stylusGesture != null) stylusGesture.stop();
         stylusShortcut.reset(); main.removeCallbacks(applyStylusShortcut);
         if (toolHint != null) toolHint.hide();
@@ -2784,6 +2924,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         super.onPause();
     }
     private void trimRenderCaches() {
+        NotebookMarkdownRasterizer.trim();
         strokePaths.clear();
         if (pdfBackgrounds != null) pdfBackgrounds.trimMemory();
         for (NotebookCompanion window : noteWindows.values()) window.trimCaches();
@@ -2806,9 +2947,12 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         state.putBoolean("eraser", tool == NotebookInk.Tool.ERASER);
         state.putBoolean("lasso", tool == NotebookInk.Tool.LASSO);
         state.putBoolean("zenMode", zenMode);
+        NotebookMarkdownDraft draft=markdownEditor!=null?markdownEditor.draft():pendingMarkdownDraft;
+        if(draft!=null)try{state.putByteArray("markdownDraft",draft.snapshot());}catch(IOException ignored){}
         super.onSaveInstanceState(state);
     }
     private void disposeCanvas() {
+        pauseMarkdown();
         dismissFigureEditor();
         ++inkGeneration; workspaceLayoutPending = changingWorkspace = false;
         main.removeCallbacks(previewFrame);

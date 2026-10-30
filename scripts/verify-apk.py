@@ -11,6 +11,7 @@ Examples:
 import argparse
 from dataclasses import dataclass, field
 import json
+import hashlib
 import os
 from pathlib import Path
 import re
@@ -301,6 +302,16 @@ def main():
             require('assets/LICENSE' in package.namelist(), 'APK is missing its MIT license notice.')
             require(package.read('assets/LICENSE') == (ROOT / 'LICENSE').read_bytes(),
                     'Packaged license differs from the project LICENSE.')
+            require('assets/markdown-assets.sha256.json' in package.namelist(), 'APK is missing its offline Markdown assets.')
+            markdown_assets = json.loads(package.read('assets/markdown-assets.sha256.json'))
+            for name in ('markdown/index.html', 'markdown/renderer.js', 'markdown/mathjax/tex-mml-svg.js',
+                         'markdown/fonts/mathjax-newcm/svg.js', 'markdown-NOTICES.txt'):
+                require(name in markdown_assets, 'Markdown asset inventory is incomplete: ' + name)
+            for name, digest in markdown_assets.items():
+                require('..' not in name and not name.startswith('/'), 'Invalid Markdown asset path.')
+                asset = 'assets/' + name
+                require(asset in package.namelist(), 'Missing packaged Markdown asset: ' + name)
+                require(hashlib.sha256(package.read(asset)).hexdigest() == digest, 'Packaged Markdown checksum differs: ' + name)
         certificate = verify_signature(args.apk, apksigner, args.signature, args.certificate_sha256)
         print(f'Verified {args.apk}: Scriflow {version[0]} ({version[1]}), {args.variant}, {args.signature}.')
         print('Package, API level, permissions, launcher, and component exposure are correct.')
