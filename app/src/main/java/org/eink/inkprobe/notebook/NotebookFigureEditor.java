@@ -23,6 +23,7 @@ final class NotebookFigureEditor extends FrameLayout {
         void preview();
         /** Draw the complete clear paper scene, or return false to use the native backdrop. */
         boolean paper(Canvas canvas);
+        void redraw();
         List<Rect> exclusions();
         void fallback(Canvas canvas, NotebookFigure figure);
         void change(int source, UUID pageId, NotebookFigure before, int target, NotebookFigure after);
@@ -61,8 +62,8 @@ final class NotebookFigureEditor extends FrameLayout {
         setWillNotDraw(false); setClickable(true); setBackground(null); setClipChildren(false);
         setContentDescription("Selected figure; drag to move between pages, lower-right handle resizes, upper-right handle rotates. Tap outside to finish.");
         images = new NotebookFigureLayer(new NotebookFigureLayer.Listener() {
-            public void changed() { prepareImage(); invalidate(); }
-            public void failed(java.io.IOException error) { invalidate(); }
+            public void changed() { prepareImage(); repaint(); }
+            public void failed(java.io.IOException error) { repaint(); }
         });
         addAction(Action.COPY, NotebookIconDrawable.Icon.COPY, "Copy figure");
         addAction(Action.CUT, NotebookIconDrawable.Icon.CUT, "Cut figure");
@@ -88,6 +89,7 @@ final class NotebookFigureEditor extends FrameLayout {
         popup.setEnterTransition(null); popup.setExitTransition(null);
         prepareImage();
     }
+    private void repaint(){listener.redraw();invalidate();}
     private void addAction(Action action, NotebookIconDrawable.Icon icon, String name) {
         NotebookIconButton button = new NotebookIconButton(getContext(), icon, name);
         button.setTooltipText(name);
@@ -116,17 +118,17 @@ final class NotebookFigureEditor extends FrameLayout {
         if (!awaitingSave && loaded != null && loaded.figures.contains(stored)) { pageId = loaded.id; busy = false; }
         int[] origin = new int[2]; anchor.getLocationOnScreen(origin);
         if (popup.isShowing()) popup.update(origin[0], origin[1], anchor.getWidth(), anchor.getHeight());
-        prepareImage(); placeControls(); invalidate();
+        prepareImage(); placeControls(); repaint();
     }
     void acknowledged(int target, NotebookFigure value) {
         awaitingSave = false;
         previewing = false; restorePending = true;
         page = storedPage = target; figure = stored = value; pageId = null;
         markdownActions();
-        prepareImage(); placeControls(); invalidate();
+        prepareImage(); placeControls(); repaint();
     }
     void saving() { busy = awaitingSave = true; placeControls(); }
-    void failed() { busy = awaitingSave = previewing = false; restorePending = true; page = storedPage; figure = stored; placeControls(); invalidate(); }
+    void failed() { busy = awaitingSave = previewing = false; restorePending = true; page = storedPage; figure = stored; placeControls(); repaint(); }
     boolean omits(NotebookFigure value) { return previewing && stored.id.equals(value.id); }
     boolean covers(NotebookFigure value) { return (previewing || restorePending) && stored.id.equals(value.id); }
     /** Logical page coordinates; the complete scene keeps saved ink above the moving block. */
@@ -134,7 +136,7 @@ final class NotebookFigureEditor extends FrameLayout {
         if (closed || number != page || !(previewing || restorePending)) return;
         if (imageReady) images.draw(canvas, figure); else listener.fallback(canvas, figure);
     }
-    void nativeReady() { if (!busy && !previewing && !awaitingSave) { restorePending = false; invalidate(); } }
+    void nativeReady() { if (!busy && !previewing && !awaitingSave) { restorePending = false; repaint(); } }
     boolean isBusy() { return busy || restorePending || pointer >= 0 || pressedAction != null; }
     void cancel() { if (!isBusy()) listener.done(); }
     void dismiss() {
@@ -282,7 +284,7 @@ final class NotebookFigureEditor extends FrameLayout {
             float py = (y - viewport.pageTop(page, scroll)) / viewport.scale(page);
             mode = forcedMode != 0 ? forcedMode : figure.contains(px, py) ? 1 : 0;
             outside = mode == 0; grabX = px - figure.centerX(); grabY = py - figure.centerY();
-            if (mode != 0) { previewing = true; listener.preview(); invalidate(); }
+            if (mode != 0) { previewing = true; listener.preview(); repaint(); }
             return true;
         }
         if (pointer < 0) return true;
@@ -305,7 +307,7 @@ final class NotebookFigureEditor extends FrameLayout {
                 figure = viewport.fitFigure(page,figure); saving();
                 listener.change(storedPage, pageId, stored, page, figure);
             } else {
-                page = storedPage; figure = stored; placeControls(); invalidate();
+                page = storedPage; figure = stored; placeControls(); repaint();
                 if (previewing) { previewing = false; restorePending = true; listener.preview(); }
                 if (action == MotionEvent.ACTION_UP && outside && !moved && !navigating) listener.done();
             }
@@ -330,7 +332,7 @@ final class NotebookFigureEditor extends FrameLayout {
                 figure = NotebookFigureGeometry.rotate(start, dx, dy, px, py);
             }
         }
-        prepareImage(); placeControls(); invalidate();
+        prepareImage(); placeControls(); repaint();
     }
     private void edgeScroll() {
         if (closed || busy || pointer < 0 || mode != 1) return;

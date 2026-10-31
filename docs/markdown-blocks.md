@@ -46,36 +46,42 @@ WebView compiles edited source; it is destroyed afterward and never replaces
 the native handwriting canvas. PDF export imports the active appearance as a
 vector form, retaining embedded fonts, text and formula paths.
 
-From **0.35.0-alpha.3**, a note containing visible Markdown gets a stationary
-presentation through the same ordinary View/PopupWindow composition used by the
-clear drag preview. It draws the complete paper, figures and saved ink directly
-on that canvas. It does not merely draw transparent text over the distorted
-native bitmap, and saved handwriting remains above figures.
+From **0.35.0-alpha.5**, a note uses one persistent ordinary View for paper,
+PDF backgrounds, figures/Markdown and saved handwriting. When Markdown first
+becomes visible, the paused native writer switches to its transparent-color
+background. The RGBA8888 native SurfaceView stays above the paper and retains
+AHW live pen/eraser/lasso trails. This uses the existing firmware color-clear
+API, also used by its stock notes engine, without replacing the firmware pen
+listener or changing native format/Z ordering.
 
-The complete native frame is retained underneath. Before pen input, scrolling,
-modal edits or lasso manipulation, the added view hides and the existing native
-writing path continues. It returns only after input is settled and the page is
-ready; no per-pen-MOVE rendering or storage work is added. The window cannot
-capture touches/focus, excludes status/tools/other note regions, and retires on
-editor disposal. A drawing failure falls back to the intact native frame.
-Existing saved blocks use this display path without recompilation or storage
-changes; source, vector appearances, transparency and exports are preserved.
+The View remains attached through scrolling, zooming, entering/exiting Zen,
+writing, figure transformations, lasso movement and native surface recreation.
+It draws current page coordinates directly; navigation does not flatten the
+page into a native bitmap. Entering navigation clears only native trails once;
+subsequent frames update the View. Canonical native track bookkeeping resumes
+before writing. Once enabled, this separation remains active for the lifetime
+of that editor, even if Markdown moves offscreen or is deleted. Notes that
+never display Markdown retain the existing native paper path.
 
-The earlier **alpha.2 raster-mode change did not resolve the owner's report**.
-Its tests checked PDF tile mode/parity, not the final stationary presentation.
-The owner confirmed that **alpha.3 makes stationary Markdown and the moving
-block clear**. They also reported a brief return to the distorted native frame
-at drag start and distorted other blocks throughout the drag.
+Saved ink remains above figures; the moving block replaces its original once,
+including across pages and pending-save restoration. Figure controls occupy a
+separate transparent overlay. Lasso movement also uses the direct View canvas.
+The paper cannot capture touches/focus, excludes foreground controls and other
+notes, skips unchanged clock/status bounds, and retires with the editor. A
+rendering error pauses the editor for recovery rather than reverting Markdown
+to the distorted native bitmap. No paper work is added per pen MOVE.
+Existing blocks need no source edits or re-creation. Source, vector appearances,
+exports and storage format 8 are unchanged.
 
-From **0.35.0-alpha.4**, the figure overlay draws the complete clear paper scene
-from idle selection through dragging, resizing, rotation and save restoration.
-The stationary layer remains in place when entering figure selection. Other
-blocks stay on the ordinary View canvas; the moving block replaces its original
-position exactly once, including during cross-page moves and pending saves.
-Saved handwriting is composed above the figures. Ordinary figure-only notes
-retain their existing preview path. Native live writing is unchanged.
-Automated tests cover the complete multi-block scene and transition callbacks;
-the alpha.4 drag-transition result still needs physical tablet confirmation.
+The owner confirmed clear stationary/moving Markdown in **alpha.3** and the
+figure-drag continuity fix in **alpha.4**, then reported that scroll/zoom and
+Zen transitions still exposed distorted native paper. Alpha.5 replaces those
+conditional foreground presentations with the persistent paper/live-ink
+separation above. The earlier **alpha.2 raster-mode change was ineffective**.
+Automated tests cover transparent native restoration, persistent View lifecycle,
+navigation/Zen routing, multi-block and lasso scenes, pending saves, native
+commits and surface recreation. **Alpha.5's optical result and live writing
+on the transparent surface still need physical tablet confirmation.**
 
 Each block accepts up to 128 KiB of UTF-8 source and 4 MiB per appearance.
 Layout uses a 640 CSS-pixel width and a maximum height of 16,384 pixels.

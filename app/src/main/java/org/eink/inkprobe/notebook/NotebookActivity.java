@@ -87,6 +87,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private NotebookSelectionTools selectionTools;
     private final NotebookSelectionDrag selectionDrag = new NotebookSelectionDrag();
     private Bitmap selectionBase;
+    private boolean selectionViewPreview;
     private final Map<Integer, Bitmap> selectionTiles = new LinkedHashMap<>();
     private final Map<Integer, NotebookPage> selectionTilePages = new LinkedHashMap<>();
     private final List<Path> selectionPaths = new ArrayList<>();
@@ -408,6 +409,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             restingPaper=new NotebookRestingPaper(this,canvas,new NotebookRestingPaper.Listener(){
                 public boolean ready(){return restingPaperReady();}
                 public void draw(Canvas drawing){drawRestingPaper(drawing);}
+                public void failed(Throwable error){showError(new IOException("Could not render the notebook paper",error));}
                 public List<Rect> exclusions(){return restingPaperExclusions();}
             });
             ink = new NotebookInk(this, NotebookPage.empty(), new NotebookInk.Listener() {
@@ -439,7 +441,6 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                     if (!active || surfaceOwner != inkGeneration) return;
                     penDown = down;
                     if (down) {
-                        hideRestingPaper();
                         writingHistory = tool == NotebookInk.Tool.PEN;
                         ++writingRevision; linkTap.cancel(); clearPdfText();
                         if (widthPopup != null && !widthContact) widthPopup.dismiss();
@@ -603,6 +604,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         if (selectionDrag.isActive()) { selectionBackgroundDirty = true; scheduleSelectionFrame(); }
         else if (dragging || figureNavigationPreview) schedulePreview();
         else if (scrolling) installViewport();
+        refreshRestingPaper();
     }
 
     /** Prepare only visible screen-resolution PDF regions before native handwriting resumes. */
@@ -685,6 +687,8 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         try {
             ink.pauseForEdit();
             if (shownError != null) return;
+            if(hasVisibleMarkdown())ink.useViewPaper();
+            refreshRestingPaper();
             ink.setPenWidth(fittedPenWidth());
             ink.setEraserWidth(fittedEraserWidth());
             ink.setSelectionMode(selectionOutline != null || figureEditor != null);
@@ -940,6 +944,8 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         try {
             prepareStrokePaths();
             preparePdfBackgrounds();
+            if(hasVisibleMarkdown())ink.useViewPaper();
+            if(ink.usesViewPaper()){ink.showScrollPreview(null);refreshRestingPaper();return;}
             if (preview == null) preview = Bitmap.createBitmap(viewport.width, viewport.height, Bitmap.Config.RGB_565);
             Canvas drawing = new Canvas(preview);
             drawing.drawColor(Color.WHITE);
@@ -983,8 +989,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     }
 
     private boolean restingPaperReady(){
-        if(!canEdit()||viewport==null||ink.hasPendingInput()||selectionOutline!=null)return false;
-        return hasVisibleMarkdown();
+        return viewport!=null && ink!=null && ink.usesViewPaper();
     }
     private boolean hasVisibleMarkdown(){
         if(viewport==null)return false;
@@ -994,9 +999,8 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     }
     private void refreshRestingPaper(){
         if(restingPaper==null)return;
-        if(restingPaperReady()){prepareStrokePaths();restingPaper.show();}else restingPaper.hide();
+        if(restingPaperReady()){prepareStrokePaths();restingPaper.show();}
     }
-    private void hideRestingPaper(){if(restingPaper!=null)restingPaper.hide();}
     private List<Rect> restingPaperExclusions(){
         List<Rect> result=new ArrayList<>();
         for(NotebookCompanion window:noteWindows.values())result.addAll(window.exclusions());
@@ -1007,9 +1011,10 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         return result;
     }
     private void drawRestingPaper(Canvas drawing){
+        if(selectionViewPreview && selection!=null){drawClearSelectionScene(drawing);return;}
         // Draw directly into the same hardware View canvas as the figure preview.
-        // Repaint paper AND saved ink: a transparent duplicate of the block alone
-        // would leave the faulty native glyphs underneath and cover annotations.
+        // Paper and saved ink stay on this canvas during every interaction.
+        // The transparent native surface above it contains only live pen trails.
         drawing.drawColor(Color.WHITE);
         for(int id:viewport.visiblePages(scrollY)){
             NotebookPage current=pages.get(id);if(current==null)continue;
@@ -1018,7 +1023,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                 drawing.scale(viewport.scale(id),viewport.scale(id));drawPage(drawing,current,true,true);
             }finally{drawing.restoreToCount(save);}
         }
-        drawPageBoundaries(drawing);
+        drawPageBoundaries(drawing);drawSelectionOutline(drawing,0,0);
     }
 
     private void drawPaper(Canvas drawing, int width, int height) {
@@ -1177,7 +1182,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         statusIslands.history(!zenMode && writingHistory && session.canUndo(activePage),
             !zenMode && writingHistory && session.canRedo(activePage));
         updateZenButton();
-        ink.redrawAfterOverlayChange(); ink.start();
+        refreshRestingPaper();ink.redrawAfterOverlayChange(); ink.start();
     }
 
     private void updateZenButton() {
@@ -1572,7 +1577,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         int index = event.findPointerIndex(selectionPointer);
         if (action == MotionEvent.ACTION_POINTER_DOWN || action == MotionEvent.ACTION_POINTER_UP || index < 0) {
             selectionDrag.cancel(); selectionPreviewDx = selectionPreviewDy = 0;
-            if (selectionBase != null && !main.hasCallbacks(selectionFrame)) main.postDelayed(selectionFrame, 32);
+            if ((selectionBase != null || selectionViewPreview) && !main.hasCallbacks(selectionFrame)) main.postDelayed(selectionFrame, 32);
         }
         if (index >= 0 && selection != null && (action == MotionEvent.ACTION_MOVE || action == MotionEvent.ACTION_UP)) {
             selectionPointerX = event.getX(index); selectionPointerY = event.getY(index);
@@ -1614,7 +1619,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     }
 
     private void scheduleSelectionFrame() {
-        if (active && selectionBase != null && !main.hasCallbacks(selectionFrame)) main.postDelayed(selectionFrame, 24);
+        if (active && (selectionBase != null || selectionViewPreview) && !main.hasCallbacks(selectionFrame)) main.postDelayed(selectionFrame, 24);
     }
 
     private void scrollSelectionAtEdge() {
@@ -1685,10 +1690,11 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     /** Cache paper/unselected ink and native pressure paths once, before movement begins. */
     private void prepareSelectionPreview() {
         try {
-            selectionBase = Bitmap.createBitmap(viewport.width, viewport.height, Bitmap.Config.RGB_565);
+            selectionViewPreview=ink.usesViewPaper();
+            if(!selectionViewPreview)selectionBase = Bitmap.createBitmap(viewport.width, viewport.height, Bitmap.Config.RGB_565);
             selectionPaths.clear();
             for (NotebookPage.Stroke stroke : selection.strokes) selectionPaths.add(NotebookStrokeRenderer.path(stroke, () -> false));
-            renderSelectionBackground();
+            if(!selectionViewPreview)renderSelectionBackground();
             selectionPreviewDx = selectionPreviewDy = 0;
         } catch (Exception error) { resetSelectionPreview(); showError(new IOException("Could not prepare selected ink", error)); }
     }
@@ -1730,8 +1736,10 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     }
 
     private void drawSelectionFrame() {
-        if (!active || selectionBase == null || selection == null || shownError != null) return;
+        if (!active || (selectionBase == null && !selectionViewPreview) || selection == null || shownError != null) return;
         try {
+            if(hasVisibleMarkdown())ink.useViewPaper();
+            if(ink.usesViewPaper()){selectionViewPreview=true;ink.showScrollPreview(null);refreshRestingPaper();return;}
             if (selectionBackgroundDirty || selectionBaseScroll != scrollY) renderSelectionBackground();
             if (preview == null) preview = Bitmap.createBitmap(viewport.width, viewport.height, Bitmap.Config.RGB_565);
             Canvas drawing = new Canvas(preview); drawing.drawBitmap(selectionBase, 0, 0, null);
@@ -1750,8 +1758,33 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         } catch (Exception error) { showError(new IOException("Could not move selected ink", error)); }
     }
 
+    /** Same direct View canvas during lasso movement: never flatten Markdown into a paper bitmap. */
+    private void drawClearSelectionScene(Canvas drawing){
+        drawing.drawColor(Color.WHITE);
+        HashSet<UUID> selected=new HashSet<>();for(NotebookPage.Stroke stroke:selection.strokes)selected.add(stroke.id);
+        Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
+        for(int id:viewport.visiblePages(scrollY)){
+            NotebookPage current=pages.get(id);if(current==null)continue;
+            int save=drawing.save();
+            try{clipReadingPage(drawing,id);drawing.translate(viewport.pageLeft(id),viewport.pageTop(id,scrollY));
+                drawing.scale(viewport.scale(id),viewport.scale(id));drawSelectionPage(drawing,current,id,selected,paint);
+            }finally{drawing.restoreToCount(save);}
+        }
+        drawPageBoundaries(drawing);
+        float scale=viewport.scale(selectionPage),left=viewport.pageLeft(selectionPage),top=viewport.pageTop(selectionPage,scrollY);
+        if(selectionDrag.isMoving()){
+            NotebookSelectionMove.Destination destination=selectionDestination();scale=destination.scale;left=destination.screenLeft;top=destination.screenTop;
+        }
+        int save=drawing.save();
+        try{drawing.translate(left,top);drawing.scale(scale,scale);
+            for(int i=0;i<selectionPaths.size();i++){paint.setColor(selection.strokes.get(i).color);drawing.drawPath(selectionPaths.get(i),paint);}
+        }finally{drawing.restoreToCount(save);}
+        drawSelectionOutlineAt(drawing,scale,left,top);
+    }
+
     private void resetSelectionPreview() {
         main.removeCallbacks(selectionFrame); main.removeCallbacks(selectionEdgeScroll); selectionDrag.reset(); selectionPointer = -1;
+        selectionViewPreview=false;
         selectionPaths.clear(); selectionTiles.clear(); selectionTilePages.clear(); selectionPreviewDx = selectionPreviewDy = 0; selectionBaseScroll = Float.NaN; selectionBackgroundDirty = false;
         if (selectionBase != null) { selectionBase.recycle(); selectionBase = null; }
     }
@@ -1803,11 +1836,6 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     }
 
     private void pauseForEdit(boolean keepHistory) {
-        pauseForEdit(keepHistory,false);
-    }
-
-    private void pauseForEdit(boolean keepHistory, boolean keepPaper) {
-        if(!keepPaper)hideRestingPaper();
         if (!keepHistory) writingHistory = false;
         if (selectionTools != null) selectionTools.hide();
         editing = true;
@@ -2984,9 +3012,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         NotebookPage target = pages.get(hit.page);
         if (target == null || !target.id.equals(hit.pageId)) return;
         for (int index = target.figures.size() - 1; index >= 0; index--) if (target.figures.get(index).id.equals(hit.figureId)) {
-            // Keep the clear stationary window until the figure window's first
-            // complete scene is drawn; there is no exposed native-only frame.
-            pauseForEdit(false,true); if (shownError != null) return;
+            pauseForEdit(); if (shownError != null) return;
             activePage = hit.page; updatePageLabel(); editFigureOnPage(target, index, hit.page); return;
         }
     }
@@ -3004,7 +3030,9 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                     if (scrolling || settleRead || fetching) { editing = false; installViewport(); }
                     else { ink.setPaperRenderer(NotebookActivity.this::drawPaper); ink.start(); }
                 }
+                public void redraw(){refreshRestingPaper();}
                 public boolean paper(Canvas drawing) {
+                    if(ink.usesViewPaper())return true; // Persistent paper already draws the complete scene below AHW.
                     if(viewport==null || (!hasVisibleMarkdown() && target.figures.get(index).markdown==null))return false;
                     prepareStrokePaths();drawRestingPaper(drawing);return true;
                 }

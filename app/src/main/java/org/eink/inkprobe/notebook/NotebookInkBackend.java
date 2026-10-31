@@ -40,6 +40,9 @@ public interface NotebookInkBackend {
     boolean isPenDown();
     /** Input awaiting canonical publication must stay visible on the native surface. */
     boolean hasPendingInput();
+    /** Paused, one-way for this widget: ordinary View paper below a transparent live-ink surface. */
+    void useViewPaper();
+    boolean usesViewPaper();
     /** True only after the retained native surface has adopted these physical dimensions. */
     boolean hasGeometry(int width, int height);
     void setTool(Tool tool);
@@ -53,6 +56,7 @@ public interface NotebookInkBackend {
     void setPage(NotebookPage page);
     void setPaperRenderer(PaperRenderer renderer);
     boolean updateViewport(NotebookPage page, PaperRenderer renderer);
+    /** View paper accepts null: clear native trails once, without copying a page bitmap. */
     boolean showScrollPreview(Bitmap preview);
     List<NotebookPage.Stroke> snapshotNativeStrokes() throws Exception;
 }

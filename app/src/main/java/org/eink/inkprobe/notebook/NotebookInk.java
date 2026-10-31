@@ -8,6 +8,7 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.Rect;
 import android.graphics.RectF;
+import android.graphics.PorterDuff;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
@@ -52,6 +53,7 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
     private Bitmap paperBitmap, paperStaging;
     private PaperRenderer paperRenderer;
     private boolean paperDirty, previewVisible, paperBindingDirty = true;
+    private boolean viewPaper;
     private boolean alive = true, wanted, prepared, enabled, restored, attached;
     private boolean penDown, failed, geometryReported, restoring;
     private int surfaceWidth, surfaceHeight, retries;
@@ -168,7 +170,7 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
             if (!prepared || !view.getHolder().getSurface().isValid()
                     || Boolean.TRUE.equals(get(view, "isReceivingTrack"))) return false;
             boolean resized = page.width != this.page.width || page.height != this.page.height
-                || paperBitmap == null || paperBitmap.getWidth() != surfaceWidth || paperBitmap.getHeight() != surfaceHeight;
+                || (!viewPaper && (paperBitmap == null || paperBitmap.getWidth() != surfaceWidth || paperBitmap.getHeight() != surfaceHeight));
             boolean sameStrokes = sameStrokeReferences(completed, page.strokes);
             boolean samePaper = this.page.template == page.template && !paperDirty;
             this.page = page;
@@ -199,6 +201,13 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
         paperDirty = true;
     }
 
+    @Override public void useViewPaper() {
+        requirePaused();
+        if(viewPaper)return;
+        viewPaper=true;paperBindingDirty=true;paperDirty=true;restored=false;
+    }
+    @Override public boolean usesViewPaper(){return viewPaper;}
+
     /** Post a composed viewport on the existing surface after scrolling or an edit. */
     public boolean updateViewport(NotebookPage viewport, PaperRenderer renderer) {
         setPaperRenderer(renderer);
@@ -208,10 +217,12 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
     /**
      * One display post during finger scrolling, without rebuilding native tracks or changing
      * the saved/completed model. Canonical tracks are restored before the next pen input.
+     * With View paper, null clears native trails once; the View renders each scene directly.
      */
     public boolean showScrollPreview(Bitmap preview) {
         requirePaused();
         if (!alive || failed) return false;
+        if(viewPaper)return showViewPaperPreview();
         if (preview == null || preview.isRecycled())
             throw new IllegalArgumentException("Missing scroll preview");
         if (!prepared || !view.getHolder().getSurface().isValid()) return false;
@@ -230,6 +241,17 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
             fail("Cannot display notebook scrolling", e);
             return false;
         }
+    }
+
+    private boolean showViewPaperPreview(){
+        if(!prepared || !view.getHolder().getSurface().isValid())return false;
+        if(previewVisible)return true;
+        try{
+            Canvas canvas=view.getHolder().lockCanvas();if(canvas==null)return false;
+            try{canvas.drawColor(Color.TRANSPARENT,PorterDuff.Mode.SRC);previewVisible=true;}
+            finally{view.getHolder().unlockCanvasAndPost(canvas);}
+            return true;
+        }catch(Exception error){fail("Cannot clear live ink for navigation",error);return false;}
     }
 
     private void requirePaused() {
@@ -794,6 +816,14 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
     private void restoreDocument() throws Exception {
         restoring = true;
         try {
+            if(viewPaper){
+                // The firmware's color branch clears with SRC, unlike its bitmap
+                // branch (SRC_OVER). Keep RGBA8888 and the native AHW pen above
+                // ordinary View paper; never put Markdown in a native bitmap.
+                if(paperBindingDirty)call(get(view,"getSurfacePicture"),"bindColor",new Class<?>[]{int.class},Color.TRANSPARENT);
+                paperBitmap=paperStaging=null;paperBindingDirty=false;paperDirty=false;
+                replaceNativeTracks(false);restored=true;previewVisible=false;return;
+            }
             Bitmap background = paperBitmap;
             boolean bind = background == null || background.isRecycled()
                 || background.getWidth() != surfaceWidth || background.getHeight() != surfaceHeight;
@@ -855,6 +885,7 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
     }
 
     private void replaceNativeTracks(boolean repaint) throws Exception {
+        if(viewPaper)paperDirty=false;
         if (repaint && paperBitmap != null) repaintPaper(paperBitmap);
         ArrayList<Object> tracks = new ArrayList<>();
         Object creator = get(view, "getHWTrackCreator");
@@ -889,7 +920,7 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
         // Match HWTrackHelper.calcBounds: conservative padding is one complete pen width.
         RectF bounds = new RectF(left - width, top - width, right + width, bottom + width);
         // Transparent placeholders keep the firmware's track bookkeeping and later
-        // commit count intact. Their visible vector ink is on the owned paper bitmap.
+        // commit count intact. Their visible vector ink is on the paper View or the legacy owned bitmap.
         return invoke(creator, createTrack, stroke.penType, width, Color.TRANSPARENT, 0L, points, bounds);
     }
 

@@ -6,6 +6,24 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.35.0-alpha.5 — Persistent clear Markdown paper (2026-10-31)
+
+- The owner confirmed alpha.4 fixes figure dragging, then reported distorted
+  Markdown during scroll/zoom and Zen transitions. Replace the conditional
+  foreground paper window with a persistent ordinary View below transparent
+  native live ink. Markdown never returns to a native paper bitmap once enabled.
+- Retain the firmware pen listener, RGBA8888 format, native Z ordering and AHW
+  live trails. Use its transparent-color clear and canonical track bookkeeping;
+  no paper work runs per pen MOVE. Keep paper active through navigation, Zen,
+  writing, lasso, figure manipulation and surface recreation, including when
+  Markdown moves offscreen. Ordinary notes retain their native paper path.
+- Draw navigation and lasso scenes directly; clear only native trails once at
+  navigation start. Remove native paper/staging bitmaps for these notes. Preserve
+  saved ink order, foreground controls, existing blocks, exports and format 8.
+- Pass 252,206 JVM assertions in 84 suites, six browser cases and Android
+  debug/release lint/build/signature checks. VersionCode 78; physical optical
+  and transparent-surface live-writing acceptance remain pending.
+
 ## 0.35.0-alpha.4 — Markdown drag continuity (2026-10-31)
 
 - The owner confirmed alpha.3 makes stationary Markdown and the moving preview
