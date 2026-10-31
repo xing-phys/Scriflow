@@ -1,4 +1,4 @@
-# Markdown blocks — 0.34.0-alpha.1
+# Markdown blocks
 
 Open the top-left three dots and tap the Markdown **M↓** icon to insert a block.
 Type Markdown in the small editor beside the block. Tap its eye icon to finish
@@ -46,6 +46,21 @@ WebView compiles edited source; it is destroyed afterward and never replaces
 the native handwriting canvas. PDF export imports the active appearance as a
 vector form, retaining embedded fonts, text and formula paths.
 
+From **0.35.0-alpha.2**, native Markdown tiles use grayscale text antialiasing
+instead of LCD subpixel text masks. Normal paper composition and the selected
+block's drag overlay share this mode and exact, density-independent tile pixels.
+This addresses the reported patterned text at rest, without converting formulas
+or text to a fixed screenshot. Existing blocks use it on display; their stored
+vectors, transparency, editable source and exports are unchanged.
+
+Android's [PDF renderer implementation](https://android.googlesource.com/platform/frameworks/base/+/260a36d/core/jni/android/graphics/pdf/PdfRenderer.cpp)
+enables `FPDF_LCD_TEXT` for DISPLAY mode. The Markdown rasterizer uses PRINT
+mode to avoid that LCD-specific path. Generated appearances contain no optional
+print/view content, so the mode change preserves their content. The host tests
+check the selected native mode, tile/preview parity and failure cleanup; the
+owner's exact text/math example is also a browser fixture. A tablet is not
+connected, so optical verification of this correction remains pending.
+
 Each block accepts up to 128 KiB of UTF-8 source and 4 MiB per appearance.
 Layout uses a 640 CSS-pixel width and a maximum height of 16,384 pixels.
 Oversized blocks should be split. Existing per-page object and snapshot limits
@@ -76,8 +91,11 @@ unencrypted, under the existing app-private storage policy.
 
 ## Validation
 
-The full suite passes **250,255 JVM assertions in 71 suites**, plus **five
-real-browser cases**. Host checks exercise real storage/reopen, v7 migration and exact predecessor
+The initial 0.34 implementation passed **250,255 JVM assertions in 71 suites**,
+plus **five real-browser cases**. The 0.35.0-alpha.2 correction adds raster-mode
+and normal/preview parity checks plus a sixth browser case for the reported text.
+The updated full suite passes 252,140 JVM assertions in 78 suites and six browser
+cases, along with debug/release lint, builds and permanent-signer verification. Host checks exercise real storage/reopen, v7 migration and exact predecessor
 retention, backup/restore, linked cross-page history, failed publication/retry,
 source/vector corruption and size limits, current-zoom rotated tile geometry,
 and production source-editor/action callbacks across queued I/O boundaries.

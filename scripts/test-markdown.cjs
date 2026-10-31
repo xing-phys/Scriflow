@@ -121,6 +121,17 @@ Reference $\eqref{eq:energy}$.
 
 ` + '```math\n\\int_{-\\infty}^\\infty e^{-x^2}\\,dx=\\sqrt{\\pi}\n```');
     assert.equal(math.info.warning,'',math.info.warning);
+    const clarity = await render('text-clarity',String.raw`*hello* this is a markdown block
+
+*some* inline math $x_1/y_\alpha$
+
+$$e^{i\pi}+1=0$$`);
+    assert.equal(clarity.info.warning,'');
+    assert(/<em\b[^>]*>hello<\/em>/.test(clarity.captures[0].html));
+    assert(/<em\b[^>]*>some<\/em>/.test(clarity.captures[0].html));
+    assert.equal((clarity.captures[0].html.match(/<mjx-container\b/g)||[]).length,2);
+    const extracted = require('child_process').execFileSync('pdftotext', ['-raw', path.join(output,'text-clarity-rendered.pdf'), '-'], {encoding:'utf8'});
+    assert(extracted.includes('hello this is a markdown block') && extracted.includes('some inline math'), 'Reported text must remain real font glyphs beside vector math');
     const cjk = await render('cjk', '# 量子动力学\n\n中文 **粗体**，行内公式 $\\hbar$。English 日本語 한국어。');
     assert.equal(cjk.info.warning,'');
     assert(cjk.captures[0].svg.includes('ScriflowCJK'));
@@ -134,7 +145,7 @@ Reference $\eqref{eq:energy}$.
     assert.deepEqual(missing,[],`Missing local assets: ${missing}`);
     assert.deepEqual(egress,[],`Unexpected external request: ${egress}`);
     assert.deepEqual(errors,[],`Browser errors: ${errors}`);
-    fs.writeFileSync(path.join(output,'renderer-qa.json'),JSON.stringify({ cases:5, main:main.info, math:math.info, cjk:cjk.info, missing,egress,errors,blockedAttackHandlers },null,2));
-    console.log('Offline Markdown renderer: 5 browser cases passed; math, CJK, diagrams, source snapshots, sanitization and zero network egress.');
+    fs.writeFileSync(path.join(output,'renderer-qa.json'),JSON.stringify({ cases:6, main:main.info, math:math.info, clarity:clarity.info, cjk:cjk.info, missing,egress,errors,blockedAttackHandlers },null,2));
+    console.log('Offline Markdown renderer: 6 browser cases passed; reported text/math, CJK, diagrams, source snapshots, sanitization and zero network egress.');
   } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
 })().catch(error => { console.error(error); process.exitCode=1; });

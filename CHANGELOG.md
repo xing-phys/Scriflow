@@ -6,6 +6,20 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.35.0-alpha.2 — Markdown text clarity (2026-10-31)
+
+- Rasterize Markdown with grayscale text antialiasing instead of LCD subpixel
+  masks, shared by the normal note, drag preview and thumbnails. This targets
+  patterned font glyphs reported at rest while formulas/drag previews look clean.
+- Keep tile/assembled bitmap density independent of the device. Preserve
+  transparency, screen-resolution tiles, saved vector appearances and format 8;
+  existing blocks pick up the fix without editing their source again.
+- Add production raster/assembly contracts and a browser fixture matching the
+  reported italic text, inline math and Euler identity. Prepare the permanently
+  signed update as versionCode 75. Pass 252,140 JVM assertions in 78 suites, six
+  browser cases and debug/release lint/build/signature checks. Optical confirmation
+  on the tablet is pending.
+
 ## 0.35.0-alpha.1 — PDF reading controls (2026-10-30)
 
 - Add PDF crop Off/Auto/Manual/Semi-auto, exact corner/edge adjustment and

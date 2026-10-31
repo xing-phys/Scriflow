@@ -64,6 +64,7 @@ final class NotebookMarkdownRasterizer {
     }
     static Bitmap bitmap(NotebookFigure figure, int width, int height) throws IOException {
         Bitmap result = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        result.setDensity(Bitmap.DENSITY_NONE);
         try {
             Canvas drawing = new Canvas(result);
             for (NotebookPdfTiles.Tile tile : NotebookPdfTiles.visible(1, width, height, 0, 0, width, height)) {
@@ -105,12 +106,18 @@ final class NotebookMarkdownRasterizer {
         }
         Bitmap render(NotebookPdfTiles.Tile tile) {
             Bitmap bitmap = Bitmap.createBitmap(tile.width, tile.height, Bitmap.Config.ARGB_8888);
+            bitmap.setDensity(Bitmap.DENSITY_NONE);
             try {
                 bitmap.eraseColor(Color.TRANSPARENT);
                 Matrix transform = new Matrix();
                 transform.setValues(new float[]{(float) tile.fullWidth / page.getWidth(), 0, -tile.left,
                     0, (float) tile.fullHeight / page.getHeight(), -tile.top, 0, 0, 1});
-                page.render(bitmap, null, transform, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+                // DISPLAY enables LCD subpixel text in PDFium. Those glyph masks can
+                // become patterned when software-composited into the e-ink paper,
+                // although the same tile looks clean in the hardware drag overlay.
+                // Our generated appearances have no print-only/view-only content;
+                // PRINT keeps grayscale text antialiasing in both display paths.
+                page.render(bitmap, null, transform, PdfRenderer.Page.RENDER_MODE_FOR_PRINT);
                 return bitmap;
             } catch (RuntimeException | Error error) { bitmap.recycle(); throw error; }
         }
