@@ -245,6 +245,10 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
     }
 
     public boolean isPenDown() { return penDown; }
+    @Override public boolean hasPendingInput(){
+        return penDown||activePoints!=null||!awaitingCommit.isEmpty()||!nativeCommits.isEmpty()
+            ||eraserCommit.isActive()||lassoGesture.isActive()||nativeLassoGesture.isActive()||lassoCompletion.isPending();
+    }
 
     @Override public boolean hasGeometry(int width, int height) {
         return alive && !failed && prepared && width > 0 && height > 0

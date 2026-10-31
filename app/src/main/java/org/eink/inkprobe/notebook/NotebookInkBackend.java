@@ -38,6 +38,8 @@ public interface NotebookInkBackend {
     void pauseForEdit();
     boolean isReady();
     boolean isPenDown();
+    /** Input awaiting canonical publication must stay visible on the native surface. */
+    boolean hasPendingInput();
     /** True only after the retained native surface has adopted these physical dimensions. */
     boolean hasGeometry(int width, int height);
     void setTool(Tool tool);

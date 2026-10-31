@@ -40,6 +40,11 @@ final class NotebookPdfTextTools {
         int top=point[1]+Math.max(0,y),left=point[0]+x;
         if(NotebookPopupHost.show(popup,anchor,Gravity.TOP|Gravity.LEFT,left,top)){bounds.set(left,top,left+dp(70),top+dp(36));boundsChanged.run();}
     }
+    Rect selectionBounds(){
+        if(text==null)return new Rect();int[] origin=new int[2];anchor.getLocationOnScreen(origin);
+        return new Rect(origin[0]+(int)Math.floor(area.left),origin[1]+(int)Math.floor(area.top),
+            origin[0]+(int)Math.ceil(area.right),origin[1]+(int)Math.ceil(area.bottom));
+    }
     Rect bounds(){return new Rect(bounds);}
     void hide(){anchor.getOverlay().remove(highlight);if(popup.isShowing())popup.dismiss();text=null;if(!bounds.isEmpty()){bounds.setEmpty();boundsChanged.run();}}
     private int dp(int value){return Math.round(value*anchor.getResources().getDisplayMetrics().density);}

@@ -6,11 +6,27 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.35.0-alpha.3 — Markdown stationary presentation (2026-10-31)
+
+- Address the report that alpha.2 leaves stationary Markdown unchanged. Present
+  a complete resting frame through the same regular View composition used by
+  the clear drag preview, replacing the final native-bitmap presentation while
+  the note is at rest.
+- Include paper, figures and saved handwriting in the frame. Keep the intact
+  native frame underneath; hide the view before pen/navigation/modal input and
+  return only when commits are settled. Preserve touch passthrough, foreground
+  controls, other-note regions, existing Markdown data and format 8.
+- Add tests of the actual View path, complete paper/ink composition, native input
+  gates and safe fallback. Pass 252,167 JVM assertions in 81 suites, six browser
+  cases and both Android variants’ lint/build checks. VersionCode 76; tablet
+  confirmation remains pending.
+
 ## 0.35.0-alpha.2 — Markdown text clarity (2026-10-31)
 
 - Rasterize Markdown with grayscale text antialiasing instead of LCD subpixel
-  masks, shared by the normal note, drag preview and thumbnails. This targets
-  patterned font glyphs reported at rest while formulas/drag previews look clean.
+  masks, shared by the normal note, drag preview and thumbnails. The owner
+  subsequently reported that the stationary issue persisted; alpha.3 changes
+  the final presentation path itself.
 - Keep tile/assembled bitmap density independent of the device. Preserve
   transparency, screen-resolution tiles, saved vector appearances and format 8;
   existing blocks pick up the fix without editing their source again.

@@ -46,20 +46,26 @@ WebView compiles edited source; it is destroyed afterward and never replaces
 the native handwriting canvas. PDF export imports the active appearance as a
 vector form, retaining embedded fonts, text and formula paths.
 
-From **0.35.0-alpha.2**, native Markdown tiles use grayscale text antialiasing
-instead of LCD subpixel text masks. Normal paper composition and the selected
-block's drag overlay share this mode and exact, density-independent tile pixels.
-This addresses the reported patterned text at rest, without converting formulas
-or text to a fixed screenshot. Existing blocks use it on display; their stored
-vectors, transparency, editable source and exports are unchanged.
+From **0.35.0-alpha.3**, a note containing visible Markdown gets a stationary
+presentation through the same ordinary View/PopupWindow composition used by the
+clear drag preview. It draws the complete paper, figures and saved ink directly
+on that canvas. It does not merely draw transparent text over the distorted
+native bitmap, and saved handwriting remains above figures.
 
-Android's [PDF renderer implementation](https://android.googlesource.com/platform/frameworks/base/+/260a36d/core/jni/android/graphics/pdf/PdfRenderer.cpp)
-enables `FPDF_LCD_TEXT` for DISPLAY mode. The Markdown rasterizer uses PRINT
-mode to avoid that LCD-specific path. Generated appearances contain no optional
-print/view content, so the mode change preserves their content. The host tests
-check the selected native mode, tile/preview parity and failure cleanup; the
-owner's exact text/math example is also a browser fixture. A tablet is not
-connected, so optical verification of this correction remains pending.
+The complete native frame is retained underneath. Before pen input, scrolling,
+modal edits or lasso manipulation, the added view hides and the existing native
+writing path continues. It returns only after input is settled and the page is
+ready; no per-pen-MOVE rendering or storage work is added. The window cannot
+capture touches/focus, excludes status/tools/other note regions, and retires on
+editor disposal. A drawing failure falls back to the intact native frame.
+Existing saved blocks use this display path without recompilation or storage
+changes; source, vector appearances, transparency and exports are preserved.
+
+The earlier **alpha.2 raster-mode change did not resolve the owner's report**.
+Its tests checked PDF tile mode/parity, not the final stationary presentation.
+Alpha.3 tests the actual View composition and the pen/commit/eraser/lasso guards.
+The tablet is unavailable, so the visual result and native input/window behavior
+of alpha.3 still need physical confirmation.
 
 Each block accepts up to 128 KiB of UTF-8 source and 4 MiB per appearance.
 Layout uses a 640 CSS-pixel width and a maximum height of 16,384 pixels.

@@ -48,6 +48,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private final Handler main = new Handler(Looper.getMainLooper());
     private NotebookSession session;
     private NotebookInkBackend ink;
+    private NotebookRestingPaper restingPaper;
     private FrameLayout canvas, workspaceRoot, workspaceArea;
     private final NotebookWorkspace workspace = new NotebookWorkspace();
     private final Map<NotebookWorkspace.Pane, NotebookCompanion> noteWindows = new LinkedHashMap<>();
@@ -404,6 +405,11 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         updateControls();
         try {
             final int surfaceOwner = inkGeneration;
+            restingPaper=new NotebookRestingPaper(this,canvas,new NotebookRestingPaper.Listener(){
+                public boolean ready(){return restingPaperReady();}
+                public void draw(Canvas drawing){drawRestingPaper(drawing);}
+                public List<Rect> exclusions(){return restingPaperExclusions();}
+            });
             ink = new NotebookInk(this, NotebookPage.empty(), new NotebookInk.Listener() {
                 @Override public void onGeometryReady(int width, int height) {
                     if (!active || surfaceOwner != inkGeneration) return;
@@ -433,6 +439,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                     if (!active || surfaceOwner != inkGeneration) return;
                     penDown = down;
                     if (down) {
+                        hideRestingPaper();
                         writingHistory = tool == NotebookInk.Tool.PEN;
                         ++writingRevision; linkTap.cancel(); clearPdfText();
                         if (widthPopup != null && !widthContact) widthPopup.dismiss();
@@ -441,7 +448,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                     lastInputAt = SystemClock.uptimeMillis();
                     main.removeCallbacks(updateSaveState);
                     if (!down) {
-                        main.post(() -> { collapseNoteActions(); updateHistoryControls(); });
+                        main.post(() -> { collapseNoteActions(); updateHistoryControls(); refreshRestingPaper(); });
                         scheduleSaveState(); if (stylusShortcut.hasPending()) main.post(applyStylusShortcut);
                     }
                 }
@@ -471,6 +478,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                     scheduleSaveState();
                     if (stylusShortcut.hasPending()) applyStylusShortcut();
                     maybeRecoverMarkdown();
+                    refreshRestingPaper();
                 }
                 @Override public void onError(String message) {
                     if (!active || surfaceOwner != inkGeneration) return;
@@ -728,6 +736,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         // Immediate preview state includes completed ink even before the background save.
         final long token = viewportBuffer.append(split);
         updatePreviewPages();
+        main.post(this::refreshRestingPaper);
         session.appendViewport(split, (ignored, error) -> {
             if (!active || request != generation) return;
             viewportBuffer.complete(token, session.window(), wantedPages());
@@ -973,6 +982,41 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         } catch (Exception error) { showError(new IOException("Could not scroll the notebook", error)); }
     }
 
+    private boolean restingPaperReady(){
+        if(!canEdit()||viewport==null||ink.hasPendingInput()||selectionOutline!=null)return false;
+        for(NotebookFigureLayer.Request request:NotebookFigureLayer.visible(viewport,pages,scrollY))
+            if(request.figure.markdown!=null)return true;
+        return false;
+    }
+    private void refreshRestingPaper(){
+        if(restingPaper==null)return;
+        if(restingPaperReady()){prepareStrokePaths();restingPaper.show();}else restingPaper.hide();
+    }
+    private void hideRestingPaper(){if(restingPaper!=null)restingPaper.hide();}
+    private List<Rect> restingPaperExclusions(){
+        List<Rect> result=new ArrayList<>();
+        for(NotebookCompanion window:noteWindows.values())result.addAll(window.exclusions());
+        result.add(notebookStatusBounds);result.add(deviceStatusBounds);result.add(toolsBounds);
+        result.add(toolHintBounds);result.add(widthPopupBounds);
+        if(noteTray!=null)result.add(noteTray.bounds());
+        if(pdfTextTools!=null){result.add(pdfTextTools.bounds());result.add(pdfTextTools.selectionBounds());}
+        return result;
+    }
+    private void drawRestingPaper(Canvas drawing){
+        // Draw directly into the same hardware View canvas as the figure preview.
+        // Repaint paper AND saved ink: a transparent duplicate of the block alone
+        // would leave the faulty native glyphs underneath and cover annotations.
+        drawing.drawColor(Color.WHITE);
+        for(int id:viewport.visiblePages(scrollY)){
+            NotebookPage current=pages.get(id);if(current==null)continue;
+            int save=drawing.save();
+            try{clipReadingPage(drawing,id);drawing.translate(viewport.pageLeft(id),viewport.pageTop(id,scrollY));
+                drawing.scale(viewport.scale(id),viewport.scale(id));drawPage(drawing,current,true);
+            }finally{drawing.restoreToCount(save);}
+        }
+        drawPageBoundaries(drawing);
+    }
+
     private void drawPaper(Canvas drawing, int width, int height) {
         drawing.drawColor(Color.WHITE);
         if (viewport == null) return;
@@ -1046,6 +1090,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     }
 
     private void updateOverlayBounds() {
+        if(restingPaper!=null)restingPaper.refresh();
         if (ink == null) return;
         List<Rect> bounds = new ArrayList<>();
         for (NotebookCompanion window : noteWindows.values()) bounds.addAll(window.exclusions());
@@ -1749,6 +1794,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     }
 
     private void pauseForEdit(boolean keepHistory) {
+        hideRestingPaper();
         if (!keepHistory) writingHistory = false;
         if (selectionTools != null) selectionTools.hide();
         editing = true;
@@ -2938,6 +2984,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         figureEditor = new NotebookFigureEditor(this, canvas, viewport, pages, scrollY, number,
             target.figures.get(index), new NotebookFigureEditor.Listener() {
                 public void preview() {
+                    hideRestingPaper();
                     ink.pauseForEdit();
                     if (shownError != null) return;
                     if (scrolling || settleRead || fetching) { editing = false; installViewport(); }
@@ -3185,6 +3232,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         super.onSaveInstanceState(state);
     }
     private void disposeCanvas() {
+        if(restingPaper!=null){restingPaper.close();restingPaper=null;}
         clearPdfText();
         if(readingMenu!=null){readingMenu.retire();readingMenu=null;}
         if(cropEditor!=null){cropEditor.retire();cropEditor=null;}
