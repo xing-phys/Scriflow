@@ -984,6 +984,10 @@ public final class NotebookActivity extends NotebookDisplayActivity {
 
     private boolean restingPaperReady(){
         if(!canEdit()||viewport==null||ink.hasPendingInput()||selectionOutline!=null)return false;
+        return hasVisibleMarkdown();
+    }
+    private boolean hasVisibleMarkdown(){
+        if(viewport==null)return false;
         for(NotebookFigureLayer.Request request:NotebookFigureLayer.visible(viewport,pages,scrollY))
             if(request.figure.markdown!=null)return true;
         return false;
@@ -1011,7 +1015,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             NotebookPage current=pages.get(id);if(current==null)continue;
             int save=drawing.save();
             try{clipReadingPage(drawing,id);drawing.translate(viewport.pageLeft(id),viewport.pageTop(id,scrollY));
-                drawing.scale(viewport.scale(id),viewport.scale(id));drawPage(drawing,current,true);
+                drawing.scale(viewport.scale(id),viewport.scale(id));drawPage(drawing,current,true,true);
             }finally{drawing.restoreToCount(save);}
         }
         drawPageBoundaries(drawing);
@@ -1050,6 +1054,9 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     }
 
     private void drawPage(Canvas drawing, NotebookPage current, boolean includeInk) {
+        drawPage(drawing,current,includeInk,false);
+    }
+    private void drawPage(Canvas drawing, NotebookPage current, boolean includeInk, boolean clearFigurePreview) {
         drawing.save(); drawing.clipRect(0, 0, current.width, current.height);
         int number=session.pageNumber(current.id);
         if(viewport!=null&&number>0&&number<=viewport.pageCount){NotebookCropBox box=viewport.crop(number);
@@ -1067,7 +1074,9 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             for (int y = 72; y < current.height; y += 72) drawing.drawLine(0, y, current.width, y, paint);
         }
         for (NotebookFigure figure : current.figures)
-            if (figureEditor == null || !figureEditor.omits(figure)) figureImages.draw(drawing, figure);
+            if (figureEditor == null || !(clearFigurePreview ? figureEditor.covers(figure) : figureEditor.omits(figure)))
+                figureImages.draw(drawing, figure);
+        if(clearFigurePreview && figureEditor!=null)figureEditor.drawPreview(drawing,number);
         if (includeInk) {
             for (NotebookPage.Stroke stroke : current.strokes)
                 strokePaths.draw(drawing, stroke, paint);
@@ -1794,7 +1803,11 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     }
 
     private void pauseForEdit(boolean keepHistory) {
-        hideRestingPaper();
+        pauseForEdit(keepHistory,false);
+    }
+
+    private void pauseForEdit(boolean keepHistory, boolean keepPaper) {
+        if(!keepPaper)hideRestingPaper();
         if (!keepHistory) writingHistory = false;
         if (selectionTools != null) selectionTools.hide();
         editing = true;
@@ -2971,7 +2984,9 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         NotebookPage target = pages.get(hit.page);
         if (target == null || !target.id.equals(hit.pageId)) return;
         for (int index = target.figures.size() - 1; index >= 0; index--) if (target.figures.get(index).id.equals(hit.figureId)) {
-            pauseForEdit(); if (shownError != null) return;
+            // Keep the clear stationary window until the figure window's first
+            // complete scene is drawn; there is no exposed native-only frame.
+            pauseForEdit(false,true); if (shownError != null) return;
             activePage = hit.page; updatePageLabel(); editFigureOnPage(target, index, hit.page); return;
         }
     }
@@ -2984,11 +2999,14 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         figureEditor = new NotebookFigureEditor(this, canvas, viewport, pages, scrollY, number,
             target.figures.get(index), new NotebookFigureEditor.Listener() {
                 public void preview() {
-                    hideRestingPaper();
                     ink.pauseForEdit();
                     if (shownError != null) return;
                     if (scrolling || settleRead || fetching) { editing = false; installViewport(); }
                     else { ink.setPaperRenderer(NotebookActivity.this::drawPaper); ink.start(); }
+                }
+                public boolean paper(Canvas drawing) {
+                    if(viewport==null || (!hasVisibleMarkdown() && target.figures.get(index).markdown==null))return false;
+                    prepareStrokePaths();drawRestingPaper(drawing);return true;
                 }
                 public List<Rect> exclusions() {
                     List<Rect> result = new ArrayList<>();

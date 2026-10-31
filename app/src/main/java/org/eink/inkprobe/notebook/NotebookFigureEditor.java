@@ -21,6 +21,8 @@ final class NotebookFigureEditor extends FrameLayout {
     enum Action { COPY, CUT, DELETE, PASTE, MARKDOWN, EDIT_SOURCE }
     interface Listener {
         void preview();
+        /** Draw the complete clear paper scene, or return false to use the native backdrop. */
+        boolean paper(Canvas canvas);
         List<Rect> exclusions();
         void fallback(Canvas canvas, NotebookFigure figure);
         void change(int source, UUID pageId, NotebookFigure before, int target, NotebookFigure after);
@@ -126,6 +128,12 @@ final class NotebookFigureEditor extends FrameLayout {
     void saving() { busy = awaitingSave = true; placeControls(); }
     void failed() { busy = awaitingSave = previewing = false; restorePending = true; page = storedPage; figure = stored; placeControls(); invalidate(); }
     boolean omits(NotebookFigure value) { return previewing && stored.id.equals(value.id); }
+    boolean covers(NotebookFigure value) { return (previewing || restorePending) && stored.id.equals(value.id); }
+    /** Logical page coordinates; the complete scene keeps saved ink above the moving block. */
+    void drawPreview(Canvas canvas, int number) {
+        if (closed || number != page || !(previewing || restorePending)) return;
+        if (imageReady) images.draw(canvas, figure); else listener.fallback(canvas, figure);
+    }
     void nativeReady() { if (!busy && !previewing && !awaitingSave) { restorePending = false; invalidate(); } }
     boolean isBusy() { return busy || restorePending || pointer >= 0 || pressedAction != null; }
     void cancel() { if (!isBusy()) listener.done(); }
@@ -149,7 +157,11 @@ final class NotebookFigureEditor extends FrameLayout {
         super.onDraw(canvas);
         if (viewport == null || closed) return;
         float scale = viewport.scale(page);
-        if (previewing || restorePending) {
+        // This window already covers the whole clear scene before DOWN. Keep it
+        // opaque throughout the gesture rather than exposing the native bitmap
+        // when the stationary window hides or another block is left behind.
+        boolean completePaper = listener.paper(canvas);
+        if (!completePaper && (previewing || restorePending)) {
             int saved = canvas.save(); canvas.translate(viewport.pageLeft(page), viewport.pageTop(page, scroll)); canvas.scale(scale, scale);
             if (imageReady) images.draw(canvas, figure); else listener.fallback(canvas, figure);
             canvas.restoreToCount(saved);
@@ -270,7 +282,7 @@ final class NotebookFigureEditor extends FrameLayout {
             float py = (y - viewport.pageTop(page, scroll)) / viewport.scale(page);
             mode = forcedMode != 0 ? forcedMode : figure.contains(px, py) ? 1 : 0;
             outside = mode == 0; grabX = px - figure.centerX(); grabY = py - figure.centerY();
-            if (mode != 0) { previewing = true; listener.preview(); }
+            if (mode != 0) { previewing = true; listener.preview(); invalidate(); }
             return true;
         }
         if (pointer < 0) return true;

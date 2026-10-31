@@ -26,16 +26,17 @@ pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
 stays in front, window operations retain the main editor, and PDF import opens
 the file picker directly before opening the imported note.
 
-The **[0.35.0-alpha.3 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.35.0-alpha.3)**
+The **[0.35.0-alpha.4 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.35.0-alpha.4)**
 adds [PDF reading controls](docs/pdf-reading.md): auto/manual/semi-auto cropping,
 odd/even crop areas, optional single-page reading with zoom, adjustable PDF
 contrast, and long-press word selection with Eudic floating lookup. Continuous
 scrolling at Fit width remains the default. Crop and contrast affect display;
 original PDF bytes, saved annotation coordinates and PDF exports are preserved.
 
-It changes stationary Markdown display to the same regular-view composition
-used by drag previews; the previous alpha.2 raster-only change did not resolve
-the reported distortion. This presentation change still needs tablet confirmation.
+The owner confirmed clear stationary Markdown and drag previews in alpha.3.
+Alpha.4 keeps the complete page in that clear composition while selecting,
+dragging, resizing and rotating a block, preserving the other blocks and saved
+handwriting. The new drag-transition fix still needs tablet confirmation.
 
 It also includes editable [Markdown blocks](docs/markdown-blocks.md) with offline
 MathJax, tables, code, diagrams and CJK fonts. This build writes **page format 8**

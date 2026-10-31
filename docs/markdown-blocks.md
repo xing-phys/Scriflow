@@ -63,9 +63,19 @@ changes; source, vector appearances, transparency and exports are preserved.
 
 The earlier **alpha.2 raster-mode change did not resolve the owner's report**.
 Its tests checked PDF tile mode/parity, not the final stationary presentation.
-Alpha.3 tests the actual View composition and the pen/commit/eraser/lasso guards.
-The tablet is unavailable, so the visual result and native input/window behavior
-of alpha.3 still need physical confirmation.
+The owner confirmed that **alpha.3 makes stationary Markdown and the moving
+block clear**. They also reported a brief return to the distorted native frame
+at drag start and distorted other blocks throughout the drag.
+
+From **0.35.0-alpha.4**, the figure overlay draws the complete clear paper scene
+from idle selection through dragging, resizing, rotation and save restoration.
+The stationary layer remains in place when entering figure selection. Other
+blocks stay on the ordinary View canvas; the moving block replaces its original
+position exactly once, including during cross-page moves and pending saves.
+Saved handwriting is composed above the figures. Ordinary figure-only notes
+retain their existing preview path. Native live writing is unchanged.
+Automated tests cover the complete multi-block scene and transition callbacks;
+the alpha.4 drag-transition result still needs physical tablet confirmation.
 
 Each block accepts up to 128 KiB of UTF-8 source and 4 MiB per appearance.
 Layout uses a 640 CSS-pixel width and a maximum height of 16,384 pixels.

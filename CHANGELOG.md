@@ -6,6 +6,23 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.35.0-alpha.4 — Markdown drag continuity (2026-10-31)
+
+- The owner confirmed alpha.3 makes stationary Markdown and the moving preview
+  clear, but reported a distorted frame at drag start and distorted other
+  blocks during dragging. Keep the complete clear paper scene in the figure
+  overlay from idle selection through move, resize, rotation and restoration.
+- Preserve the stationary window when entering figure selection. Draw other
+  blocks on the same View canvas, replace the selected block exactly once on
+  its current page, and retain saved ink above figures. Preserve the native
+  live-writing path and the ordinary figure-only preview path.
+- Add coverage of the complete multi-block scene, first DOWN invalidation,
+  pending-save/cancel restoration, cross-page replacement and retained paper
+  during selection. VersionCode 77; physical drag-transition confirmation is
+  pending. Pass 252,186 JVM assertions in 82 suites, six browser cases and both
+  Android variants’ lint/build/signature checks. Storage format and permanent
+  signing identity are unchanged.
+
 ## 0.35.0-alpha.3 — Markdown stationary presentation (2026-10-31)
 
 - Address the report that alpha.2 leaves stationary Markdown unchanged. Present

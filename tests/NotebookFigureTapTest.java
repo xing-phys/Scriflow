@@ -11,7 +11,7 @@ public final class NotebookFigureTapTest {
             "package org.eink.inkprobe.notebook;import java.util.*;import java.io.*;public class FigureTapFixture {",
             "final Map<Integer,NotebookPage> pages=new LinkedHashMap<>();NotebookViewport viewport=new NotebookViewport(2,200,300,100,180,12);float scrollY;int activePage=2,pauses,selectedPage,selectedIndex=-1;boolean ready=true;Object figureEditor;IOException shownError;",
             "FigureTapFixture()throws Exception{byte[] png=NotebookFigureFixture.png(true);NotebookFigure a=new NotebookFigure(UUID.randomUUID(),20,20,100,100,png),b=new NotebookFigure(UUID.randomUUID(),40,40,40,40,png);pages.put(1,NotebookPage.empty().withSize(200,300).withFigures(Arrays.asList(a,b)));pages.put(2,NotebookPage.empty().withSize(200,300));}",
-            "boolean canEdit(){return ready;}void pauseForEdit(){pauses++;ready=false;}void updatePageLabel(){}void editFigureOnPage(NotebookPage p,int index,int number){selectedPage=number;selectedIndex=index;}",
+            "boolean canEdit(){return ready;}void pauseForEdit(boolean keepHistory,boolean keepPaper){if(keepHistory||!keepPaper)throw new AssertionError(\"selection must retain the clear paper\");pauses++;ready=false;}void updatePageLabel(){}void editFigureOnPage(NotebookPage p,int index,int number){selectedPage=number;selectedIndex=index;}",
             NotebookWorkspaceActivationTest.method(source,"private boolean selectFigureAt("),
             NotebookWorkspaceActivationTest.method(source,"private void editTappedFigure("),
             "static void check(boolean b,String s){if(!b)throw new AssertionError(s);}public static void run()throws Exception{",
