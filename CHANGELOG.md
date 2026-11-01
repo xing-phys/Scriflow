@@ -21,7 +21,7 @@ records describe their original milestone, not the current acceptance status.
   Appending never sends automatically or mutates the notebook/clipboard.
 - Read existing chat files and write chat format 2 for attachments; notebook
   and backup format 8 is unchanged. VersionCode 84 retains permanent signing.
-- Pass 272,746 JVM assertions in 92 suites, fourteen real-browser cases and
+- Pass 272,750 JVM assertions in 93 suites, fourteen real-browser cases and
   Android debug/release lint/build checks. Publish the signed alpha for physical
   resize/input and live provider/model/vision acceptance.
 

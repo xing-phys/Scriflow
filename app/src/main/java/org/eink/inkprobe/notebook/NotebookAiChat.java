@@ -187,7 +187,8 @@ final class NotebookAiChat {
         if (session.busy) { session.stop(); return; }
         if (session.saveFailed&&!session.chat.awaitingReply()) { session.retrySave(); return; }
         main.removeCallbacks(saveDraft); displayProblem="";
-        session.send(composer.getText().toString()); if (session.busy) { setText(""); hideKeyboard(); }
+        boolean retry=session.chat.awaitingReply();
+        session.send(composer.getText().toString()); if (session.busy) { if (!retry) setText(""); hideKeyboard(); }
     }
     private void saveDraft() {
         if (session!=null&&composerLoaded) session.draft(composer.getText().toString());

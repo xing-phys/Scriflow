@@ -38,6 +38,20 @@ public final class NotebookAiWindowTest {
         );
         NotebookWorkspaceActivationTest.runFixture("org.eink.inkprobe.notebook.AiModalFixture",modal);
         resizeControls();
+        sendDrafts();
+    }
+    private static void sendDrafts() throws Exception {
+        String fixture=String.join("\n",
+            "package org.eink.inkprobe.notebook;public class AiSendDraftFixture {",
+            "static class Chat{boolean awaiting;boolean awaitingReply(){return awaiting;}}static class Session{boolean busy,saveFailed;int sends,saves;Chat chat=new Chat();void stop(){busy=false;}void retrySave(){saves++;}void send(String text){sends++;busy=true;}}",
+            "static class Editor{String text=\"selected Markdown\";Object getText(){return text;}}static class Handler{void removeCallbacks(Object r){}}final Handler main=new Handler();final Object saveDraft=new Object();final Editor composer=new Editor();Session session=new Session();String displayProblem=\"\";void setText(String s){composer.text=s;}void hideKeyboard(){}",
+            method(read("NotebookAiChat"),"private void send("),
+            "public static void run(){int checks=0;AiSendDraftFixture fresh=new AiSendDraftFixture();fresh.send();if(fresh.session.sends!=1||!fresh.composer.text.isEmpty())throw new AssertionError(\"new Send consumes its draft\");checks++;",
+            "AiSendDraftFixture retry=new AiSendDraftFixture();retry.session.chat.awaiting=true;retry.send();if(retry.session.sends!=1||!retry.composer.text.equals(\"selected Markdown\"))throw new AssertionError(\"Retry must preserve selections appended for the next question\");checks++;",
+            "AiSendDraftFixture stop=new AiSendDraftFixture();stop.session.busy=true;stop.send();if(stop.session.busy||!stop.composer.text.equals(\"selected Markdown\"))throw new AssertionError(\"Stop must preserve the next draft\");checks++;",
+            "AiSendDraftFixture save=new AiSendDraftFixture();save.session.saveFailed=true;save.send();if(save.session.saves!=1||save.session.sends!=0||!save.composer.text.equals(\"selected Markdown\"))throw new AssertionError(\"Retry save must preserve unsent selection text\");checks++;System.out.println(\"NotebookAiSendDraft: \"+checks+\" assertions passed (production Send, Retry, Stop and save draft handling).\");}}"
+        );
+        NotebookWorkspaceActivationTest.runFixture("org.eink.inkprobe.notebook.AiSendDraftFixture",fixture);
     }
     private static void resizeControls() throws Exception {
         String chat=read("NotebookAiChat");
