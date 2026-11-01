@@ -18,6 +18,18 @@ is connected for this release either; physical acceptance remains pending.
 
 ## Before publishing
 
+Implemented features awaiting the owner's testing must be published as alpha
+prereleases with a signed APK and checksum on GitHub. Tablet acceptance follows
+publication; do not make it a prerequisite for an alpha download.
+
+**0.36.0-alpha.1** (`versionCode` **83**) follows the owner's correction of the
+AI build's release label and instruction to release before tablet testing.
+Promote dev.1 with version/documentation changes only. Compare all DEX bytes
+against the verified dev.1 APK, retain the permanent signer and format 8,
+publish the alpha APK and checksum, and verify the exact tag/source commit and
+downloaded assets. Keep 0.33.2 as Latest stable. No new device or live-provider
+acceptance is claimed.
+
 **0.36.0-dev.1** (`versionCode` **82**) publishes the floating AI chat build
 after the owner's GitHub release follow-up on 2026-11-01. Tag exact APK source
 commit `be8e4f32881e0aa85b83598ae9febe08920d5b63`; subsequent release records

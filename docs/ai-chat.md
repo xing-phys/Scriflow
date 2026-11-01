@@ -1,4 +1,4 @@
-# AI chat — 0.36.0-dev.1
+# AI chat — 0.36.0-alpha.1
 
 Open **Settings → AI chat** from the time/battery/Wi-Fi pill. Choose OpenAI,
 Anthropic, Google Gemini, DeepSeek, or **Custom (OpenAI compatible)**. Enter

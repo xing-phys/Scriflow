@@ -6,6 +6,16 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.36.0-alpha.1 — AI chat alpha (2026-11-01)
+
+- Publish the implemented AI feature as an alpha prerelease for download and
+  tablet testing. Promote dev.1 with version/documentation changes only;
+  application behavior, page/backup format 8 and permanent signing identity
+  are retained. VersionCode 83 permits in-place updates from dev.1.
+- Make the signed APK and checksum available on GitHub before requesting the
+  owner's tablet tests. Keep 0.33.2 as Latest stable. Tablet and live-provider
+  acceptance remain pending; this does not prevent alpha publication.
+
 ## 0.36.0-dev.1 — Floating AI chat (2026-11-01)
 
 - Add AI settings for OpenAI, Anthropic, Google Gemini, DeepSeek and custom
