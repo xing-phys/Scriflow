@@ -18,6 +18,14 @@ is connected for this release either; physical acceptance remains pending.
 
 ## Before publishing
 
+**0.36.0-dev.1** (`versionCode` **82**) publishes the floating AI chat build
+after the owner's GitHub release follow-up on 2026-11-01. Tag exact APK source
+commit `be8e4f32881e0aa85b83598ae9febe08920d5b63`; subsequent release records
+change documentation only. Keep this a development prerelease and retain
+0.33.2 as Latest stable. Attach only the permanently signed APK and its checksum,
+then download and compare both assets. Disclose optional AI network access,
+provider data/usage policies, and pending tablet/live-account acceptance.
+
 **0.35.0-alpha.1** (`versionCode` **74**) follows the owner's explicit request
 for PDF cropping, single-page reading, Eudic word lookup and contrast, followed
 by GitHub publication with version selection delegated. Publish as an alpha
@@ -281,7 +289,8 @@ and [Android versioning](https://developer.android.com/studio/publish/versioning
    things; publish both clearly in the release notes.
 
 The verifier checks version, application ID, API 29, Scriflow label/icon,
-`ACCESS_NETWORK_STATE` as the only permission, disabled automatic backup,
+the exact `ACCESS_NETWORK_STATE` and `INTERNET` permission set, disabled cleartext
+traffic and automatic backup,
 component exposure, debugging state, and cryptographic signature validity.
 Those checks do not establish the tablet behaviors below.
 

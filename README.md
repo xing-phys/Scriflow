@@ -33,7 +33,7 @@ contrast, and long-press word selection with Eudic floating lookup. Continuous
 scrolling at Fit width remains the default. Crop and contrast affect display;
 original PDF bytes, saved annotation coordinates and PDF exports are preserved.
 
-The **0.36.0-dev.1 development build** adds optional [AI chat](docs/ai-chat.md).
+The **[0.36.0-dev.1 development prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.36.0-dev.1)** adds optional [AI chat](docs/ai-chat.md).
 Configure a provider, model and API key in Settings, then tap the chat-bubble
 sparkle in the toolbox for a movable, resizable conversation window. Replies
 reuse the existing offline Markdown/math/code renderer. Presets cover OpenAI,
