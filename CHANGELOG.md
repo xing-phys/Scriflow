@@ -6,6 +6,24 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.35.0-alpha.6 — Separate floating controls (2026-11-01)
+
+- Open the top-left three-dots actions as separate circular buttons below the
+  note bar, with 6 dp gaps and wrapping on narrow panes. Keep the three dots
+  visible as an open/close toggle and retain the compact note bar.
+- Put conditional Undo/Redo circles outside the right status pill, with 8 dp
+  spacing. Preserve the writing-only availability rules and Zen suppression.
+- Remove the toolbox's enclosing pill and space its circles by 6 dp. Retain
+  dragging, collapse/expand, orientation, scrolling on narrow panes, tray
+  anchoring and its highest application sublayer.
+- Make the clock's inner View transparent so its white rectangle cannot cover
+  the rounded Zen container. Paint persistent paper behind floating groups so
+  page content shows through their gaps; retain native input protection.
+- Pass 252,206 JVM assertions in 84 suites, six browser cases and Android
+  debug/release lint/build/signature checks. VersionCode 79; physical layout
+  confirmation remains pending. Keep the alpha.5 clear-paper rendering and
+  existing data/storage format.
+
 ## 0.35.0-alpha.5 — Persistent clear Markdown paper (2026-10-31)
 
 - The owner confirmed alpha.4 fixes figure dragging, then reported distorted

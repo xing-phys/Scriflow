@@ -46,7 +46,7 @@ final class NotebookDeviceStatus extends View {
     NotebookDeviceStatus(Context context, BooleanSupplier idle) {
         super(context, null, 0);
         this.idle = idle;
-        setBackgroundColor(Color.WHITE);
+        setBackground(null);
         setStateListAnimator(null);
         setDefaultFocusHighlightEnabled(false);
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);

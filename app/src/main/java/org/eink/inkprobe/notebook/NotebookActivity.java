@@ -1002,13 +1002,10 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         if(restingPaperReady()){prepareStrokePaths();restingPaper.show();}
     }
     private List<Rect> restingPaperExclusions(){
-        List<Rect> result=new ArrayList<>();
-        for(NotebookCompanion window:noteWindows.values())result.addAll(window.exclusions());
-        result.add(notebookStatusBounds);result.add(deviceStatusBounds);result.add(toolsBounds);
-        result.add(toolHintBounds);result.add(widthPopupBounds);
-        if(noteTray!=null)result.add(noteTray.bounds());
-        if(pdfTextTools!=null){result.add(pdfTextTools.bounds());result.add(pdfTextTools.selectionBounds());}
-        return result;
+        // Persistent paper is below native ink and every popup. Paint behind
+        // controls so transparent gaps reveal the note rather than blank boxes.
+        // Native input still uses the separate, unchanged control exclusions.
+        return Collections.emptyList();
     }
     private void drawRestingPaper(Canvas drawing){
         if(selectionViewPreview && selection!=null){drawClearSelectionScene(drawing);return;}
@@ -2726,6 +2723,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
 
     private void noteActions() {
         if (!canEdit()) return;
+        if(statusIslands.actionsShowing()){collapseNoteActions();return;}
         pauseForEdit();
         if (shownError != null) return;
         NotebookPage current = pages.get(activePage);

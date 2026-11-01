@@ -26,7 +26,7 @@ pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
 stays in front, window operations retain the main editor, and PDF import opens
 the file picker directly before opening the imported note.
 
-The **[0.35.0-alpha.5 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.35.0-alpha.5)**
+The **[0.35.0-alpha.6 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.35.0-alpha.6)**
 adds [PDF reading controls](docs/pdf-reading.md): auto/manual/semi-auto cropping,
 odd/even crop areas, optional single-page reading with zoom, adjustable PDF
 contrast, and long-press word selection with Eudic floating lookup. Continuous
@@ -38,6 +38,11 @@ Alpha.5 keeps page rendering in one persistent regular View through scrolling,
 zooming, Zen changes and writing, with transparent native live ink above it.
 This removes the remaining switches back to distorted native paper. The new
 composition and live writing still need physical tablet confirmation.
+
+The toolbox now shows separate, spaced circular buttons without a shared bar.
+The top-left menu opens detached circles below the note bar; Undo/Redo float
+beside the right status pill. The compact Zen clock has a transparent inner
+background, leaving its rounded container visible.
 
 It also includes editable [Markdown blocks](docs/markdown-blocks.md) with offline
 MathJax, tables, code, diagrams and CJK fonts. This build writes **page format 8**

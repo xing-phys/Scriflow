@@ -1,9 +1,7 @@
 package org.eink.inkprobe.notebook;
 
 import android.app.Activity;
-import android.graphics.Color;
 import android.graphics.Rect;
-import android.graphics.drawable.GradientDrawable;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
@@ -73,11 +71,7 @@ public final class NotebookFloatingTools {
         content.setPadding(dp(4), dp(4), dp(4), dp(4));
         content.setStateListAnimator(null);
         content.setElevation(0f);
-        GradientDrawable background = new GradientDrawable();
-        background.setColor(Color.WHITE);
-        background.setCornerRadius(dp(1000));
-        background.setStroke(dp(1), Color.BLACK);
-        content.setBackground(background);
+        content.setBackground(null);
         gripMotion = new NotebookGripGesture(ViewConfiguration.get(activity).getScaledTouchSlop());
         grip = new NotebookIconButton(activity, NotebookIconDrawable.Icon.MOVE,
                 "Collapse tools; drag to move");
@@ -255,7 +249,7 @@ public final class NotebookFloatingTools {
         updateAllowedBounds();
         NotebookToolStrip.Layout layout = NotebookToolStrip.measure(this.vertical, collapsed ? 1 : order.length,
                 Math.max(1, allowedBounds.width()), Math.max(1, allowedBounds.height()),
-                dp(32), dp(28), dp(4), dp(4));
+                dp(32), dp(28), dp(6), dp(4));
         width = layout.width; height = layout.height;
         buildStrip(layout);
         content.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
@@ -304,7 +298,7 @@ public final class NotebookFloatingTools {
         for (int index = 0; index < (collapsed ? 1 : order.length); index++) {
             LinearLayout.LayoutParams item = new LinearLayout.LayoutParams(layout.button, layout.button);
             if (index != 0) {
-                if (vertical) item.topMargin = dp(4); else item.leftMargin = dp(4);
+                if (vertical) item.topMargin = dp(6); else item.leftMargin = dp(6);
             }
             strip.addView(order[index], item);
         }

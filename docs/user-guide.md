@@ -217,8 +217,8 @@ APKs cannot read the managed notebook; preserve an editable backup before updati
 
 ## Floating tools
 
-The controls form a single row or column of 32 dp circular buttons inside a
-pill-shaped dock. Tap the **direction icon beside the grip** to switch
+The controls form a single row or column of separate 32 dp circular buttons,
+with 6 dp gaps and no enclosing bar. Tap the **direction icon beside the grip** to switch
 orientation. Drag the **six-dot grip** with a finger or stylus to move the dock;
 it stops where released. **Tap the grip once** to collapse all tools into that
 one circle; tap again to expand. The collapsed grip can still be dragged.
@@ -230,10 +230,12 @@ marks the selected tool. **Lasso** uses a dashed loop (available in development
 builds after 0.28.0-beta.2). Undo/Redo appear beside the top-right device status
 while writing, each only when available. Page management,
 page-turn arrows and the bookshelf action are in the top-left bar. The vertical
-**⋮** beside the zoom percentage expands into icons in that same bar: Insert
-figure, Choose a figure, Page information/PDF export, the page’s blank/lined
-background action, and Paste figure when available. The bar stretches to fit.
-Selecting an action, tapping the page, or pressing Back restores the three dots.
+**⋮** beside the zoom percentage opens separate circular actions below the note
+bar: Insert figure, Insert Markdown, Reading view/PDF crop/contrast, Choose a
+figure, Page information/PDF export, the page’s blank/lined background action,
+and Paste figure when available. The circles have small gaps and wrap on narrow
+panes; the note bar keeps its compact shape. Tap **⋮** again, select an action,
+tap the page, or press Back to close the actions.
 Hold an icon for its tooltip. Page information also offers **Reset tools**.
 Reset expands the dock and returns it to its initial horizontal
 position near the top center, below the status islands. Touching controls has
@@ -243,7 +245,9 @@ no ripple or pressed inversion; the page stays writable outside the tools.
 
 Tap the **fullscreen-corners icon in the toolbox** to enter Zen mode. The
 top-left bar and Undo/Redo disappear; the top-right bar becomes a small clock
-showing hours, minutes and seconds. Tap the icon again to restore the normal
+showing hours, minutes and seconds. The clock view has a transparent background
+inside its rounded container, so there is no square white patch over the edges.
+Tap the icon again to restore the normal
 bars and eligible Undo/Redo controls. The toolbox, notes, zoom and writing tools
 keep their current state. If writing pauses because of an error, the normal
 Retry bar returns so recovery stays accessible.
@@ -294,7 +298,8 @@ the current build's optical latency and physical pen feel still need tablet
 acceptance. Choose **Pen** to resume writing.
 
 In **0.33.2-dev.2**, Undo/Redo are beside the top-right clock/battery/Wi-Fi bar,
-outside the toolbox. Each appears only when its action is available. Scrolling,
+outside the toolbox. From **0.35.0-alpha.6**, these are separate circular buttons
+outside the right status pill, with spacing between them. Each appears only when its action is available. Scrolling,
 zooming, navigation, window changes, reading another pane and opening controls
 hide both until another Pen writing contact. Availability updates between strokes.
 Tapping Undo/Redo keeps the controls available so repeated Undo and subsequent

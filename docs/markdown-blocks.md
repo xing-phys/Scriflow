@@ -66,8 +66,10 @@ never display Markdown retain the existing native paper path.
 Saved ink remains above figures; the moving block replaces its original once,
 including across pages and pending-save restoration. Figure controls occupy a
 separate transparent overlay. Lasso movement also uses the direct View canvas.
-The paper cannot capture touches/focus, excludes foreground controls and other
-notes, skips unchanged clock/status bounds, and retires with the editor. A
+The paper cannot capture touches/focus and stays below native ink and popup
+controls. It paints behind floating circles so their transparent gaps reveal
+the page, while separate native input exclusions still protect controls. It
+skips unchanged clock/status bounds and retires with the editor. A
 rendering error pauses the editor for recovery rather than reverting Markdown
 to the distorted native bitmap. No paper work is added per pen MOVE.
 Existing blocks need no source edits or re-creation. Source, vector appearances,

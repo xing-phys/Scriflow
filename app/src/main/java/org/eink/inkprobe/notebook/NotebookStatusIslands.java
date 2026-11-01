@@ -20,7 +20,7 @@ final class NotebookStatusIslands {
 
     private final Activity activity;
     private final Listener listener;
-    private final LinearLayout notebook, device;
+    private final LinearLayout notebook, device, leftContent, rightContent;
     private final PopupWindow leftWindow, rightWindow;
     private final Rect leftBounds = new Rect(), rightBounds = new Rect();
     private final NotebookIconButton undo, redo;
@@ -28,6 +28,7 @@ final class NotebookStatusIslands {
     private final NotebookButton more;
     private final LinearLayout actions;
     private final EnumMap<Action, NotebookIconButton> actionButtons = new EnumMap<>(Action.class);
+    private int actionColumns, actionMask = -1;
     private boolean zenMode;
     private View anchor;
     private final View.OnLayoutChangeListener layoutListener =
@@ -44,6 +45,8 @@ final class NotebookStatusIslands {
         this.clock = deviceStatus;
         this.more = more;
         notebook = island();
+        leftContent = new LinearLayout(activity); leftContent.setOrientation(LinearLayout.VERTICAL);
+        rightContent = new LinearLayout(activity); rightContent.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout top = new LinearLayout(activity); top.setGravity(Gravity.CENTER_VERTICAL);
         // Only the title shrinks on constrained screens; the other tap targets stay distinct.
         top.addView(noteName, new LinearLayout.LayoutParams(0, dp(28), 1));
@@ -52,7 +55,8 @@ final class NotebookStatusIslands {
         top.addView(next, new LinearLayout.LayoutParams(dp(28), dp(28)));
         top.addView(zoom, new LinearLayout.LayoutParams(-2, dp(28)));
         top.addView(more, new LinearLayout.LayoutParams(dp(28), dp(28)));
-        actions = new LinearLayout(activity); actions.setGravity(Gravity.CENTER_VERTICAL);
+        for(View text:new View[]{noteName,pageLabel,zoom,more})text.setBackground(null);
+        actions = new LinearLayout(activity); actions.setOrientation(LinearLayout.VERTICAL);
         addAction(Action.INSERT_FIGURE, NotebookIconDrawable.Icon.INSERT_FIGURE, "Insert figure", actionListener);
         addAction(Action.INSERT_MARKDOWN, NotebookIconDrawable.Icon.MARKDOWN, "Insert Markdown block", actionListener);
         addAction(Action.READING, NotebookIconDrawable.Icon.READING, "Reading view, PDF crop and contrast", actionListener);
@@ -61,26 +65,27 @@ final class NotebookStatusIslands {
         addAction(Action.BACKGROUND, NotebookIconDrawable.Icon.PAPER_LINED, "Use lined background", actionListener);
         addAction(Action.PASTE_FIGURE, NotebookIconDrawable.Icon.PASTE, "Paste figure", actionListener);
         actions.setVisibility(View.GONE);
-        top.addView(actions, new LinearLayout.LayoutParams(-2, dp(28)));
         notebook.addView(top, new LinearLayout.LayoutParams(-1, -2));
         notebook.addView(saveState, new LinearLayout.LayoutParams(-1, dp(24)));
+        leftContent.addView(notebook,new LinearLayout.LayoutParams(-2,-2));
+        LinearLayout.LayoutParams actionSpace=new LinearLayout.LayoutParams(-2,-2);actionSpace.topMargin=dp(8);
+        leftContent.addView(actions,actionSpace);
         device = island();
-        LinearLayout right = new LinearLayout(activity); right.setGravity(Gravity.CENTER_VERTICAL);
         for (NotebookIconButton button : new NotebookIconButton[]{undo, redo}) {
             button.setVisibility(View.GONE);
             LinearLayout.LayoutParams item = new LinearLayout.LayoutParams(dp(28), dp(28));
-            item.rightMargin = dp(4); right.addView(button, item);
+            item.rightMargin = dp(8); rightContent.addView(button, item);
         }
-        right.addView(deviceStatus, new LinearLayout.LayoutParams(-2, dp(24)));
-        device.addView(right, new LinearLayout.LayoutParams(-2, -2));
-        leftWindow = window(notebook);
-        rightWindow = window(device);
+        device.addView(deviceStatus, new LinearLayout.LayoutParams(-2, dp(24)));
+        rightContent.addView(device,new LinearLayout.LayoutParams(-2,-2));
+        leftWindow = window(leftContent);
+        rightWindow = window(rightContent);
     }
 
     private void addAction(Action action, NotebookIconDrawable.Icon icon, String label, ActionListener listener) {
         NotebookIconButton button = new NotebookIconButton(activity, icon, label);
         button.setTooltipText(label); button.setOnClickListener(v -> listener.onAction(action));
-        actionButtons.put(action, button); actions.addView(button, new LinearLayout.LayoutParams(dp(28), dp(28)));
+        actionButtons.put(action, button);
     }
 
     void showActions(boolean paper, boolean lined, boolean paste) {
@@ -91,20 +96,42 @@ final class NotebookStatusIslands {
         background.setContentDescription(label); background.setTooltipText(label);
         background.setVisibility(paper ? View.VISIBLE : View.GONE);
         actionButtons.get(Action.PASTE_FIGURE).setVisibility(paste ? View.VISIBLE : View.GONE);
-        more.setVisibility(View.GONE); actions.setVisibility(View.VISIBLE); position();
+        more.setContentDescription("Hide note action icons");actions.setVisibility(View.VISIBLE); position();
     }
 
     boolean actionsShowing() { return actions.getVisibility() == View.VISIBLE; }
 
     boolean collapseActions() {
         if (!actionsShowing()) return false;
-        actions.setVisibility(View.GONE); more.setVisibility(View.VISIBLE); position(); return true;
+        actions.setVisibility(View.GONE);more.setContentDescription("Show note action icons");position(); return true;
     }
 
     private int visibleActionCount() {
         int count = 0;
         for (NotebookIconButton button : actionButtons.values()) if (button.getVisibility() == View.VISIBLE) count++;
         return count;
+    }
+
+    /** Detached circles below the title pill; wrap rather than shrinking touch targets. */
+    private void wrapActions(int width){
+        if(!actionsShowing())return;
+        int size=dp(28),gap=dp(6),mask=0;
+        for(Action action:Action.values())if(actionButtons.get(action).getVisibility()==View.VISIBLE)mask|=1<<action.ordinal();
+        int columns=Math.max(1,Math.min(visibleActionCount(),(width+gap)/(size+gap)));
+        if(columns==actionColumns&&mask==actionMask)return;
+        actionColumns=columns;actionMask=mask;
+        for(NotebookIconButton button:actionButtons.values())if(button.getParent() instanceof LinearLayout)
+            ((LinearLayout)button.getParent()).removeView(button);
+        actions.removeAllViews();LinearLayout row=null;int index=0;
+        for(NotebookIconButton button:actionButtons.values())if(button.getVisibility()==View.VISIBLE){
+            if(index%columns==0){
+                row=new LinearLayout(activity);row.setGravity(Gravity.CENTER_VERTICAL);
+                LinearLayout.LayoutParams line=new LinearLayout.LayoutParams(-2,size);if(index>0)line.topMargin=gap;
+                actions.addView(row,line);
+            }
+            LinearLayout.LayoutParams item=new LinearLayout.LayoutParams(size,size);if(index%columns!=0)item.leftMargin=gap;
+            row.addView(button,item);index++;
+        }
     }
 
     private LinearLayout island() {
@@ -192,22 +219,23 @@ final class NotebookStatusIslands {
         int margin = Math.min(dp(8), Math.max(0, (available.width() - 1) / 2));
         available.inset(margin, Math.min(margin, Math.max(0, (available.height() - 1) / 2)));
         int unspecified = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED);
-        device.measure(View.MeasureSpec.makeMeasureSpec(available.width(), View.MeasureSpec.AT_MOST), unspecified);
-        int rightWidth = device.getMeasuredWidth();
+        rightContent.measure(View.MeasureSpec.makeMeasureSpec(available.width(), View.MeasureSpec.AT_MOST), unspecified);
+        int rightWidth = rightContent.getMeasuredWidth();
         // On unusually narrow windows place the right island below the left, without overlap.
-        int minimumLeftWidth = dp(224 + (actionsShowing() ? (visibleActionCount() - 1) * 28 : 0));
+        int minimumLeftWidth = dp(224);
         boolean stacked = !zenMode && available.width() < rightWidth + minimumLeftWidth + dp(8);
         int maximumLeftWidth = Math.max(1, stacked ? available.width() : available.width() - rightWidth - dp(8));
         if (zenMode) leftBounds.setEmpty();
         else {
-            notebook.measure(View.MeasureSpec.makeMeasureSpec(maximumLeftWidth, View.MeasureSpec.AT_MOST), unspecified);
-            int leftWidth = Math.max(1, notebook.getMeasuredWidth());
+            wrapActions(maximumLeftWidth);
+            leftContent.measure(View.MeasureSpec.makeMeasureSpec(maximumLeftWidth, View.MeasureSpec.AT_MOST), unspecified);
+            int leftWidth = Math.max(1, leftContent.getMeasuredWidth());
             leftBounds.set(available.left, available.top, available.left + leftWidth,
-                available.top + notebook.getMeasuredHeight());
+                available.top + leftContent.getMeasuredHeight());
         }
         int rightTop = stacked ? leftBounds.bottom + dp(8) : available.top;
         rightBounds.set(available.right - rightWidth, rightTop, available.right,
-            rightTop + device.getMeasuredHeight());
+            rightTop + rightContent.getMeasuredHeight());
         // Install both holes before either window becomes visible.
         listener.onBoundsChanged(new Rect(leftBounds), new Rect(rightBounds));
         if (zenMode) leftWindow.dismiss();
