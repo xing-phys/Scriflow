@@ -1,8 +1,10 @@
 # Privacy and local storage
 
-Scriflow works locally on the tablet. It has no accounts, analytics, advertising,
-crash-reporting service, cloud sync, or app-initiated network requests. The APK
-does not request Android's `INTERNET` permission.
+Notebooks work locally on the tablet. Scriflow has no app account, analytics,
+advertising, crash-reporting service, or cloud sync. Optional [AI chat](ai-chat.md)
+uses Android's `INTERNET` permission to contact the provider you configure when
+you explicitly send or retry a chat message. Ordinary notebook editing and
+Markdown rendering do not make network requests.
 
 ## Notes and settings
 
@@ -27,6 +29,29 @@ not included in notebook backups until the block is committed.
 Uninstalling the app or clearing its storage removes its private notes and
 settings. Android automatic app backup is disabled. Make editable `.inkbook`
 backups through the library and keep them outside the app's private storage.
+
+## Optional AI chat
+
+Send shares the chat's text history and Markdown formatting instructions directly
+with the configured provider over HTTPS. Notebook pages, handwriting, figures
+and PDFs are not attached automatically. Content pasted into chat becomes part
+of that conversation. Your provider's data and retention policies apply.
+OpenAI requests set `store: false`; other provider policies still apply.
+There are no automatic provider calls, retries, analytics or background sync.
+
+API keys are encrypted with AES-GCM using Android Keystore and kept in private
+preferences. They do not enter the Markdown WebView, notebook exports/backups,
+text-field saved state or logs. Settings → AI chat → Remove saved key removes
+the selected provider's credential. Chat histories and unsent drafts are
+unencrypted private files, independent of notebooks and excluded from editable
+backups. Each provider/endpoint/model has its own current history. New chat
+clears that history and draft after confirmation; closing keeps them.
+Clearing app storage or uninstalling removes histories and credentials.
+
+Chat rendering uses bundled scripts and fonts, blocked WebView network loads,
+sanitized content and no JavaScript bridge. Links cannot navigate and external
+images are placeholders. The native HTTP client sends API requests separately,
+rejects cleartext endpoints, and never follows redirects with your credential.
 
 Page deletion in development version 0.29.0-dev.1 removes a page from the visible
 notebook and future exports/backups. Its private ink files remain for undo and
@@ -55,9 +80,10 @@ the transfer and its own privacy terms apply.
 
 ## Permission and diagnostics
 
-`ACCESS_NETWORK_STATE` is the only declared permission. It reads connection
-state for the Wi-Fi indicator; it does not let Scriflow send data over the
-network. The status bar also shows the tablet's time and battery level.
+`ACCESS_NETWORK_STATE` reads connection state for the Wi-Fi indicator.
+`INTERNET` permits optional AI chat requests. These are the only declared
+permissions; cleartext traffic is disabled. The status bar also shows the
+tablet's time and battery level.
 Following an external PDF link opens another installed app, such as a browser;
 that app handles its network access. Long-pressing a PDF word sends that selected
 word to the installed Eudic app through its documented floating-window URL

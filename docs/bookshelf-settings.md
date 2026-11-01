@@ -2,7 +2,9 @@
 
 Tap the time/battery/Wi-Fi area at the top right to open Settings. It is also
 visible on the bookshelf, Settings, page overview, and PDF/backup screens.
-Settings saves each change immediately. Row and column counts use **− / +**
+Display and writing settings save each change immediately. The AI provider,
+model, URL and key fields use **Save AI settings**; see [AI chat](ai-chat.md).
+Row and column counts use **− / +**
 buttons beside the current value; no keyboard or editable number field is needed.
 
 ## Dense lists and thumbnail grids

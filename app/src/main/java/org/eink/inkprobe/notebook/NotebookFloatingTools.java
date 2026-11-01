@@ -20,7 +20,7 @@ import java.util.EnumMap;
 /** A separate, static window above the native ink surface, moved only by its grip. */
 public final class NotebookFloatingTools {
     public enum Action {
-        NOTES, ADD_PAGE, PEN, ERASER, LASSO, MORE, OUTLINE, VIEW_BACK, VIEW_FORWARD, ZEN, ORIENTATION, COLLAPSE
+        NOTES, ADD_PAGE, PEN, ERASER, LASSO, MORE, OUTLINE, VIEW_BACK, VIEW_FORWARD, ZEN, ORIENTATION, COLLAPSE, AI_CHAT
     }
 
     public interface Listener {
@@ -87,6 +87,7 @@ public final class NotebookFloatingTools {
             return consumed;
         });
         add(Action.NOTES, NotebookIconDrawable.Icon.NOTES, "Open notes and minimized windows");
+        add(Action.AI_CHAT, NotebookIconDrawable.Icon.AI_CHAT, "Open AI chat");
         add(Action.ZEN, NotebookIconDrawable.Icon.FULLSCREEN, "Enter Zen mode");
         add(Action.ADD_PAGE, NotebookIconDrawable.Icon.ADD_PAGE, "Add page");
         add(Action.PEN, NotebookIconDrawable.Icon.PEN, "Pen");
@@ -98,7 +99,7 @@ public final class NotebookFloatingTools {
         add(Action.ORIENTATION, NotebookIconDrawable.Icon.LAYOUT_VERTICAL, "Switch to vertical tools");
         order = new View[] {grip, button(Action.ORIENTATION), button(Action.PEN), button(Action.ERASER), button(Action.LASSO),
             button(Action.ADD_PAGE), button(Action.OUTLINE), button(Action.VIEW_BACK),
-            button(Action.VIEW_FORWARD), button(Action.ZEN), button(Action.NOTES)};
+            button(Action.VIEW_FORWARD), button(Action.AI_CHAT), button(Action.ZEN), button(Action.NOTES)};
         popup = new PopupWindow(content, 0, 0, false);
         // A dedicated higher application sublayer keeps tools above notes, status and selection panels regardless of show order.
         popup.setWindowLayoutType(WindowManager.LayoutParams.TYPE_APPLICATION_SUB_PANEL);

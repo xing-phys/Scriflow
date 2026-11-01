@@ -100,6 +100,10 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private final Runnable selectionFrame = this::drawSelectionFrame;
     private NotebookIconButton previousButton, nextButton, addButton;
     private NotebookFloatingTools floatingTools;
+    private NotebookAiChat aiChat;
+    private final Rect aiChatBounds = new Rect();
+    private final Rect aiKeyboardBounds = new Rect();
+    private boolean aiContact, aiMoved, restoreAiChat;
     private float toolsX = 0.5f, toolsY;
     private boolean placeToolsBelowStatus;
     private final Rect toolsBounds = new Rect();
@@ -201,6 +205,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         if (saved != null && saved.getBoolean("eraser", false)) tool = NotebookInk.Tool.ERASER;
         if (saved != null && saved.getBoolean("lasso", false)) tool = NotebookInk.Tool.LASSO;
         zenMode = saved != null && saved.getBoolean("zenMode", false);
+        restoreAiChat = saved != null && saved.getBoolean("aiChatOpen", false);
         if (saved != null && saved.getByteArray("markdownDraft") != null) {
             try { pendingMarkdownDraft = NotebookMarkdownDraft.fromSnapshot(saved.getByteArray("markdownDraft")); }
             catch (IOException ignored) { /* The independently saved typing draft remains recoverable. */ }
@@ -219,6 +224,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         canvas = new FrameLayout(this); canvas.setBackgroundColor(Color.WHITE);
         workspaceArea.addView(canvas, new FrameLayout.LayoutParams(-1, -1));
         setContentView(root);
+        root.getViewTreeObserver().addOnGlobalLayoutListener(this::updateAiKeyboardBounds);
         pdfTextTools=new NotebookPdfTextTools(canvas,this::lookupPdfText,this::updateOverlayBounds);
         float readingDpi=getResources().getDisplayMetrics().xdpi;
         if(readingDpi<80||readingDpi>1000)readingDpi=getResources().getDisplayMetrics().density*160;
@@ -470,6 +476,11 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                         performToolAction(action);
                     }
                     if (!toolsContact && canEdit()) showSelectionTools();
+                    if (restoreAiChat && aiChat == null && canEdit()) {
+                        main.post(() -> {
+                            if (restoreAiChat && active && aiChat == null && canEdit()) { restoreAiChat = false; toggleAiChat(); }
+                        });
+                    }
                     if (whenReady != null && canEdit()) {
                         Runnable action = whenReady; whenReady = null; main.post(action);
                     }
@@ -1111,6 +1122,8 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         for (NotebookCompanion window : noteWindows.values()) bounds.addAll(window.exclusions());
         if (noteTray != null) bounds.add(noteTray.bounds());
         if(pdfTextTools!=null)bounds.add(pdfTextTools.bounds());
+        bounds.add(aiChatBounds);
+        bounds.add(aiKeyboardBounds);
         bounds.add(toolHintBounds);
         bounds.add(toolsBounds); bounds.add(notebookStatusBounds); bounds.add(deviceStatusBounds); bounds.add(widthPopupBounds);
         if (viewport != null) {
@@ -1158,6 +1171,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private void performToolAction(NotebookFloatingTools.Action action) {
         if (!canEdit()) return;
         switch (action) {
+            case AI_CHAT: toggleAiChat(); break;
             case NOTES: toggleNotes(); break;
             case ADD_PAGE: addPage(); break;
             case PEN: selectTool(NotebookInk.Tool.PEN); break;
@@ -1171,6 +1185,74 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             case ORIENTATION: toggleToolsOrientation(); break;
             case COLLAPSE: toggleToolsCollapsed(); break;
         }
+    }
+
+    private void toggleAiChat() {
+        if (!canEdit()) return;
+        pauseForEdit();
+        if (shownError != null) return;
+        if (aiChat != null) {
+            aiChat.close(); aiChat = null;
+        } else {
+            if (noteTray != null) noteTray.hide();
+            aiChat = new NotebookAiChat(this, workspaceRoot, new NotebookAiChat.Listener() {
+                public boolean contactStart() {
+                    if (!canEdit()) return false;
+                    aiContact = true; aiMoved = false; lastInputAt = SystemClock.uptimeMillis();
+                    pauseForEdit();
+                    if (shownError != null) aiContact = false;
+                    return aiContact;
+                }
+                public void contactEnd() { finishAiContact(); }
+                public void boundsChanged(Rect bounds) {
+                    if (aiChatBounds.equals(bounds)) return;
+                    boolean resume = canEdit();
+                    if (resume) ink.pauseForEdit();
+                    aiChatBounds.set(bounds); if (aiContact) aiMoved = true;
+                    updateOverlayBounds();
+                    if (resume) { ink.redrawAfterOverlayChange(); ink.start(); }
+                }
+                public void closed() {
+                    aiChat = null;
+                    if (active) restoreAiChat = false;
+                    if (floatingTools != null) floatingTools.button(NotebookFloatingTools.Action.AI_CHAT).setToolSelected(false);
+                }
+            });
+            floatingTools.button(NotebookFloatingTools.Action.AI_CHAT).setToolSelected(true);
+            aiChat.show();
+            updateAiKeyboardBounds();
+        }
+        final int request = generation;
+        session.load((loaded, error) -> finishEdit(request, loaded, error));
+    }
+
+    /** The editor itself keeps ADJUST_NOTHING; a chat IME must still be a native pen exclusion. */
+    private void updateAiKeyboardBounds() {
+        if (!active || workspaceRoot == null || aiChat == null && aiKeyboardBounds.isEmpty()) return;
+        Rect visible = new Rect(); workspaceRoot.getWindowVisibleDisplayFrame(visible);
+        int[] origin = new int[2]; workspaceRoot.getLocationOnScreen(origin);
+        int bottom = origin[1] + workspaceRoot.getHeight();
+        Rect next = visible.isEmpty() || bottom - visible.bottom < dp(80) ? new Rect()
+            : new Rect(origin[0], Math.max(origin[1], visible.bottom), origin[0] + workspaceRoot.getWidth(), bottom);
+        if (aiKeyboardBounds.equals(next)) return;
+        boolean resume = ink != null && canEdit();
+        if (resume) ink.pauseForEdit();
+        aiKeyboardBounds.set(next); updateOverlayBounds();
+        if (resume) { ink.redrawAfterOverlayChange(); ink.start(); }
+    }
+
+    private void finishAiContact() {
+        if (!aiContact) return;
+        aiContact = false; lastInputAt = SystemClock.uptimeMillis();
+        if (!active || shownError != null || ink == null) return;
+        final int request = generation; final boolean restore = aiMoved;
+        session.load((loaded, error) -> {
+            if (!active || request != generation) return;
+            mergeWindow();
+            if (error != null) { showError(error); return; }
+            editing = false;
+            if (restore) installViewport(); else ink.start();
+        });
     }
 
     private void toggleZenMode() {
@@ -1244,6 +1326,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         nextButton.setAvailable(ready && activePage < session.pageCount());
         addButton.setAvailable(ready && session.pageCount() < NotebookIndex.MAX_PAGES);
         floatingTools.button(NotebookFloatingTools.Action.OUTLINE).setAvailable(ready);
+        floatingTools.button(NotebookFloatingTools.Action.AI_CHAT).setAvailable(ready);
         floatingTools.button(NotebookFloatingTools.Action.VIEW_BACK).setAvailable(ready && viewHistory.canBack());
         floatingTools.button(NotebookFloatingTools.Action.VIEW_FORWARD).setAvailable(ready && viewHistory.canForward());
         penButton.setToolSelected(tool == NotebookInk.Tool.PEN);
@@ -3041,6 +3124,8 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                     for (NotebookCompanion window : noteWindows.values()) result.addAll(window.exclusions());
                     result.add(notebookStatusBounds); result.add(deviceStatusBounds); result.add(toolsBounds);
                     result.add(toolHintBounds); result.add(widthPopupBounds);
+                    result.add(aiChatBounds);
+                    result.add(aiKeyboardBounds);
                     if (noteTray != null) result.add(noteTray.bounds());
                     return result;
                 }
@@ -3214,6 +3299,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         if (ink != null) ink.pauseForEdit();
         captureViewCenter();
         active = false; ++generation; whenReady = null;
+        if (aiChat != null) { restoreAiChat = true; aiChat.close(); aiChat = null; }
         pauseMarkdown();
         if (stylusGesture != null) stylusGesture.stop();
         stylusShortcut.reset(); main.removeCallbacks(applyStylusShortcut);
@@ -3273,11 +3359,13 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         state.putBoolean("eraser", tool == NotebookInk.Tool.ERASER);
         state.putBoolean("lasso", tool == NotebookInk.Tool.LASSO);
         state.putBoolean("zenMode", zenMode);
+        state.putBoolean("aiChatOpen", aiChat != null || restoreAiChat);
         NotebookMarkdownDraft draft=markdownEditor!=null?markdownEditor.draft():pendingMarkdownDraft;
         if(draft!=null)try{state.putByteArray("markdownDraft",draft.snapshot());}catch(IOException ignored){}
         super.onSaveInstanceState(state);
     }
     private void disposeCanvas() {
+        if (aiChat != null) { restoreAiChat = true; aiChat.close(); aiChat = null; }
         if(restingPaper!=null){restingPaper.close();restingPaper=null;}
         clearPdfText();
         if(readingMenu!=null){readingMenu.retire();readingMenu=null;}
@@ -3311,6 +3399,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         super.onDestroy();
     }
     @Override public void onBackPressed() {
+        if (aiChat != null) { aiChat.close(); return; }
         clearPdfText();
         if(cropEditor!=null||cropPreviewRequest!=null){
             if(cropEditor!=null){cropEditor.retire();cropEditor=null;}

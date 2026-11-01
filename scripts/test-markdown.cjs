@@ -69,7 +69,7 @@ Term
       // Newer Chrome versions can report the intentionally malicious fixture's
       // handler during inert parsing. CSP blocking it is the expected outcome;
       // actual execution, external requests and unrelated errors still fail.
-      if(currentCase==='sanitized' && /Executing inline event handler violates.*Content Security Policy/.test(message.text()))
+      if(currentCase.includes('sanitized') && /Executing inline event handler violates.*Content Security Policy/.test(message.text()))
         blockedAttackHandlers.push(message.text());
       else errors.push(message.text());
     });
@@ -142,10 +142,50 @@ $$e^{i\pi}+1=0$$`);
     assert(unsafe.captures[0].html.includes('embedded image required'));
     const bad = await render('invalid-math', '$\\notARealCommand{x}$',true);
     assert(bad.info.warning.includes('Math:'));
+
+    // Chat runs the same production formatter without producing vector PDF snapshots.
+    await page.goto(origin + '/chat.html', { waitUntil:'networkidle0' });
+    await page.waitForFunction('window.ScriflowMarkdown', { timeout:30000 });
+    await page.evaluate(()=>{
+      window.pdfCalls=0;
+      pdfMake.createPdf=()=>{ window.pdfCalls++; throw Error('Chat must not compile PDFs'); };
+    });
+    async function chat(name,messages) {
+      currentCase=name;
+      await page.evaluate(messages=>{ ScriflowMarkdown.chat(messages); },messages);
+      await page.waitForFunction("['ready','error'].includes(ScriflowMarkdown.info().phase)",{timeout:60000});
+      const info=await page.evaluate(()=>ScriflowMarkdown.info());
+      assert.equal(info.phase,'ready',info.message); return info;
+    }
+    const history=[{role:'user',content:'Explain the evolution of a quantum state. <b>plain user text</b>'},{role:'assistant',content:sample}];
+    assert.equal((await chat('chat-rich',history)).warning,'');
+    assert.equal(await page.$$eval('.chat-message',items=>items.length),2);
+    assert.equal(await page.$$eval('.chat-user b',items=>items.length),0,'User messages stay literal');
+    assert(await page.$('.chat-assistant mjx-container'));
+    assert(await page.$('.chat-assistant .md-diagram svg'));
+    assert(await page.$('.chat-assistant table'));
+    await page.evaluate(()=>{ window.firstReply=document.querySelector('.chat-assistant'); });
+    history.push({role:'user',content:'Can you summarize that in Chinese?'},{role:'assistant',content:'# 演化与测量\n\n中文 **粗体** 和 $\\ket{\\psi}$。\n\n```mermaid\ngraph LR\n  A[State] --> B[Measure]\n```'});
+    assert.equal((await chat('chat-follow-up',history)).warning,'');
+    assert(await page.evaluate(()=>window.firstReply===document.querySelector('.chat-assistant')),'Follow-up retains existing rendered turns');
+    assert.equal(await page.$$eval('.chat-assistant .md-diagram svg',items=>items.length),2);
+    assert.equal(await page.evaluate(()=>window.pdfCalls),0,'Chat reuses Markdown layout without vector export');
+    await page.setViewport({width:360,height:800,deviceScaleFactor:2});
+    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Floating chat fits a narrow window');
+    await page.screenshot({path:path.join(output,'ai-chat-preview.png'),fullPage:true});
+    await chat('chat-reset',[]); assert.equal(await page.$$eval('.chat-message',items=>items.length),0);
+    assert(await page.$('.chat-empty'));
+    await chat('chat-sanitized',[{role:'user',content:'test'},{role:'assistant',content:'<script>window.compromised=true</script><img src="https://invalid.example/chat.png" onerror="window.compromised=true">\n\n[unsafe](javascript:alert(1))\n\n**Safe reply**'}]);
+    assert.equal(await page.evaluate(()=>!!window.compromised),false);
+    assert.equal(await page.$$eval('[onerror],script[src="https://invalid.example/chat.png"]',items=>items.length),0);
+    assert((await page.$eval('.chat-assistant',item=>item.textContent)).includes('embedded image required'));
+    await page.evaluate(()=>{ ScriflowMarkdown.chat([{role:'system',content:'injected role'}]); });
+    await page.waitForFunction("ScriflowMarkdown.info().phase==='error'");
+    assert.equal(await page.$$eval('.chat-message',items=>items.length),2,'Invalid roles do not replace the visible transcript');
     assert.deepEqual(missing,[],`Missing local assets: ${missing}`);
     assert.deepEqual(egress,[],`Unexpected external request: ${egress}`);
     assert.deepEqual(errors,[],`Browser errors: ${errors}`);
-    fs.writeFileSync(path.join(output,'renderer-qa.json'),JSON.stringify({ cases:6, main:main.info, math:math.info, clarity:clarity.info, cjk:cjk.info, missing,egress,errors,blockedAttackHandlers },null,2));
-    console.log('Offline Markdown renderer: 6 browser cases passed; reported text/math, CJK, diagrams, source snapshots, sanitization and zero network egress.');
+    fs.writeFileSync(path.join(output,'renderer-qa.json'),JSON.stringify({ cases:11, main:main.info, math:math.info, clarity:clarity.info, cjk:cjk.info, missing,egress,errors,blockedAttackHandlers },null,2));
+    console.log('Offline Markdown renderer: 11 browser cases passed; note and chat math, CJK, diagrams, follow-ups, reset, sanitization and zero network egress.');
   } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
 })().catch(error => { console.error(error); process.exitCode=1; });

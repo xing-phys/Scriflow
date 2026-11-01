@@ -3,7 +3,7 @@ const fs = require('fs'), path = require('path'), crypto = require('crypto'), cp
 const root = path.resolve(__dirname, '..'), source = path.join(root, 'renderer/markdown');
 const install = path.join(root, '.tools/markdown-renderer'), output = path.join(root, 'app/build/generated/markdown-assets');
 const sha = data => crypto.createHash('sha256').update(data).digest('hex');
-const inputs = ['package.json', 'package-lock.json', 'fonts.json', 'bootstrap.js', 'index.html', 'renderer.css', 'renderer.js'];
+const inputs = ['package.json', 'package-lock.json', 'fonts.json', 'bootstrap.js', 'index.html', 'chat.html', 'renderer.css', 'renderer.js'];
 async function main() {
   if (+process.versions.node.split('.')[0] < 20) throw new Error('Markdown assets require Node.js 20 or newer');
   const key = sha(Buffer.concat(inputs.map(name => fs.readFileSync(path.join(source, name)))
@@ -40,7 +40,7 @@ async function main() {
     const stub = path.join(install,'unused-katex.js'); fs.writeFileSync(stub,'exports.renderToString=function(){throw Error("MathJax engine required")};');
     esbuild.buildSync({...build,entryPoints:[path.join(source,'renderer.js')],nodePaths:[modules],
       alias:{katex:stub},define:{'import.meta.url':'location.href'},outfile:path.join(assets,'renderer.js')});
-    for (const name of ['index.html','bootstrap.js','renderer.css']) fs.copyFileSync(path.join(source,name),path.join(assets,name));
+    for (const name of ['index.html','chat.html','bootstrap.js','renderer.css']) fs.copyFileSync(path.join(source,name),path.join(assets,name));
     const transform = (from,to) => {
       fs.mkdirSync(path.dirname(to),{recursive:true});
       fs.writeFileSync(to,esbuild.transformSync(fs.readFileSync(from,'utf8'),{target:'chrome70',minify:true,legalComments:'eof'}).code);

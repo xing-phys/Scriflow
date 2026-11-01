@@ -166,3 +166,20 @@ this is process-interruption recovery, not a guarantee against every power-loss/
 - A private pre-update raw recovery copy was retained locally under ignored `artifacts/`.
   Actual new backup-provider writes and user-driven stylus acceptance remain useful follow-up
   checks; no personal notebook was restored or overwritten for testing.
+
+## Optional AI chat
+
+`NotebookAiConfig`, `NotebookAiClient` and `NotebookAiConversation` keep provider
+protocols, bounded HTTPS requests and atomic local history independent of Android
+UI. `NotebookAiSession` serializes durable question publication before sending
+and rejects cancelled or retired worker callbacks. `NotebookAiSettings` encrypts
+credentials with Android Keystore; public provider/model/endpoint preferences
+and private transcripts are separate from notebook data.
+
+`NotebookAiChat` is a movable/resizable focusable PopupWindow with native input
+exclusions and contact/writer barriers. `NotebookAiMarkdownView` renders local
+chat content using `ScriflowMarkdown.chat`, sharing the sanitized Markdown,
+MathJax, highlighting, diagram and CJK code used by note blocks. Chat does not
+compile vector PDF appearances; existing turns remain attached on follow-up.
+The WebView cannot make external requests or access the API credential.
+See [AI chat](ai-chat.md) and [privacy](privacy.md).

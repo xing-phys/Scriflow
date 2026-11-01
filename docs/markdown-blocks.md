@@ -32,7 +32,9 @@ An invalid formula remains visible with its error; the original source is kept.
 This is mathematical LaTeX support, rather than a complete LaTeX document engine.
 
 Text/code fonts, complete CJK fonts, math glyphs and diagram code are packaged
-inside the APK. No CDN, network permission or online service is required.
+inside the APK. No CDN or online service is required for rendering. Optional
+[AI chat](ai-chat.md) uses a separate native HTTPS client and the same local
+Markdown formatter for its replies.
 External Markdown image URLs become an explicit embedded-image placeholder;
 embedded data images and separately inserted figures remain local. Block
 appearances are static: links, task checkboxes, details and diagrams are not

@@ -21,6 +21,10 @@ public final class NotebookSymbols {
     public static void draw(String icon, Sink out) {
         if (icon == null || out == null) throw new IllegalArgumentException("Missing icon or sink");
         switch (icon) {
+            case "AI_CHAT":
+                line(out, 4, 3, 20, 3, 22, 5, 22, 15, 20, 17, 10, 17, 5, 21, 5, 17, 2, 15, 2, 5, 4, 3);
+                polygon(out, false, 12, 6, 13.5f, 9.5f, 17, 11, 13.5f, 12.5f, 12, 16, 10.5f, 12.5f, 7, 11, 10.5f, 9.5f);
+                break;
             case "LIBRARY":
                 polygon(out, false, 3, 4, 7, 4, 7, 20, 3, 20);
                 polygon(out, false, 8, 7, 12, 7, 12, 20, 8, 20);

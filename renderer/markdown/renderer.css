@@ -35,3 +35,7 @@ eq,eqn,.md-display{display:block;text-align:center;margin:.75em 0}eq>mjx-contain
 .md-diagram>svg{max-width:100%;height:auto}.hljs-keyword,.hljs-title,.hljs-built_in{font-weight:700}
 .hljs-string,.hljs-number,.hljs-literal{color:#444}.hljs-comment,.hljs-quote{color:#666;font-style:italic}
 .md-source{margin:0;padding:0;background:transparent;font:14px/1.45 ScriflowCode;white-space:pre-wrap;tab-size:4;overflow-wrap:anywhere}
+.chat{background:#fff}.chat #block{width:100%!important;padding:8px 12px;font-size:16px;line-height:1.5}
+.chat-message{padding:10px 0 14px;border-bottom:1px solid #aaa}.chat-role{font-size:12px;margin:0 0 6px;font-weight:700}
+.chat-user{padding:10px;background:#f4f4f4}.chat-plain{white-space:pre-wrap;overflow-wrap:anywhere}
+.chat-empty{padding:12px 0;color:#555}.chat .md-display{overflow-x:auto}.chat pre{overflow-x:auto}

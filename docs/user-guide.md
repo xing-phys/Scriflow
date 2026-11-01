@@ -4,8 +4,8 @@ Scriflow is designed for Huawei MatePad Paper HMW-W09 on Android 10/API 29,
 firmware `HMW-W09 2.1.0.222(C00E170R1P8)`. Other devices and firmware have not
 been verified. See the [README](../README.md) for installation and current limits.
 
-This guide follows prerelease **0.35.0-alpha.1**; the published stable release is
-**0.33.2**. The alpha reads older notes but writes page format 8 on
+This guide follows development build **0.36.0-dev.1**; the published stable release is
+**0.33.2**. This build reads older notes but writes page format 8 on
 edit and in new editable backups. Older APKs, including stable 0.33.2, cannot
 open those pages or new backups. Keep independent
 backups before updating. Physical checks of this exact APK remain pending.
@@ -50,6 +50,21 @@ and mathematical LaTeX render offline. Use `$…$` for inline math and `$$…$$`
 for display math; aligned equations, matrices, physics and chemistry notation
 are supported. Original source stays editable. See [Markdown blocks](markdown-blocks.md)
 for syntax, recovery, size limits and compatibility.
+
+## AI chat
+
+Open **Settings → AI chat**, select a provider, enter your API key, check the
+model and API base URL, then tap **Save AI settings**. Tap the chat-bubble
+sparkle in the toolbox to chat in a floating window. Drag its title to move it
+or its lower-right handle to resize it. Send a question, then ask follow-ups;
+replies render Markdown, math, code and tables using the existing local engine.
+**Stop**, **Retry**, **Copy reply**, **New chat (+)** and **Close (×)** are in
+the panel. Closing preserves the conversation and unsent draft.
+
+Sending shares this chat's text and history with the configured provider;
+provider usage may incur charges. Notebook pages and PDFs are not automatically
+included. Paste text to share it. Keys are encrypted on the tablet. See
+[AI chat](ai-chat.md) for provider setup, recovery, limits and privacy.
 
 ## Figures and multiple notes
 

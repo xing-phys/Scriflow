@@ -33,6 +33,8 @@ public final class NotebookSettingsActivity extends NotebookDisplayActivity {
         scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
         LinearLayout body = column();
 
+        new NotebookAiSettingsSection(this, body);
+
         section(body, "Screen orientation");
         LinearLayout orientationRow = row();
         for (NotebookSettings.Orientation orientation : NotebookSettings.Orientation.values()) {

@@ -96,6 +96,11 @@ offline compilation/display architecture.
 
 ## Downloaded development tools
 
+Host AI tests use checksum-pinned [JSON-java 20240303](https://github.com/stleary/JSON-java)
+in ignored `.tools/ai-tests`. Its upstream license applies to that development
+dependency. Android uses the platform's `org.json`; the test JAR is not packaged
+in the APK.
+
 The full Gradle distribution, Android SDK/build tools, JDK, plugin dependencies,
 and their caches are downloaded separately into ignored local directories.
 Those build tools are not checked into this repository or included in the app

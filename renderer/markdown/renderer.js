@@ -159,14 +159,11 @@ async function vectorAppearance(body) {
   return { width: bounds.width, height, pdf };
 }
 
-async function render(source, width) {
-  if (result.phase === 'working') throw new Error('A Markdown render is already running');
-  result = { phase: 'working' };
-  try {
+async function renderContent(source, body, width, diagramPrefix='diagram') {
     if (typeof source !== 'string' || new TextEncoder().encode(source).length > 128 * 1024) throw new Error('Markdown source exceeds 128 KiB');
     if (!Number.isFinite(width) || width < 160 || width > 1600) throw new Error('Invalid Markdown layout width');
     equations = []; diagrams = [];
-    const body = document.getElementById('block'); body.style.width = `${Math.round(width)}px`;
+    body.style.width = `${Math.round(width)}px`;
     const fragment = DOMPurify.sanitize(md.render(source), { RETURN_DOM_FRAGMENT:true,
       FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'style', 'link'],
       FORBID_ATTR: ['style', 'id', 'name','srcset'], ADD_ATTR: ['data-equation', 'data-diagram'], ADD_TAGS: ['eq', 'eqn', 'aside'] });
@@ -183,14 +180,23 @@ async function render(source, width) {
     const errors = Array.from(body.querySelectorAll('[data-mjx-error]')).map(n => `Math: ${n.getAttribute('data-mjx-error')}`);
     for (const mark of body.querySelectorAll('[data-diagram]')) {
       try {
-        const rendered = await mermaid.render(`diagram-${mark.dataset.diagram}`, diagrams[Number(mark.dataset.diagram)]);
+        const rendered = await mermaid.render(`${diagramPrefix}-${mark.dataset.diagram}`, diagrams[Number(mark.dataset.diagram)]);
         mark.innerHTML = DOMPurify.sanitize(rendered.svg, { USE_PROFILES: { svg: true, svgFilters: true } });
       } catch (error) {
         errors.push(`Diagram: ${String(error.message || error).slice(0,200)}`);
         const pre = document.createElement('pre'); pre.textContent = diagrams[Number(mark.dataset.diagram)]; mark.replaceWith(pre);
-        document.getElementById(`ddiagram-${mark.dataset.diagram}`)?.remove();
+        document.getElementById(`d${diagramPrefix}-${mark.dataset.diagram}`)?.remove();
       }
     }
+    return errors;
+}
+
+async function render(source, width) {
+  if (result.phase === 'working') throw new Error('A Markdown render is already running');
+  result = { phase: 'working' };
+  try {
+    const body = document.getElementById('block');
+    const errors = await renderContent(source, body, width);
     const rendered = await vectorAppearance(body);
     const code = document.createElement('pre'); code.className = 'md-source'; code.textContent = source || ' ';
     while(body.firstChild)body.removeChild(body.firstChild);body.appendChild(code);
@@ -199,8 +205,43 @@ async function render(source, width) {
   } catch (error) { result = { phase: 'error', message: String(error && error.message || error).slice(0, 1000) }; }
 }
 
+let chatMessages=[], chatRevision=0;
+async function chat(messages) {
+  if (result.phase === 'working') return;
+  result = { phase:'working' };
+  try {
+    if (!Array.isArray(messages) || messages.length>80) throw new Error('Invalid chat history');
+    for (const message of messages) {
+      if (!['user','assistant'].includes(message.role) || typeof message.content!=='string'
+          || new TextEncoder().encode(message.content).length>128*1024) throw new Error('Invalid chat message');
+    }
+    const body=document.getElementById('block'); document.body.classList.add('chat');
+    if (chatMessages.length>messages.length || chatMessages.some((m,i)=>m.role!==messages[i]?.role || m.content!==messages[i]?.content)) {
+      MathJax.typesetClear([body]); body.textContent=''; chatMessages=[];
+    }
+    body.querySelector('.chat-empty')?.remove();
+    if (!messages.length) {
+      const empty=document.createElement('p'); empty.className='chat-empty';
+      empty.textContent='Ask a question to start a conversation. Replies support Markdown, equations, tables, code, and diagrams.'; body.appendChild(empty);
+    }
+    const errors=[];
+    for (let i=chatMessages.length;i<messages.length;i++) {
+      const message=messages[i], article=document.createElement('article'), title=document.createElement('h2'), content=document.createElement('div');
+      article.className=`chat-message chat-${message.role}`; article.dataset.message=String(i);
+      title.className='chat-role'; title.textContent=message.role==='user'?'You':'AI'; article.append(title,content); body.appendChild(article);
+      if (message.role==='assistant') {
+        try { errors.push(...await renderContent(message.content,content,Math.max(160,Math.min(1600,body.clientWidth-24)),`chat-${++chatRevision}`)); }
+        catch (error) { content.textContent=message.content; content.className='chat-plain'; errors.push('Could not format this reply; showing its Markdown source.'); }
+      } else { content.textContent=message.content; content.className='chat-plain'; await prepareCJK(content); }
+      content.style.width='100%';
+    }
+    chatMessages=messages.map(m=>({role:m.role,content:m.content}));
+    result={phase:'ready',warning:errors.join('\n').slice(0,1000)};
+  } catch (error) { result={phase:'error',message:String(error?.message||error).slice(0,1000)}; }
+}
+
 window.ScriflowMarkdown = {
-  render,
+  render, chat,
   info() { return { phase: result.phase, message: result.message, warning: result.warning,
     rw: result.rendered?.width, rh: result.rendered?.height, sw: result.original?.width, sh: result.original?.height,
     renderedLength: result.rendered?.pdf.length, sourceLength: result.original?.pdf.length }; },

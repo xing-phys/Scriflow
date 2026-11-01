@@ -28,7 +28,7 @@ NOTEBOOK_SCREENS = {PACKAGE + '.notebook.' + name for name in (
     'NotebookLibraryActivity', 'NotebookActivity', 'NotebookSettingsActivity',
     'NotebookTransferActivity', 'NotebookPdfExportActivity', 'NotebookPdfImportActivity')}
 DIAGNOSTICS = {PACKAGE + '.MainActivity', PACKAGE + '.notebook.NotebookSelfTestActivity'}
-PERMISSIONS = {'android.permission.ACCESS_NETWORK_STATE'}
+PERMISSIONS = {'android.permission.ACCESS_NETWORK_STATE', 'android.permission.INTERNET'}
 COMPONENTS = {'activity', 'activity-alias', 'service', 'receiver', 'provider'}
 
 
@@ -204,6 +204,7 @@ def verify_manifest(manifest, badging, variant, version):
     require(bool(application.attributes.get('android:debuggable', 0)) == (variant == 'debug'),
             f'Expected debuggable={str(variant == "debug").lower()} for {variant}.')
     require(application.attributes.get('android:allowBackup') == 0, 'Automatic Android backup must remain disabled.')
+    require(application.attributes.get('android:usesCleartextTraffic') == 0, 'AI credentials must use HTTPS; cleartext traffic must be disabled.')
     require('android:icon' in application.attributes, 'Missing launcher icon.')
     labels = re.findall(r"^application-label(?:-[^:]+)?:'([^']*)'$", badging, re.MULTILINE)
     require(labels and set(labels) == {'Scriflow'}, 'Expected the Scriflow label in every packaged locale.')

@@ -23,6 +23,10 @@ fonts into `.tools/markdown-renderer`; subsequent cached builds work offline.
 Both builders call `scripts/build-markdown-assets.sh`. Host renderer/export
 tests additionally require Google Chrome (override its executable with
 `CHROME_BIN`) and Poppler's `pdftotext` (`poppler-utils` on Ubuntu).
+Host AI protocol/lifecycle tests additionally cache checksum-pinned JSON-java
+20240303 in `.tools/ai-tests` on the first run. Android uses built-in `org.json`;
+this test dependency is not included in the APK. Tests use connection fixtures
+and do not need provider credentials or make paid API requests.
 
 Tool downloads are version-pinned and checksum-verified. They remain in ignored
 `.tools/`; project state and generated artifacts are ignored too. The first

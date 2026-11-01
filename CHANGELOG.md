@@ -6,6 +6,29 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.36.0-dev.1 — Floating AI chat (2026-11-01)
+
+- Add AI settings for OpenAI, Anthropic, Google Gemini, DeepSeek and custom
+  OpenAI-compatible HTTPS providers, with editable model/endpoint and encrypted
+  API keys protected by Android Keystore.
+- Add a toolbox chat-bubble sparkle opening a movable, resizable window with
+  conversation history, drafts, Send/Stop/Retry, Copy reply and New chat.
+  Reuse the local Markdown/MathJax/code/table/Mermaid engine without generating
+  PDFs for chat. Preserve earlier rendered turns on follow-ups.
+- Send only explicitly submitted chat text and history to the configured
+  provider. Add INTERNET permission, disable cleartext traffic, reject redirects,
+  and retain the renderer's blocked network loads and sanitizer. Update privacy
+  documentation to describe optional provider requests and local chat storage.
+- Save questions before sending, retain unanswered questions for explicit Retry,
+  cancel pending requests when closing, and reject stale worker callbacks.
+  Protect the native ink surface through contact/writer barriers and input
+  exclusions, including the software keyboard, moving/resizing and clear-chat
+  confirmation.
+- VersionCode 82; page/backup format 8 and permanent signing identity are
+  unchanged. Physical tablet and live provider-account acceptance remain pending.
+- Pass 272,567 JVM assertions in 91 suites, eleven real-browser cases,
+  debug/release lint and builds, and permanent-signer verification.
+
 ## 0.35.0-alpha.8 — Region eraser (2026-11-01)
 
 - Add Stroke/Region choices when tapping the selected Eraser icon. Region mode
