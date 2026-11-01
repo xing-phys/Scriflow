@@ -15,6 +15,8 @@ import android.view.WindowManager;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.PopupWindow;
 import android.widget.SeekBar;
+import android.widget.FrameLayout;
+import android.widget.LinearLayout;
 
 /** A persistent compact bar; outside input keeps its original stream in the editor window. */
 final class NotebookWidthPopup {
@@ -24,22 +26,47 @@ final class NotebookWidthPopup {
         void onContactEnd();
         void onClosed();
         void onBoundsChanged(Rect bounds);
+        default void onEraserModeChanged(boolean region){}
     }
 
     private final Activity activity;
     private final SliderView content;
+    private final FrameLayout container;
+    private final NotebookIconButton strokeMode,regionMode;
     private final PopupWindow popup;
     private final NotebookPenSliderClose closing;
     private final NotebookWidthRange range;
     private final Listener listener;
     private final Rect bounds = new Rect();
     private boolean cancelAfterContact;
+    private boolean modeContactActive,modeContactAccepted;
+    private boolean region;
+    private View canvasAnchor,buttonAnchor;
+    private Rect toolsAnchor;
+    private boolean verticalAnchor;
 
     NotebookWidthPopup(Activity activity, NotebookWidthRange range, float width, float pageScale, Listener listener) {
+        this(activity,range,width,pageScale,false,listener);
+    }
+    NotebookWidthPopup(Activity activity, NotebookWidthRange range, float width, float pageScale, boolean region, Listener listener) {
         this.activity = activity; this.range = range; this.listener = listener;
+        this.region=range==NotebookWidthRange.ERASER&&region;
         content = new SliderView(width, pageScale);
+        container=new FrameLayout(activity);container.setBackground(null);
+        if(range==NotebookWidthRange.ERASER){
+            LinearLayout modes=new ModeRow(activity);
+            strokeMode=new NotebookIconButton(activity,NotebookIconDrawable.Icon.ERASER,"Stroke eraser");
+            regionMode=new NotebookIconButton(activity,NotebookIconDrawable.Icon.REGION_ERASER,"Region eraser; draw a dashed loop to erase whole selected strokes");
+            for(NotebookIconButton button:new NotebookIconButton[]{strokeMode,regionMode})button.setTooltipText(button.getContentDescription());
+            strokeMode.setOnClickListener(v->chooseMode(false));regionMode.setOnClickListener(v->chooseMode(true));
+            modes.addView(strokeMode,new LinearLayout.LayoutParams(dp(32),dp(32)));
+            LinearLayout.LayoutParams item=new LinearLayout.LayoutParams(dp(32),dp(32));item.leftMargin=dp(6);
+            modes.addView(regionMode,item);container.addView(modes,new FrameLayout.LayoutParams(-2,dp(32)));
+            updateModes();
+        }else{strokeMode=regionMode=null;}
+        container.addView(content,new FrameLayout.LayoutParams(-1,dp(48)));
         // Keep the editor's fullscreen/focus state. Back is handled by its Activity.
-        popup = new PopupWindow(content, 0, 0, false);
+        popup = new PopupWindow(container, 0, 0, false);
         popup.setTouchable(true);
         // WATCH_OUTSIDE_TOUCH reports an outside DOWN without stealing it from the page.
         popup.setOutsideTouchable(true);
@@ -60,7 +87,19 @@ final class NotebookWidthPopup {
         popup.setOnDismissListener(this::windowDismissed);
     }
 
+    private void updateModes(){strokeMode.setToolSelected(!region);regionMode.setToolSelected(region);}
+    private void chooseMode(boolean value){
+        if(region==value||cancelAfterContact)return;
+        boolean borrowed=modeContactActive&&modeContactAccepted;
+        if(!borrowed&&!listener.onContactStart())return;
+        try{
+            region=value;listener.onEraserModeChanged(value);updateModes();
+            show(canvasAnchor,buttonAnchor,toolsAnchor,verticalAnchor);
+        }finally{if(!borrowed)listener.onContactEnd();}
+    }
+
     void show(View canvas, View pen, Rect tools, boolean vertical) {
+        canvasAnchor=canvas;buttonAnchor=pen;toolsAnchor=new Rect(tools);verticalAnchor=vertical;
         if (!canvas.isAttachedToWindow() || canvas.getWidth() <= 0 || canvas.getHeight() <= 0) {
             finish(null); return;
         }
@@ -76,19 +115,26 @@ final class NotebookWidthPopup {
         NotebookPenSliderLayout.Box bar = NotebookPenSliderLayout.place(canvas.getWidth(), canvas.getHeight(),
             new NotebookPenSliderLayout.Box(button.left, button.top, Math.max(1, button.width()), Math.max(1, button.height())),
             new NotebookPenSliderLayout.Box(palette.left, palette.top, Math.max(1, palette.width()), Math.max(1, palette.height())),
-            vertical, dp(224), dp(48), dp(6), dp(8));
-        content.bar.set(0, 0, bar.width, bar.height);
+            vertical, dp(region?70:224), dp(range==NotebookWidthRange.ERASER?(region?32:88):48), dp(6), dp(8));
+        int offset=range==NotebookWidthRange.ERASER?dp(40):0;
+        content.setVisibility(region?View.GONE:View.VISIBLE);
+        FrameLayout.LayoutParams slider=(FrameLayout.LayoutParams)content.getLayoutParams();
+        slider.topMargin=offset;slider.height=Math.max(1,bar.height-offset);content.setLayoutParams(slider);
+        content.bar.set(0, 0, bar.width, Math.max(1,bar.height-offset));
         bounds.set(origin[0] + bar.left, origin[1] + bar.top, origin[0] + bar.right(), origin[1] + bar.bottom());
         // Install the native-ink hole before this window becomes visible.
         listener.onBoundsChanged(new Rect(bounds));
         popup.setWidth(bar.width); popup.setHeight(bar.height);
-        try { if (!NotebookPopupHost.show(popup, canvas, Gravity.TOP | Gravity.LEFT, bounds.left, bounds.top)) finish(null); }
+        try {
+            if(popup.isShowing())popup.update(bounds.left,bounds.top,bar.width,bar.height);
+            else if (!NotebookPopupHost.show(popup, canvas, Gravity.TOP | Gravity.LEFT, bounds.left, bounds.top)) finish(null);
+        }
         catch (RuntimeException error) { finish(null); }
     }
 
     /** User cancellation waits for the last contact before returning native handwriting. */
     void cancel() {
-        if (content.state.active()) { cancelAfterContact = true; content.state.cancel(); }
+        if (content.state.active()||modeContactActive) { cancelAfterContact = true; content.state.cancel(); }
         else finish(null);
     }
 
@@ -103,12 +149,34 @@ final class NotebookWidthPopup {
     }
     private void windowDismissed() {
         content.endContact();
+        endModeContact();
         if (!bounds.isEmpty()) {
             bounds.setEmpty(); listener.onBoundsChanged(new Rect());
         }
         closing.dismissed();
     }
     private int dp(float value) { return Math.round(value * activity.getResources().getDisplayMetrics().density); }
+
+    private void endModeContact(){
+        if(!modeContactActive)return;
+        boolean accepted=modeContactAccepted;modeContactActive=modeContactAccepted=false;
+        if(accepted)listener.onContactEnd();
+    }
+    private final class ModeRow extends LinearLayout {
+        ModeRow(Activity activity){super(activity);}
+        @Override public boolean dispatchTouchEvent(MotionEvent event){
+            int action=event.getActionMasked();
+            if(action==MotionEvent.ACTION_DOWN){
+                endModeContact();modeContactActive=true;modeContactAccepted=listener.onContactStart();
+            }
+            try{if(modeContactAccepted)super.dispatchTouchEvent(event);return true;}
+            finally{
+                if(action==MotionEvent.ACTION_UP||action==MotionEvent.ACTION_CANCEL){
+                    endModeContact();if(cancelAfterContact)finish(null);
+                }
+            }
+        }
+    }
 
     private final class SliderView extends View {
         final NotebookPenSliderState state;
@@ -214,7 +282,8 @@ final class NotebookWidthPopup {
             info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_BACKWARD);
             int[] origin = new int[2]; getLocationOnScreen(origin);
             Rect bounds = new Rect(); bar.roundOut(bounds);
-            info.setBoundsInParent(bounds); bounds.offset(origin[0], origin[1]); info.setBoundsInScreen(bounds);
+            Rect parent=new Rect(bounds);parent.offset(getLeft(),getTop());info.setBoundsInParent(parent);
+            bounds.offset(origin[0], origin[1]); info.setBoundsInScreen(bounds);
         }
         @Override public boolean performAccessibilityAction(int action, Bundle args) {
             float width;

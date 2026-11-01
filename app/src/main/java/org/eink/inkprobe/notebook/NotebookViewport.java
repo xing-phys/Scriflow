@@ -333,6 +333,22 @@ public final class NotebookViewport {
         return Collections.unmodifiableList(result);
     }
 
+    /** Region selection cannot reach invisible crop margins, offscreen pages or page gutters. */
+    public Map<Integer,List<NotebookPage.Point>> splitRegion(List<NotebookPage.Point> path,float scroll){
+        checkPath(path);
+        Map<Integer,List<NotebookPage.Point>> result=new LinkedHashMap<>();
+        for(int id:visiblePages(scroll)){
+            List<NotebookPage.Point> clipped=NotebookRegionEraser.clip(path,
+                Math.max(0,viewLeft(id)),Math.max(0,viewTop(id,scroll)),
+                Math.min(width,viewRight(id)),Math.min(height,viewBottom(id,scroll)));
+            if(clipped.isEmpty())continue;
+            float scale=scale(id);
+            result.put(id,Collections.unmodifiableList(transformClipped(clipped,1/scale,
+                -pageLeft(id)/scale,-pageTop(id,scroll)/scale,pageWidth(id),pageHeight(id))));
+        }
+        return Collections.unmodifiableMap(result);
+    }
+
     private int index(int pageId) {
         if (pageId < 1 || pageId > pageCount) throw new IllegalArgumentException("Page is out of range");
         return pageId - 1;

@@ -454,13 +454,13 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
                 replaceNativeTracks();
                 previewVisible = false;
             }
-            call(surface, "setAhwToolTypes", new Class<?>[]{int[].class}, tool == Tool.ERASER
+            call(surface, "setAhwToolTypes", new Class<?>[]{int[].class}, tool == Tool.ERASER || tool == Tool.REGION_ERASER
                 ? new int[]{MotionEvent.TOOL_TYPE_STYLUS, MotionEvent.TOOL_TYPE_ERASER}
                 : new int[]{MotionEvent.TOOL_TYPE_STYLUS});
             call(surface, "setNeedAddDownEvent", new Class<?>[]{boolean.class}, true);
             int ballpoint = Class.forName("android.eink.view.HandPenConfig")
                 .getField("PEN_TYPE_YUANZHUBI").getInt(null);
-            int nativePen = tool == Tool.LASSO ? Class.forName("android.eink.view.HandPenConfig")
+            int nativePen = tool == Tool.LASSO || tool == Tool.REGION_ERASER ? Class.forName("android.eink.view.HandPenConfig")
                 .getField("PEN_TYPE_DASH").getInt(null)
                 : tool == Tool.ERASER ? Class.forName("android.eink.view.HandPenConfig")
                     .getField("PEN_TYPE_SIMPLE").getInt(null) : ballpoint;
@@ -468,7 +468,7 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
             // shrank its grey preview (36 px became 18 px at light pressure), so
             // use the firmware's constant-width brush for this temporary tool only.
             call(surface, "setAhwPen", new Class<?>[]{int.class, float.class, int.class},
-                nativePen, (tool == Tool.LASSO ? LASSO_WIDTH : tool == Tool.PEN ? penWidth : eraserWidth) * widthScale,
+                nativePen, (tool == Tool.LASSO || tool == Tool.REGION_ERASER ? LASSO_WIDTH : tool == Tool.PEN ? penWidth : eraserWidth) * widthScale,
                 tool == Tool.ERASER ? NotebookEraserCommit.COLOR : Color.BLACK);
             configuredStyle = NotebookPenConfig.nativeInput(ballpoint, penWidth * widthScale, Color.BLACK, widthScale);
             call(view, "setState", new Class<?>[]{int.class},
@@ -571,7 +571,7 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
             finally { if (cancellation != null) cancellation.recycle(); }
             return true;
         }
-        if (tool == Tool.LASSO && (isReady() || lassoGesture.isActive())) { captureLasso(event); return true; }
+        if ((tool == Tool.LASSO || tool == Tool.REGION_ERASER) && (isReady() || lassoGesture.isActive())) { captureLasso(event); return true; }
         if (!isReady()) return true;
         if (tool == Tool.PEN) {
             // Prevent a physical eraser tip from silently changing native track history.
@@ -588,7 +588,8 @@ public final class NotebookInk implements NotebookInkBackend, SurfaceHolder.Call
             int action = event.getActionMasked(), changed = event.getActionIndex();
             if (action == MotionEvent.ACTION_DOWN) {
                 if (lassoCompletion.isPending()) return;
-                if (event.getToolType(changed) != MotionEvent.TOOL_TYPE_STYLUS) return;
+                int type=event.getToolType(changed);
+                if(type!=MotionEvent.TOOL_TYPE_STYLUS && !(tool==Tool.REGION_ERASER && type==MotionEvent.TOOL_TYPE_ERASER))return;
                 lassoPointer = event.getPointerId(changed); lassoGesture.begin(); setPenDown(true);
                 eraserPreviewVisible = true;
             }

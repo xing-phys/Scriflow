@@ -353,6 +353,9 @@ public final class NotebookLibrary {
     public boolean eraseOnPagePaths(int number, List<List<NotebookPage.Point>> paths, float radius) throws IOException {
         final boolean[] result = {false}; edit(() -> result[0] = book.eraseOnPagePaths(number, paths, radius)); return result[0];
     }
+    public boolean eraseRegionOnPage(int number,List<NotebookPage.Point> polygon)throws IOException{
+        final boolean[] result={false};edit(()->result[0]=book.eraseRegionOnPage(number,polygon));return result[0];
+    }
     public boolean undoOnPage(int number) throws IOException {
         final boolean[] result = {false}; edit(() -> result[0] = book.undoOnPage(number)); return result[0];
     }

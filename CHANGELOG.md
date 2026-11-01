@@ -6,6 +6,25 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.35.0-alpha.8 — Region eraser (2026-11-01)
+
+- Add Stroke/Region choices when tapping the selected Eraser icon. Region mode
+  draws a native dashed loop like Lasso and erases whole selected handwriting
+  strokes on lift. Keep normal eraser width and hide its slider in Region mode.
+  Remember the mode, show its own toolbar symbol, and use it for Pen-to-Eraser
+  stylus-body shortcuts.
+- Reuse cancellation-safe native lasso completion and existing durable deletion,
+  undo and redo. Clip loops to visible paper before mapping through zoom/pan
+  and crop; support multiple visible pages with one undo entry per affected
+  page. Leave figures, Markdown and PDF content intact. Cancel/no-hit gestures
+  create no document edits.
+- Pause native input throughout mode-button contacts, including accessibility
+  changes and Back cancellation. Keep finger navigation, ordinary Lasso and
+  persistent clear-paper composition unchanged.
+- Pass 272,413 JVM assertions in 88 suites, six browser cases and Android
+  debug/release lint/build/signature checks. VersionCode 81; physical dashed
+  preview and mode interaction remain pending. Storage format 8 is unchanged.
+
 ## 0.35.0-alpha.7 — Right-side note actions (2026-11-01)
 
 - Open the top-left action circles to the right of the note bar. Hide the

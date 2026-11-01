@@ -36,6 +36,7 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookStore.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookEdits.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookLasso.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookRegionEraser.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookInkTransfer.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookSelectionMove.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookLassoGesture.java \
@@ -98,7 +99,7 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   tests/NotebookPdfTest.java tests/NotebookOutlineFixture.java tests/NotebookStrokeOutlineTest.java tests/NotebookOverlayClipTest.java \
   tests/NotebookToolStripTest.java tests/NotebookGripGestureTest.java tests/NotebookDeviceStatusStateTest.java \
   tests/NotebookPenConfigTest.java tests/NotebookPenSliderTest.java \
-  tests/NotebookPenSliderCloseTest.java tests/NotebookEraserTest.java tests/NotebookEraserCommitTest.java tests/NotebookFoundationTest.java \
+  tests/NotebookPenSliderCloseTest.java tests/NotebookRegionEraserTest.java tests/NotebookRegionEraserInteractionTest.java tests/NotebookEraserTest.java tests/NotebookEraserCommitTest.java tests/NotebookFoundationTest.java \
   tests/NotebookStrokeScaleTest.java tests/NotebookViewportSaveTest.java
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPdfReadingInteractionTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookReadingTest
@@ -167,6 +168,8 @@ java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookDeviceStatusSta
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPenConfigTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPenSliderTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPenSliderCloseTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookRegionEraserTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookRegionEraserInteractionTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookEraserTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookEraserCommitTest
 

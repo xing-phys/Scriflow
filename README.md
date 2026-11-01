@@ -26,7 +26,7 @@ pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
 stays in front, window operations retain the main editor, and PDF import opens
 the file picker directly before opening the imported note.
 
-The **[0.35.0-alpha.7 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.35.0-alpha.7)**
+The **[0.35.0-alpha.8 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.35.0-alpha.8)**
 adds [PDF reading controls](docs/pdf-reading.md): auto/manual/semi-auto cropping,
 odd/even crop areas, optional single-page reading with zoom, adjustable PDF
 contrast, and long-press word selection with Eudic floating lookup. Continuous
@@ -44,6 +44,11 @@ The top-left menu opens detached circles to the right of the note bar; the
 three dots disappear and the bar shortens while they are open. Tap figures
 directly to manipulate them. Undo/Redo float beside the right status pill. The compact Zen clock has a transparent inner
 background, leaving its rounded container visible.
+
+Tap the selected Eraser icon to choose Stroke or Region mode. Region mode draws
+a dashed loop like Lasso and erases whole selected handwriting strokes on lift,
+including strokes crossing the loop boundary. Figures and PDF content remain.
+The choice is remembered; the width slider applies to Stroke mode.
 
 It also includes editable [Markdown blocks](docs/markdown-blocks.md) with offline
 MathJax, tables, code, diagrams and CJK fonts. This build writes **page format 8**
@@ -104,7 +109,8 @@ acceptance of this APK. See [release notes](docs/releases/0.33.2.md) for scope a
   with matching physical PDF page sizes.
 - Two-finger zoom, a percentage indicator, and fit width/height/page choices.
 - Portrait, landscape, or automatic sensor rotation from Settings.
-- Adjustable whole-stroke eraser with a temporary grey trail, plus undo/redo.
+- Stroke eraser with an adjustable grey trail, or Region eraser with a dashed
+  loop; both remove whole selected strokes and support undo/redo.
 - Native dashed lasso to select whole strokes on any overlap, move them across
   pages, duplicate, copy/cut/paste, or delete them, with nearby actions and
   finger/stylus dragging.

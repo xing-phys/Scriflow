@@ -236,6 +236,16 @@ final class NotebookSession {
             if (first != null) throw first;
         }, callback);
     }
+    void eraseRegionViewport(Map<Integer,List<NotebookPage.Point>> regions,Callback callback){
+        submit(()->{
+            IOException first=null;
+            for(Map.Entry<Integer,List<NotebookPage.Point>> entry:regions.entrySet()){
+                try{document.eraseRegionOnPage(entry.getKey(),entry.getValue());}
+                catch(IOException error){if(first==null)first=error;}
+            }
+            if(first!=null)throw first;
+        },callback);
+    }
     void undo(int id, Callback callback) { submit(() -> document.undoOnPage(id), callback); }
     void redo(int id, Callback callback) { submit(() -> document.redoOnPage(id), callback); }
     void insertFigure(int expectedBook, int number, String pageId, NotebookImages.Imported image, Callback callback) {

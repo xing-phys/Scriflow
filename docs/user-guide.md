@@ -289,7 +289,8 @@ stays the same at light and heavy pressure. After the erase completes, the
 touched ink and trail disappear together. Erasing removes whole strokes rather
 than portions, so the rest of a touched stroke can disappear beyond the trail.
 
-Tap the **already-selected Eraser icon** for its width slider: **4–240** in
+Tap the **already-selected Eraser icon** to choose **Stroke eraser** or
+**Region eraser**. Stroke mode shows its width slider: **4–240** in
 steps of 1, with **36** as the default diameter. Like the Pen bar, it remains
 open after applying a value. It is independent of pen width and remembered
 across sessions. A wide eraser can reach page edges from the
@@ -298,6 +299,22 @@ the ink intact. Very fast passes at the maximum width can show visible lag.
 Native offscreen checks verify the corrected constant-width brush geometry;
 the current build's optical latency and physical pen feel still need tablet
 acceptance. Choose **Pen** to resume writing.
+
+From **0.35.0-alpha.8**, choose the **dashed-loop eraser icon** for Region mode.
+Draw a loop with the stylus and lift to erase immediately; the loop closes
+itself, using the same selection rule as Lasso. Entire strokes inside or
+intersecting the region are removed, including any portions outside the loop.
+Figures, Markdown blocks and original PDF content are not erased. A loop can
+span visible pages; crop margins and wholly offscreen strokes are protected.
+Each affected page receives one undo step, as with the normal eraser. A
+cancelled or empty/no-hit loop changes no ink or history.
+
+Region mode hides the width slider. Choose the ordinary eraser icon to restore
+Stroke mode and its previous width. The mode is remembered across sessions;
+M-Pencil body double-tap from Pen selects the remembered eraser mode. Finger
+scrolling, pinch zoom and ordinary Lasso selection keep their existing behavior.
+The region preview reuses the native dashed brush; physical preview and pen
+interaction still need tablet confirmation for this update.
 
 In **0.33.2-dev.2**, Undo/Redo are beside the top-right clock/battery/Wi-Fi bar,
 outside the toolbox. From **0.35.0-alpha.6**, these are separate circular buttons

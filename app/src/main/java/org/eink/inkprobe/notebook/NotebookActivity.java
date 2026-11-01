@@ -113,6 +113,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private float penWidth = NotebookPenConfig.DEFAULT_WIDTH;
     private NotebookPenConfig.WidthMode penWidthMode = NotebookPenConfig.WidthMode.PAGE;
     private float eraserWidth = NotebookWidthRange.ERASER.defaultWidth;
+    private boolean regionEraser;
     private NotebookWidthPopup widthPopup;
     private final Rect widthPopupBounds = new Rect();
     private boolean widthContact;
@@ -196,6 +197,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             .getFloat("penWidth", NotebookPenConfig.DEFAULT_WIDTH));
         eraserWidth = NotebookWidthRange.ERASER.restore(getPreferences(MODE_PRIVATE)
             .getFloat("eraserWidth", NotebookWidthRange.ERASER.defaultWidth));
+        regionEraser=getPreferences(MODE_PRIVATE).getBoolean("regionEraser",false);
         if (saved != null && saved.getBoolean("eraser", false)) tool = NotebookInk.Tool.ERASER;
         if (saved != null && saved.getBoolean("lasso", false)) tool = NotebookInk.Tool.LASSO;
         zenMode = saved != null && saved.getBoolean("zenMode", false);
@@ -489,7 +491,9 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                     if (active && surfaceOwner == inkGeneration) erase(path, radius);
                 }
                 @Override public void onLassoGesture(List<NotebookPage.Point> path) {
-                    if (active && surfaceOwner == inkGeneration) lasso(path);
+                    if (active && surfaceOwner == inkGeneration) {
+                        if(tool==NotebookInk.Tool.ERASER&&regionEraser)eraseRegion(path);else lasso(path);
+                    }
                 }
                 @Override public void onSelectionEvent(MotionEvent event) {
                     if (active && surfaceOwner == inkGeneration) {
@@ -503,7 +507,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                     }
                 }
             });
-            ink.setTool(tool);
+            ink.setTool(inputTool());
             ink.setPenWidth(fittedPenWidth());
             ink.setEraserWidth(eraserWidth);
             updateOverlayBounds();
@@ -1244,14 +1248,15 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         floatingTools.button(NotebookFloatingTools.Action.VIEW_FORWARD).setAvailable(ready && viewHistory.canForward());
         penButton.setToolSelected(tool == NotebookInk.Tool.PEN);
         eraserButton.setToolSelected(tool == NotebookInk.Tool.ERASER);
+        eraserButton.setIcon(regionEraser?NotebookIconDrawable.Icon.REGION_ERASER:NotebookIconDrawable.Icon.ERASER);
         lassoButton.setToolSelected(tool == NotebookInk.Tool.LASSO);
         lassoButton.setContentDescription(tool == NotebookInk.Tool.LASSO
             ? "Lasso selected; tap for selection actions and paste" : "Lasso: select and move ink");
         penButton.setPenWidthPreview(fittedPenWidth());
         penButton.setContentDescription("Pen, thickness " + NotebookPenConfig.label(penWidth)
             + (tool == NotebookInk.Tool.PEN ? "; tap for width slider" : "; select pen"));
-        eraserButton.setContentDescription("Eraser, width " + NotebookWidthRange.ERASER.label(eraserWidth)
-            + (tool == NotebookInk.Tool.ERASER ? "; tap for width slider" : "; select eraser"));
+        eraserButton.setContentDescription((regionEraser?"Region eraser; draw a dashed loop":"Stroke eraser, width "+NotebookWidthRange.ERASER.label(eraserWidth))
+            + (tool == NotebookInk.Tool.ERASER ? "; tap for eraser options" : "; select eraser"));
         updateHistoryControls();
     }
 
@@ -1313,7 +1318,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         boolean redraw = selectionOutline != null;
         if (redraw) { pauseForEdit(); clearSelection(); } else hideHistoryControls();
         tool = selected;
-        ink.setTool(selected);
+        ink.setTool(inputTool());
         if (redraw) { editing = false; installViewport(); }
         updateControls();
     }
@@ -1321,6 +1326,10 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private float fittedPenWidth() {
         return NotebookPenConfig.viewportWidth(penWidth, penWidthMode,
             viewport == null ? 1f : viewport.scale(activePage));
+    }
+
+    private NotebookInk.Tool inputTool(){
+        return tool==NotebookInk.Tool.ERASER&&regionEraser?NotebookInk.Tool.REGION_ERASER:tool;
     }
 
     private float fittedEraserWidth() {
@@ -1343,6 +1352,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             final boolean[] opening = {true};
             widthPopup = new NotebookWidthPopup(this, range, erasing ? eraserWidth : penWidth,
                 erasing || penWidthMode == NotebookPenConfig.WidthMode.PAGE ? viewport.scale(activePage) : 1f,
+                erasing&&regionEraser,
                 new NotebookWidthPopup.Listener() {
                     @Override public boolean onContactStart() {
                         if (!active || request != generation || !canEdit()) return false;
@@ -1355,6 +1365,12 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                         if (erasing) { eraserWidth = chosen; ink.setEraserWidth(fittedEraserWidth()); }
                         else { penWidth = chosen; ink.setPenWidth(fittedPenWidth()); }
                         getPreferences(MODE_PRIVATE).edit().putFloat(erasing ? "eraserWidth" : "penWidth", chosen).apply();
+                    }
+                    @Override public void onEraserModeChanged(boolean region){
+                        if(!active||request!=generation||shownError!=null||!erasing)return;
+                        regionEraser=region;
+                        getPreferences(MODE_PRIVATE).edit().putBoolean("regionEraser",region).apply();
+                        ink.setTool(inputTool());updateControls();
                     }
                     @Override public void onContactEnd() {
                         if (!widthContact) return;
@@ -1419,6 +1435,16 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         selectionPage = id; selectionOutline = NotebookLasso.closedOutline(local);
         session.selectLasso(id, selectionOutline,
             (selected, error) -> finishLasso(request, target, selected, error, true));
+    }
+
+    private void eraseRegion(List<NotebookPage.Point> path){
+        if(!canEdit()||viewport==null)return;
+        pauseForEdit();if(shownError!=null)return;clearSelection();
+        if(path==null||path.isEmpty()){editing=false;installViewport();return;}
+        final int request=generation;
+        Map<Integer,List<NotebookPage.Point>> regions=viewport.splitRegion(path,scrollY);
+        if(!regions.isEmpty())activePage=regions.keySet().iterator().next();
+        session.eraseRegionViewport(regions,(updated,error)->finishEdit(request,updated,error));
     }
 
     private void finishLasso(int request, int id, NotebookLasso.Selection selected,
@@ -3136,7 +3162,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             + (session.error() != null ? "Some writing has not been saved."
                 : session.isSaving() ? "Saving your latest writing…" : "Your completed strokes are saved on this tablet.")
             + "\n\nDrag with one finger to scroll and pan. Pinch with two fingers to zoom around their midpoint. Tap the zoom percentage for Fit width, Fit height, Fit page, zoom presets, and App settings. Tap the notebook name to return to the bookshelf. New notes start at Fit width; 100% means Fit width. Write with the stylus. Tap the page counter in the top-left bar for page management and thumbnails. Use the arrows beside the counter for adjacent pages. The page-plus icon inserts an empty page after the current page. The top-left three-dot menu switches this page’s blank/lined background."
-            + "\n\nEraser draws a temporary grey trail. Lift the pen to remove whole ink strokes touched by it, together with the trail. Tap the selected Eraser icon to adjust its width (4–240). Current eraser: " + NotebookWidthRange.ERASER.label(eraserWidth) + ". Each page remembers up to 100 Undo/Redo edits while the app process stays open."
+            + "\n\nTap the selected Eraser icon for Stroke or Region mode. Stroke eraser draws a temporary grey trail and removes whole strokes touched by it on lift. Region eraser draws a dashed loop and erases whole strokes selected by the enclosed region on lift. Region mode also supports loops spanning visible pages. The width slider (4–240) applies to Stroke mode. Current stroke eraser width: " + NotebookWidthRange.ERASER.label(eraserWidth) + ". Each page remembers up to 100 Undo/Redo edits while the app process stays open."
             + "\n\nLasso draws a temporary dashed line. Lift the stylus to close the curve automatically. Drag inside with a finger or stylus to move the selected ink. Copy, Duplicate, Move to page, Cut, Delete, and Export icons appear beside the region. Tap outside to clear the selection; tap the selected Lasso icon afterward for Paste or Select all. Copied ink stays inside Scriflow until the app restarts. Drag a selection to another page; hold near the top or bottom edge to scroll. Move… places it on any page. Cross-page moves preserve the ink and undo both pages together."
             + "\n\nNew writing or a successful edit clears Redo. Changing paper keeps your stroke history.";
         message += "\n\nTap the dotted grip to collapse or expand the floating tools; drag it to move them, even when collapsed. The direction icon beside it switches between one row and one column. The thicker circle marks the selected tool. The page counter in the top-left bar opens page management."

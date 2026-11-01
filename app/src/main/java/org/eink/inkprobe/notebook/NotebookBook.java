@@ -182,6 +182,17 @@ public final class NotebookBook {
         execute(() -> result[0] = targetDocument(number, false).erasePaths(paths, radius));
         return result[0];
     }
+    public boolean eraseRegionOnPage(int number,List<NotebookPage.Point> polygon)throws IOException{
+        final boolean[] changed={false};
+        execute(()->{
+            NotebookDocument target=targetDocument(number,false);
+            NotebookLasso.Selection selected=NotebookLasso.select(target.current(),polygon);
+            if(!selected.isEmpty()){
+                target.editSelection(selected,NotebookLasso.Action.DELETE,0,0);changed[0]=true;
+            }
+        });
+        return changed[0];
+    }
     public boolean undoOnPage(int number) throws IOException {
         return changeInkHistory(number, false);
     }

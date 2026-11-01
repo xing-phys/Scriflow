@@ -9,7 +9,7 @@ import java.util.List;
 
 /** Editor/device boundary. Live input belongs to the backend; durable pages belong to the core. */
 public interface NotebookInkBackend {
-    public enum Tool { PEN, ERASER, LASSO }
+    public enum Tool { PEN, ERASER, LASSO, REGION_ERASER }
 
     /** Paints only the opaque paper/background of the current physical viewport. */
     public interface PaperRenderer {

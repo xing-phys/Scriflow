@@ -104,6 +104,14 @@ public final class NotebookSymbols {
                 line(out, 9, 17, 6, 16, 4, 14);
                 out.begin(); out.moveTo(9, 16); out.cubicTo(4, 18, 5, 22, 9, 21); out.end(false);
                 break;
+            case "REGION_ERASER":
+                line(out, 3, 11, 4, 7, 7, 4);
+                line(out, 10, 3, 14, 3, 17, 5);
+                line(out, 3, 15, 5, 19, 8, 20);
+                polygon(out, false, 9, 15, 16, 8, 22, 14, 16, 20, 14, 20);
+                line(out, 12, 12, 19, 19);
+                line(out, 19, 21, 23, 21);
+                break;
             case "REDO":
                 line(out, 16, 4, 21, 9, 16, 14);
                 out.begin();
