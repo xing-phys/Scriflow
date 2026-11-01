@@ -14,7 +14,7 @@ import java.util.EnumMap;
 
 /** Two quiet windows above native ink, without reserving a header in the page. */
 final class NotebookStatusIslands {
-    enum Action { INSERT_FIGURE, INSERT_MARKDOWN, READING, FIGURES, INFORMATION, BACKGROUND, PASTE_FIGURE }
+    enum Action { INSERT_FIGURE, INSERT_MARKDOWN, READING, INFORMATION, BACKGROUND, PASTE_FIGURE }
     interface ActionListener { void onAction(Action action); }
     interface Listener { void onBoundsChanged(Rect left, Rect right); }
 
@@ -45,7 +45,7 @@ final class NotebookStatusIslands {
         this.clock = deviceStatus;
         this.more = more;
         notebook = island();
-        leftContent = new LinearLayout(activity); leftContent.setOrientation(LinearLayout.VERTICAL);
+        leftContent = new LinearLayout(activity); leftContent.setGravity(Gravity.TOP);
         rightContent = new LinearLayout(activity); rightContent.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout top = new LinearLayout(activity); top.setGravity(Gravity.CENTER_VERTICAL);
         // Only the title shrinks on constrained screens; the other tap targets stay distinct.
@@ -60,7 +60,6 @@ final class NotebookStatusIslands {
         addAction(Action.INSERT_FIGURE, NotebookIconDrawable.Icon.INSERT_FIGURE, "Insert figure", actionListener);
         addAction(Action.INSERT_MARKDOWN, NotebookIconDrawable.Icon.MARKDOWN, "Insert Markdown block", actionListener);
         addAction(Action.READING, NotebookIconDrawable.Icon.READING, "Reading view, PDF crop and contrast", actionListener);
-        addAction(Action.FIGURES, NotebookIconDrawable.Icon.FIGURES, "Choose a figure", actionListener);
         addAction(Action.INFORMATION, NotebookIconDrawable.Icon.INFORMATION, "Page information and PDF export", actionListener);
         addAction(Action.BACKGROUND, NotebookIconDrawable.Icon.PAPER_LINED, "Use lined background", actionListener);
         addAction(Action.PASTE_FIGURE, NotebookIconDrawable.Icon.PASTE, "Paste figure", actionListener);
@@ -68,7 +67,8 @@ final class NotebookStatusIslands {
         notebook.addView(top, new LinearLayout.LayoutParams(-1, -2));
         notebook.addView(saveState, new LinearLayout.LayoutParams(-1, dp(24)));
         leftContent.addView(notebook,new LinearLayout.LayoutParams(-2,-2));
-        LinearLayout.LayoutParams actionSpace=new LinearLayout.LayoutParams(-2,-2);actionSpace.topMargin=dp(8);
+        LinearLayout.LayoutParams actionSpace=new LinearLayout.LayoutParams(-2,-2);
+        actionSpace.leftMargin=dp(8);actionSpace.topMargin=dp(4);
         leftContent.addView(actions,actionSpace);
         device = island();
         for (NotebookIconButton button : new NotebookIconButton[]{undo, redo}) {
@@ -96,14 +96,14 @@ final class NotebookStatusIslands {
         background.setContentDescription(label); background.setTooltipText(label);
         background.setVisibility(paper ? View.VISIBLE : View.GONE);
         actionButtons.get(Action.PASTE_FIGURE).setVisibility(paste ? View.VISIBLE : View.GONE);
-        more.setContentDescription("Hide note action icons");actions.setVisibility(View.VISIBLE); position();
+        more.setVisibility(View.GONE);actions.setVisibility(View.VISIBLE); position();
     }
 
     boolean actionsShowing() { return actions.getVisibility() == View.VISIBLE; }
 
     boolean collapseActions() {
         if (!actionsShowing()) return false;
-        actions.setVisibility(View.GONE);more.setContentDescription("Show note action icons");position(); return true;
+        actions.setVisibility(View.GONE);more.setVisibility(View.VISIBLE);position(); return true;
     }
 
     private int visibleActionCount() {
@@ -112,7 +112,22 @@ final class NotebookStatusIslands {
         return count;
     }
 
-    /** Detached circles below the title pill; wrap rather than shrinking touch targets. */
+    /** Reserve a right-side lane for the circles; only the title can shrink. */
+    private void layoutActions(int width){
+        notebook.getLayoutParams().width=-2;
+        if(!actionsShowing())return;
+        int size=dp(28),gap=dp(6),space=dp(8),count=visibleActionCount();
+        int desired=count*size+Math.max(0,count-1)*gap;
+        int minimumBar=Math.min(dp(196),Math.max(1,width-space-size));
+        int limit=Math.max(minimumBar,width-space-desired);
+        notebook.measure(View.MeasureSpec.makeMeasureSpec(limit,View.MeasureSpec.AT_MOST),
+            View.MeasureSpec.makeMeasureSpec(0,View.MeasureSpec.UNSPECIFIED));
+        int barWidth=Math.max(1,notebook.getMeasuredWidth());
+        notebook.getLayoutParams().width=barWidth;
+        wrapActions(Math.max(1,width-space-barWidth));
+    }
+
+    /** On narrow panes, additional rows stay in the lane to the right of the bar. */
     private void wrapActions(int width){
         if(!actionsShowing())return;
         int size=dp(28),gap=dp(6),mask=0;
@@ -227,7 +242,7 @@ final class NotebookStatusIslands {
         int maximumLeftWidth = Math.max(1, stacked ? available.width() : available.width() - rightWidth - dp(8));
         if (zenMode) leftBounds.setEmpty();
         else {
-            wrapActions(maximumLeftWidth);
+            layoutActions(maximumLeftWidth);
             leftContent.measure(View.MeasureSpec.makeMeasureSpec(maximumLeftWidth, View.MeasureSpec.AT_MOST), unspecified);
             int leftWidth = Math.max(1, leftContent.getMeasuredWidth());
             leftBounds.set(available.left, available.top, available.left + leftWidth,

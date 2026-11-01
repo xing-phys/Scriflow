@@ -13,8 +13,8 @@ Open **⋮ → Insert figure…** to go directly to the system file picker. Choo
 an image inserts it at the current page’s center and returns to the note
 automatically. Cancelling returns without changing the note; failures offer retry.
 Tap a figure with one finger to select it, then drag its body to move it in the
-existing note view. The **⋮ → Figures…** list remains available. Drag its
-lower-right handle to resize while retaining its aspect ratio, or its upper-right
+existing note view. From **0.35.0-alpha.7**, the redundant **⋮ → Figures…**
+chooser is removed; select the figure directly. Drag its lower-right handle to resize while retaining its aspect ratio, or its upper-right
 rotation handle to turn to any angle. Move across page boundaries; holding near
 the top or bottom edge scrolls to further pages. The complete rotated image fits
 inside its destination page when released.

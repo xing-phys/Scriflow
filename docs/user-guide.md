@@ -230,12 +230,14 @@ marks the selected tool. **Lasso** uses a dashed loop (available in development
 builds after 0.28.0-beta.2). Undo/Redo appear beside the top-right device status
 while writing, each only when available. Page management,
 page-turn arrows and the bookshelf action are in the top-left bar. The vertical
-**⋮** beside the zoom percentage opens separate circular actions below the note
-bar: Insert figure, Insert Markdown, Reading view/PDF crop/contrast, Choose a
-figure, Page information/PDF export, the page’s blank/lined background action,
-and Paste figure when available. The circles have small gaps and wrap on narrow
-panes; the note bar keeps its compact shape. Tap **⋮** again, select an action,
-tap the page, or press Back to close the actions.
+**⋮** beside the zoom percentage opens separate circular actions to the right
+of the note bar: Insert figure, Insert Markdown, Reading view/PDF crop/contrast,
+Page information/PDF export, the page’s blank/lined background action, and Paste
+figure when available. The three dots disappear and the note bar shortens while
+the actions are open. The circles have small gaps; on narrow panes, additional
+rows stay in the lane to the right of the bar. Select an action, tap the page,
+or press Back to close the actions and restore the three dots. Tap a figure
+directly to move, resize, rotate or delete it; there is no figure-chooser action.
 Hold an icon for its tooltip. Page information also offers **Reset tools**.
 Reset expands the dock and returns it to its initial horizontal
 position near the top center, below the status islands. Touching controls has

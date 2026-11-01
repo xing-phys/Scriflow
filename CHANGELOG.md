@@ -6,6 +6,21 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.35.0-alpha.7 — Right-side note actions (2026-11-01)
+
+- Open the top-left action circles to the right of the note bar. Hide the
+  three dots while open so the bar becomes shorter. Preserve the small gaps;
+  on narrow panes, extra rows remain in the lane to the right of the bar.
+- Remove the redundant Choose a figure action and its list dialog. Direct
+  finger selection retains in-note move/resize/rotation and nearby figure
+  actions. Keep Insert figure and conditional Paste figure in the menu.
+- Closing the actions by choosing a function, interacting with the page or
+  pressing Back restores the three dots and normal bar width. Preserve the
+  detached history/tool circles, transparent clock and clear paper renderer.
+- Pass 252,204 JVM assertions in 84 suites, six browser cases and Android
+  debug/release lint/build/signature checks. VersionCode 80; physical placement
+  confirmation remains pending. Data and storage format are unchanged.
+
 ## 0.35.0-alpha.6 — Separate floating controls (2026-11-01)
 
 - Open the top-left three-dots actions as separate circular buttons below the

@@ -2741,7 +2741,6 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                 case INSERT_FIGURE: insertFigure(); break;
                 case INSERT_MARKDOWN: insertMarkdown(); break;
                 case READING: readingOptions(); break;
-                case FIGURES: chooseFigure(); break;
                 case INFORMATION: pageInformation(); break;
                 case BACKGROUND: choosePaper(); break;
                 case PASTE_FIGURE: pasteFigure(); break;
@@ -2937,28 +2936,6 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         markdownRecoveryChecked=false;
     }
 
-    private void chooseFigure() {
-        if (!canEdit()) return;
-        NotebookPage target = pages.get(activePage);
-        if (target == null || target.figures.isEmpty()) {
-            Toast.makeText(this, "No figures on this page. Use Insert figure…", Toast.LENGTH_LONG).show(); return;
-        }
-        pauseForEdit(); floatingTools.hide();
-        String[] labels = new String[target.figures.size()];
-        for (int i = 0; i < labels.length; i++) labels[i] = (target.figures.get(i).markdown==null?"Figure ":"Markdown block ") + (i + 1);
-        final int[] chosen = {-1};
-        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Move, resize or delete figure")
-            .setItems(labels, (choice, which) -> chosen[0] = which).setNegativeButton("Cancel", null).create();
-        viewMenu = dialog;
-        dialog.setOnDismissListener(closed -> {
-            viewMenu = null;
-            if (!active) return;
-            if (chosen[0] < 0) { editing = false; installViewport(); return; }
-            editFigure(target, chosen[0]);
-        });
-        showStaticDialog(dialog);
-    }
-
     private boolean pdfWordEligible(float x,float y){
         if(!canEdit(true)||viewport==null||session.pdfSource()==null||figureEditor!=null)return false;
         int number=viewport.pageAt(x,y,scrollY);NotebookPage target=pages.get(number);
@@ -3016,7 +2993,6 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     }
 
     private NotebookFigureEditor figureEditor;
-    private void editFigure(NotebookPage target, int index) { editFigureOnPage(target, index, activePage); }
     private void editFigureOnPage(NotebookPage target, int index, int number) {
         if (viewport == null) return;
         clearSelection();
