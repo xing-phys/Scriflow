@@ -14,7 +14,7 @@ import java.util.EnumMap;
 
 /** Nonmodal, static selection actions above the native surface. Paper remains touchable. */
 final class NotebookSelectionTools {
-    enum Action { COPY, DUPLICATE, MOVE, CUT, DELETE, EXPORT }
+    enum Action { COPY, DUPLICATE, MOVE, CUT, DELETE, EXPORT, AI_CHAT }
     interface Listener { void onAction(Action action); }
     private final Context context;
     private final GridLayout content;
@@ -27,10 +27,10 @@ final class NotebookSelectionTools {
         content.setPadding(dp(6), dp(2), dp(6), dp(2));
         GradientDrawable background = new GradientDrawable(); background.setColor(Color.WHITE);
         background.setStroke(dp(1), Color.BLACK); background.setCornerRadius(dp(8)); content.setBackground(background);
-        String[] labels = {"Copy ink", "Duplicate ink", "Move ink to page", "Cut ink", "Delete ink", "Export ink"};
+        String[] labels = {"Copy ink", "Duplicate ink", "Move ink to page", "Cut ink", "Delete ink", "Export ink", "Append ink to AI chat"};
         NotebookIconDrawable.Icon[] icons = {NotebookIconDrawable.Icon.COPY, NotebookIconDrawable.Icon.DUPLICATE,
             NotebookIconDrawable.Icon.MOVE_PAGE, NotebookIconDrawable.Icon.CUT, NotebookIconDrawable.Icon.DELETE,
-            NotebookIconDrawable.Icon.EXPORT};
+            NotebookIconDrawable.Icon.EXPORT, NotebookIconDrawable.Icon.AI_CHAT};
         for (Action action : Action.values()) {
             String label = labels[action.ordinal()];
             NotebookIconButton button = new NotebookIconButton(context, icons[action.ordinal()], label);

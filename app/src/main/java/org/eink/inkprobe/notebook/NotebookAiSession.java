@@ -47,6 +47,15 @@ final class NotebookAiSession {
         try { chat=chat.draft(text); save(chat,null); }
         catch (IllegalArgumentException error) { status=error.getMessage(); changed.run(); }
     }
+    void attach(NotebookAiAttachment image) {
+        if (closed||!loaded||loadFailed) return;
+        try { chat=chat.attach(image); status="Selection attached. Add a message and tap Send."; save(chat,null); changed.run(); }
+        catch (IllegalArgumentException error) { status=error.getMessage(); changed.run(); }
+    }
+    void removeImage(int index) {
+        if (closed||!loaded||loadFailed) return;
+        chat=chat.removeImage(index); save(chat,null); changed.run();
+    }
     void send(String text) {
         if (closed||!loaded||loadFailed||busy) return;
         try { config.validate(); if (!chat.awaitingReply()) chat=chat.question(text); }

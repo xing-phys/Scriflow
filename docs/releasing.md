@@ -18,6 +18,13 @@ is connected for this release either; physical acceptance remains pending.
 
 ## Before publishing
 
+**0.36.0-alpha.2** (`versionCode` **84**) adds the requested resize fixes,
+model fetching and selection-to-chat actions. Publish the signed APK and
+checksum as an alpha before owner testing. Keep 0.33.2 Latest stable; disclose
+model-dependent image support and pending physical/live-provider acceptance.
+Chat files now write version 2 with images while reading version 1; notebook
+and backup format 8 is unchanged. Verify tag/source, signer and downloaded assets.
+
 Implemented features awaiting the owner's testing must be published as alpha
 prereleases with a signed APK and checksum on GitHub. Tablet acceptance follows
 publication; do not make it a prerequisite for an alpha download.

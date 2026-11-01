@@ -36,6 +36,12 @@ final class NotebookAiSettings {
         NotebookAiConfig.Provider provider=provider(context);
         return new NotebookAiConfig(provider,baseUrl(context,provider),model(context,provider),decrypt(context,provider));
     }
+    static NotebookAiConfig connection(Context context,NotebookAiConfig.Provider provider,String url,String model,String replacementKey)
+            throws GeneralSecurityException,IOException {
+        String credential=replacementKey.trim();
+        if (credential.isEmpty()&&hasKey(context,provider)) credential=decrypt(context,provider);
+        NotebookAiConfig config=new NotebookAiConfig(provider,url,model,credential); config.validateConnection(); return config;
+    }
     static void save(Context context,NotebookAiConfig.Provider provider,String baseUrl,String model,String replacementKey)
             throws GeneralSecurityException,IOException {
         String apiKey=replacementKey.trim();

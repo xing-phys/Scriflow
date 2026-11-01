@@ -6,6 +6,25 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.36.0-alpha.2 — AI selections, models and resize fixes (2026-11-01)
+
+- Keep the AI window's top-left corner fixed during bottom-right resizing.
+  Bound its right/bottom edges to the visible screen and draw a foreground
+  border so content cannot cover those edges.
+- Fetch available models in Settings using the currently entered provider,
+  endpoint and new/saved key. Support native Anthropic pagination and
+  OpenAI-compatible model catalogs, an editable dropdown and manual fallback.
+- Add an Append to AI chat icon to lasso, image and Markdown selection actions.
+  Append Markdown source as text; snapshot selected ink/images as bounded PNG
+  attachments. Keep pending image chips removable, save them across reopening,
+  and include submitted images in provider requests and follow-up history.
+  Appending never sends automatically or mutates the notebook/clipboard.
+- Read existing chat files and write chat format 2 for attachments; notebook
+  and backup format 8 is unchanged. VersionCode 84 retains permanent signing.
+- Pass 272,746 JVM assertions in 92 suites, fourteen real-browser cases and
+  Android debug/release lint/build checks. Publish the signed alpha for physical
+  resize/input and live provider/model/vision acceptance.
+
 ## 0.36.0-alpha.1 — AI chat alpha (2026-11-01)
 
 - Publish the implemented AI feature as an alpha prerelease for download and

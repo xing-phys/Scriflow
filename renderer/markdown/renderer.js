@@ -214,9 +214,15 @@ async function chat(messages) {
     for (const message of messages) {
       if (!['user','assistant'].includes(message.role) || typeof message.content!=='string'
           || new TextEncoder().encode(message.content).length>128*1024) throw new Error('Invalid chat message');
+      if (message.images!==undefined && (!Array.isArray(message.images)||message.images.length>4)) throw new Error('Invalid chat images');
+      for (const image of message.images||[]) {
+        if (message.role!=='user'||typeof image.name!=='string'||image.name.length>120||typeof image.data!=='string'
+            ||image.data.length>1400000||!/^data:image\/png;base64,[A-Za-z0-9+/]+=*$/.test(image.data)) throw new Error('Invalid chat image');
+      }
     }
     const body=document.getElementById('block'); document.body.classList.add('chat');
-    if (chatMessages.length>messages.length || chatMessages.some((m,i)=>m.role!==messages[i]?.role || m.content!==messages[i]?.content)) {
+    if (chatMessages.length>messages.length || chatMessages.some((m,i)=>m.role!==messages[i]?.role || m.content!==messages[i]?.content
+        ||JSON.stringify(m.images||[])!==JSON.stringify(messages[i]?.images||[]))) {
       MathJax.typesetClear([body]); body.textContent=''; chatMessages=[];
     }
     body.querySelector('.chat-empty')?.remove();
@@ -233,9 +239,14 @@ async function chat(messages) {
         try { errors.push(...await renderContent(message.content,content,Math.max(160,Math.min(1600,body.clientWidth-24)),`chat-${++chatRevision}`)); }
         catch (error) { content.textContent=message.content; content.className='chat-plain'; errors.push('Could not format this reply; showing its Markdown source.'); }
       } else { content.textContent=message.content; content.className='chat-plain'; await prepareCJK(content); }
+      for (const image of message.images||[]) {
+        const figure=document.createElement('figure'),preview=document.createElement('img'),caption=document.createElement('figcaption');
+        figure.className='chat-image'; preview.src=image.data; preview.alt=image.name; caption.textContent=image.name;
+        figure.append(preview,caption); article.appendChild(figure);
+      }
       content.style.width='100%';
     }
-    chatMessages=messages.map(m=>({role:m.role,content:m.content}));
+    chatMessages=messages.map(m=>({role:m.role,content:m.content,images:m.images||[]}));
     result={phase:'ready',warning:errors.join('\n').slice(0,1000)};
   } catch (error) { result={phase:'error',message:String(error?.message||error).slice(0,1000)}; }
 }

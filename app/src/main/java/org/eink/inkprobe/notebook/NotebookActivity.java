@@ -1604,6 +1604,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private void performSelectionAction(NotebookSelectionTools.Action action) {
         if (!canEdit() || selectionOutline == null) return;
         if (selection == null) return;
+        if (action == NotebookSelectionTools.Action.AI_CHAT) { appendAiSelection(null, new ArrayList<>(selection.strokes)); return; }
         if (action == NotebookSelectionTools.Action.COPY) { session.copy(selection); selectionTools.copied(); return; }
         if (action == NotebookSelectionTools.Action.EXPORT) { exportSelection(); return; }
         if (action == NotebookSelectionTools.Action.MOVE) { moveSelectionToPage(); return; }
@@ -2815,6 +2816,31 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         });
     }
 
+    private void appendAiSelection(NotebookFigure figure,List<NotebookPage.Stroke> strokes) {
+        if (!canEdit()) return;
+        if (!NotebookAiSettings.configured(this)) {
+            Toast.makeText(this,"Configure your AI provider in Settings before appending a selection",Toast.LENGTH_LONG).show(); return;
+        }
+        pauseForEdit(); if (shownError!=null) return;
+        clearSelection(); final int request=generation;
+        new Thread(()->{
+            NotebookAiAttachment image=null; String text="",problem=null;
+            try {
+                if (figure!=null&&figure.markdown!=null) text=figure.markdown.source;
+                else image=figure!=null?NotebookAiSelection.figure(figure):NotebookAiSelection.ink(strokes);
+            } catch (IOException|RuntimeException|OutOfMemoryError error) { problem="Could not prepare the AI selection. Select a smaller region and try again."; }
+            final NotebookAiAttachment attachment=image; final String source=text,failure=problem;
+            main.post(()->{
+                if (!active||request!=generation) return;
+                resumeThen(()->{
+                    if (failure!=null) { Toast.makeText(this,failure,Toast.LENGTH_LONG).show(); return; }
+                    if (aiChat==null) toggleAiChat();
+                    if (aiChat!=null) aiChat.append(source,attachment);
+                });
+            });
+        },"ai-selection").start();
+    }
+
     private void exportSelection() {
         if (selection == null || selection.isEmpty()) return;
         NotebookPage source = NotebookPage.empty().withSize(viewport.pageWidth(selectionPage), viewport.pageHeight(selectionPage))
@@ -3134,7 +3160,9 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                     commitFigure(source, destination, pageId, before, after, false);
                 }
                 public void action(NotebookFigureEditor.Action action, int source, UUID pageId, NotebookFigure figure) {
-                    if (action == NotebookFigureEditor.Action.EDIT_SOURCE) {
+                    if (action == NotebookFigureEditor.Action.AI_CHAT) {
+                        appendAiSelection(figure,null);
+                    } else if (action == NotebookFigureEditor.Action.EDIT_SOURCE) {
                         editMarkdown(source,pageId,figure);
                     } else if (action == NotebookFigureEditor.Action.MARKDOWN) {
                         if(figure.markdown==null)return;

@@ -18,7 +18,7 @@ import java.util.*;
 
 /** In-note selection overlay: existing viewport, nearby actions and per-gesture durable edits. */
 final class NotebookFigureEditor extends FrameLayout {
-    enum Action { COPY, CUT, DELETE, PASTE, MARKDOWN, EDIT_SOURCE }
+    enum Action { COPY, CUT, DELETE, PASTE, MARKDOWN, EDIT_SOURCE, AI_CHAT }
     interface Listener {
         void preview();
         /** Draw the complete clear paper scene, or return false to use the native backdrop. */
@@ -72,6 +72,7 @@ final class NotebookFigureEditor extends FrameLayout {
         buttons.get(Action.PASTE).setVisibility(GONE);
         addAction(Action.MARKDOWN, NotebookIconDrawable.Icon.CODE, "Show Markdown source");
         addAction(Action.EDIT_SOURCE, NotebookIconDrawable.Icon.PEN, "Edit Markdown source");
+        addAction(Action.AI_CHAT, NotebookIconDrawable.Icon.AI_CHAT, "Append selection to AI chat");
         markdownActions();
         rotate = handle(NotebookIconDrawable.Icon.ROTATE, "Drag to rotate figure freely", 3);
         resize = handle(NotebookIconDrawable.Icon.RESIZE, "Drag to resize figure", 2);
@@ -198,6 +199,8 @@ final class NotebookFigureEditor extends FrameLayout {
     private void markdownActions() {
         boolean isMarkdown = stored.markdown != null, code = isMarkdown && stored.markdown.sourceMode;
         String kind=isMarkdown?"Markdown block":"figure";
+        buttons.get(Action.AI_CHAT).setContentDescription("Append "+kind+" to AI chat");
+        buttons.get(Action.AI_CHAT).setTooltipText("Append "+kind+" to AI chat");
         setContentDescription("Selected "+kind+"; drag to move between pages, lower-right handle resizes, upper-right handle rotates. Tap outside to finish.");
         for(Action action:new Action[]{Action.COPY,Action.CUT,Action.DELETE,Action.PASTE}) {
             String verb=action.name().substring(0,1)+action.name().substring(1).toLowerCase(java.util.Locale.ROOT);

@@ -33,12 +33,15 @@ contrast, and long-press word selection with Eudic floating lookup. Continuous
 scrolling at Fit width remains the default. Crop and contrast affect display;
 original PDF bytes, saved annotation coordinates and PDF exports are preserved.
 
-The **[0.36.0-alpha.1 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.36.0-alpha.1)** adds optional [AI chat](docs/ai-chat.md).
+The **[0.36.0-alpha.2 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.36.0-alpha.2)** adds optional [AI chat](docs/ai-chat.md).
 Configure a provider, model and API key in Settings, then tap the chat-bubble
 sparkle in the toolbox for a movable, resizable conversation window. Replies
 reuse the existing offline Markdown/math/code renderer. Presets cover OpenAI,
 Anthropic, Gemini and DeepSeek, with a custom OpenAI-compatible HTTPS option.
-Only explicitly submitted chat text and its conversation history are sent.
+Fetch available models using your key in Settings. Append selected handwriting,
+images or Markdown with the chat icon in their selection controls, then press
+Send. Only submitted chat text, selected attachments and their conversation
+history are sent. Resizing keeps the top-left corner fixed and all borders visible.
 
 The owner confirmed clear stationary Markdown and figure dragging in alpha.3/4.
 Alpha.5 keeps page rendering in one persistent regular View through scrolling,
@@ -140,7 +143,7 @@ acceptance of this APK. See [release notes](docs/releases/0.33.2.md) for scope a
   API-key storage, local conversation recovery and Markdown/math replies.
 
 Notes stay on the tablet. Scriflow has no app account, analytics, or cloud sync.
-Optional AI chat sends the text you submit and that chat's history directly to
+Optional AI chat sends the text and selected attachments you submit, and that chat's history, directly to
 your configured provider. See [privacy and local storage](docs/privacy.md).
 
 ## Install and update

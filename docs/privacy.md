@@ -3,7 +3,7 @@
 Notebooks work locally on the tablet. Scriflow has no app account, analytics,
 advertising, crash-reporting service, or cloud sync. Optional [AI chat](ai-chat.md)
 uses Android's `INTERNET` permission to contact the provider you configure when
-you explicitly send or retry a chat message. Ordinary notebook editing and
+you explicitly send/retry a chat message or fetch the model catalog. Ordinary notebook editing and
 Markdown rendering do not make network requests.
 
 ## Notes and settings
@@ -32,10 +32,15 @@ backups through the library and keep them outside the app's private storage.
 
 ## Optional AI chat
 
-Send shares the chat's text history and Markdown formatting instructions directly
+Send shares the chat's text, explicitly appended image history and Markdown formatting instructions directly
 with the configured provider over HTTPS. Notebook pages, handwriting, figures
 and PDFs are not attached automatically. Content pasted into chat becomes part
-of that conversation. Your provider's data and retention policies apply.
+of that conversation. Selection controls can append Markdown source, selected
+handwriting or image copies to a local chat draft. Appending does not send them;
+Send submits the draft. Pending images can be removed first. Sent images are
+included in subsequent follow-ups and stored in the private transcript.
+Fetch available models authenticates with your entered/saved key and sends no
+conversation or notebook content. Your provider's data and retention policies apply.
 OpenAI requests set `store: false`; other provider policies still apply.
 There are no automatic provider calls, retries, analytics or background sync.
 

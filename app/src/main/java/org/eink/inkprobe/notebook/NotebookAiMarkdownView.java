@@ -52,7 +52,13 @@ final class NotebookAiMarkdownView {
     }
     void messages(List<NotebookAiConversation.Message> messages) {
         JSONArray array=new JSONArray();
-        try { for (NotebookAiConversation.Message message:messages) array.put(new JSONObject().put("role",message.role).put("content",message.content)); }
+        try {
+            for (NotebookAiConversation.Message message:messages) {
+                JSONArray images=new JSONArray();
+                for (NotebookAiAttachment image:message.images) images.put(new JSONObject().put("name",image.name).put("data",image.dataUrl()));
+                array.put(new JSONObject().put("role",message.role).put("content",message.content).put("images",images));
+            }
+        }
         catch (JSONException error) { throw new IllegalStateException(error); }
         pending=array.toString(); render();
     }

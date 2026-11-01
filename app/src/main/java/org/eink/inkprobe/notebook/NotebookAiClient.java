@@ -4,13 +4,14 @@ import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.*;
 import org.json.*;
 
-/** Direct HTTPS requests; no redirects, background retries, logs, or notebook attachments. */
+/** Direct HTTPS requests; only explicitly appended selections are included with chat text. */
 final class NotebookAiClient {
     static final String SYSTEM="You are a helpful assistant in Scriflow, a notebook app. Answer in well-structured Markdown. "
         +"Use headings, lists, tables and fenced code blocks where useful. Use $...$ for inline math and $$...$$ for display math. "
-        +"Match the user's language. You can only see the messages in this chat; you cannot see their notebooks or PDFs.";
+        +"Match the user's language. You can see this chat and explicitly attached selections, but cannot see the rest of their notebooks or PDFs.";
     interface Connections { HttpURLConnection open(URL url) throws IOException; }
     static final class Cancellation {
         private volatile boolean cancelled;
@@ -36,6 +37,43 @@ final class NotebookAiClient {
     NotebookAiClient() { this(url->(HttpURLConnection)url.openConnection()); }
     NotebookAiClient(Connections connections) { this.connections=connections; }
 
+    List<String> models(NotebookAiConfig config,Cancellation cancellation) throws IOException {
+        config.validateConnection(); TreeSet<String> result=new TreeSet<>(); String cursor="";
+        for (int page=0;page<10;page++) {
+            cancellation.check();
+            String query=cursor.isEmpty()?"":"?"+(config.provider==NotebookAiConfig.Provider.ANTHROPIC?"after_id":"after")+"="+URLEncoder.encode(cursor,"UTF-8");
+            HttpURLConnection connection=connections.open(new URL(config.modelsEndpoint()+query));
+            try {
+                cancellation.attach(connection); connection.setRequestMethod("GET"); connection.setUseCaches(false);
+                connection.setInstanceFollowRedirects(false); connection.setConnectTimeout(20000); connection.setReadTimeout(20000);
+                connection.setRequestProperty("Accept","application/json");
+                if (!config.apiKey.isEmpty()) connection.setRequestProperty("Authorization","Bearer "+config.apiKey);
+                if (config.provider==NotebookAiConfig.Provider.ANTHROPIC) connection.setRequestProperty("anthropic-version","2026-10-21");
+                int status=connection.getResponseCode();
+                if (status>=300&&status<400) throw new IOException("Model list redirected. Enter the final API base URL.");
+                if (status!=200) throw new IOException("Model fetch returned HTTP "+status+". Check your key and URL; you can also enter a model ID manually.");
+                JSONObject response;
+                try (InputStream in=connection.getInputStream()) { response=new JSONObject(read(in,cancellation)); }
+                JSONArray data=response.getJSONArray("data");
+                for (int i=0;i<data.length();i++) {
+                    String id=data.getJSONObject(i).getString("id");
+                    if (id.isEmpty()||id.length()>200||id.matches("(?s).*[\\p{Cntrl}].*")) throw new IOException("Provider returned an invalid model ID");
+                    result.add(id);
+                    if (result.size()>1000) throw new IOException("Provider lists too many models. Enter a model ID manually.");
+                }
+                if (!response.optBoolean("has_more",false)) {
+                    if (result.isEmpty()) throw new IOException("No available models were returned for this key");
+                    return new ArrayList<>(result);
+                }
+                String next=response.optString("last_id",data.length()==0?"":data.getJSONObject(data.length()-1).getString("id"));
+                if (next.isEmpty()||next.equals(cursor)) throw new IOException("Provider returned an invalid model-list cursor");
+                cursor=next;
+            } catch (JSONException error) { throw new IOException("Provider returned an invalid model list. Enter a model ID manually.",error); }
+            finally { cancellation.release(); connection.disconnect(); }
+        }
+        throw new IOException("Model list exceeded its page limit. Enter a model ID manually.");
+    }
+
     Reply complete(NotebookAiConfig config,List<NotebookAiConversation.Message> history,Cancellation cancellation) throws IOException {
         config.validate(); cancellation.check();
         if (history.isEmpty() || !history.get(history.size()-1).role.equals("user")) throw new IOException("No message to send");
@@ -56,10 +94,13 @@ final class NotebookAiClient {
             cancellation.check(); int status=connection.getResponseCode();
             if (status>=300 && status<400) throw new IOException("Provider redirected the request. Update the API base URL in Settings.");
             if (status<200 || status>=300) {
+                boolean images=false;
+                for (NotebookAiConversation.Message message:history) images|=!message.images.isEmpty();
                 // Provider bodies can echo credentials or prompts. Keep failures local and bounded.
                 String message=status==401||status==403?"Check your API key and model access in Settings."
                     :status==429?"Provider rate or credit limit reached. Wait, then Retry."
                     :status>=500?"Provider is temporarily unavailable. Try again later."
+                    :status==400&&images?"Check that the selected model supports image input, as well as the API URL and model ID."
                     :"Check the API base URL, model ID, and provider configuration in Settings.";
                 throw new IOException("AI provider returned HTTP "+status+". "+message);
             }
@@ -77,8 +118,19 @@ final class NotebookAiClient {
             if (config.provider==NotebookAiConfig.Provider.OPENAI) request.put("store",false).put("max_completion_tokens",16384);
             else request.put("max_tokens",8192);
         }
-        for (NotebookAiConversation.Message message:history)
-            messages.put(new JSONObject().put("role",message.role).put("content",message.content));
+        for (NotebookAiConversation.Message message:history) {
+            Object content=message.content;
+            if (!message.images.isEmpty()) {
+                JSONArray parts=new JSONArray().put(new JSONObject().put("type","text").put("text",message.content));
+                for (NotebookAiAttachment image:message.images) {
+                    if (anthropic) parts.put(new JSONObject().put("type","image").put("source",new JSONObject()
+                        .put("type","base64").put("media_type","image/png").put("data",image.base64())));
+                    else parts.put(new JSONObject().put("type","image_url").put("image_url",new JSONObject().put("url",image.dataUrl())));
+                }
+                content=parts;
+            }
+            messages.put(new JSONObject().put("role",message.role).put("content",content));
+        }
         return request.put("messages",messages);
     }
     static Reply response(NotebookAiConfig config,String data) throws IOException,JSONException {

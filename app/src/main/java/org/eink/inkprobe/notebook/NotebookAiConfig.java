@@ -35,7 +35,15 @@ final class NotebookAiConfig {
         return base.endsWith(suffix) ? base : base+suffix;
     }
 
+    String modelsEndpoint() {
+        String endpoint=endpoint(),suffix=provider==Provider.ANTHROPIC?"/messages":"/chat/completions";
+        return endpoint.substring(0,endpoint.length()-suffix.length())+"/models";
+    }
     void validate() {
+        validateConnection();
+        if (model.isEmpty() || model.length()>200 || control(model)) throw new IllegalArgumentException("Enter a valid model ID");
+    }
+    void validateConnection() {
         try {
             URI url=new URI(endpoint());
             if (!"https".equalsIgnoreCase(url.getScheme()) || url.getHost()==null
@@ -43,7 +51,6 @@ final class NotebookAiConfig {
                     || url.getPort()==0 || url.getPort()>65535 || baseUrl.length()>2048)
                 throw new IllegalArgumentException("Use an HTTPS API base URL without credentials, query, or fragment");
         } catch (URISyntaxException error) { throw new IllegalArgumentException("Enter a valid HTTPS API base URL"); }
-        if (model.isEmpty() || model.length()>200 || control(model)) throw new IllegalArgumentException("Enter a valid model ID");
         if (apiKey.length()>4096 || control(apiKey)) throw new IllegalArgumentException("Enter a valid API key");
         if (apiKey.isEmpty() && provider!=Provider.CUSTOM) throw new IllegalArgumentException("Enter your provider's API key");
     }

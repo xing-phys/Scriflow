@@ -69,6 +69,7 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookStrokeOutline.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookOverlayClip.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookToolStrip.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookAiWindow.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookGripGesture.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookDeviceStatusState.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPenConfig.java \

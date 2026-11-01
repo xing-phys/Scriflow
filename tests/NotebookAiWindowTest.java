@@ -37,6 +37,24 @@ public final class NotebookAiWindowTest {
             "public static void run(){AiModalFixture f=new AiModalFixture();f.clearDialog=new Dialog();f.finishContact();if(!f.contact||f.listener.ends!=0)throw new AssertionError(\"confirmation retains the native input barrier\");f.clearDialog=null;f.finishContact();f.finishContact();if(f.contact||f.listener.ends!=1)throw new AssertionError(\"dismiss resumes the writer exactly once\");System.out.println(\"NotebookAiModal: 2 assertions passed (production confirmation contact barrier).\");}}"
         );
         NotebookWorkspaceActivationTest.runFixture("org.eink.inkprobe.notebook.AiModalFixture",modal);
+        resizeControls();
+    }
+    private static void resizeControls() throws Exception {
+        String chat=read("NotebookAiChat");
+        String fixture=String.join("\n",
+            "package org.eink.inkprobe.notebook;public class AiResizeFixture {",
+            "static class Rect {int left,top,right,bottom;Rect(){}Rect(int l,int t,int r,int b){set(l,t,r,b);}Rect(Rect r){set(r);}void set(int l,int t,int r,int b){left=l;top=t;right=r;bottom=b;}void set(Rect r){set(r.left,r.top,r.right,r.bottom);}int width(){return right-left;}int height(){return bottom-top;}boolean isEmpty(){return width()<=0||height()<=0;}}",
+            "static class View {interface OnTouchListener{boolean onTouch(View v,MotionEvent e);}int redraws;void getWindowVisibleDisplayFrame(Rect r){r.set(100,200,1300,1200);}void getLocationOnScreen(int[] p){p[0]=100;p[1]=200;}int getWidth(){return 1200;}int getHeight(){return 1000;}boolean performClick(){return true;}void invalidate(){redraws++;}}",
+            "static class MotionEvent {static final int ACTION_DOWN=0,ACTION_UP=1,ACTION_MOVE=2,ACTION_CANCEL=3;int action;float x,y;MotionEvent(int a,float x,float y){action=a;this.x=x;this.y=y;}int getActionMasked(){return action;}int getPointerCount(){return 1;}float getRawX(){return x;}float getRawY(){return y;}}static class ViewConfiguration {static ViewConfiguration get(Object a){return new ViewConfiguration();}int getScaledTouchSlop(){return 3;}}",
+            "static class Popup {Rect placed;boolean isShowing(){return true;}void update(int x,int y,int w,int h){placed=new Rect(x,y,x+w,y+h);}void setWidth(int w){}void setHeight(int h){}}static class Prefs {Prefs edit(){return this;}Prefs putFloat(String n,float v){return this;}void apply(){}}",
+            "final Object activity=new Object();final View anchor=new View(),content=new View();final Popup popup=new Popup();final Prefs prefs=new Prefs();final Rect area=new Rect(),bounds=new Rect();Rect resizeFrame;boolean closed;float xFraction=.95f,yFraction=.12f,widthFraction=.68f,heightFraction=.68f;int dp(int n){return n;}void publish(Rect r){bounds.set(r);}",
+            method(chat,"private void position("),method(chat,"private static float clamp("),method(chat,"private final class Grip"),
+            "static int assertions;static void check(boolean b,String s){assertions++;if(!b)throw new AssertionError(s);}public static void run(){",
+            "AiResizeFixture f=new AiResizeFixture();f.position();int left=f.bounds.left,top=f.bounds.top;Grip grip=f.new Grip(true);View target=new View();grip.onTouch(target,new MotionEvent(0,0,0));",
+            "for(int delta:new int[]{80,2000,-100,-2000,40}){grip.onTouch(target,new MotionEvent(2,delta,delta));check(f.bounds.left==left&&f.bounds.top==top,\"production resize grip keeps both opposite edges fixed\");check(f.bounds.right<=1292&&f.bounds.bottom<=1192,\"production popup keeps right and bottom borders inside visible screen\");check(f.popup.placed.right==f.bounds.right&&f.popup.placed.bottom==f.bounds.bottom,\"input exclusion matches the actual resized frame\");}",
+            "grip.onTouch(target,new MotionEvent(1,40,40));f.position();check(Math.abs(f.bounds.left-left)<=1&&Math.abs(f.bounds.top-top)<=1&&f.resizeFrame==null,\"release persists the anchored position without a corner jump\");check(f.content.redraws==5,\"every resize invalidates the complete foreground border\");System.out.println(\"NotebookAiResize: \"+assertions+\" assertions passed (production grip, placement, border redraw and persistence).\");}}"
+        );
+        NotebookWorkspaceActivationTest.runFixture("org.eink.inkprobe.notebook.AiResizeFixture",fixture);
     }
     private static String read(String name) throws Exception { return new String(Files.readAllBytes(Paths.get("app/src/main/java/org/eink/inkprobe/notebook/"+name+".java")),StandardCharsets.UTF_8); }
     private static String method(String source,String signature) { return NotebookWorkspaceActivationTest.method(source,signature); }

@@ -1,8 +1,14 @@
-# AI chat — 0.36.0-alpha.1
+# AI chat — 0.36.0-alpha.2
 
 Open **Settings → AI chat** from the time/battery/Wi-Fi pill. Choose OpenAI,
 Anthropic, Google Gemini, DeepSeek, or **Custom (OpenAI compatible)**. Enter
-your API key, check the model ID and API base URL, then tap **Save AI settings**.
+your API key, check the API base URL, then tap **Fetch available models**.
+Choose a model from the model field's dropdown and tap **Save AI settings**.
+Fetching uses the current fields, including an unsaved new key or a saved key
+when its field is blank; it does not save or replace your configuration.
+The provider's returned catalog can include non-chat models. Choose a model
+supporting chat, and image input for handwriting/image selections. Manual model
+entry remains available if your custom endpoint has no model-list API.
 Each provider remembers its own configuration. A blank key field keeps an
 existing saved key; **Remove saved key** removes it. Custom HTTPS endpoints
 may use an empty key. API subscriptions, account access and usage charges are
@@ -19,7 +25,9 @@ rejected. Redirects are not followed; enter the final endpoint directly.
 
 Tap the **sparkle in a chat bubble** in the toolbox to open the floating chat.
 Drag the title to move it and the lower-right handle to resize it. Position and
-size are remembered. Write a message and tap **Send**, or use **Ctrl+Enter**
+size are remembered. Resizing holds the top-left corner fixed, changes the
+right/bottom edges within the visible screen, and redraws a foreground border
+above the contents. Write a message and tap **Send**, or use **Ctrl+Enter**
 on a keyboard; Enter inserts a line break. The AI receives the conversation's
 earlier turns so you can ask follow-up questions. **Stop** cancels the local
 request. **Retry** resends an unanswered question after interruption or failure;
@@ -44,12 +52,37 @@ endpoint and model has its own current conversation, shared across notebooks.
 Changing an API key alone keeps that conversation. There is no chat archive or
 attachment picker in this version.
 
+## Append selected notebook content
+
+After selecting handwriting with Lasso, tap the **chat-bubble sparkle** beside
+the existing copy/export controls. The same icon appears when selecting an
+image or Markdown block. Configure the AI provider first. Appending opens or
+raises the current chat and prepares a draft; it never sends a request by itself
+and does not edit the notebook or clipboard.
+
+Selected Markdown appends its original source to the message field. Selected
+handwriting becomes a tightly cropped PNG containing only the selected strokes,
+with the native pressure outlines and white background. Images append a copy
+of their source pixels. Image copies are bounded to 2048 pixels per edge and
+1 MiB each, downscaling if necessary. Up to four images can accompany a message;
+the chat has an 8 MiB total image budget in addition to its text budget.
+
+Pending images appear as removable **Ink/Image ×** chips above the message
+field. Review them, add your question, and tap **Send**. Sent images appear in
+the conversation and remain available to the model on follow-up turns.
+Appending while a reply is being generated prepares the next draft without
+changing the in-flight request. Unsent image drafts survive closing/reopening.
+Your selected provider and model must support image input to analyze images.
+
 ## Data and request handling
 
-Sending transmits only this chat's text history and the app's Markdown
+Sending transmits this chat's text, explicitly appended image history, and the app's Markdown
 formatting instructions directly to the configured provider over HTTPS.
 Scriflow does not upload handwriting, notes, figures or PDFs automatically.
-Paste text into chat to share it. The provider's privacy and retention policies
+Paste text or use the selection's append icon to share it, then press Send.
+Fetching models sends an authenticated GET request to the configured model-list
+endpoint, without any conversation or notebook content.
+The provider's privacy and retention policies
 apply to submitted content. OpenAI requests explicitly set `store: false`;
 that setting does not override the provider's other data policies.
 
@@ -62,7 +95,10 @@ automatic backup remains disabled. Uninstalling or clearing app storage removes
 these local settings and histories.
 
 History is bounded to 80 messages, 128 KiB of UTF-8 per message, and 1 MiB total
-including the draft. Questions are saved atomically before a provider request
+including the draft, with a separate 8 MiB image budget. Chat file version 2
+stores image history and drafts; existing version-1 chats remain readable without
+rewriting on open. Earlier AI APKs cannot read newly saved version-2 chats;
+notebook and backup format 8 is unchanged. Questions and attachments are saved atomically before a provider request
 starts. Storage errors retain the in-memory text and offer Retry/Save; damaged
 history is reported and requires an explicit New chat to reset. The previous
 durable transcript survives a failed replacement. Replies that hit a provider's
@@ -86,8 +122,9 @@ and worker fixtures; they make no paid provider calls. They cover all provider
 formats, role order, authentication headers, redirects, errors, bounds,
 cancellation, retries, file corruption, publication failure, reopening and stale
 callbacks. Production window-callback checks exercise native contact and writer
-ordering. Eleven real-browser cases cover note and chat Markdown, math, CJK,
-diagrams, follow-up retention, reset, sanitization and zero external requests.
+ordering and the production resize grip/placement. Fourteen real-browser cases
+cover note/chat Markdown, math, CJK, diagrams, follow-up retention, local image
+previews, invalid image URLs, reset, sanitization and zero external requests.
 
 The host AI test bootstrap downloads checksum-pinned JSON-java **20240303**
 into ignored `.tools/ai-tests`; Android uses its built-in `org.json` instead.
@@ -95,7 +132,7 @@ No new runtime dependency is added. Prepare tablet updates only with
 `scripts/build-release.sh` and the permanent release signing certificate.
 Page and backup format 8 are unchanged.
 
-The completed build passes **272,567 JVM assertions in 91 suites**, eleven
+The completed build passes **272,746 JVM assertions in 92 suites**, fourteen
 browser cases, debug/release lint and builds, and permanent-signer verification.
 The Markdown chat screenshot was visually inspected for text, equations,
 tables, code, diagrams and Chinese; it does not verify the native panel on e-ink.
@@ -111,3 +148,7 @@ Implementation references:
 [Claude models](https://platform.claude.com/docs/en/models/overview),
 [Gemini OpenAI compatibility](https://ai.google.dev/gemini-api/docs/openai),
 and [DeepSeek API](https://api-docs.deepseek.com/).
+Model discovery follows [OpenAI's model list](https://developers.openai.com/api/reference/resources/models/methods/list),
+[Anthropic's paginated model list](https://platform.claude.com/docs/en/api/models/list)
+and Gemini's OpenAI-compatible model-list API. Image payloads follow the
+providers' chat image content formats, including [Anthropic vision](https://platform.claude.com/docs/en/build-with-claude/vision).

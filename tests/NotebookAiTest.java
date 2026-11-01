@@ -22,7 +22,7 @@ public final class NotebookAiTest {
             provider==NotebookAiConfig.Provider.CUSTOM?"model/test":provider.model,"test-key-never-live");
     }
     public static void main(String[] args) throws Exception {
-        configuration(); persistence(); protocols(); transport(); lifecycle();
+        configuration(); persistence(); protocols(); transport(); lifecycle(); models(); attachments(); resizeGeometry();
         System.out.println("NotebookAi: "+assertions+" assertions passed (provider protocols, HTTP failures/cancellation, private storage, worker ordering and lifecycle). No live API calls.");
     }
     private static void configuration() throws Exception {
@@ -178,6 +178,89 @@ public final class NotebookAiTest {
             check(corrupt.loadFailed&&Files.size(saved.toPath())==1,"Corrupt history is not silently overwritten");
             corrupt.clear(); storage.drain(); main.drain(); check(!corrupt.loadFailed&&NotebookAiConversation.read(directory,config.profile()).messages.isEmpty(),"Explicit New chat recovers damaged history");
         } finally { delete(directory.toPath()); }
+    }
+    private static void models() throws Exception {
+        for (NotebookAiConfig.Provider provider:NotebookAiConfig.Provider.values()) {
+            NotebookAiConfig config=config(provider); Connection connection=new Connection();
+            connection.response="{\"data\":[{\"id\":\"z-model\"},{\"id\":\"a-model\"},{\"id\":\"z-model\"}]}";
+            NotebookAiClient client=new NotebookAiClient(url->{check(url.toString().equals(config.modelsEndpoint()),"Model fetch uses base /models, including full chat URLs");return connection;});
+            check(client.models(config,new NotebookAiClient.Cancellation()).equals(Arrays.asList("a-model","z-model")),"Provider model IDs are sorted and deduplicated");
+            check(connection.getRequestMethod().equals("GET")&&connection.opens==0&&connection.disconnected&&!connection.getInstanceFollowRedirects(),"Model discovery sends no prompt and releases authenticated GET");
+            check(connection.getRequestProperty("Authorization").contains(config.apiKey),"Model catalog uses the entered key");
+            check(new NotebookAiConfig(provider,config.endpoint(),"",config.apiKey).modelsEndpoint().equals(config.modelsEndpoint()),"Model discovery works before a model is selected");
+        }
+        ArrayDeque<Connection> pages=new ArrayDeque<>(); Connection first=new Connection(),second=new Connection();
+        first.response="{\"data\":[{\"id\":\"first\"}],\"has_more\":true,\"last_id\":\"cursor /+\"}";
+        second.response="{\"data\":[{\"id\":\"second\"}],\"has_more\":false}"; pages.add(first);pages.add(second);
+        List<String> urls=new ArrayList<>();
+        List<String> listed=new NotebookAiClient(url->{urls.add(url.toString());return pages.remove();}).models(config(NotebookAiConfig.Provider.ANTHROPIC),new NotebookAiClient.Cancellation());
+        check(listed.equals(Arrays.asList("first","second"))&&urls.get(1).contains("?after_id=cursor+%2F%2B"),"Anthropic catalog pagination encodes opaque cursor");
+        for (int status:new int[]{302,401,403,404,429,500}) {
+            Connection error=new Connection(); error.status=status;
+            fails(IOException.class,()->new NotebookAiClient(url->error).models(config(NotebookAiConfig.Provider.OPENAI),new NotebookAiClient.Cancellation()));
+            check(error.disconnected,"Model-list failures always release the connection");
+        }
+        for (String data:Arrays.asList("not JSON","{\"data\":[]}","{\"data\":[{\"id\":\"bad\\n\\nmodel\"}]}","{\"data\":[],\"has_more\":true}")) {
+            Connection error=new Connection(); error.response=data;
+            fails(IOException.class,()->new NotebookAiClient(url->error).models(config(NotebookAiConfig.Provider.OPENAI),new NotebookAiClient.Cancellation()));
+        }
+        NotebookAiClient.Cancellation cancel=new NotebookAiClient.Cancellation(); cancel.cancel();
+        fails(InterruptedIOException.class,()->new NotebookAiClient(url->{throw new AssertionError("Cancelled model fetch opened a socket");}).models(config(NotebookAiConfig.Provider.GEMINI),cancel));
+    }
+    private static void attachments() throws Exception {
+        byte[] pixels=Base64.getDecoder().decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGNgAAIAAAUAAXpeqz8AAAAASUVORK5CYII=");
+        NotebookAiAttachment image=new NotebookAiAttachment("Handwriting selection",pixels); pixels[pixels.length-1]^=1;
+        check(!Arrays.equals(pixels,image.bytes()),"Selection pixels are copied, independent of later notebook changes");
+        NotebookAiConversation chat=new NotebookAiConversation().draft("Question").attach(image);
+        check(chat.messages.isEmpty()&&chat.draftImages.size()==1,"Append prepares a draft without sending or changing history");
+        File directory=Files.createTempDirectory("ai-images-").toFile(); String profile=config(NotebookAiConfig.Provider.OPENAI).profile();
+        try {
+            NotebookAiConversation.write(directory,profile,chat); NotebookAiConversation restored=NotebookAiConversation.read(directory,profile);
+            check(restored.draft.equals("Question")&&Arrays.equals(restored.draftImages.get(0).bytes(),image.bytes()),"Unsent images and prompt survive reopening");
+            check(restored.removeImage(0).draftImages.isEmpty(),"User can remove an attachment before Send");
+            restored=restored.question("What is written here?").answer("Answer").question("Explain the image again");
+            NotebookAiConversation.write(directory,profile,restored); restored=NotebookAiConversation.read(directory,profile);
+            check(restored.draftImages.isEmpty()&&restored.messages.get(0).images.size()==1,"Send moves draft attachments into persistent user history");
+            for (NotebookAiConfig.Provider provider:NotebookAiConfig.Provider.values()) {
+                JSONArray history=NotebookAiClient.request(config(provider),restored.messages).getJSONArray("messages");
+                JSONArray parts=history.getJSONObject(provider==NotebookAiConfig.Provider.ANTHROPIC?0:1).getJSONArray("content");
+                check(parts.getJSONObject(0).getString("text").equals("What is written here?"),"Images keep the accompanying user prompt");
+                if (provider==NotebookAiConfig.Provider.ANTHROPIC) check(parts.getJSONObject(1).getJSONObject("source").getString("data").equals(image.base64()),"Native Anthropic base64 image content");
+                else check(parts.getJSONObject(1).getJSONObject("image_url").getString("url").equals(image.dataUrl()),"OpenAI-compatible vision image content");
+                check(history.getJSONObject(history.length()-1).getString("content").equals("Explain the image again"),"Follow-ups retain earlier images without inventing a new attachment");
+            }
+            NotebookAiConversation pending=new NotebookAiConversation().attach(image).question("");
+            check(!pending.messages.get(0).content.isEmpty(),"Image-only Send provides a useful prompt");
+            NotebookAiConversation four=new NotebookAiConversation(); for(int i=0;i<4;i++)four=four.attach(image);
+            NotebookAiConversation full=four; fails(IllegalArgumentException.class,()->full.attach(image));
+            fails(IllegalArgumentException.class,()->new NotebookAiAttachment("bad",new byte[1024*1024+1]));
+            fails(IllegalArgumentException.class,()->new NotebookAiConversation.Message("assistant","answer",Arrays.asList(image)));
+            // An actual v1 transcript, rather than a freshly written v2 fixture.
+            ByteArrayOutputStream bytes=new ByteArrayOutputStream(); DataOutputStream body=new DataOutputStream(bytes);
+            body.writeInt(1);body.writeBoolean(true);byte[] question="Legacy question".getBytes(StandardCharsets.UTF_8);body.writeInt(question.length);body.write(question);body.writeInt(0);body.flush();
+            java.util.zip.CRC32 crc=new java.util.zip.CRC32();crc.update(bytes.toByteArray());
+            try(DataOutputStream out=new DataOutputStream(new FileOutputStream(new File(directory,"ai-chat-"+profile+".bin")))) {out.writeInt(0x53414931);out.writeLong(crc.getValue());out.write(bytes.toByteArray());}
+            NotebookAiConversation legacy=NotebookAiConversation.read(directory,profile);
+            check(legacy.awaitingReply()&&legacy.messages.get(0).content.equals("Legacy question")&&legacy.messages.get(0).images.isEmpty(),"Existing alpha.1 chat files remain readable without conversion on open");
+            Queue storage=new Queue(),network=new Queue(),main=new Queue();final int[] requests={0};
+            NotebookAiConfig settings=config(NotebookAiConfig.Provider.GEMINI);
+            NotebookAiSession session=new NotebookAiSession(directory,settings,main::execute,()->{},storage,network,
+                (connection,history,cancel)->{requests[0]++;return new NotebookAiClient.Reply("First answer",false);});
+            session.load();storage.drain();main.drain();session.attach(image);storage.drain();main.drain();
+            check(requests[0]==0&&session.chat.messages.isEmpty(),"Appending an image saves a draft without any provider call");
+            session.send("First question");storage.drain();main.drain();session.attach(image);session.draft("Next question");storage.drain();main.drain();
+            network.drain();main.drain();storage.drain();main.drain();
+            check(requests[0]==1&&session.chat.messages.get(0).images.size()==1&&session.chat.draftImages.size()==1&&session.chat.draft.equals("Next question"),"Appending during generation prepares the next message without altering the in-flight question");
+            session.close();storage.drain();main.drain();
+            check(NotebookAiConversation.read(directory,settings.profile()).draftImages.size()==1,"Unsent appended image remains after closing the chat");
+        } finally {delete(directory.toPath());}
+    }
+    private static void resizeGeometry() {
+        for(int left:new int[]{8,150,650})for(int top:new int[]{8,200,500})for(int delta:new int[]{-10000,-100,0,100,10000}) {
+            int[] bounds=NotebookAiWindow.resize(left,top,320,260,delta,delta,1192,992,320,260);
+            check(bounds[0]==left&&bounds[1]==top,"Bottom-right resize preserves the exact top-left corner");
+            check(bounds[2]>0&&bounds[3]>0&&left+bounds[2]<=1192&&top+bounds[3]<=992,"Right and bottom borders always remain visible");
+        }
     }
     private static void delete(Path path) throws IOException {
         try (java.util.stream.Stream<Path> paths=Files.walk(path)) {

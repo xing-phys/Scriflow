@@ -23,6 +23,8 @@ final class NotebookAiChat {
     private final PopupWindow popup;
     private final LinearLayout content;
     private final EditText composer;
+    private final LinearLayout attachments;
+    private final HorizontalScrollView attachmentStrip;
     private final TextView status,title;
     private final NotebookButton send;
     private final NotebookIconButton copy,fresh;
@@ -31,6 +33,8 @@ final class NotebookAiChat {
     private NotebookAiMarkdownView markdown;
     private NotebookAiSession session;
     private final Rect bounds=new Rect(),area=new Rect();
+    private Rect resizeFrame;
+    private final java.util.List<Runnable> pendingSelections=new java.util.ArrayList<>();
     private float xFraction,yFraction,widthFraction,heightFraction;
     private boolean closed,contact,composerLoaded,settingText;
     private String displayProblem="";
@@ -55,7 +59,9 @@ final class NotebookAiChat {
                 }
             }
         };
-        content.setOrientation(LinearLayout.VERTICAL); content.setBackground(NotebookUi.border(activity.getResources().getDisplayMetrics().density));
+        content.setOrientation(LinearLayout.VERTICAL); content.setBackgroundColor(Color.WHITE);
+        android.graphics.drawable.GradientDrawable frame=new android.graphics.drawable.GradientDrawable();
+        frame.setColor(Color.TRANSPARENT); frame.setStroke(dp(2),Color.BLACK); content.setForeground(frame);
         content.setPadding(dp(6),dp(4),dp(6),dp(4));
         LinearLayout header=new LinearLayout(activity); header.setGravity(Gravity.CENTER_VERTICAL);
         title=label("AI chat · drag to move",14); title.setMaxLines(2); title.setTypeface(null,android.graphics.Typeface.BOLD);
@@ -70,6 +76,9 @@ final class NotebookAiChat {
         markdown=new NotebookAiMarkdownView(activity,problem->{ displayProblem=problem; refresh(); });
         content.addView(markdown.view,new LinearLayout.LayoutParams(-1,0,1));
         status=label("Loading AI settings…",12); status.setMaxLines(3); content.addView(status,new LinearLayout.LayoutParams(-1,-2));
+        attachments=new LinearLayout(activity); attachmentStrip=new HorizontalScrollView(activity);
+        attachmentStrip.setOverScrollMode(View.OVER_SCROLL_NEVER); attachmentStrip.setHorizontalScrollBarEnabled(false);
+        attachmentStrip.addView(attachments); content.addView(attachmentStrip,new LinearLayout.LayoutParams(-1,-2));
         composer=new EditText(activity); composer.setTextColor(Color.BLACK); composer.setTextSize(14); composer.setGravity(Gravity.TOP|Gravity.START);
         composer.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_MULTI_LINE|InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
         composer.setImeOptions(EditorInfo.IME_FLAG_NO_EXTRACT_UI|EditorInfo.IME_FLAG_NO_FULLSCREEN);
@@ -129,7 +138,21 @@ final class NotebookAiChat {
     }
     private void refresh() {
         if (closed||status==null) return;
-        if (session!=null&&session.loaded&&!composerLoaded) { composerLoaded=true; setText(session.chat.draft); }
+        if (session!=null&&session.loaded&&!composerLoaded) {
+            composerLoaded=true; setText(session.chat.draft);
+            java.util.List<Runnable> pending=new java.util.ArrayList<>(pendingSelections); pendingSelections.clear();
+            for (Runnable selection:pending) selection.run();
+        }
+        if (session!=null) {
+            attachments.removeAllViews();
+            for (int i=0;i<session.chat.draftImages.size();i++) {
+                final int index=i; NotebookAiAttachment image=session.chat.draftImages.get(i);
+                NotebookButton chip=button((image.name.startsWith("Handwriting")?"Ink ":"Image ")+(i+1)+"  ×",()->session.removeImage(index));
+                chip.setContentDescription("Remove attached "+image.name); chip.setTooltipText(image.name);
+                attachments.addView(chip,new LinearLayout.LayoutParams(dp(84),dp(30)));
+            }
+            attachmentStrip.setVisibility(session.chat.draftImages.isEmpty()?View.GONE:View.VISIBLE);
+        }
         if (session!=null) markdown.messages(session.chat.messages);
         String text=!displayProblem.isEmpty()?displayProblem:session==null?"Loading AI settings…":session.status;
         status.setText(text); status.setVisibility(text.isEmpty()?View.GONE:View.VISIBLE);
@@ -141,7 +164,23 @@ final class NotebookAiChat {
         if (send==null) return;
         send.setText(session!=null&&session.busy?"Stop":session!=null&&session.chat.awaitingReply()?"Retry":session!=null&&session.saveFailed?"Save":"Send");
         send.setAvailable(session!=null&&session.loaded&&!session.loadFailed
-            &&(session.busy||session.chat.awaitingReply()||session.saveFailed||composer.getText().toString().trim().length()>0));
+            &&(session.busy||session.chat.awaitingReply()||session.saveFailed||!session.chat.draftImages.isEmpty()||composer.getText().toString().trim().length()>0));
+    }
+    void append(String source,NotebookAiAttachment image) {
+        if (closed) return;
+        if (session==null||!session.loaded) {
+            if (pendingSelections.size()>=4) { Toast.makeText(activity,"Wait for AI chat to load before appending more selections",Toast.LENGTH_LONG).show(); return; }
+            pendingSelections.add(()->append(source,image)); return;
+        }
+        if (session.loadFailed) { Toast.makeText(activity,"Start a new AI chat to recover before appending selections",Toast.LENGTH_LONG).show(); return; }
+        if (!source.isEmpty()) {
+            String text=composer.getText().toString(); String next=text+(text.isEmpty()?"":"\n\n")+source;
+            try { session.chat.draft(next); }
+            catch (IllegalArgumentException error) { Toast.makeText(activity,error.getMessage(),Toast.LENGTH_LONG).show(); return; }
+            setText(next); saveDraft();
+        }
+        if (image!=null) session.attach(image);
+        else { session.status="Markdown selection appended. Tap Send when ready."; refresh(); }
     }
     private void send() {
         if (session==null) return;
@@ -180,6 +219,7 @@ final class NotebookAiChat {
         width=Math.max(1,width); height=Math.max(1,height);
         int x=area.left+margin+Math.round(Math.max(0,area.width()-2*margin-width)*clamp(xFraction));
         int y=area.top+margin+Math.round(Math.max(0,area.height()-2*margin-height)*clamp(yFraction));
+        if (resizeFrame!=null) { x=resizeFrame.left; y=resizeFrame.top; width=resizeFrame.width(); height=resizeFrame.height(); }
         publish(new Rect(x,y,x+width,y+height));
         if (popup.isShowing()) popup.update(x,y,width,height); else { popup.setWidth(width); popup.setHeight(height); }
     }
@@ -189,6 +229,7 @@ final class NotebookAiChat {
         if (closed) return;
         main.removeCallbacks(saveDraft); saveDraft(); closed=true; anchor.removeOnLayoutChangeListener(layout);
         if (session!=null) session.close(); if (clearDialog!=null) clearDialog.dismiss();
+        pendingSelections.clear();
         hideKeyboard(); popup.dismiss(); content.removeView(markdown.view); markdown.close(); publish(new Rect()); finishContact(); listener.closed();
     }
     private final class Grip implements View.OnTouchListener {
@@ -201,11 +242,20 @@ final class NotebookAiChat {
                 if (cancelled) return true;
                 float dx=event.getRawX()-startX,dy=event.getRawY()-startY;
                 if (!moved&&Math.hypot(dx,dy)<ViewConfiguration.get(activity).getScaledTouchSlop()) return true; moved=true;
-                if (resize) { widthFraction=Math.max(dp(320),start.width()+dx)/Math.max(1,area.width()); heightFraction=Math.max(dp(260),start.height()+dy)/Math.max(1,area.height()); }
+                if (resize) {
+                    int[] next=NotebookAiWindow.resize(start.left,start.top,start.width(),start.height(),dx,dy,
+                        area.right-dp(8),area.bottom-dp(8),dp(320),dp(260));
+                    widthFraction=next[2]/(float)Math.max(1,area.width()); heightFraction=next[3]/(float)Math.max(1,area.height());
+                    xFraction=(start.left-area.left-dp(8))/(float)Math.max(1,area.width()-2*dp(8)-next[2]);
+                    yFraction=(start.top-area.top-dp(8))/(float)Math.max(1,area.height()-2*dp(8)-next[3]);
+                    resizeFrame=new Rect(next[0],next[1],next[0]+next[2],next[1]+next[3]);
+                }
                 else { xFraction=(start.left-area.left-dp(8)+dx)/Math.max(1,area.width()-2*dp(8)-start.width()); yFraction=(start.top-area.top-dp(8)+dy)/Math.max(1,area.height()-2*dp(8)-start.height()); }
-                xFraction=clamp(xFraction); yFraction=clamp(yFraction); widthFraction=clamp(widthFraction); heightFraction=clamp(heightFraction); position(); return true;
+                xFraction=clamp(xFraction); yFraction=clamp(yFraction); widthFraction=clamp(widthFraction); heightFraction=clamp(heightFraction); position();
+                content.invalidate(); return true;
             }
             if (event.getActionMasked()==MotionEvent.ACTION_UP||event.getActionMasked()==MotionEvent.ACTION_CANCEL) {
+                resizeFrame=null;
                 if (!moved&&!cancelled&&event.getActionMasked()==MotionEvent.ACTION_UP) view.performClick();
                 prefs.edit().putFloat("x",xFraction).putFloat("y",yFraction).putFloat("width",widthFraction).putFloat("height",heightFraction).apply(); return true;
             }

@@ -15,6 +15,7 @@ import java.util.Map;
 /** Compact, immediately saved preferences shared by every notebook screen. */
 public final class NotebookSettingsActivity extends NotebookDisplayActivity {
     private NotebookButton pinchChoice, screenChoice;
+    private NotebookAiSettingsSection aiSettings;
     private final Map<NotebookSettings.Orientation, NotebookButton> choices = new EnumMap<>(NotebookSettings.Orientation.class);
     private final Map<NotebookPenConfig.WidthMode, NotebookButton> widthChoices = new EnumMap<>(NotebookPenConfig.WidthMode.class);
     private final Map<NotebookSettings.BookshelfView, NotebookButton> shelfChoices = new EnumMap<>(NotebookSettings.BookshelfView.class);
@@ -33,7 +34,7 @@ public final class NotebookSettingsActivity extends NotebookDisplayActivity {
         scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
         LinearLayout body = column();
 
-        new NotebookAiSettingsSection(this, body);
+        aiSettings=new NotebookAiSettingsSection(this, body);
 
         section(body, "Screen orientation");
         LinearLayout orientationRow = row();
@@ -135,6 +136,7 @@ public final class NotebookSettingsActivity extends NotebookDisplayActivity {
     }
 
     @Override protected void onResume() { super.onResume(); updateChoices(); }
+    @Override protected void onPause() { if (aiSettings!=null) aiSettings.cancelModels(); super.onPause(); }
 
     private void updateChoices() {
         if (pinchChoice != null) pinchChoice.setText("Two-finger zoom: " + (NotebookSettings.pinchZoomEnabled(this) ? "On" : "Off"));
