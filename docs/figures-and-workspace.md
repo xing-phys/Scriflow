@@ -105,6 +105,13 @@ placement, size and reading positions persist across recreation and app reopen.
 Per-note link/outline navigation history is retained during focus switches in
 the same Activity. Existing two-note preferences migrate on first open.
 
+From **0.37.0-alpha.1**, [AI chat windows](ai-chat.md#multiple-floating-chats)
+use the same corner controls, move/resize gestures, position and size menus,
+and toolbox tray. The AI icon's tray opens new chats or restores minimized ones.
+Each chat window owns a separate conversation; closing keeps its saved history.
+Chat docking reserves space for the note workspace, and minimizing or closing
+the dock gives that space back.
+
 ## Storage and architecture
 
 Stable 0.33.1 used page format **6**, which adds an ordered figure list after

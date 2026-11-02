@@ -6,6 +6,26 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.37.0-alpha.1 — Multiple floating AI chats (2026-11-02)
+
+- Open independent floating chats from the toolbox tray or a chat's + button.
+  Keep each window's session, draft, model, request and history separate.
+- Share the actual note corner controls, move/resize gestures, four-edge resize
+  outline, geometry, position/size menus and tray. Drag bottom-left to move,
+  bottom-right to resize with the top-left anchored; tap for options/minimize.
+  Support Left/Right/Top/Bottom docks with the remaining space reserved for notes.
+- Restore minimized chats from their tray icons. Minimizing preserves explicit
+  in-flight replies while releasing the Markdown renderer; closing preserves
+  history and stops only its own request. Other windows continue independently.
+- Persist all window identities, original destinations, geometry and minimized
+  states across Settings, rotation and app reopen. Reopening an already-open
+  history restores its single owner. Route selections to the last active chat.
+  Include every visible chat and tray in native handwriting exclusions.
+- Pass 273,057 JVM assertions in 103 suites, fourteen browser cases and Android
+  debug/release lint/build checks. Publish versionCode 89 with permanent signing;
+  notebook/backup and chat archive formats stay unchanged. Physical multi-window,
+  docking, IME and stylus acceptance remains pending without the owner's tablet.
+
 ## 0.36.1-alpha.1 — AI resize frame correction (2026-11-02)
 
 - Replace the content-owned foreground stroke with a separate outer popup frame.

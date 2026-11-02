@@ -47,7 +47,7 @@ final class NotebookAiSettings {
         return NotebookAiModelLibrary.decode(prefs(context).getString(libraryKey(provider,url),"[]"));
     }
     static NotebookAiModel model(Context context,NotebookAiConfig.Provider provider,String url,String id) {
-        for(NotebookAiModel value:models(context,provider,url))if(value.id.equals(id))return value;
+        for(NotebookAiModel value:catalog(context,provider,url))if(value.id.equals(id))return value;
         return id.isEmpty()?null:new NotebookAiModel(id);
     }
     static void saveModels(Context context,NotebookAiConfig.Provider provider,String url,java.util.List<NotebookAiModel> models)throws IOException {

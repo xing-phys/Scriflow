@@ -178,8 +178,7 @@ legacy profile-based chats are imported once. Deletion markers prevent stale
 saves from recreating deleted sessions. `NotebookAiSession` serializes archive
 reads/writes and durable question publication before sending, checkpoints before
 switching sessions, and rejects cancelled or retired worker callbacks. Explicit
-opens create a new session; Activity restoration retains the active ID while
-the Settings profile remains unchanged. Reopening uses the archived provider,
+new windows create new sessions. Reopening uses the archived provider,
 endpoint and model, with credentials resolved separately for that endpoint.
 `NotebookAiSettings` encrypts
 credentials with Android Keystore; public provider/model/endpoint preferences
@@ -204,12 +203,38 @@ uses the appropriate provider effort/thinking fields, and rejects known
 non-chat/image-incompatible requests before network work. A conservative UTF-8
 text estimate guards known context/input limits while retaining the original
 history and an editable rejected draft; it is not an exact image/token counter.
-Model selection checkpoints the previous session before changing the default
-provider/model and starting a new session. History reopens the original
-destination with its current locally saved model profile.
+Model selection flushes the source draft, changes the default provider/model
+and opens an independent window without retiring the source controller. History
+reopens the original destination with its current locally cached model profile,
+including unchecked model parameters.
+
+`NotebookAiWindows` owns one `NotebookAiChat` and `NotebookAiSession` per open
+session; opening the same UUID restores/raises its existing window, preventing
+competing writers. Each window has separate generation/cancellation state.
+`NotebookAiWorkspace` stores bounded, versioned public window metadata and uses
+`NotebookWorkspace` geometry with a background pane for the notes. Chat docking
+reserves the complementary note area after the writer barrier, through the
+existing note relayout/center-restoration path. Window/session IDs, destination,
+short title, geometry and minimized state persist in private Activity preferences
+and instance state, independently of keys and transcripts. Restoration retains
+original destinations even when Settings changes its default, and presents the
+active visible window last. The old single-window instance state is migrated.
+
+Notes and chats share `NotebookWindowControls`, `NotebookGripGesture`,
+`NotebookResizeOutline`, position/size menus, `NotebookWorkspace` geometry and
+`NotebookNoteTray`. The bottom-left grip moves or opens options; bottom-right
+resizes or minimizes. A resize changes only the four small outline windows
+until release, then waits for the applied content size before hiding the outline.
+Minimizing a chat destroys its WebView but retains its controller, so an explicit
+in-flight request can finish and save. Activity suspension snapshots every window
+before closing all controllers, preserves minimized state and stops all pending
+requests. Restoration never automatically retries interrupted questions.
+Notebook selections route to the last active chat, restoring it when minimized.
 
 `NotebookAiChat` is a movable/resizable focusable PopupWindow with native input
-exclusions and contact/writer barriers. `NotebookAiFrame` is its outer viewport:
+exclusions and contact/writer barriers. All visible windows and the tray join
+the native exclusion set. Window/history/deletion dialogs retain the contact
+barrier until dismissal. `NotebookAiFrame` is its outer viewport:
 children fill the inset area, child clipping is enabled, and four filled black
 strips draw after the children inside the viewport's current measured size.
 Size changes invalidate the new bounds. WindowManager clipping is enabled;

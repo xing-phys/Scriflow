@@ -66,27 +66,38 @@ optional. **Apply** stages changes; **Save AI settings** saves them. **Use fetch
 defaults** resets the form to its latest fetched values. Fetching again keeps
 your overrides. Thinking defaults to Automatic; unavailable specifications use
 provider defaults. The connection can also be saved before choosing a model.
-Tap the chat-bubble
-sparkle in the toolbox to chat in a floating window. Drag its title to move it
-or its lower-right handle to resize it. Resizing keeps the top-left corner fixed
-and all borders visible. Send a question, then ask follow-ups; replies render
-Markdown, math, code and tables using the existing local engine.
-**Stop**, **Retry**, **Copy reply**, **History**, **New chat (+)** and **Close (×)**
-are in the panel. Opening chat starts a new session. Chats and text/image drafts
-save automatically; closing keeps them, and **+** starts another without erasing
-the previous one. Tap the history list icon in the header to find saved sessions,
-newest first. Tap a row to reopen it with its original provider/model and
-follow-up context, or its trash icon to confirm deletion. History is shared
-across notebooks. Empty untouched sessions are not saved. Older chats are
-imported automatically. Rotation or returning from Settings keeps the active
-session if its Settings configuration has not changed. Tap the provider/model
-name in the chat header to select a saved model for a new chat; the previous
-session is kept. This choice becomes the default for subsequent new chats.
+
+Tap the chat-bubble sparkle in the toolbox to open a floating chat. Once a chat
+exists, the button toggles a tray with **+** for another chat and bubble icons
+for minimized chats, just like the notes tray. The header's **+** opens another
+window using that chat's model. Every new window has a separate session and draft.
+
+Use the same corner controls as notes: **tap bottom-left** for options or
+**drag bottom-left** to move; **tap bottom-right** to minimize or **drag
+bottom-right** to resize. A thin outline follows the finger, with the top-left
+corner fixed; content refits on release. The menu offers Position, Minimize,
+Close chat and size presets. Position choices are Left, Right, Top, Bottom and
+Floating window. A docked chat reserves the remaining space for notes.
+Restore minimized chats from the toolbox tray. Minimizing preserves an active
+reply; closing stops its request and keeps history. Other windows remain open.
+
+Send a question, then ask follow-ups; replies render Markdown, math, code and
+tables using the existing local engine. **Stop**, **Retry**, **Copy reply** and
+**History** apply to that window. Chats and text/image drafts save automatically.
+Tap History to find saved sessions, newest first. Tap a row to reopen it with its
+original model and follow-up context; an already-open session is raised instead.
+Use its trash icon to confirm deletion. History is shared across notebooks;
+empty untouched sessions are not saved. Older chats are imported automatically.
+All window placements, minimized states and sessions restore across rotation,
+Settings and app reopen. Returning from Settings retains each window's original
+model. Tap a header's provider/model name to select a saved model for a new
+window; existing windows remain open. This choice becomes the toolbox default.
 
 Sending shares this chat's text and history with the configured provider;
 provider usage may incur charges. Notebook pages and PDFs are not automatically
 included. Paste text, or tap the chat icon beside a lasso/image/Markdown selection
-to append that content. Markdown appends as source; ink/images append as local
+to append that content to the last active chat (restoring it if minimized).
+Tap a chat before selecting content to choose the target. Markdown appends as source; ink/images append as local
 image drafts. Remove unwanted image chips with ×, add a question, then Send.
 Use an image-capable model for ink/images. Keys are encrypted on the tablet. See
 [AI chat](ai-chat.md) for provider setup, recovery, limits and privacy.

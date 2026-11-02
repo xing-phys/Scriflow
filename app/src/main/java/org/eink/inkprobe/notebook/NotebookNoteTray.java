@@ -24,18 +24,21 @@ final class NotebookNoteTray {
     Rect bounds() { return new Rect(bounds); }
     boolean showing() { return popup != null && popup.isShowing(); }
     void show(View anchor, View notesButton, Rect tools, boolean vertical, List<NotebookWorkspace.Pane> panes) {
+        show(anchor,notesButton,tools,vertical,panes,"Open a new floating note",NotebookIconDrawable.Icon.PAPER_BLANK);
+    }
+    void show(View anchor,View notesButton,Rect tools,boolean vertical,List<NotebookWorkspace.Pane> panes,String addName,NotebookIconDrawable.Icon restoreIcon) {
         hide();
         LinearLayout row = new LinearLayout(context); row.setOrientation(vertical ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
         row.setPadding(dp(4), dp(4), dp(4), dp(4));
         GradientDrawable background = new GradientDrawable(); background.setColor(Color.WHITE);
         background.setStroke(dp(1), Color.BLACK); background.setCornerRadius(dp(12)); row.setBackground(background);
-        NotebookIconButton add = new NotebookIconButton(context, NotebookIconDrawable.Icon.PLUS, "Open a new floating note");
+        NotebookIconButton add = new NotebookIconButton(context, NotebookIconDrawable.Icon.PLUS, addName);
         add.setOnClickListener(v -> listener.add()); row.addView(add, new LinearLayout.LayoutParams(dp(32), dp(32)));
         int count = 1;
         for (NotebookWorkspace.Pane pane : panes) {
             if (!pane.collapsed) continue;
             String description = "Reopen " + listener.name(pane.notebookId);
-            NotebookIconButton button = new NotebookIconButton(context, NotebookIconDrawable.Icon.PAPER_BLANK, description);
+            NotebookIconButton button = new NotebookIconButton(context, restoreIcon, description);
             button.setTooltipText(description);
             button.setOnClickListener(v -> listener.reopen(pane));
             LinearLayout.LayoutParams item = new LinearLayout.LayoutParams(dp(32), dp(32));

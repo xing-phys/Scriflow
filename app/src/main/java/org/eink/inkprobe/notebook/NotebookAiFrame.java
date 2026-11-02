@@ -8,7 +8,7 @@ import android.widget.FrameLayout;
 import android.widget.PopupWindow;
 
 /** The popup viewport owns its frame, independently of its content's measured or scrolling size. */
-final class NotebookAiFrame extends FrameLayout {
+class NotebookAiFrame extends FrameLayout {
     private final Paint border=new Paint();
     private final int thickness;
 

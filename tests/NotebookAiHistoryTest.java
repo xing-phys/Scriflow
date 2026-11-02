@@ -23,7 +23,7 @@ public final class NotebookAiHistoryTest {
     }
     private static File record(File directory,String id){return new File(new File(directory,"ai-chat-sessions"),id+".chat");}
     public static void main(String[] args)throws Exception{
-        files();legacy();sessions();
+        files();legacy();sessions();concurrentWindows();
         System.out.println("NotebookAiHistory: "+assertions+" assertions passed (independent sessions, migration, metadata, atomic saves, reopen/delete and request isolation).");
     }
     private static void files()throws Exception{
@@ -117,6 +117,32 @@ public final class NotebookAiHistoryTest {
     }
     private static final class Queue implements Executor{
         final ArrayDeque<Runnable> work=new ArrayDeque<>();public void execute(Runnable r){work.add(r);}void drain(){while(!work.isEmpty())work.remove().run();}
+    }
+    private static void concurrentWindows()throws Exception{
+        File directory=Files.createTempDirectory("ai-concurrent-windows-").toFile();NotebookAiConfig cfg=config(NotebookAiConfig.Provider.OPENAI);
+        Queue io=new Queue(),network=new Queue(),ui=new Queue();List<String> sent=new ArrayList<>();
+        NotebookAiSession.Transport transport=(config,chat,cancel)->{String question=chat.messages.get(chat.messages.size()-1).content;sent.add(question+":"+chat.messages.size());return new NotebookAiClient.Reply("Reply to "+question,false);};
+        NotebookAiSession a=new NotebookAiSession(directory,cfg,ui::execute,()->{},io,network,transport),b=new NotebookAiSession(directory,cfg,ui::execute,()->{},io,network,transport);
+        try{
+            a.load();b.load();io.drain();ui.drain();a.draft("draft A");b.draft("draft B");b.attach(image());io.drain();ui.drain();
+            check(!a.id.equals(b.id)&&a.chat.draft.equals("draft A")&&b.chat.draft.equals("draft B")&&a.chat.draftImages.isEmpty(),"Simultaneous windows using the same model keep independent drafts and images");
+            a.send("question A");b.send("question B");io.drain();ui.drain();
+            check(a.busy&&b.busy&&network.work.size()==2,"Both windows can generate without a shared busy flag");
+            network.work.removeLast().run();ui.drain();io.drain();ui.drain();
+            check(a.busy&&!b.busy&&a.chat.lastAnswer().isEmpty()&&b.chat.lastAnswer().equals("Reply to question B"),"An out-of-order reply updates only its owning window");
+            a.stop();network.drain();ui.drain();
+            check(a.chat.awaitingReply()&&b.chat.messages.size()==2&&sent.equals(Collections.singletonList("question B:1")),"Stopping one window cancels only its own provider request");
+            a.send("retry");b.send("follow-up B");io.drain();ui.drain();
+            network.work.removeFirst().run();ui.drain();io.drain();ui.drain();
+            check(!a.busy&&b.busy&&a.chat.lastAnswer().equals("Reply to question A"),"Retry in the first window remains independent of a follow-up in another");
+            a.draft("kept when closed");a.close();io.drain();ui.drain();network.drain();ui.drain();io.drain();ui.drain();
+            check(!b.busy&&b.chat.lastAnswer().equals("Reply to follow-up B")&&b.chat.messages.size()==4,"Closing one controller does not cancel or replace another reply");
+            check(sent.equals(Arrays.asList("question B:1","question A:1","follow-up B:3")),"Every provider request receives only the chosen window's context");
+            NotebookAiHistory.Saved sa=NotebookAiHistory.read(directory,a.id),sb=NotebookAiHistory.read(directory,b.id);
+            check(sa.chat.messages.size()==2&&sa.chat.draft.equals("kept when closed")&&sb.chat.messages.size()==4&&!sa.entry.id.equals(sb.entry.id),"Concurrent archives retain separate replies and unsent drafts");
+            NotebookAiSession reopened=new NotebookAiSession(directory,cfg,a.id,ui::execute,()->{},io,network,transport);reopened.load();io.drain();ui.drain();
+            check(reopened.chat.lastAnswer().equals("Reply to question A")&&reopened.chat.draft.equals("kept when closed")&&network.work.isEmpty(),"Reopening a closed window restores its exact history without generating");reopened.close();
+        }finally{a.close();b.close();delete(directory.toPath());}
     }
     private static void sessions()throws Exception{
         File directory=Files.createTempDirectory("ai-history-controller-").toFile();NotebookAiConfig cfg=config(NotebookAiConfig.Provider.OPENAI);

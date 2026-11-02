@@ -16,7 +16,6 @@ javac -encoding UTF-8 -source 8 -target 8 -cp "$JSON" -d build/ai-tests \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookAiConfig.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookAiModel.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookAiModelLibrary.java \
-  app/src/main/java/org/eink/inkprobe/notebook/NotebookAiWindow.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookAiAttachment.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookAiConversation.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookAiHistory.java \

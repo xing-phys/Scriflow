@@ -5,9 +5,7 @@ import android.graphics.Color;
 import android.graphics.Bitmap;
 import android.graphics.Rect;
 import android.view.Gravity;
-import android.view.MotionEvent;
 import android.view.View;
-import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.PopupWindow;
@@ -35,14 +33,12 @@ final class NotebookCompanion {
     private final NotebookIconButton menu, minimize;
     private final NotebookReader reader;
     private boolean visible, editor, editorPrepared;
-    private final NotebookResizeOutline resizeOutline;
-    private Grip menuGrip, resizeGrip;
+    private final NotebookWindowControls controls;
 
     NotebookCompanion(Context context, FrameLayout root, NotebookWorkspace workspace, NotebookWorkspace.Pane pane,
             NotebookSession session, Listener listener) {
         this.context = context; this.root = root; this.workspace = workspace; this.pane = pane; this.listener = listener;
         content = new FrameLayout(context); content.setPadding(dp(2), dp(2), dp(2), dp(2));
-        resizeOutline = new NotebookResizeOutline(context);
         android.graphics.drawable.GradientDrawable background = new android.graphics.drawable.GradientDrawable();
         background.setColor(Color.WHITE); content.setBackground(background);
         android.graphics.drawable.GradientDrawable border = new android.graphics.drawable.GradientDrawable();
@@ -59,15 +55,12 @@ final class NotebookCompanion {
             public boolean allowInput() { return listener.allowInput(); }
         });
         body.addView(reader, new FrameLayout.LayoutParams(-1, -1));
-        menu = new NotebookIconButton(context, NotebookIconDrawable.Icon.MORE, "Note options; drag to move floating note");
-        minimize = new NotebookIconButton(context, NotebookIconDrawable.Icon.MINIMIZE, "Minimize note; drag to resize floating note");
-        menu.setOnClickListener(v -> listener.menu()); minimize.setOnClickListener(v -> listener.collapse());
-        FrameLayout.LayoutParams left = new FrameLayout.LayoutParams(dp(32), dp(32), Gravity.BOTTOM | Gravity.LEFT);
-        left.setMargins(dp(5), 0, 0, dp(5)); content.addView(menu, left);
-        FrameLayout.LayoutParams right = new FrameLayout.LayoutParams(dp(32), dp(32), Gravity.BOTTOM | Gravity.RIGHT);
-        right.setMargins(0, 0, dp(5), dp(5)); content.addView(minimize, right);
-        menuGrip = new Grip(false); resizeGrip = new Grip(true);
-        menu.setOnTouchListener(menuGrip); minimize.setOnTouchListener(resizeGrip);
+        controls=new NotebookWindowControls(context,root,content,workspace,pane,new NotebookWindowControls.Listener(){
+            public void menu(){listener.menu();}public void minimize(){listener.collapse();}
+            public boolean beginMove(boolean resize){boolean allowed=listener.beginMove();if(allowed&&resize&&editor)editorPrepared=false;return allowed;}
+            public void endMove(){listener.endMove();}public void save(){listener.save();}
+            public void position(){NotebookCompanion.this.position();}public boolean ready(){return visible&&(!editor||editorPrepared);}
+        },"note");menu=controls.menu;minimize=controls.minimize;
         popup = new PopupWindow(content, 1, 1, false);
         popup.setTouchable(true); popup.setOutsideTouchable(false); popup.setClippingEnabled(false);
         popup.setIsLaidOutInScreen(true); popup.setAnimationStyle(0); popup.setElevation(0);
@@ -101,7 +94,7 @@ final class NotebookCompanion {
     void refreshReadingSettings(){reader.refreshReadingSettings();}
 
     void editorReady() {
-        if (!editor || editorPrepared || resizeGrip.moving) return;
+        if (!editor || editorPrepared || controls.resizing()) return;
         editorPrepared = true;
         content.postOnAnimation(() -> {
             if (!editor || !editorPrepared) return;
@@ -133,17 +126,7 @@ final class NotebookCompanion {
         }
         visible = true; listener.boundsChanged(); finishResizeOutline();
     }
-    private void finishResizeOutline() {
-        if (resizeGrip.moving || !resizeOutline.showing() || !workspace.panes().contains(pane) || editor && !editorPrepared) return;
-        NotebookWorkspace.Box box = workspace.box(pane, root.getWidth(), root.getHeight());
-        if (content.getWidth() != box.width || content.getHeight() != box.height) return;
-        content.postOnAnimation(() -> {
-            if (!visible || !resizeOutline.showing() || !workspace.panes().contains(pane)) return;
-            NotebookWorkspace.Box current = workspace.box(pane, root.getWidth(), root.getHeight());
-            if (!resizeGrip.moving && (!editor || editorPrepared)
-                    && content.getWidth() == current.width && content.getHeight() == current.height) resizeOutline.hide();
-        });
-    }
+    private void finishResizeOutline() { controls.presented(); }
     List<Rect> exclusions() {
         List<Rect> bounds = new ArrayList<>();
         if (!visible) return bounds;
@@ -162,69 +145,10 @@ final class NotebookCompanion {
     ReadingView readingView() {
         reader.remember(); return pane.hasView ? new ReadingView(pane.zoom, pane.centerX, pane.centerY) : null;
     }
-    private final class Grip implements View.OnTouchListener {
-        final boolean resize;
-        final NotebookGripGesture gesture = new NotebookGripGesture(ViewConfiguration.get(context).getScaledTouchSlop());
-        float downX, downY, startX, startY, startW, startH;
-        boolean moving, rejected;
-        Grip(boolean resize) { this.resize = resize; }
-        @Override public boolean onTouch(View view, MotionEvent event) {
-            int action = event.getActionMasked();
-            if (action == MotionEvent.ACTION_DOWN) {
-                downX = event.getRawX(); downY = event.getRawY();
-                startX = pane.x; startY = pane.y; startW = pane.width; startH = pane.height;
-                moving = rejected = false; gesture.begin(downX, downY); return true;
-            }
-            if (action == MotionEvent.ACTION_MOVE) {
-                begin(event.getRawX(), event.getRawY());
-                if (moving) update(event.getRawX(), event.getRawY());
-                return true;
-            }
-            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
-                if (action == MotionEvent.ACTION_UP) begin(event.getRawX(), event.getRawY());
-                boolean click = gesture.finish(action == MotionEvent.ACTION_CANCEL);
-                boolean wasMoving = moving;
-                if (wasMoving) {
-                    if (action == MotionEvent.ACTION_CANCEL) { restore(); resizeOutline.hide(); }
-                    else update(event.getRawX(), event.getRawY());
-                    moving = false; listener.save(); listener.endMove();
-                } else if (click && !rejected && action == MotionEvent.ACTION_UP) view.performClick();
-                return true;
-            }
-            return true;
-        }
-        private void begin(float x, float y) {
-            if (gesture.move(x, y) && !moving && !rejected && workspace.floating(pane)) {
-                moving = listener.beginMove(); rejected = !moving;
-                if (moving && resize && editor) editorPrepared = false;
-                if (moving && !resize) resizeOutline.hide();
-            }
-        }
-        private void update(float x, float y) {
-            float dx = x - downX, dy = y - downY;
-            if (resize) {
-                float left = startX * (1 - startW), top = startY * (1 - startH);
-                pane.width = NotebookWorkspace.clamp(startW + dx / Math.max(1, root.getWidth()), .3f, Math.min(.95f, 1 - left));
-                pane.height = NotebookWorkspace.clamp(startH + dy / Math.max(1, root.getHeight()), .3f, Math.min(.95f, 1 - top));
-                pane.x = NotebookWorkspace.clamp(left / (1 - pane.width), 0, 1);
-                pane.y = NotebookWorkspace.clamp(top / (1 - pane.height), 0, 1);
-                resizeOutline.show(root, workspace.box(pane, root.getWidth(), root.getHeight()));
-            } else {
-                pane.x = NotebookWorkspace.clamp(startX + dx / Math.max(1, root.getWidth() * (1 - pane.width)), 0, 1);
-                pane.y = NotebookWorkspace.clamp(startY + dy / Math.max(1, root.getHeight() * (1 - pane.height)), 0, 1);
-                position();
-            }
-        }
-        private void restore() { pane.x = startX; pane.y = startY; pane.width = startW; pane.height = startH; }
-        void cancel() {
-            if (moving) restore();
-            moving = false; gesture.finish(true); resizeOutline.hide();
-        }
-    }
     void setCacheBudget(NotebookCacheBudget budget) { reader.setCacheBudget(budget); }
     void trimCaches() { reader.trimCaches(); }
     void hide() {
-        menuGrip.cancel(); resizeGrip.cancel(); resizeOutline.hide(); reader.hide(); visible = editorPrepared = false;
+        controls.cancel(); reader.hide(); visible = editorPrepared = false;
         popup.dismiss(); if (content.getParent() == root) root.removeView(content);
         listener.boundsChanged();
     }

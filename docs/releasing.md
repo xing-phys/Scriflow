@@ -46,6 +46,16 @@ it does not arbitrarily change the patch number or signing identity.
 
 ## Before publishing
 
+**0.37.0-alpha.1** (versionCode **89**) is a new-feature release for multiple
+floating chats. Notes and chats share corner gestures, outline resizing,
+position/size menus and toolbox trays. Validate independent session/request
+ownership, single ownership of reopened history, minimize/restore, all docking
+directions, Activity restoration and native exclusions for every visible window.
+Publish the permanently signed APK and checksum before owner testing; verify
+downloaded bytes, version and pinned signer. Retain notebook/backup format 8,
+chat archive format 1 and 0.33.2 Latest stable. Physical multi-window/IME/stylus
+acceptance remains pending without the owner's tablet.
+
 **0.36.1-alpha.1** (versionCode **88**) fixes the AI resize frame by drawing its
 four edges inside a separate clipped popup viewport. Test border pixels after
 growth/shrink and clipping flags alongside existing anchored geometry tests.

@@ -22,7 +22,7 @@ public final class NotebookAiTest {
             provider==NotebookAiConfig.Provider.CUSTOM?"model/test":provider.model,"test-key-never-live");
     }
     public static void main(String[] args) throws Exception {
-        configuration(); persistence(); protocols(); transport(); lifecycle(); models(); attachments(); resizeGeometry();
+        configuration(); persistence(); protocols(); transport(); lifecycle(); models(); attachments();
         System.out.println("NotebookAi: "+assertions+" assertions passed (provider protocols, HTTP failures/cancellation, private storage, worker ordering and lifecycle). No live API calls.");
     }
     private static void configuration() throws Exception {
@@ -255,13 +255,6 @@ public final class NotebookAiTest {
             session.close();storage.drain();main.drain();
             check(NotebookAiHistory.read(directory,session.id).chat.draftImages.size()==1,"Unsent appended image remains after closing the chat");
         } finally {delete(directory.toPath());}
-    }
-    private static void resizeGeometry() {
-        for(int left:new int[]{8,150,650})for(int top:new int[]{8,200,500})for(int delta:new int[]{-10000,-100,0,100,10000}) {
-            int[] bounds=NotebookAiWindow.resize(left,top,320,260,delta,delta,1192,992,320,260);
-            check(bounds[0]==left&&bounds[1]==top,"Bottom-right resize preserves the exact top-left corner");
-            check(bounds[2]>0&&bounds[3]>0&&left+bounds[2]<=1192&&top+bounds[3]<=992,"Right and bottom borders always remain visible");
-        }
     }
     private static void delete(Path path) throws IOException {
         try (java.util.stream.Stream<Path> paths=Files.walk(path)) {

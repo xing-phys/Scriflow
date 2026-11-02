@@ -15,10 +15,15 @@ import android.widget.*;
 /** A focusable floating chat above native ink, with explicit input exclusions and contact barriers. */
 final class NotebookAiChat {
     interface Listener {
-        boolean contactStart(); void contactEnd(); void boundsChanged(Rect bounds); void closed();
+        boolean contactStart();void contactEnd();void boundsChanged(Rect bounds);void closed();
+        void activated();void minimized();void options();void changed();void deleted(String sessionId);
+        void open(NotebookAiConfig config,String sessionId,boolean rebind);
     }
     private final Activity activity;
-    private final View anchor;
+    private final FrameLayout anchor;
+    private final NotebookAiWorkspace workspace;
+    private final NotebookAiWorkspace.Window window;
+    private final NotebookWindowControls controls;
     private final Listener listener;
     private final PopupWindow popup;
     private final NotebookAiFrame frame;
@@ -30,56 +35,46 @@ final class NotebookAiChat {
     private final NotebookButton send;
     private final NotebookIconButton copy,fresh,history;
     private final Handler main=new Handler(Looper.getMainLooper());
-    private final android.content.SharedPreferences prefs;
     private NotebookAiMarkdownView markdown;
     private NotebookAiSession session;
-    private final Rect bounds=new Rect(),area=new Rect();
-    private Rect resizeFrame;
+    private final Rect bounds=new Rect();
     private final java.util.List<Runnable> pendingSelections=new java.util.ArrayList<>();
-    private float xFraction,yFraction,widthFraction,heightFraction;
-    private boolean closed,contact,composerLoaded,settingText;
+    private boolean closed,hidden,contact,composerLoaded,settingText,optionsOpen;
     private String displayProblem="";
     private AlertDialog clearDialog,historyDialog;
-    private String restoredId,restoredProfile,visibleSessionId,settingsProfile;
-    private int openingGeneration;
+    private String visibleSessionId;
+    private int openingGeneration,rendererGeneration;
     private final Runnable saveDraft=this::saveDraft;
     private final View.OnLayoutChangeListener layout=(v,l,t,r,b,ol,ot,or,ob)->position();
 
-    NotebookAiChat(Activity activity,View anchor,Listener listener) {
-        this.activity=activity; this.anchor=anchor; this.listener=listener;
-        prefs=activity.getSharedPreferences("aiWindow",Activity.MODE_PRIVATE);
-        xFraction=prefs.getFloat("x",.95f); yFraction=prefs.getFloat("y",.12f);
-        widthFraction=prefs.getFloat("width",.68f); heightFraction=prefs.getFloat("height",.68f);
-        content=new LinearLayout(activity) {
-            @Override public boolean dispatchTouchEvent(MotionEvent event) {
-                if (event.getActionMasked()==MotionEvent.ACTION_DOWN) {
-                    if (!listener.contactStart()) return true;
-                    contact=true;
+    NotebookAiChat(Activity activity,FrameLayout anchor,NotebookAiWorkspace workspace,NotebookAiWorkspace.Window window,Listener listener) {
+        this.activity=activity;this.anchor=anchor;this.workspace=workspace;this.window=window;this.listener=listener;
+        content=new LinearLayout(activity);
+        content.setOrientation(LinearLayout.VERTICAL); content.setBackgroundColor(Color.WHITE);
+        content.setPadding(dp(6),dp(4),dp(6),dp(4));
+        frame=new NotebookAiFrame(activity,dp(2)){
+            @Override public boolean dispatchTouchEvent(MotionEvent event){
+                if(event.getActionMasked()==MotionEvent.ACTION_DOWN){
+                    if(!listener.contactStart())return true;contact=true;listener.activated();
                 }
-                try { return super.dispatchTouchEvent(event); }
-                finally {
-                    if (event.getActionMasked()==MotionEvent.ACTION_UP||event.getActionMasked()==MotionEvent.ACTION_CANCEL) finishContact();
+                try{return super.dispatchTouchEvent(event);}finally{
+                    if(event.getActionMasked()==MotionEvent.ACTION_UP||event.getActionMasked()==MotionEvent.ACTION_CANCEL)finishContact();
                 }
             }
         };
-        content.setOrientation(LinearLayout.VERTICAL); content.setBackgroundColor(Color.WHITE);
-        content.setPadding(dp(6),dp(4),dp(6),dp(4));
-        frame=new NotebookAiFrame(activity,dp(2));
         frame.addView(content,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout header=new LinearLayout(activity); header.setGravity(Gravity.CENTER_VERTICAL);
-        title=label("AI chat · drag to move",14); title.setMaxLines(2); title.setTypeface(null,android.graphics.Typeface.BOLD);
-        title.setContentDescription("AI chat; tap to choose a saved model, drag to move window");title.setOnClickListener(v->chooseModel());title.setOnTouchListener(new Grip(false));
+        title=label("AI chat",14); title.setMaxLines(2);title.setEllipsize(android.text.TextUtils.TruncateAt.END); title.setTypeface(null,android.graphics.Typeface.BOLD);
+        title.setContentDescription("Choose a model for a new floating chat");title.setOnClickListener(v->chooseModel());
         header.addView(title,new LinearLayout.LayoutParams(0,dp(44),1));
-        fresh=icon(NotebookIconDrawable.Icon.PLUS,"New chat",this::newChat);
+        fresh=icon(NotebookIconDrawable.Icon.PLUS,"Open a new floating chat",this::newChat);
         copy=icon(NotebookIconDrawable.Icon.COPY,"Copy last AI reply",this::copy);
         history=icon(NotebookIconDrawable.Icon.OUTLINE,"Saved chat history",this::history);
         header.addView(history,new LinearLayout.LayoutParams(dp(32),dp(32)));
         header.addView(fresh,new LinearLayout.LayoutParams(dp(32),dp(32))); header.addView(copy,new LinearLayout.LayoutParams(dp(32),dp(32)));
-        NotebookButton settings=button("Settings",this::settings); header.addView(settings,new LinearLayout.LayoutParams(dp(62),dp(36)));
-        header.addView(icon(NotebookIconDrawable.Icon.CLOSE,"Close AI chat",this::close),new LinearLayout.LayoutParams(dp(32),dp(32)));
+        header.addView(icon(NotebookIconDrawable.Icon.SETTINGS,"AI settings",this::settings),new LinearLayout.LayoutParams(dp(32),dp(32)));
         content.addView(header);
-        markdown=new NotebookAiMarkdownView(activity,problem->{ displayProblem=problem; refresh(); });
-        content.addView(markdown.view,new LinearLayout.LayoutParams(-1,0,1));
+        ensureRenderer();
         status=label("Loading AI settings…",12); status.setMaxLines(3); content.addView(status,new LinearLayout.LayoutParams(-1,-2));
         attachments=new LinearLayout(activity); attachmentStrip=new HorizontalScrollView(activity);
         attachmentStrip.setOverScrollMode(View.OVER_SCROLL_NEVER); attachmentStrip.setHorizontalScrollBarEnabled(false);
@@ -101,16 +96,24 @@ final class NotebookAiChat {
             if (key==KeyEvent.KEYCODE_ENTER&&event.getAction()==KeyEvent.ACTION_DOWN&&event.isCtrlPressed()) { send(); return true; }
             return false;
         });
-        LinearLayout footer=new LinearLayout(activity); footer.setGravity(Gravity.CENTER_VERTICAL);
-        TextView hint=label("Markdown replies · Ctrl+Enter to send",11); footer.addView(hint,new LinearLayout.LayoutParams(0,-2,1));
+        LinearLayout footer=new LinearLayout(activity); footer.setGravity(Gravity.CENTER_VERTICAL);footer.setPadding(dp(36),0,dp(36),0);footer.setMinimumHeight(dp(42));
+        TextView hint=label("Ctrl+Enter",11);hint.setSingleLine(true);hint.setEllipsize(android.text.TextUtils.TruncateAt.END); footer.addView(hint,new LinearLayout.LayoutParams(0,-2,1));
         send=button("Send",this::send); footer.addView(send,new LinearLayout.LayoutParams(dp(72),dp(36)));
-        NotebookIconButton resize=icon(NotebookIconDrawable.Icon.RESIZE,"Drag to resize AI chat",()->{}); resize.setOnTouchListener(new Grip(true));
-        footer.addView(resize,new LinearLayout.LayoutParams(dp(32),dp(32))); content.addView(footer);
+        content.addView(footer);
+        controls=new NotebookWindowControls(activity,anchor,frame,workspace.geometry,window.pane,new NotebookWindowControls.Listener(){
+            public void menu(){if(!contact){if(!listener.contactStart())return;contact=true;}optionsOpen=true;listener.options();}
+            public void minimize(){NotebookAiChat.this.minimize();}
+            public boolean beginMove(boolean resize){hideKeyboard();return contact;}
+            public void endMove(){position();listener.changed();}
+            public void save(){listener.changed();}public void position(){NotebookAiChat.this.position();}
+            public boolean ready(){return !hidden&&!closed;}
+        },"chat");
+        frame.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->controls.presented());
         popup=new PopupWindow(frame,1,1,true); popup.setOutsideTouchable(false); popup.setTouchModal(false);
         NotebookAiFrame.configure(popup);popup.setAnimationStyle(0); popup.setElevation(0);
         popup.setEnterTransition(null); popup.setExitTransition(null);
         popup.setInputMethodMode(PopupWindow.INPUT_METHOD_NEEDED); popup.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-        popup.setOnDismissListener(this::close);
+        popup.setOnDismissListener(()->{if(!hidden&&!closed)close();});
         frame.getViewTreeObserver().addOnPreDrawListener(()->{
             if (!closed&&popup.isShowing()) {
                 int[] origin=new int[2]; frame.getLocationOnScreen(origin);
@@ -121,23 +124,31 @@ final class NotebookAiChat {
         refresh();
     }
     void show() {
-        if (closed) return; anchor.addOnLayoutChangeListener(layout); position();
-        if (!NotebookPopupHost.show(popup,anchor,Gravity.TOP|Gravity.LEFT,bounds.left,bounds.top)) { close(); return; }
-        NotebookAiConfig config=NotebookAiSettings.publicConfig(activity);
-        settingsProfile=config.profile();
-        if(config.model.isEmpty()){displayProblem="Fetch and select a model in Settings → AI chat to start chatting.";refresh();return;}
-        String id=NotebookAiHistory.restoreId(restoredId,restoredProfile,config.profile());
-        openSession(config,id,false,true);
+        if(closed)return;hidden=false;ensureRenderer();anchor.removeOnLayoutChangeListener(layout);anchor.addOnLayoutChangeListener(layout);position();
+        if(!NotebookPopupHost.show(popup,anchor,Gravity.TOP|Gravity.LEFT,bounds.left,bounds.top)){close();return;}
+        if(session==null){
+            NotebookAiConfig config=new NotebookAiConfig(NotebookAiConfig.Provider.valueOf(window.provider),window.url,window.model,"");
+            openSession(config,window.sessionId,window.rebind);
+        }else refresh();
     }
-    void restore(String id,String profile) { restoredId=id;restoredProfile=profile; }
-    String sessionId() { return session==null?restoredId:session.id; }
-    String profile() { return settingsProfile; }
+    String sessionId(){return session==null?window.sessionId:session.id;}
+    String name(){return session==null||!session.loaded?window.title:NotebookAiHistory.title(session.chat);}
+    NotebookAiConfig configuration(){return session==null?new NotebookAiConfig(NotebookAiConfig.Provider.valueOf(window.provider),window.url,window.model,""):session.config;}
+    void raise(){
+        if(closed)return;if(hidden){show();return;}
+        hidden=true;popup.dismiss();hidden=false;position();
+        if(!NotebookPopupHost.show(popup,anchor,Gravity.TOP|Gravity.LEFT,bounds.left,bounds.top))close();
+    }
+    private void ensureRenderer(){
+        if(markdown!=null)return;final int request=++rendererGeneration;
+        markdown=new NotebookAiMarkdownView(activity,problem->{if(!closed&&request==rendererGeneration){displayProblem=problem;refresh();}});
+        content.addView(markdown.view,1,new LinearLayout.LayoutParams(-1,0,1));
+    }
+    private void releaseRenderer(){
+        ++rendererGeneration;if(markdown!=null){content.removeView(markdown.view);markdown.close();markdown=null;}
+    }
     private void openSession(NotebookAiConfig publicConfig,String id,boolean rebind) {
-        openSession(publicConfig,id,rebind,false);
-    }
-    private void openSession(NotebookAiConfig publicConfig,String id,boolean rebind,boolean lookup) {
         final int request=++openingGeneration;
-        restoredId=id;
         main.removeCallbacks(saveDraft);saveDraft();
         if(session!=null)session.close();session=null;composerLoaded=false;visibleSessionId=null;
         setText("");displayProblem="";refresh();
@@ -145,7 +156,7 @@ final class NotebookAiChat {
         new Thread(()->{
             String credential="",problem="";
             NotebookAiConfig destination=publicConfig;boolean allowRebind=rebind,canSend=true;
-            if(lookup&&id!=null) {
+            if(id!=null) {
                 try {
                     NotebookAiHistory.Entry entry=NotebookAiHistory.entry(activity.getFilesDir(),id);
                     if(entry!=null){entry=entry.resolved(NotebookAiSettings.publicConfigs(activity));
@@ -179,9 +190,9 @@ final class NotebookAiChat {
             for (Runnable selection:pending) selection.run();
         }
         if (session!=null) {
-            title.setText("AI · "+session.config.provider.label+"\n"+session.config.model+" ▾");
-            title.setTooltipText("Tap to choose a saved model · drag to move");
-            title.setContentDescription(NotebookAiHistory.title(session.chat)+"; "+session.config.provider.label+"; "+session.config.model+"; tap to choose a saved model or drag to move");
+            title.setText(NotebookAiHistory.title(session.chat)+"\n"+session.config.provider.label+" · "+session.config.model+" ▾");
+            title.setTooltipText("Choose a model for a new floating chat");
+            title.setContentDescription(NotebookAiHistory.title(session.chat)+"; "+session.config.provider.label+"; "+session.config.model+"; choose a model for a new floating chat");
             attachments.removeAllViews();
             for (int i=0;i<session.chat.draftImages.size();i++) {
                 final int index=i; NotebookAiAttachment image=session.chat.draftImages.get(i);
@@ -193,13 +204,13 @@ final class NotebookAiChat {
         } else {
             attachments.removeAllViews();attachmentStrip.setVisibility(View.GONE);title.setText(displayProblem.isEmpty()?"Opening AI chat…":"AI chat");
         }
-        markdown.messages(session==null?java.util.Collections.emptyList():session.chat.messages);
+        if(markdown!=null)markdown.messages(session==null?java.util.Collections.emptyList():session.chat.messages);
         String text=session!=null&&session.loadFailed?session.status:!displayProblem.isEmpty()?displayProblem:session==null?"Loading AI settings…":session.status;
         status.setText(text); status.setVisibility(text.isEmpty()?View.GONE:View.VISIBLE);
         composer.setEnabled(session!=null&&session.loaded&&!session.loadFailed&&!session.busy&&!session.switching&&!session.chat.awaitingReply());
         copy.setAvailable(session!=null&&!session.chat.lastAnswer().isEmpty()); fresh.setAvailable(session!=null&&session.loaded&&!session.switching);
         history.setAvailable(session!=null&&session.loaded&&!session.switching);
-        updateSend();
+        updateSend();listener.changed();
     }
     private void updateSend() {
         if (send==null) return;
@@ -242,7 +253,7 @@ final class NotebookAiChat {
     }
     private void newChat() {
         if(session==null||!session.loaded||session.switching)return;
-        main.removeCallbacks(saveDraft);saveDraft();displayProblem="";session.clear();
+        main.removeCallbacks(saveDraft);saveDraft();listener.open(session.config,null,false);
     }
     private void chooseModel(){
         if(session==null||!session.loaded||session.switching||historyDialog!=null)return;
@@ -257,17 +268,11 @@ final class NotebookAiChat {
         historyDialog.setOnDismissListener(d->{historyDialog=null;finishContact();});NotebookUi.show(historyDialog);
     }
     private void selectModel(NotebookAiConfig config){
-        session.checkpoint(()->{
-            final NotebookAiSession owner=session;owner.switching=true;refresh();
-            new Thread(()->{
-                String problem=null;try{NotebookAiSettings.selectModel(activity,config);}catch(java.io.IOException|IllegalArgumentException error){problem=error.getMessage();}
-                final String failure=problem;
-                main.post(()->{if(closed||session!=owner)return;owner.switching=false;
-                    if(failure!=null){owner.status=failure;refresh();return;}
-                    settingsProfile=config.profile();pendingSelections.clear();openSession(config,null,false);
-                });
-            },"ai-model-select").start();
-        });
+        main.removeCallbacks(saveDraft);saveDraft();
+        new Thread(()->{
+            String problem=null;try{NotebookAiSettings.selectModel(activity,config);}catch(java.io.IOException|IllegalArgumentException error){problem=error.getMessage();}
+            final String failure=problem;main.post(()->{if(closed)return;if(failure!=null){Toast.makeText(activity,failure,Toast.LENGTH_LONG).show();return;}listener.open(config,null,false);});
+        },"ai-model-select").start();
     }
     private void history() {
         if(session==null||!session.loaded||session.switching||historyDialog!=null)return;
@@ -325,71 +330,39 @@ final class NotebookAiChat {
     private void switchHistory(NotebookAiHistory.Entry entry,NotebookAiConfig config,boolean rebind) {
         main.removeCallbacks(saveDraft);saveDraft();
         if(historyDialog!=null)historyDialog.dismiss();
-        session.checkpoint(()->{pendingSelections.clear();openSession(config,entry.id,rebind);});
+        listener.open(config,entry.id,rebind);
     }
     private void deleteHistory(NotebookAiHistory.Entry entry,ListView list,TextView description) {
         if(clearDialog!=null||session==null||session.switching)return;
         clearDialog=new AlertDialog.Builder(activity).setTitle("Delete saved chat?")
             .setMessage(entry.title+"\n\nDelete its messages, images and draft from this device? This cannot be undone.")
             .setNegativeButton("Cancel",null).setPositiveButton("Delete",(d,w)->session.delete(entry.id,error->{
-                if(error!=null)Toast.makeText(activity,error,Toast.LENGTH_LONG).show();
+                if(error!=null)Toast.makeText(activity,error,Toast.LENGTH_LONG).show();else listener.deleted(entry.id);
                 if(historyDialog!=null)loadHistory(list,description);
             })).create();
         clearDialog.setOnDismissListener(d->{clearDialog=null;finishContact();});NotebookUi.show(clearDialog);
     }
     private void settings() { saveDraft(); activity.startActivity(new Intent(activity,NotebookSettingsActivity.class)); activity.overridePendingTransition(0,0); }
-    private void position() {
-        if (closed) return;
-        anchor.getWindowVisibleDisplayFrame(area);
-        if (area.isEmpty()) { int[] origin=new int[2]; anchor.getLocationOnScreen(origin); area.set(origin[0],origin[1],origin[0]+anchor.getWidth(),origin[1]+anchor.getHeight()); }
-        if (area.isEmpty()) return;
-        int margin=dp(8),width=Math.min(area.width()-2*margin,Math.max(dp(320),Math.round(area.width()*widthFraction)));
-        int height=Math.min(area.height()-2*margin,Math.max(dp(260),Math.round(area.height()*heightFraction)));
-        width=Math.max(1,width); height=Math.max(1,height);
-        int x=area.left+margin+Math.round(Math.max(0,area.width()-2*margin-width)*clamp(xFraction));
-        int y=area.top+margin+Math.round(Math.max(0,area.height()-2*margin-height)*clamp(yFraction));
-        if (resizeFrame!=null) { x=resizeFrame.left; y=resizeFrame.top; width=resizeFrame.width(); height=resizeFrame.height(); }
-        publish(new Rect(x,y,x+width,y+height));
-        if (popup.isShowing()) popup.update(x,y,width,height); else { popup.setWidth(width); popup.setHeight(height); }
+    void position() {
+        if(closed||hidden||window.pane.collapsed||anchor.getWidth()<1||anchor.getHeight()<1)return;
+        NotebookWorkspace.Box box=workspace.geometry.box(window.pane,anchor.getWidth(),anchor.getHeight());
+        int[] origin=new int[2];anchor.getLocationOnScreen(origin);int x=origin[0]+box.x,y=origin[1]+box.y;
+        publish(new Rect(x,y,x+box.width,y+box.height));
+        if(popup.isShowing())popup.update(x,y,box.width,box.height);else{popup.setWidth(box.width);popup.setHeight(box.height);}
+        controls.presented();
+    }
+    void optionsFinished(){optionsOpen=false;finishContact();}
+    void minimize(){
+        if(closed||hidden)return;main.removeCallbacks(saveDraft);saveDraft();hidden=true;controls.cancel();
+        if(clearDialog!=null)clearDialog.dismiss();if(historyDialog!=null)historyDialog.dismiss();
+        hideKeyboard();popup.dismiss();anchor.removeOnLayoutChangeListener(layout);releaseRenderer();publish(new Rect());finishContact();listener.minimized();
     }
     private void publish(Rect next) { if (!bounds.equals(next)) { bounds.set(next); listener.boundsChanged(new Rect(bounds)); } }
-    private void finishContact() { if (clearDialog!=null&&clearDialog.isShowing()||historyDialog!=null&&historyDialog.isShowing()) return; if (contact) { contact=false; listener.contactEnd(); } }
+    private void finishContact() { if (optionsOpen||clearDialog!=null&&clearDialog.isShowing()||historyDialog!=null&&historyDialog.isShowing()) return; if (contact) { contact=false; listener.contactEnd(); } }
     void close() {
-        if (closed) return;
-        main.removeCallbacks(saveDraft); saveDraft(); closed=true; anchor.removeOnLayoutChangeListener(layout);
-        if (session!=null) session.close(); if (clearDialog!=null) clearDialog.dismiss(); if(historyDialog!=null)historyDialog.dismiss();
-        pendingSelections.clear();
-        hideKeyboard(); popup.dismiss(); content.removeView(markdown.view); markdown.close(); publish(new Rect()); finishContact(); listener.closed();
-    }
-    private final class Grip implements View.OnTouchListener {
-        final boolean resize; float startX,startY; final Rect start=new Rect(); boolean moved,cancelled;
-        Grip(boolean resize) { this.resize=resize; }
-        public boolean onTouch(View view,MotionEvent event) {
-            if (event.getActionMasked()==MotionEvent.ACTION_DOWN) { startX=event.getRawX(); startY=event.getRawY(); start.set(bounds); moved=cancelled=false; return true; }
-            if (event.getPointerCount()>1) { cancelled=true; return true; }
-            if (event.getActionMasked()==MotionEvent.ACTION_MOVE) {
-                if (cancelled) return true;
-                float dx=event.getRawX()-startX,dy=event.getRawY()-startY;
-                if (!moved&&Math.hypot(dx,dy)<ViewConfiguration.get(activity).getScaledTouchSlop()) return true; moved=true;
-                if (resize) {
-                    int[] next=NotebookAiWindow.resize(start.left,start.top,start.width(),start.height(),dx,dy,
-                        area.right-dp(8),area.bottom-dp(8),dp(320),dp(260));
-                    widthFraction=next[2]/(float)Math.max(1,area.width()); heightFraction=next[3]/(float)Math.max(1,area.height());
-                    xFraction=(start.left-area.left-dp(8))/(float)Math.max(1,area.width()-2*dp(8)-next[2]);
-                    yFraction=(start.top-area.top-dp(8))/(float)Math.max(1,area.height()-2*dp(8)-next[3]);
-                    resizeFrame=new Rect(next[0],next[1],next[0]+next[2],next[1]+next[3]);
-                }
-                else { xFraction=(start.left-area.left-dp(8)+dx)/Math.max(1,area.width()-2*dp(8)-start.width()); yFraction=(start.top-area.top-dp(8)+dy)/Math.max(1,area.height()-2*dp(8)-start.height()); }
-                xFraction=clamp(xFraction); yFraction=clamp(yFraction); widthFraction=clamp(widthFraction); heightFraction=clamp(heightFraction); position();
-                frame.invalidate(); return true;
-            }
-            if (event.getActionMasked()==MotionEvent.ACTION_UP||event.getActionMasked()==MotionEvent.ACTION_CANCEL) {
-                resizeFrame=null;
-                if (!moved&&!cancelled&&event.getActionMasked()==MotionEvent.ACTION_UP) view.performClick();
-                prefs.edit().putFloat("x",xFraction).putFloat("y",yFraction).putFloat("width",widthFraction).putFloat("height",heightFraction).apply(); return true;
-            }
-            return true;
-        }
+        if(closed)return;main.removeCallbacks(saveDraft);saveDraft();closed=true;controls.cancel();anchor.removeOnLayoutChangeListener(layout);
+        if(session!=null)session.close();if(clearDialog!=null)clearDialog.dismiss();if(historyDialog!=null)historyDialog.dismiss();
+        pendingSelections.clear();hideKeyboard();popup.dismiss();releaseRenderer();publish(new Rect());optionsOpen=false;finishContact();listener.closed();
     }
     private void hideKeyboard() { ((InputMethodManager)activity.getSystemService(Activity.INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(composer.getWindowToken(),0); }
     private NotebookIconButton icon(NotebookIconDrawable.Icon icon,String name,Runnable action) {
@@ -397,6 +370,5 @@ final class NotebookAiChat {
     }
     private NotebookButton button(String text,Runnable action) { NotebookButton button=new NotebookButton(activity); button.setText(text); button.setTextSize(12); button.setOnClickListener(v->action.run()); return button; }
     private TextView label(String text,int size) { TextView view=new TextView(activity); view.setText(text); view.setTextSize(size); view.setTextColor(Color.BLACK); return view; }
-    private static float clamp(float value) { return Float.isNaN(value)?0:Math.max(0,Math.min(1,value)); }
     private int dp(int n) { return Math.round(n*activity.getResources().getDisplayMetrics().density); }
 }

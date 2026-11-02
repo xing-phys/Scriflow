@@ -87,7 +87,7 @@ public final class NotebookFloatingTools {
             return consumed;
         });
         add(Action.NOTES, NotebookIconDrawable.Icon.NOTES, "Open notes and minimized windows");
-        add(Action.AI_CHAT, NotebookIconDrawable.Icon.AI_CHAT, "Open AI chat");
+        add(Action.AI_CHAT, NotebookIconDrawable.Icon.AI_CHAT, "Open chats and minimized chat windows");
         add(Action.ZEN, NotebookIconDrawable.Icon.FULLSCREEN, "Enter Zen mode");
         add(Action.ADD_PAGE, NotebookIconDrawable.Icon.ADD_PAGE, "Add page");
         add(Action.PEN, NotebookIconDrawable.Icon.PEN, "Pen");

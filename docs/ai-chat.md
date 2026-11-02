@@ -1,4 +1,4 @@
-# AI chat — 0.36.1-alpha.1
+# AI chat — 0.37.0-alpha.1
 
 Open **Settings → AI chat** from the time/battery/Wi-Fi pill. Choose OpenAI,
 Anthropic, Google Gemini, DeepSeek, or **Custom (OpenAI compatible)**. Enter
@@ -71,14 +71,46 @@ remain provider-dependent. It can reject text that an exact tokenizer could
 fit. Rejected drafts remain editable. History is never silently truncated or
 summarized to fit a model.
 
-Tap the **sparkle in a chat bubble** in the toolbox to open the floating chat.
-Drag the title to move it and the lower-right handle to resize it. Position and
-size are remembered. Tap the provider/model name to choose a saved model for
-a new chat; this also becomes the default for subsequent new chats. The previous
-session is saved before switching. Dragging the same title still moves the
-window. Resizing holds the top-left corner fixed, changes the
-right/bottom edges within the visible screen. A separate outer frame keeps the
-black border inside all four edges and clips the contents away from it.
+## Multiple floating chats
+
+Tap the **sparkle in a chat bubble** in the toolbox. With no chat windows it
+opens a new chat; otherwise it toggles a tray beside the button, just like the
+notes tray. **+** opens another floating chat. Each minimized chat has a bubble
+icon to restore it, with its title and model in its tooltip/accessibility name.
+The **+** in a chat header also opens a separate window using that chat's model.
+Each new window starts a new session without replacing or stopping other chats.
+
+Chats and notes share their actual corner controls, gestures and window geometry:
+
+- **Bottom-left options:** tap for Position, Minimize, Close chat and size
+  presets; drag to move a floating window immediately after finger movement.
+- **Bottom-right minimize:** tap to hide the chat in the toolbox tray; drag
+  to resize. A thin boundary follows the finger while content keeps its previous
+  size, then refits on release. The top-left corner stays anchored and the
+  right/bottom edges stay within the workspace. All four borders keep the
+  separate clipped outer frame. Cancelling a drag restores its original size.
+- **Position:** Left, Right, Top, Bottom or Floating window. A dock reserves
+  the remaining area for notes. Docking another chat floats the previous chat
+  dock; minimizing or closing the dock returns that space to the notes.
+- **Size:** Smaller pane, Equal split / Reset size, or Larger pane.
+
+Windows keep independent conversations, drafts, models and pending replies.
+Minimizing preserves a reply already requested with Send and releases the
+Markdown WebView until restoration. Closing stops that window's request and
+keeps its saved history and draft. Other windows continue independently.
+Window identities, position/size, original destinations and minimized states
+restore after rotation, Settings, backgrounding and app reopen. Leaving the
+editor stops pending requests; interrupted questions wait for an explicit Retry.
+At most 64 chat windows can be retained at once; close one to free a slot.
+
+Tap the provider/model name to choose a saved model for a new floating chat;
+this also becomes the default for subsequent chats opened from the toolbox.
+Existing windows keep their original session and destination, including when
+the default model changes in Settings. A cached model's parameters remain
+available to its history even if that model is unchecked in Settings.
+
+## Messages and Markdown
+
 Write a message and tap **Send**, or use **Ctrl+Enter**
 on a keyboard; Enter inserts a line break. The AI receives the conversation's
 earlier turns so you can ask follow-up questions. **Stop** cancels the local
@@ -97,30 +129,32 @@ reply, which remains available through Copy.
 
 ## Saved sessions
 
-Opening chat from the toolbox starts a new session by default. Conversations
-and unsent text/image drafts save automatically. **+** starts another session
-while keeping the previous one, without a deletion prompt. Untouched empty
-sessions are not added to history. The **×** closes the panel; the toolbox icon
-also toggles it. Closing or leaving the editor stops pending requests and keeps
-the transcript and draft.
+Each newly created window starts a new session by default. Conversations and
+unsent text/image drafts save automatically. **+** starts another floating
+session while keeping the previous window, without a deletion prompt. Untouched
+empty sessions are not added to history. Close chat is in the bottom-left
+options menu. The toolbox icon opens the tray; it does not close conversations.
 
 Tap the **history list icon** in the chat header to find earlier sessions,
 shared across notebooks and providers. Rows show an automatic title from the
 first question or draft, provider/model, last activity time, message count and
 a draft indicator. The most recently saved session appears first. Tap a row to
-reopen its messages, attachments and unsent draft. Only that session's messages
+reopen its messages, attachments and unsent draft in another window. If that
+session already has a window, it is restored and raised instead of creating a
+second writer. Only that session's messages
 are sent on follow-ups. Opening history or a saved session makes no provider
 request. Tap a row's **trash icon**, then confirm, to delete that session's local
-transcript and drafts. Other sessions and provider-side records are unaffected.
+transcript and drafts. Deleting a session shown in another window closes that
+window. Deleting the current session replaces it with a fresh blank session.
+Other sessions and provider-side records are unaffected.
 
 Reopened sessions use their original provider, endpoint and model. API keys are
 looked up separately and are not included in history. A saved chat remains
 readable if its key is missing or cannot be unlocked. If that provider now uses
 a different endpoint in Settings, the session remains readable; configure its
-original endpoint and key before sending. Returning from Settings or rotating
-restores the active session if the Settings provider/endpoint/model has not
-changed; changing an API key alone preserves it. Interrupted questions wait for
-an explicit Retry.
+original endpoint and key before sending. Restored windows retain their original
+provider/model even when Settings changes the default; credentials are resolved
+again when returning to the editor. Interrupted questions wait for an explicit Retry.
 
 Existing version-1/2 conversations are imported into history automatically,
 including saved drafts and images. Older files store only a configuration
@@ -132,7 +166,9 @@ it asks whether to use the current configuration. It never sends automatically.
 After selecting handwriting with Lasso, tap the **chat-bubble sparkle** beside
 the existing copy/export controls. The same icon appears when selecting an
 image or Markdown block. Configure the AI provider first. Appending opens or
-raises the current chat and prepares a draft; it never sends a request by itself
+raises the last active chat and prepares a draft; a minimized target is restored,
+and a new chat is created if none exists. Tap a chat before selecting content to
+choose the destination. Appending never sends a request by itself
 and does not edit the notebook or clipboard.
 
 Selected Markdown appends its original source to the message field. Selected
@@ -170,7 +206,9 @@ They are never placed in the Markdown WebView, saved text-field state, notebook
 files, exported backups or logs. **Remove saved key** removes the stored
 credential for that provider. Conversation history and unsent drafts are
 unencrypted files in app-private storage, outside notebook backups. Android
-automatic backup remains disabled. Uninstalling or clearing app storage removes
+automatic backup remains disabled. Window preferences separately store geometry,
+minimized state, public destinations, session IDs and short titles, without
+credentials or full transcripts. Uninstalling or clearing app storage removes
 these local settings and histories.
 
 Each session is bounded to 80 messages, 128 KiB of UTF-8 per message, and 1 MiB
@@ -180,20 +218,23 @@ the existing version-2 conversation snapshot with checksummed metadata. Earlier
 AI APKs cannot read these session archives; notebook and backup format 8 is
 unchanged. Questions and attachments are saved atomically before a provider
 request starts. Storage errors retain the in-memory text and offer Retry/Save;
-starting another session waits for the current chat to save. Damaged history
+opening another window flushes the source draft and leaves its controller intact.
+Each session's requests still wait for their own durable question save. Damaged history
 is reported and kept for recovery, and can be deleted from History. New chat
 starts fresh without overwriting the damaged archive. The previous durable
 transcript survives a failed replacement. Deletion markers prevent late saves
 or cancelled replies from recreating a deleted chat. Replies that hit a
 provider's output-token limit are marked so you can ask it to continue.
 
-The visible WebView has blocked network loads and the same local content
+Each visible WebView has blocked network loads and the same local content
 security policy and sanitizer as note Markdown. No JavaScript bridge is
 installed. API requests run separately from Markdown rendering and native ink;
 they use finite connection/read timeouts and bounded response reads.
+All visible chat windows and the tray contribute native pen exclusions.
 Panel contacts pause native input before child dispatch. Writer barriers run
 before resuming; moving or resizing updates native exclusions and restores
-newly uncovered paper. History and deletion dialogs keep native input paused.
+newly uncovered paper. Dock changes wait for the writer barrier before note
+relayout. History, deletion and window-option dialogs keep native input paused.
 The software keyboard's visible area is also excluded from native handwriting
 while typing in chat, including while keyboard dismissal completes.
 
@@ -208,8 +249,13 @@ callbacks. Session-history fixtures cover independent new chats, draft/image
 round trips, metadata-only listing, original destinations, legacy migration,
 deletion/retry and preventing resurrection by late replies. Production
 window-callback checks exercise native contact and writer ordering, history
-modal barriers, Activity session retention and the production resize
-grip/placement. Separate border tests execute the production outer-frame drawing
+modal barriers, multi-window suspension/restoration, active selection routing,
+single ownership of reopened history, minimized request retention and renderer
+disposal. State tests cover independent geometry, all docks, minimized restore
+and damaged preferences. Concurrent controller tests interleave same-model
+requests, cancel/close one owner, and reopen their independent archives.
+The production shared note/chat resize grip is exercised at size/position limits.
+Separate border tests execute the production outer-frame drawing
 with oversized children, scan all four painted edges after growth/shrink,
 check invalidation at the new size, and check the popup's clipping flags. These
 are host raster tests and do not reproduce Huawei's physical display compositor.
@@ -229,13 +275,14 @@ No new runtime dependency is added. Prepare tablet updates only with
 `scripts/build-release.sh` and the permanent release signing certificate.
 Page and backup format 8 are unchanged.
 
-The completed build passes **272,982 JVM assertions in 99 suites**, fourteen
+The completed build passes **273,057 JVM assertions in 103 suites**, fourteen
 browser cases, debug/release lint and builds, and permanent-signer verification.
 The Markdown chat screenshot was visually inspected for text, equations,
 tables, code, diagrams and Chinese; it does not verify the native panel on e-ink.
 
 No tablet is connected for this task. Physical keyboard/IME layout, drag/resize,
-stylus exclusions, e-ink appearance, RAM use over long chats, and live calls
+multiple-window stacking, docking, stylus exclusions, e-ink appearance, RAM use
+over long chats, and live calls
 with the owner's provider accounts still need acceptance on MatePad Paper.
 
 Implementation references:
