@@ -18,18 +18,28 @@ is connected for this release either; physical acceptance remains pending.
 
 ## Version numbering
 
-Use **MAJOR.MINOR.PATCH**. A bug-fix task increments PATCH; a new feature task
-increments MINOR and starts PATCH at zero. Candidate iterations for that same
-base version use **alpha.N**, **beta.N** or **rc.N**. Incrementing only the alpha
-suffix across separate tasks is not the project policy. Android versionCode
-is independent and must increase for every published APK. Published release
-tags and assets remain immutable; do not rename older releases to retrofit
-this policy.
+Use **MAJOR.MINOR.PATCH**, choosing the base version for the release scope:
+PATCH for a separate bug-fix release, MINOR for a new-feature release (starting
+PATCH at zero). Within an ongoing alpha/beta/rc release cycle, a fix may simply
+increment the prerelease number while keeping the base version unchanged.
+For example, 0.36.1-alpha.1 → 0.36.1-alpha.2 does not require 0.36.2-alpha.1.
+A separate task or commit is not, by itself, a reason for a PATCH bump.
+
+This follows [Semantic Versioning's prerelease distinction](https://semver.org/#spec-item-9).
+SemVer also permits flexibility during [0.y.z initial development](https://semver.org/#spec-item-4);
+the patch/minor conventions above are the project's release-scope policy,
+not an additional SemVer requirement on each development task.
+
+Android versionCode is independent and must increase for every published APK,
+including prerelease-only increments. Published tags and assets remain
+immutable; do not rename older releases to retrofit this policy.
 
 The earlier 0.36.0-alpha.1 through alpha.5 labels distinguished AI prerelease
-builds, but kept several feature/fix tasks under the same base version. The
-resize correction now uses **0.36.1-alpha.1**, versionCode **88**. A subsequent
-fix task would use 0.36.2-alpha.1; a new feature would use 0.37.0-alpha.1.
+builds. Keeping their base unchanged was permissible during that alpha cycle.
+The resize correction was published as **0.36.1-alpha.1**, versionCode **88**;
+that base bump was a release choice, not a requirement for an alpha fix.
+Further fixes in this cycle can use 0.36.1-alpha.2, alpha.3, and so on. A later
+separate bug-fix release could use 0.36.2; a new-feature release could use 0.37.0.
 The release builder rejects version labels outside the stable/alpha/beta/rc
 format. Stable promotion removes the prerelease suffix from its base version;
 it does not arbitrarily change the patch number or signing identity.
