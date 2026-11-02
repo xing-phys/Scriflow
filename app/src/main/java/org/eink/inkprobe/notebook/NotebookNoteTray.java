@@ -27,14 +27,22 @@ final class NotebookNoteTray {
         show(anchor,notesButton,tools,vertical,panes,"Open a new floating note",NotebookIconDrawable.Icon.PAPER_BLANK);
     }
     void show(View anchor,View notesButton,Rect tools,boolean vertical,List<NotebookWorkspace.Pane> panes,String addName,NotebookIconDrawable.Icon restoreIcon) {
+        show(anchor,notesButton,tools,vertical,panes,addName,restoreIcon,null);
+    }
+    void show(View anchor,View notesButton,Rect tools,boolean vertical,List<NotebookWorkspace.Pane> panes,String addName,NotebookIconDrawable.Icon restoreIcon,Runnable history) {
         hide();
         LinearLayout row = new LinearLayout(context); row.setOrientation(vertical ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
         row.setPadding(dp(4), dp(4), dp(4), dp(4));
         GradientDrawable background = new GradientDrawable(); background.setColor(Color.WHITE);
         background.setStroke(dp(1), Color.BLACK); background.setCornerRadius(dp(12)); row.setBackground(background);
         NotebookIconButton add = new NotebookIconButton(context, NotebookIconDrawable.Icon.PLUS, addName);
+        add.setTooltipText(addName);
         add.setOnClickListener(v -> listener.add()); row.addView(add, new LinearLayout.LayoutParams(dp(32), dp(32)));
         int count = 1;
+        if(history!=null){
+            NotebookIconButton saved=new NotebookIconButton(context,NotebookIconDrawable.Icon.OUTLINE,"Saved chat history");saved.setTooltipText("Saved chat history");saved.setOnClickListener(v->history.run());
+            LinearLayout.LayoutParams item=new LinearLayout.LayoutParams(dp(32),dp(32));if(vertical)item.topMargin=dp(4);else item.leftMargin=dp(4);row.addView(saved,item);count++;
+        }
         for (NotebookWorkspace.Pane pane : panes) {
             if (!pane.collapsed) continue;
             String description = "Reopen " + listener.name(pane.notebookId);

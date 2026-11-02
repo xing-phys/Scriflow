@@ -67,10 +67,10 @@ defaults** resets the form to its latest fetched values. Fetching again keeps
 your overrides. Thinking defaults to Automatic; unavailable specifications use
 provider defaults. The connection can also be saved before choosing a model.
 
-Tap the chat-bubble sparkle in the toolbox to open a floating chat. Once a chat
-exists, the button toggles a tray with **+** for another chat and bubble icons
-for minimized chats, just like the notes tray. The header's **+** opens another
-window using that chat's model. Every new window has a separate session and draft.
+Tap the chat-bubble sparkle in the toolbox to toggle its tray. **+** opens a
+new floating chat, **History** opens saved sessions, and bubble icons restore
+minimized chats. The tray works even with no windows open. Every new window
+has a separate session and draft.
 
 Use the same corner controls as notes: **tap bottom-left** for options or
 **drag bottom-left** to move; **tap bottom-right** to minimize or **drag
@@ -82,23 +82,27 @@ Restore minimized chats from the toolbox tray. Minimizing preserves an active
 reply; closing stops its request and keeps history. Other windows remain open.
 
 Send a question, then ask follow-ups; replies render Markdown, math, code and
-tables using the existing local engine. **Stop**, **Retry**, **Copy reply** and
-**History** apply to that window. Chats and text/image drafts save automatically.
-Tap History to find saved sessions, newest first. Tap a row to reopen it with its
+tables using the existing local engine. The **send up-arrow** is beside the
+message field in the same row; **Ctrl+Enter** also sends. It changes to a stop
+square during generation, a retry arrow after interruption, or a save icon
+after a storage error. Copy remains beside the title. Chats and text/image
+drafts save automatically. Tap **History in the toolbox tray** to find saved
+sessions, newest first. Tap a row to reopen it with its
 original model and follow-up context; an already-open session is raised instead.
 Use its trash icon to confirm deletion. History is shared across notebooks;
 empty untouched sessions are not saved. Older chats are imported automatically.
 All window placements, minimized states and sessions restore across rotation,
 Settings and app reopen. Returning from Settings retains each window's original
-model. Tap a header's provider/model name to select a saved model for a new
-window; existing windows remain open. This choice becomes the toolbox default.
+model. Tap the **model name below the message field** to select a saved model
+for a new window; existing windows remain open. This choice becomes the toolbox
+default. AI settings remain in app Settings; there is no settings icon in the chat.
 
 Sending shares this chat's text and history with the configured provider;
 provider usage may incur charges. Notebook pages and PDFs are not automatically
 included. Paste text, or tap the chat icon beside a lasso/image/Markdown selection
 to append that content to the last active chat (restoring it if minimized).
 Tap a chat before selecting content to choose the target. Markdown appends as source; ink/images append as local
-image drafts. Remove unwanted image chips with ×, add a question, then Send.
+image drafts. Remove unwanted image chips with ×, add a question, then tap the send arrow.
 Use an image-capable model for ink/images. Keys are encrypted on the tablet. See
 [AI chat](ai-chat.md) for provider setup, recovery, limits and privacy.
 

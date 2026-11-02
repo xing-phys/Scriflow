@@ -231,6 +231,22 @@ before closing all controllers, preserves minimized state and stops all pending
 requests. Restoration never automatically retries interrupted questions.
 Notebook selections route to the last active chat, restoring it when minimized.
 
+`NotebookAiHistoryDialog` owns toolbox-based history independently of a chat
+window. It uses only the session controller's serialized archive listing and
+deletion operations, without loading a conversation, creating a WebView or
+making provider requests. Opening history flushes live composer drafts first.
+The modal retains the native contact barrier until dismissal. A confirmed
+deletion can finish after dismissal and still retire its matching window;
+destroyed Activities cannot overwrite newer window ownership. Restoration
+discards windows whose history has a deletion marker.
+
+The chat header contains only a title and Copy. The rounded composer puts a
+fixed-size icon-only Send/Stop/Retry/Save control beside weighted multiline
+input, with the model selector below and space reserved for corner grips.
+The model button dispatches taps synchronously before the outer frame's UP
+handler, so its model dialog retains the native barrier. The tray owns both
+New chat and History; settings remain in the ordinary settings interface.
+
 `NotebookAiChat` is a movable/resizable focusable PopupWindow with native input
 exclusions and contact/writer barriers. All visible windows and the tray join
 the native exclusion set. Window/history/deletion dialogs retain the contact

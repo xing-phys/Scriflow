@@ -6,6 +6,24 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.37.0-alpha.2 — Compact AI chat UI (2026-11-02)
+
+- Move New chat and History into the toolbox AI tray alongside minimized chats.
+  Open the tray even with no windows; browse history without creating a blank
+  conversation. Remove the floating window's settings shortcut and header +/History.
+- Keep a compact conversation title and Copy in the header. Show the selectable
+  friendly model name below the message field, clear of both corner grips.
+- Put an icon-only up-arrow beside the message field in one rounded composer
+  row. Retain multiline input and Ctrl+Enter. Use Stop, Retry and Save symbols
+  as appropriate, with matching accessibility names and tooltips.
+- Keep history listing/deletion independent of window controllers; flush drafts
+  before tray actions, preserve native modal barriers, and deliver confirmed
+  deletion callbacks after dismissal. Remove restored windows with deleted histories.
+- Pass 273,098 JVM assertions in 108 suites, fourteen browser cases and Android
+  debug/release lint/build checks. Publish versionCode 90 with permanent signing.
+  Notebook/backup and chat formats remain unchanged. Physical tablet acceptance
+  of the revised controls remains pending.
+
 ## 0.37.0-alpha.1 — Multiple floating AI chats (2026-11-02)
 
 - Open independent floating chats from the toolbox tray or a chat's + button.

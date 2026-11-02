@@ -102,7 +102,7 @@ final class NotebookAiSession {
     }
     void attach(NotebookAiAttachment image) {
         if (closed||!loaded||loadFailed||switching) return;
-        try { chat=chat.attach(image); status="Selection attached. Add a message and tap Send."; save(chat,null); changed.run(); }
+        try { chat=chat.attach(image); status="Selection attached. Add a message and tap the send arrow."; save(chat,null); changed.run(); }
         catch (IllegalArgumentException error) { status=error.getMessage(); changed.run(); }
     }
     void removeImage(int index) {

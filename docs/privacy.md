@@ -76,8 +76,12 @@ Multiple chat windows use independent sessions and requests. Reopening an
 already-open session restores that window rather than creating a second writer.
 Private window preferences store their session IDs, short titles, public
 provider/endpoint/model, geometry and minimized state, without credentials or
-full transcripts. Minimizing keeps a request already started with Send running;
-closing a window or leaving the editor cancels that window's pending work.
+full transcripts. History in the toolbox tray works without opening a chat;
+listing and deletion use local archive operations without provider calls.
+The message row's send arrow submits the draft; its stop/retry/save symbols
+retain their existing request and recovery behavior. Minimizing keeps an
+already-started request running; closing a window or leaving the editor cancels
+its pending work.
 Unsubmitted drafts in other windows are never mixed into its provider request.
 
 Chat rendering uses bundled scripts and fonts, blocked WebView network loads,

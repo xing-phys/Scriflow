@@ -33,7 +33,7 @@ contrast, and long-press word selection with Eudic floating lookup. Continuous
 scrolling at Fit width remains the default. Crop and contrast affect display;
 original PDF bytes, saved annotation coordinates and PDF exports are preserved.
 
-The **[0.37.0-alpha.1 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.37.0-alpha.1)** adds multiple floating [AI chats](docs/ai-chat.md), using the same window controls as floating notes.
+The **[0.37.0-alpha.2 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.37.0-alpha.2)** refines multiple floating [AI chats](docs/ai-chat.md), using the same window controls as floating notes.
 Configure a provider, model and API key in Settings, then tap the chat-bubble
 sparkle in the toolbox for a movable, resizable conversation window. Replies
 reuse the existing offline Markdown/math/code renderer. Presets cover OpenAI,
@@ -42,18 +42,21 @@ Fetch available models using your URL and key in Settings. Models appear directl
 below Fetch as names with checkboxes and settings gears. Check the ones you want,
 then **Save AI settings**. Each gear opens automatically filled limits, image
 support and thinking options for optional manual edits; **Use fetched defaults**
-resets those edits. Tap the chat's model name
+resets those edits. Tap the model name at the bottom of a chat
 to choose a saved model for a new session. Append selected handwriting,
 images or Markdown with the chat icon in their selection controls, then press
 Send. Only submitted chat text, selected attachments and their conversation
-history are sent. Use the toolbox AI icon for a tray with **+** and minimized
-chats. Each new window has its own session, draft and model. Tap the bottom-left
+history are sent. Use the toolbox AI icon for a tray with **+**, **History** and
+minimized chats. History works even with no windows open. The window has a
+compact title and Copy button, a selectable model at the bottom, and an icon-only
+send arrow beside the message field. Each new window has its own session,
+draft and model. Tap the bottom-left
 corner for options or drag it to move; tap the bottom-right corner to minimize
 or drag it to resize. The same thin outline as notes follows the gesture,
 keeping the top-left corner fixed; content refits on release. All four borders
 retain the separate clipped frame. Position menus include Left, Right, Top,
 Bottom and Floating window; a docked chat reserves space beside the notes.
-Use the history icon to reopen or delete earlier sessions; reopening an already
+Use the tray's history icon to reopen or delete earlier sessions; reopening an already
 open session focuses its window. Closing keeps history, and minimized chats
 retain in-progress replies. Windows and minimized states restore across app
 reopen, rotation and Settings. Tablet acceptance remains pending.

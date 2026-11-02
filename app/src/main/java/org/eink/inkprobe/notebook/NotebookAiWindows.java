@@ -24,13 +24,18 @@ final class NotebookAiWindows {
     private String saved;
     private AlertDialog menu;
     private NotebookAiChat menuOwner;
+    private NotebookAiHistoryDialog history;
 
     NotebookAiWindows(Activity activity,FrameLayout root,Listener listener,String restored){
         this.activity=activity;this.root=root;this.listener=listener;prefs=activity.getPreferences(Activity.MODE_PRIVATE);
         saved=restored==null?prefs.getString("aiWindows",null):restored;workspace.restore(saved);
         // Discard invalid destinations from damaged local preferences, never guessed credentials.
-        for(NotebookAiWorkspace.Window window:workspace.windows())try{new NotebookAiConfig(NotebookAiConfig.Provider.valueOf(window.provider),window.url,window.model,"local-validation").validate();}
+        for(NotebookAiWorkspace.Window window:workspace.windows())try{
+            new NotebookAiConfig(NotebookAiConfig.Provider.valueOf(window.provider),window.url,window.model,"local-validation").validate();
+            if(NotebookAiHistory.deleted(activity.getFilesDir(),window.sessionId))workspace.close(window);
+        }
         catch(IllegalArgumentException error){workspace.close(window);}
+        catch(java.io.IOException ignored){/* Retain a history window when storage is temporarily unavailable. */}
         tray=new NotebookNoteTray(activity,new NotebookNoteTray.Listener(){
             public void add(){trayAction(()->open(NotebookAiSettings.publicConfig(activity),null,false));}
             public void reopen(NotebookWorkspace.Pane pane){trayAction(()->restore(workspace.find(pane.notebookId)));}
@@ -57,12 +62,27 @@ final class NotebookAiWindows {
     List<Rect> exclusions(){List<Rect> result=new ArrayList<>();for(Rect rect:bounds.values())if(!rect.isEmpty())result.add(new Rect(rect));Rect strip=tray.bounds();if(!strip.isEmpty())result.add(strip);return result;}
     void toggle(View button,Rect tools,boolean vertical){
         if(!listener.allowed())return;resume();
-        if(workspace.windows().isEmpty()){if(!listener.contactStart())return;open(NotebookAiSettings.publicConfig(activity),null,false);listener.contactEnd();return;}
         if(!listener.contactStart())return;
-        if(tray.showing())tray.hide();else tray.show(root,button,tools,vertical,workspace.geometry.panes(),"Open a new floating chat",NotebookIconDrawable.Icon.AI_CHAT);
+        if(tray.showing())tray.hide();else tray.show(root,button,tools,vertical,workspace.geometry.panes(),"Open a new floating chat",NotebookIconDrawable.Icon.AI_CHAT,this::history);
         listener.contactEnd();
     }
-    private void trayAction(Runnable action){if(!listener.allowed()||!listener.contactStart())return;tray.hide();action.run();listener.contactEnd();}
+    private void history(){
+        if(history!=null||!listener.allowed()||!listener.contactStart())return;tray.hide();
+        for(NotebookAiChat chat:windows.values())chat.saveDraft();
+        List<NotebookAiConfig> configs=NotebookAiSettings.publicConfigs(activity);
+        for(NotebookAiWorkspace.Window state:workspace.windows())configs.add(new NotebookAiConfig(NotebookAiConfig.Provider.valueOf(state.provider),state.url,state.model,""));
+        history=new NotebookAiHistoryDialog(activity,root,configs,new NotebookAiHistoryDialog.Listener(){
+            public void open(NotebookAiConfig config,String id,boolean rebind){NotebookAiWindows.this.open(config,id,rebind);}
+            public void deleted(String id){NotebookAiWindows.this.deleted(id);}
+            public void closed(){history=null;listener.contactEnd();}
+        });history.show();
+    }
+    private void deleted(String sessionId){
+        if(activity.isFinishing()||activity.isDestroyed())return;
+        NotebookAiWorkspace.Window deleted=workspace.session(sessionId);if(deleted==null)return;
+        NotebookAiChat view=windows.get(deleted.pane.notebookId);if(view!=null)view.close();else{workspace.close(deleted);persist();listener.workspaceChanged();}
+    }
+    private void trayAction(Runnable action){if(!listener.allowed()||!listener.contactStart())return;for(NotebookAiChat chat:windows.values())chat.saveDraft();tray.hide();action.run();listener.contactEnd();}
     private void open(NotebookAiConfig config,String sessionId,boolean rebind){
         if(suspended)return;
         if(config.model.isEmpty()){
@@ -87,7 +107,6 @@ final class NotebookAiWindows {
             public void options(){showMenu(state,owner[0]);}
             public void open(NotebookAiConfig config,String sessionId,boolean rebind){NotebookAiWindows.this.open(config,sessionId,rebind);}
             public void changed(){sync(state,owner[0]);persist();}
-            public void deleted(String sessionId){NotebookAiWorkspace.Window deleted=workspace.session(sessionId);if(deleted!=null){NotebookAiChat view=windows.get(deleted.pane.notebookId);if(view!=null)view.close();else{workspace.close(deleted);persist();listener.workspaceChanged();}}}
             public void closed(){
                 bounds.remove(id);windows.remove(id);if(menuOwner==owner[0]&&menu!=null)menu.dismiss();
                 if(!suspended&&workspace.find(id)!=null){workspace.close(state);persist();positionAll();listener.workspaceChanged();}
@@ -113,7 +132,7 @@ final class NotebookAiWindows {
     }
     String snapshot(){persist();return workspace.encode();}
     void suspend(){
-        if(suspended)return;persist();suspended=true;tray.hide();if(menu!=null)menu.dismiss();
+        if(suspended)return;persist();suspended=true;tray.hide();if(menu!=null)menu.dismiss();if(history!=null)history.close();
         for(NotebookAiChat chat:new ArrayList<>(windows.values()))chat.close();windows.clear();bounds.clear();listener.boundsChanged();
     }
     void append(String source,NotebookAiAttachment image){

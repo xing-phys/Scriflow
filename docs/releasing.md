@@ -46,6 +46,15 @@ it does not arbitrarily change the patch number or signing identity.
 
 ## Before publishing
 
+**0.37.0-alpha.2** (versionCode **90**) refines the current multi-chat alpha UI.
+Move New chat and History to the toolbox tray, remove the chat settings shortcut,
+move model selection below the composer and use an icon-only action beside the
+message field. Validate history without a visible window, confirmed deletion
+after dismissal, draft flushing, model contact ordering and Send/Stop/Retry/Save
+states. Publish the permanently signed APK and checksum before owner testing;
+retain the data formats and 0.33.2 Latest stable. This refinement increments
+only the alpha number within the current release cycle.
+
 **0.37.0-alpha.1** (versionCode **89**) is a new-feature release for multiple
 floating chats. Notes and chats share corner gestures, outline resizing,
 position/size menus and toolbox trays. Validate independent session/request

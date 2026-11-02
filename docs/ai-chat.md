@@ -1,4 +1,4 @@
-# AI chat — 0.37.0-alpha.1
+# AI chat — 0.37.0-alpha.2
 
 Open **Settings → AI chat** from the time/battery/Wi-Fi pill. Choose OpenAI,
 Anthropic, Google Gemini, DeepSeek, or **Custom (OpenAI compatible)**. Enter
@@ -73,11 +73,12 @@ summarized to fit a model.
 
 ## Multiple floating chats
 
-Tap the **sparkle in a chat bubble** in the toolbox. With no chat windows it
-opens a new chat; otherwise it toggles a tray beside the button, just like the
-notes tray. **+** opens another floating chat. Each minimized chat has a bubble
-icon to restore it, with its title and model in its tooltip/accessibility name.
-The **+** in a chat header also opens a separate window using that chat's model.
+Tap the **sparkle in a chat bubble** in the toolbox to toggle a tray beside
+the button, just like the notes tray. It contains **+** for a new floating chat,
+**History** for saved sessions, and bubble icons for minimized chats. Each
+minimized chat's tooltip/accessibility name identifies its title and model.
+The tray remains available when no chat windows are open, so History does not
+require creating a blank conversation. **+** uses the selected default model.
 Each new window starts a new session without replacing or stopping other chats.
 
 Chats and notes share their actual corner controls, gestures and window geometry:
@@ -103,18 +104,28 @@ restore after rotation, Settings, backgrounding and app reopen. Leaving the
 editor stops pending requests; interrupted questions wait for an explicit Retry.
 At most 64 chat windows can be retained at once; close one to free a slot.
 
-Tap the provider/model name to choose a saved model for a new floating chat;
-this also becomes the default for subsequent chats opened from the toolbox.
+The window header contains its conversation title and Copy control. New chat
+and History live in the toolbox tray; AI settings open from the normal app
+Settings. There is no settings icon in the chat window.
+
+Tap the **model name at the bottom**, below the message field, to choose a saved
+model for a new floating chat. This control shows the model's friendly name;
+provider/model ID details remain in its tooltip/accessibility name.
+The selected model also becomes the default for subsequent chats opened from the toolbox.
 Existing windows keep their original session and destination, including when
 the default model changes in Settings. A cached model's parameters remain
 available to its history even if that model is unchecked in Settings.
 
 ## Messages and Markdown
 
-Write a message and tap **Send**, or use **Ctrl+Enter**
+Write a message and tap the **up-arrow icon at its right**, or use **Ctrl+Enter**
 on a keyboard; Enter inserts a line break. The AI receives the conversation's
-earlier turns so you can ask follow-up questions. **Stop** cancels the local
-request. **Retry** resends an unanswered question after interruption or failure;
+earlier turns so you can ask follow-up questions. The rounded message field
+and icon share a row; multiline input grows up to four lines while the icon
+keeps its width. The button shows a **stop square** during generation, a
+**retry arrow** for an unanswered question, or a **save icon** after a storage
+failure. Tooltips and accessibility labels describe the current action.
+Stop cancels the local request. Retry resends an unanswered question after interruption or failure;
 the app never retries automatically. Cancellation may arrive after a provider
 has started processing, so provider billing can still apply.
 
@@ -135,7 +146,7 @@ session while keeping the previous window, without a deletion prompt. Untouched
 empty sessions are not added to history. Close chat is in the bottom-left
 options menu. The toolbox icon opens the tray; it does not close conversations.
 
-Tap the **history list icon** in the chat header to find earlier sessions,
+Tap the **history list icon in the toolbox AI tray** to find earlier sessions,
 shared across notebooks and providers. Rows show an automatic title from the
 first question or draft, provider/model, last activity time, message count and
 a draft indicator. The most recently saved session appears first. Tap a row to
@@ -145,7 +156,7 @@ second writer. Only that session's messages
 are sent on follow-ups. Opening history or a saved session makes no provider
 request. Tap a row's **trash icon**, then confirm, to delete that session's local
 transcript and drafts. Deleting a session shown in another window closes that
-window. Deleting the current session replaces it with a fresh blank session.
+window, including the active window if it owns that session.
 Other sessions and provider-side records are unaffected.
 
 Reopened sessions use their original provider, endpoint and model. API keys are
@@ -179,7 +190,7 @@ of their source pixels. Image copies are bounded to 2048 pixels per edge and
 the chat has an 8 MiB total image budget in addition to its text budget.
 
 Pending images appear as removable **Ink/Image ×** chips above the message
-field. Review them, add your question, and tap **Send**. Sent images appear in
+field. Review them, add your question, and tap the **send arrow**. Sent images appear in
 the conversation and remain available to the model on follow-up turns.
 Appending while a reply is being generated prepares the next draft without
 changing the in-flight request. Unsent image drafts survive closing and are
@@ -191,7 +202,7 @@ Your selected provider and model must support image input to analyze images.
 Sending transmits this chat's text, explicitly appended image history, and the app's Markdown
 formatting instructions directly to the configured provider over HTTPS.
 Scriflow does not upload handwriting, notes, figures or PDFs automatically.
-Paste text or use the selection's append icon to share it, then press Send.
+Paste text or use the selection's append icon to share it, then press the send arrow.
 Fetching models sends authenticated GET requests to the configured provider's
 model metadata API, without conversation or notebook content. For the standard
 OpenAI endpoint, selected-model specifications can also be fetched from public
@@ -255,6 +266,12 @@ disposal. State tests cover independent geometry, all docks, minimized restore
 and damaged preferences. Concurrent controller tests interleave same-model
 requests, cancel/close one owner, and reopen their independent archives.
 The production shared note/chat resize grip is exercised at size/position limits.
+Composer fixtures verify the message/send row, model placement, reserved corner
+space, friendly names and icon-only Send/Stop/Retry/Save availability. Model tap
+fixtures cover synchronous dialog opening before native input resumes, finger
+jitter, dragging, cancellation and multiple fingers. Tray/history fixtures
+cover access with no windows, draft flushing, modal barriers, late confirmed
+deletions after dismissal and avoiding stale UI callbacks.
 Separate border tests execute the production outer-frame drawing
 with oversized children, scan all four painted edges after growth/shrink,
 check invalidation at the new size, and check the popup's clipping flags. These
@@ -275,8 +292,9 @@ No new runtime dependency is added. Prepare tablet updates only with
 `scripts/build-release.sh` and the permanent release signing certificate.
 Page and backup format 8 are unchanged.
 
-The completed build passes **273,057 JVM assertions in 103 suites**, fourteen
+The completed build passes **273,098 JVM assertions in 108 suites**, fourteen
 browser cases, debug/release lint and builds, and permanent-signer verification.
+The new action icons were visually inspected from the production vector paths.
 The Markdown chat screenshot was visually inspected for text, equations,
 tables, code, diagrams and Chinese; it does not verify the native panel on e-ink.
 
