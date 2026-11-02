@@ -6,6 +6,24 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.36.1-alpha.1 — AI resize frame correction (2026-11-02)
+
+- Replace the content-owned foreground stroke with a separate outer popup frame.
+  Reserve its inset borders, clip children, and paint all four edges as filled
+  strips inside the current measured viewport after children draw.
+- Enable WindowManager clipping and remove the transparent background wrapper.
+  Invalidate the new viewport after actual size changes and publish its measured
+  bounds for native pen exclusions. Retain anchored top-left resize geometry.
+- Add 63 production frame-pixel/clipping assertions to the existing coordinate
+  tests. Cover growth, shrink, short/narrow viewports and oversized content.
+  The earlier tests checked geometry without checking the painted edges.
+- Adopt explicit patch-for-fixes/minor-for-features numbering. Publish this fix
+  as 0.36.1-alpha.1, versionCode 88, and constrain release labels to supported
+  stable/alpha/beta/rc forms. Earlier tags remain unchanged.
+- Pass 272,982 JVM assertions in 99 suites, fourteen browser cases and Android
+  debug/release lint/build checks. Keep permanent signing and data formats;
+  physical Huawei resize verification remains pending because the tablet is unavailable.
+
 ## 0.36.0-alpha.5 — Inline model settings (2026-11-02)
 
 - Remove the Model ID field, Add selected dialog and Manage saved models button.

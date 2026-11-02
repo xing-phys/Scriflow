@@ -33,7 +33,7 @@ contrast, and long-press word selection with Eudic floating lookup. Continuous
 scrolling at Fit width remains the default. Crop and contrast affect display;
 original PDF bytes, saved annotation coordinates and PDF exports are preserved.
 
-The **[0.36.0-alpha.5 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.36.0-alpha.5)** adds optional [AI chat](docs/ai-chat.md) with saved sessions and automatically configured models.
+The **[0.36.1-alpha.1 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.36.1-alpha.1)** includes [AI chat](docs/ai-chat.md) with saved sessions, automatically configured models, and a resize-frame correction.
 Configure a provider, model and API key in Settings, then tap the chat-bubble
 sparkle in the toolbox for a movable, resizable conversation window. Replies
 reuse the existing offline Markdown/math/code renderer. Presets cover OpenAI,
@@ -46,7 +46,9 @@ resets those edits. Tap the chat's model name
 to choose a saved model for a new session. Append selected handwriting,
 images or Markdown with the chat icon in their selection controls, then press
 Send. Only submitted chat text, selected attachments and their conversation
-history are sent. Resizing keeps the top-left corner fixed and all borders visible.
+history are sent. Resizing keeps the top-left corner fixed. The patch puts all
+four borders inside a separate clipped outer frame, with edge-pixel regression
+checks; confirmation on the owner's tablet remains pending.
 Opening chat starts a new session. Use the history icon in the chat header to
 reopen or delete earlier sessions; **+** starts another while keeping the previous
 chat and draft. Existing conversations are imported automatically.

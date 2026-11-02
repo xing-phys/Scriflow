@@ -1,4 +1,4 @@
-# AI chat — 0.36.0-alpha.5
+# AI chat — 0.36.1-alpha.1
 
 Open **Settings → AI chat** from the time/battery/Wi-Fi pill. Choose OpenAI,
 Anthropic, Google Gemini, DeepSeek, or **Custom (OpenAI compatible)**. Enter
@@ -77,8 +77,9 @@ size are remembered. Tap the provider/model name to choose a saved model for
 a new chat; this also becomes the default for subsequent new chats. The previous
 session is saved before switching. Dragging the same title still moves the
 window. Resizing holds the top-left corner fixed, changes the
-right/bottom edges within the visible screen, and redraws a foreground border
-above the contents. Write a message and tap **Send**, or use **Ctrl+Enter**
+right/bottom edges within the visible screen. A separate outer frame keeps the
+black border inside all four edges and clips the contents away from it.
+Write a message and tap **Send**, or use **Ctrl+Enter**
 on a keyboard; Enter inserts a line break. The AI receives the conversation's
 earlier turns so you can ask follow-up questions. **Stop** cancels the local
 request. **Retry** resends an unanswered question after interruption or failure;
@@ -208,7 +209,11 @@ round trips, metadata-only listing, original destinations, legacy migration,
 deletion/retry and preventing resurrection by late replies. Production
 window-callback checks exercise native contact and writer ordering, history
 modal barriers, Activity session retention and the production resize
-grip/placement. Model fixtures cover provider metadata, native Gemini pagination,
+grip/placement. Separate border tests execute the production outer-frame drawing
+with oversized children, scan all four painted edges after growth/shrink,
+check invalidation at the new size, and check the popup's clipping flags. These
+are host raster tests and do not reproduce Huawei's physical display compositor.
+Model fixtures cover provider metadata, native Gemini pagination,
 public documentation without credentials, snapshot identity, saved profiles,
 supported effort parameters, bounded replies and editable context rejections.
 Manual-parameter fixtures cover save/reopen, actual request fields, refresh,
@@ -224,7 +229,7 @@ No new runtime dependency is added. Prepare tablet updates only with
 `scripts/build-release.sh` and the permanent release signing certificate.
 Page and backup format 8 are unchanged.
 
-The completed build passes **272,919 JVM assertions in 98 suites**, fourteen
+The completed build passes **272,982 JVM assertions in 99 suites**, fourteen
 browser cases, debug/release lint and builds, and permanent-signer verification.
 The Markdown chat screenshot was visually inspected for text, equations,
 tables, code, diagrams and Chinese; it does not verify the native panel on e-ink.

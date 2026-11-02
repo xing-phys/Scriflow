@@ -21,6 +21,7 @@ final class NotebookAiChat {
     private final View anchor;
     private final Listener listener;
     private final PopupWindow popup;
+    private final NotebookAiFrame frame;
     private final LinearLayout content;
     private final EditText composer;
     private final LinearLayout attachments;
@@ -62,9 +63,9 @@ final class NotebookAiChat {
             }
         };
         content.setOrientation(LinearLayout.VERTICAL); content.setBackgroundColor(Color.WHITE);
-        android.graphics.drawable.GradientDrawable frame=new android.graphics.drawable.GradientDrawable();
-        frame.setColor(Color.TRANSPARENT); frame.setStroke(dp(2),Color.BLACK); content.setForeground(frame);
         content.setPadding(dp(6),dp(4),dp(6),dp(4));
+        frame=new NotebookAiFrame(activity,dp(2));
+        frame.addView(content,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout header=new LinearLayout(activity); header.setGravity(Gravity.CENTER_VERTICAL);
         title=label("AI chat · drag to move",14); title.setMaxLines(2); title.setTypeface(null,android.graphics.Typeface.BOLD);
         title.setContentDescription("AI chat; tap to choose a saved model, drag to move window");title.setOnClickListener(v->chooseModel());title.setOnTouchListener(new Grip(false));
@@ -105,16 +106,15 @@ final class NotebookAiChat {
         send=button("Send",this::send); footer.addView(send,new LinearLayout.LayoutParams(dp(72),dp(36)));
         NotebookIconButton resize=icon(NotebookIconDrawable.Icon.RESIZE,"Drag to resize AI chat",()->{}); resize.setOnTouchListener(new Grip(true));
         footer.addView(resize,new LinearLayout.LayoutParams(dp(32),dp(32))); content.addView(footer);
-        popup=new PopupWindow(content,1,1,true); popup.setOutsideTouchable(false); popup.setTouchModal(false);
-        popup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
-        popup.setClippingEnabled(false); popup.setIsLaidOutInScreen(true); popup.setAnimationStyle(0); popup.setElevation(0);
+        popup=new PopupWindow(frame,1,1,true); popup.setOutsideTouchable(false); popup.setTouchModal(false);
+        NotebookAiFrame.configure(popup);popup.setAnimationStyle(0); popup.setElevation(0);
         popup.setEnterTransition(null); popup.setExitTransition(null);
         popup.setInputMethodMode(PopupWindow.INPUT_METHOD_NEEDED); popup.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         popup.setOnDismissListener(this::close);
-        content.getViewTreeObserver().addOnPreDrawListener(()->{
+        frame.getViewTreeObserver().addOnPreDrawListener(()->{
             if (!closed&&popup.isShowing()) {
-                int[] origin=new int[2]; content.getLocationOnScreen(origin);
-                publish(new Rect(origin[0],origin[1],origin[0]+content.getWidth(),origin[1]+content.getHeight()));
+                int[] origin=new int[2]; frame.getLocationOnScreen(origin);
+                publish(new Rect(origin[0],origin[1],origin[0]+frame.getWidth(),origin[1]+frame.getHeight()));
             }
             return true;
         });
@@ -381,7 +381,7 @@ final class NotebookAiChat {
                 }
                 else { xFraction=(start.left-area.left-dp(8)+dx)/Math.max(1,area.width()-2*dp(8)-start.width()); yFraction=(start.top-area.top-dp(8)+dy)/Math.max(1,area.height()-2*dp(8)-start.height()); }
                 xFraction=clamp(xFraction); yFraction=clamp(yFraction); widthFraction=clamp(widthFraction); heightFraction=clamp(heightFraction); position();
-                content.invalidate(); return true;
+                frame.invalidate(); return true;
             }
             if (event.getActionMasked()==MotionEvent.ACTION_UP||event.getActionMasked()==MotionEvent.ACTION_CANCEL) {
                 resizeFrame=null;

@@ -16,7 +16,32 @@ physical acceptance remains pending and is disclosed in the release notes.
 prerelease, adding paper sizes, zoom, and screen orientation settings. No tablet
 is connected for this release either; physical acceptance remains pending.
 
+## Version numbering
+
+Use **MAJOR.MINOR.PATCH**. A bug-fix task increments PATCH; a new feature task
+increments MINOR and starts PATCH at zero. Candidate iterations for that same
+base version use **alpha.N**, **beta.N** or **rc.N**. Incrementing only the alpha
+suffix across separate tasks is not the project policy. Android versionCode
+is independent and must increase for every published APK. Published release
+tags and assets remain immutable; do not rename older releases to retrofit
+this policy.
+
+The earlier 0.36.0-alpha.1 through alpha.5 labels distinguished AI prerelease
+builds, but kept several feature/fix tasks under the same base version. The
+resize correction now uses **0.36.1-alpha.1**, versionCode **88**. A subsequent
+fix task would use 0.36.2-alpha.1; a new feature would use 0.37.0-alpha.1.
+The release builder rejects version labels outside the stable/alpha/beta/rc
+format. Stable promotion removes the prerelease suffix from its base version;
+it does not arbitrarily change the patch number or signing identity.
+
 ## Before publishing
+
+**0.36.1-alpha.1** (versionCode **88**) fixes the AI resize frame by drawing its
+four edges inside a separate clipped popup viewport. Test border pixels after
+growth/shrink and clipping flags alongside existing anchored geometry tests.
+Publish the permanently signed alpha APK and checksum before owner testing;
+keep 0.33.2 Latest stable and all data formats unchanged. The tablet is unavailable,
+so do not claim the reported Huawei behavior was physically reproduced or verified.
 
 **0.36.0-alpha.5** (versionCode **87**) replaces Model ID/Manage controls with
 an inline name-only model list and per-model settings gears. Prefill parameters

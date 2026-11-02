@@ -209,7 +209,14 @@ provider/model and starting a new session. History reopens the original
 destination with its current locally saved model profile.
 
 `NotebookAiChat` is a movable/resizable focusable PopupWindow with native input
-exclusions and contact/writer barriers. `NotebookAiMarkdownView` renders local
+exclusions and contact/writer barriers. `NotebookAiFrame` is its outer viewport:
+children fill the inset area, child clipping is enabled, and four filled black
+strips draw after the children inside the viewport's current measured size.
+Size changes invalidate the new bounds. WindowManager clipping is enabled;
+the previous no-limits flag, transparent background wrapper and content-owned
+foreground border are removed. Native exclusions use the measured outer frame.
+Host pixel tests complement the resize-coordinate tests; firmware display
+behavior remains a physical acceptance check. `NotebookAiMarkdownView` renders local
 chat content using `ScriflowMarkdown.chat`, sharing the sanitized Markdown,
 MathJax, highlighting, diagram and CJK code used by note blocks. Chat does not
 compile vector PDF appearances; existing turns remain attached on follow-up.

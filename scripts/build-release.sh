@@ -38,8 +38,8 @@ import tempfile
 
 version = dict(line.split('=', 1) for line in Path('app/version.properties').read_text().splitlines()
                if '=' in line)['versionName']
-if not re.fullmatch(r'[0-9A-Za-z][0-9A-Za-z._+-]*', version):
-    raise SystemExit('Version name is not safe for a release filename')
+if not re.fullmatch(r'(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-(?:alpha|beta|rc)\.[1-9][0-9]*)?', version):
+    raise SystemExit('Use MAJOR.MINOR.PATCH with optional -alpha.N, -beta.N, or -rc.N. See docs/releasing.md.')
 directory = Path('build/releases')
 directory.mkdir(parents=True, exist_ok=True)
 destination = directory / ('scriflow-' + version + '.apk')
