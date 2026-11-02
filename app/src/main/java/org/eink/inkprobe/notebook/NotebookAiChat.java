@@ -67,7 +67,7 @@ final class NotebookAiChat {
         content.setPadding(dp(6),dp(4),dp(6),dp(4));
         LinearLayout header=new LinearLayout(activity); header.setGravity(Gravity.CENTER_VERTICAL);
         title=label("AI chat · drag to move",14); title.setMaxLines(2); title.setTypeface(null,android.graphics.Typeface.BOLD);
-        title.setContentDescription("AI chat; drag to move window"); title.setOnTouchListener(new Grip(false));
+        title.setContentDescription("AI chat; tap to choose a saved model, drag to move window");title.setOnClickListener(v->chooseModel());title.setOnTouchListener(new Grip(false));
         header.addView(title,new LinearLayout.LayoutParams(0,dp(44),1));
         fresh=icon(NotebookIconDrawable.Icon.PLUS,"New chat",this::newChat);
         copy=icon(NotebookIconDrawable.Icon.COPY,"Copy last AI reply",this::copy);
@@ -158,7 +158,7 @@ final class NotebookAiChat {
             catch(java.security.GeneralSecurityException|java.io.IOException error){canSend=false;problem="Cannot unlock this provider's key. You can read history; enter the key again in Settings to send.";}
             if(credential.isEmpty()&&destination.provider!=NotebookAiConfig.Provider.CUSTOM&&problem.isEmpty())
                 problem="Set this provider's API key in Settings to send. Saved chats remain available.";
-            final NotebookAiConfig connection=new NotebookAiConfig(destination.provider,destination.baseUrl,destination.model,credential);
+            final NotebookAiConfig connection=NotebookAiSettings.configuration(activity,destination.provider,destination.baseUrl,destination.model,credential);
             final boolean acceptedRebind=allowRebind;
             final String blockedSend=canSend?"":problem;
             final String notice=problem;
@@ -178,9 +178,9 @@ final class NotebookAiChat {
             for (Runnable selection:pending) selection.run();
         }
         if (session!=null) {
-            title.setText("AI · "+session.config.provider.label+"\n"+session.config.model);
-            title.setTooltipText(NotebookAiHistory.title(session.chat));
-            title.setContentDescription(NotebookAiHistory.title(session.chat)+"; "+session.config.provider.label+"; "+session.config.model+"; drag to move");
+            title.setText("AI · "+session.config.provider.label+"\n"+session.config.model+" ▾");
+            title.setTooltipText("Tap to choose a saved model · drag to move");
+            title.setContentDescription(NotebookAiHistory.title(session.chat)+"; "+session.config.provider.label+"; "+session.config.model+"; tap to choose a saved model or drag to move");
             attachments.removeAllViews();
             for (int i=0;i<session.chat.draftImages.size();i++) {
                 final int index=i; NotebookAiAttachment image=session.chat.draftImages.get(i);
@@ -242,6 +242,31 @@ final class NotebookAiChat {
     private void newChat() {
         if(session==null||!session.loaded||session.switching)return;
         main.removeCallbacks(saveDraft);saveDraft();displayProblem="";session.clear();
+    }
+    private void chooseModel(){
+        if(session==null||!session.loaded||session.switching||historyDialog!=null)return;
+        if(!contact){if(!listener.contactStart())return;contact=true;}
+        main.removeCallbacks(saveDraft);saveDraft();hideKeyboard();
+        java.util.List<NotebookAiConfig> choices=NotebookAiSettings.savedModels(activity);
+        if(choices.isEmpty()){Toast.makeText(activity,"Add models in Settings → AI chat → Fetch available models",Toast.LENGTH_LONG).show();finishContact();return;}
+        String[] labels=new String[choices.size()];for(int i=0;i<choices.size();i++){NotebookAiConfig config=choices.get(i);labels[i]=config.provider.label+" · "+config.model+"\n"+config.specs.summary(config.provider);}
+        historyDialog=new AlertDialog.Builder(activity).setTitle("Model for a new chat")
+            .setItems(labels,(dialog,index)->selectModel(choices.get(index)))
+            .setNegativeButton("Cancel",null).create();
+        historyDialog.setOnDismissListener(d->{historyDialog=null;finishContact();});NotebookUi.show(historyDialog);
+    }
+    private void selectModel(NotebookAiConfig config){
+        session.checkpoint(()->{
+            final NotebookAiSession owner=session;owner.switching=true;refresh();
+            new Thread(()->{
+                String problem=null;try{NotebookAiSettings.selectModel(activity,config);}catch(java.io.IOException|IllegalArgumentException error){problem=error.getMessage();}
+                final String failure=problem;
+                main.post(()->{if(closed||session!=owner)return;owner.switching=false;
+                    if(failure!=null){owner.status=failure;refresh();return;}
+                    settingsProfile=config.profile();pendingSelections.clear();openSession(config,null,false);
+                });
+            },"ai-model-select").start();
+        });
     }
     private void history() {
         if(session==null||!session.loaded||session.switching||historyDialog!=null)return;

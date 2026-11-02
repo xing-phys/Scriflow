@@ -34,21 +34,58 @@ final class NotebookAiSettings {
     static boolean configured(Context context) { return prefs(context).getBoolean("configured",false); }
     static NotebookAiConfig publicConfig(Context context) {
         NotebookAiConfig.Provider provider=provider(context);
-        return new NotebookAiConfig(provider,baseUrl(context,provider),model(context,provider),"");
+        return configuration(context,provider,baseUrl(context,provider),model(context,provider),"");
+    }
+    static NotebookAiConfig configuration(Context context,NotebookAiConfig.Provider provider,String url,String model,String key) {
+        NotebookAiModel specs=model(context,provider,url,model);
+        return new NotebookAiConfig(provider,url,model,key,specs);
+    }
+    private static String libraryKey(NotebookAiConfig.Provider provider,String url) {
+        return "models."+new NotebookAiConfig(provider,url,"","").profile();
+    }
+    static java.util.List<NotebookAiModel> models(Context context,NotebookAiConfig.Provider provider,String url) {
+        return NotebookAiModelLibrary.decode(prefs(context).getString(libraryKey(provider,url),"[]"));
+    }
+    static NotebookAiModel model(Context context,NotebookAiConfig.Provider provider,String url,String id) {
+        for(NotebookAiModel value:models(context,provider,url))if(value.id.equals(id))return value;
+        return id.isEmpty()?null:new NotebookAiModel(id);
+    }
+    static void saveModels(Context context,NotebookAiConfig.Provider provider,String url,java.util.List<NotebookAiModel> models)throws IOException {
+        String encoded=NotebookAiModelLibrary.encode(models);
+        if(!prefs(context).edit().putString(libraryKey(provider,url),encoded).commit())throw new IOException("Could not save selected models. Check storage and retry.");
     }
     static java.util.List<NotebookAiConfig> publicConfigs(Context context) {
         java.util.List<NotebookAiConfig> configs=new java.util.ArrayList<>();
         for(NotebookAiConfig.Provider provider:NotebookAiConfig.Provider.values()) {
-            NotebookAiConfig config=new NotebookAiConfig(provider,baseUrl(context,provider),model(context,provider),"");
+            NotebookAiConfig config=configuration(context,provider,baseUrl(context,provider),model(context,provider),"");
             try {new NotebookAiConfig(provider,config.baseUrl,config.model,"local-validation").validate();configs.add(config);}
             catch(IllegalArgumentException ignored){/* An unused custom provider has no endpoint. */}
+            for(NotebookAiModel model:models(context,provider,config.baseUrl))if(!model.id.equals(config.model)){
+                NotebookAiConfig added=new NotebookAiConfig(provider,config.baseUrl,model.id,"",model);
+                try{new NotebookAiConfig(provider,config.baseUrl,model.id,"local-validation").validate();configs.add(added);}catch(IllegalArgumentException ignored){}
+            }
         }
         return configs;
+    }
+    static java.util.List<NotebookAiConfig> savedModels(Context context) {
+        java.util.List<NotebookAiConfig> configs=new java.util.ArrayList<>();
+        for(NotebookAiConfig.Provider provider:NotebookAiConfig.Provider.values()){
+            String url=baseUrl(context,provider);
+            for(NotebookAiModel model:models(context,provider,url))if(model.chat!=0)configs.add(new NotebookAiConfig(provider,url,model.id,"",model));
+        }
+        return configs;
+    }
+    static void selectModel(Context context,NotebookAiConfig config)throws IOException {
+        // Model switching reuses the selected provider's existing key; it never copies a credential.
+        new NotebookAiConfig(config.provider,config.baseUrl,config.model,"local-validation").validate();
+        if(!prefs(context).edit().putString("provider",config.provider.name()).putString(config.provider.name()+".url",config.baseUrl)
+                .putString(config.provider.name()+".model",config.model).putBoolean("configured",config.provider==NotebookAiConfig.Provider.CUSTOM||hasKey(context,config.provider)).commit())
+            throw new IOException("Could not save the selected model. Check storage and retry.");
     }
     static String apiKey(Context context,NotebookAiConfig.Provider provider) throws GeneralSecurityException,IOException { return decrypt(context,provider); }
     static NotebookAiConfig read(Context context) throws GeneralSecurityException,IOException {
         NotebookAiConfig.Provider provider=provider(context);
-        return new NotebookAiConfig(provider,baseUrl(context,provider),model(context,provider),decrypt(context,provider));
+        return configuration(context,provider,baseUrl(context,provider),model(context,provider),decrypt(context,provider));
     }
     static NotebookAiConfig connection(Context context,NotebookAiConfig.Provider provider,String url,String model,String replacementKey)
             throws GeneralSecurityException,IOException {

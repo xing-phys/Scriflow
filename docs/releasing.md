@@ -18,6 +18,14 @@ is connected for this release either; physical acceptance remains pending.
 
 ## Before publishing
 
+**0.36.0-alpha.4** (`versionCode` **86**) adds selected model profiles with
+automatic provider specifications, supported thinking efforts and bounded
+request budgets. Retain saved chat sessions, format 8 and the permanent signer.
+Publish the signed alpha APK and checksum before owner testing; keep 0.33.2
+Latest stable. Verify source/tag, certificate and downloaded bytes. Disclose
+OpenAI's credential-free public documentation requests, provider-default
+fallbacks and pending tablet/live-provider acceptance.
+
 **0.36.0-alpha.3** (`versionCode` **85**) adds independently saved AI sessions,
 fresh chats by default, and history with reopen/delete actions. Import older
 conversations and retain notebook/backup format 8. Publish the permanently

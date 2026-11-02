@@ -185,6 +185,23 @@ endpoint and model, with credentials resolved separately for that endpoint.
 credentials with Android Keystore; public provider/model/endpoint preferences
 and private transcripts are separate from notebook data.
 
+`NotebookAiModel` normalizes provider limits, modalities and advertised thinking
+levels. `NotebookAiModelLibrary` persists a bounded selection per provider
+endpoint, with no credentials or chat content. Discovery reads native Claude
+and DeepSeek metadata, Google's native model API at its standard endpoint, and
+OpenAI-compatible catalogs elsewhere. OpenAI's standard catalog exposes only
+basic model identity; its public Markdown documentation supplies selected model
+specifications without receiving the API key. Unknown metadata stays unknown.
+The settings UI saves model profiles and defaults thinking to the provider's
+automatic behavior. The request policy clamps output budgets to known limits,
+uses the appropriate provider effort/thinking fields, and rejects known
+non-chat/image-incompatible requests before network work. A conservative UTF-8
+text estimate guards known context/input limits while retaining the original
+history and an editable rejected draft; it is not an exact image/token counter.
+Model selection checkpoints the previous session before changing the default
+provider/model and starting a new session. History reopens the original
+destination with its current locally saved model profile.
+
 `NotebookAiChat` is a movable/resizable focusable PopupWindow with native input
 exclusions and contact/writer barriers. `NotebookAiMarkdownView` renders local
 chat content using `ScriflowMarkdown.chat`, sharing the sanitized Markdown,

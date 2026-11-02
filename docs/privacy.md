@@ -3,7 +3,7 @@
 Notebooks work locally on the tablet. Scriflow has no app account, analytics,
 advertising, crash-reporting service, or cloud sync. Optional [AI chat](ai-chat.md)
 uses Android's `INTERNET` permission to contact the provider you configure when
-you explicitly send/retry a chat message or fetch the model catalog. Ordinary notebook editing and
+you explicitly send/retry a chat message or fetch/add models. Ordinary notebook editing and
 Markdown rendering do not make network requests.
 
 ## Notes and settings
@@ -39,8 +39,17 @@ of that conversation. Selection controls can append Markdown source, selected
 handwriting or image copies to a local chat draft. Appending does not send them;
 Send submits the draft. Pending images can be removed first. Sent images are
 included in subsequent follow-ups and stored in the private transcript.
-Fetch available models authenticates with your entered/saved key and sends no
-conversation or notebook content. Your provider's data and retention policies apply.
+Fetch available models authenticates with your entered/saved key and retrieves
+model IDs, capabilities and limits without conversation or notebook content.
+For Google's standard endpoint, discovery uses its native model API with the key
+in a header. For OpenAI's standard endpoint, fetching the current model or adding
+selected models can also read their public documentation from
+`developers.openai.com`, with no API key or chat content attached. Custom servers
+use their own reported metadata and are not assumed to match official models
+with similar IDs. Model specifications, selected IDs and optional thinking
+preferences are cached locally by provider/endpoint, independently of credentials
+and outside notebook backups. Unavailable metadata uses provider defaults.
+Your provider's data and retention policies apply.
 OpenAI requests set `store: false`; other provider policies still apply.
 There are no automatic provider calls, retries, analytics or background sync.
 

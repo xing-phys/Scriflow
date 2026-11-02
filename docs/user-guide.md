@@ -54,8 +54,14 @@ for syntax, recovery, size limits and compatibility.
 ## AI chat
 
 Open **Settings → AI chat**, select a provider, enter your API key, check the
-API base URL, tap **Fetch available models**, select a model, then tap
-**Save AI settings**. Manual model entry also works. Tap the chat-bubble
+API base URL, then tap **Fetch available models**. Check the models you want and
+tap **Add selected**. Their reported limits, image support and thinking options
+are saved automatically. Select one in the Model ID dropdown and tap
+**Save AI settings**. Leave **Thinking effort → Automatic** to use the model's
+default; optional choices show only advertised values. **Manage saved models**
+keeps the models you check, without deleting chat histories. If specifications
+are unavailable, the app shows provider defaults. Manual model entry also works.
+Tap the chat-bubble
 sparkle in the toolbox to chat in a floating window. Drag its title to move it
 or its lower-right handle to resize it. Resizing keeps the top-left corner fixed
 and all borders visible. Send a question, then ask follow-ups; replies render
@@ -68,7 +74,9 @@ newest first. Tap a row to reopen it with its original provider/model and
 follow-up context, or its trash icon to confirm deletion. History is shared
 across notebooks. Empty untouched sessions are not saved. Older chats are
 imported automatically. Rotation or returning from Settings keeps the active
-session if its Settings configuration has not changed.
+session if its Settings configuration has not changed. Tap the provider/model
+name in the chat header to select a saved model for a new chat; the previous
+session is kept. This choice becomes the default for subsequent new chats.
 
 Sending shares this chat's text and history with the configured provider;
 provider usage may incur charges. Notebook pages and PDFs are not automatically

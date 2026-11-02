@@ -38,45 +38,71 @@ final class NotebookAiClient {
     NotebookAiClient(Connections connections) { this.connections=connections; }
 
     List<String> models(NotebookAiConfig config,Cancellation cancellation) throws IOException {
-        config.validateConnection(); TreeSet<String> result=new TreeSet<>(); String cursor="";
+        List<String> ids=new ArrayList<>();for(NotebookAiModel model:catalog(config,cancellation,false))ids.add(model.id);return ids;
+    }
+    List<NotebookAiModel> catalog(NotebookAiConfig config,Cancellation cancellation)throws IOException{return catalog(config,cancellation,true);}
+    private List<NotebookAiModel> catalog(NotebookAiConfig config,Cancellation cancellation,boolean nativeMetadata) throws IOException {
+        config.validateConnection(); TreeMap<String,NotebookAiModel> result=new TreeMap<>(); String cursor="";
+        boolean gemini=nativeMetadata&&config.provider==NotebookAiConfig.Provider.GEMINI&&config.modelsEndpoint().equals("https://generativelanguage.googleapis.com/v1beta/openai/models");
         for (int page=0;page<10;page++) {
             cancellation.check();
-            String query=cursor.isEmpty()?"":"?"+(config.provider==NotebookAiConfig.Provider.ANTHROPIC?"after_id":"after")+"="+URLEncoder.encode(cursor,"UTF-8");
-            HttpURLConnection connection=connections.open(new URL(config.modelsEndpoint()+query));
+            String query=cursor.isEmpty()?"":"?"+(gemini?"pageToken":config.provider==NotebookAiConfig.Provider.ANTHROPIC?"after_id":"after")+"="+URLEncoder.encode(cursor,"UTF-8");
+            HttpURLConnection connection=connections.open(new URL((gemini?"https://generativelanguage.googleapis.com/v1beta/models":config.modelsEndpoint())+query));
             try {
                 cancellation.attach(connection); connection.setRequestMethod("GET"); connection.setUseCaches(false);
                 connection.setInstanceFollowRedirects(false); connection.setConnectTimeout(20000); connection.setReadTimeout(20000);
                 connection.setRequestProperty("Accept","application/json");
-                if (!config.apiKey.isEmpty()) connection.setRequestProperty("Authorization","Bearer "+config.apiKey);
+                if (!config.apiKey.isEmpty()) connection.setRequestProperty(gemini?"x-goog-api-key":"Authorization",gemini?config.apiKey:"Bearer "+config.apiKey);
                 if (config.provider==NotebookAiConfig.Provider.ANTHROPIC) connection.setRequestProperty("anthropic-version","2026-10-21");
                 int status=connection.getResponseCode();
                 if (status>=300&&status<400) throw new IOException("Model list redirected. Enter the final API base URL.");
                 if (status!=200) throw new IOException("Model fetch returned HTTP "+status+". Check your key and URL; you can also enter a model ID manually.");
                 JSONObject response;
                 try (InputStream in=connection.getInputStream()) { response=new JSONObject(read(in,cancellation)); }
-                JSONArray data=response.getJSONArray("data");
+                JSONArray data=response.getJSONArray(gemini?"models":"data");
                 for (int i=0;i<data.length();i++) {
-                    String id=data.getJSONObject(i).getString("id");
-                    if (id.isEmpty()||id.length()>200||id.matches("(?s).*[\\p{Cntrl}].*")) throw new IOException("Provider returned an invalid model ID");
-                    result.add(id);
+                    NotebookAiModel model=NotebookAiModel.provider(config.provider,data.getJSONObject(i));
+                    result.put(model.id,model);
                     if (result.size()>1000) throw new IOException("Provider lists too many models. Enter a model ID manually.");
                 }
-                if (!response.optBoolean("has_more",false)) {
+                if (gemini?response.optString("nextPageToken","").isEmpty():!response.optBoolean("has_more",false)) {
                     if (result.isEmpty()) throw new IOException("No available models were returned for this key");
-                    return new ArrayList<>(result);
+                    return new ArrayList<>(result.values());
                 }
-                String next=response.optString("last_id",data.length()==0?"":data.getJSONObject(data.length()-1).getString("id"));
+                String next=gemini?response.getString("nextPageToken"):response.optString("last_id",data.length()==0?"":data.getJSONObject(data.length()-1).getString("id"));
                 if (next.isEmpty()||next.equals(cursor)) throw new IOException("Provider returned an invalid model-list cursor");
                 cursor=next;
-            } catch (JSONException error) { throw new IOException("Provider returned an invalid model list. Enter a model ID manually.",error); }
+            } catch (JSONException|IllegalArgumentException error) { throw new IOException("Provider returned an invalid model list. Enter a model ID manually.",error); }
             finally { cancellation.release(); connection.disconnect(); }
         }
         throw new IOException("Model list exceeded its page limit. Enter a model ID manually.");
     }
 
+    /** OpenAI's authenticated model list has no limits. Read its public documentation without the API key. */
+    NotebookAiModel specifications(NotebookAiConfig config,NotebookAiModel model,Cancellation cancel)throws IOException {
+        cancel.check();
+        if(config.provider!=NotebookAiConfig.Provider.OPENAI||!config.modelsEndpoint().equals("https://api.openai.com/v1/models")||!model.id.matches("[a-zA-Z0-9._-]{1,120}"))return model;
+        if(model.source.equals("OpenAI documentation")&&model.fetched>System.currentTimeMillis()-600000)return model;
+        String id=model.id;
+        for(int attempt=0;attempt<2;attempt++){
+            cancel.check();HttpURLConnection connection=connections.open(new URL("https://developers.openai.com/api/docs/models/"+id+".md"));
+            try {
+                cancel.attach(connection);connection.setRequestMethod("GET");connection.setUseCaches(false);connection.setInstanceFollowRedirects(false);
+                connection.setConnectTimeout(10000);connection.setReadTimeout(10000);connection.setRequestProperty("Accept","text/markdown");
+                int status=connection.getResponseCode();
+                if(status==200)try(InputStream in=connection.getInputStream()){return NotebookAiModel.openAiDocument(model.id,read(in,cancel));}
+                String alias=id.replaceFirst("-\\d{4}-\\d{2}-\\d{2}$","");
+                if(status!=404||alias.equals(id))throw new IOException("Official specifications are unavailable for "+model.id);
+                id=alias;
+            } finally {cancel.release();connection.disconnect();}
+        }
+        return model;
+    }
+
     Reply complete(NotebookAiConfig config,List<NotebookAiConversation.Message> history,Cancellation cancellation) throws IOException {
         config.validate(); cancellation.check();
         if (history.isEmpty() || !history.get(history.size()-1).role.equals("user")) throw new IOException("No message to send");
+        config.specs.validateRequest(history,config.specs.replyBudget(config.provider));
         HttpURLConnection connection=connections.open(new URL(config.endpoint()));
         try {
             cancellation.attach(connection);
@@ -112,11 +138,22 @@ final class NotebookAiClient {
         boolean anthropic=config.provider==NotebookAiConfig.Provider.ANTHROPIC;
         JSONObject request=new JSONObject().put("model",config.model).put("stream",false);
         JSONArray messages=new JSONArray();
-        if (anthropic) request.put("system",SYSTEM).put("max_tokens",8192);
+        NotebookAiModel specs=config.specs;int budget=specs.replyBudget(config.provider);
+        if (anthropic) request.put("system",SYSTEM).put("max_tokens",budget);
         else {
             messages.put(new JSONObject().put("role","system").put("content",SYSTEM));
-            if (config.provider==NotebookAiConfig.Provider.OPENAI) request.put("store",false).put("max_completion_tokens",16384);
-            else request.put("max_tokens",8192);
+            if (config.provider==NotebookAiConfig.Provider.OPENAI) request.put("store",false);
+            request.put(config.provider==NotebookAiConfig.Provider.OPENAI?"max_completion_tokens":specs.outputParameter,budget);
+        }
+        if(!specs.effort.isEmpty()){
+            if(anthropic)request.put("output_config",new JSONObject().put("effort",specs.effort));
+            else request.put("reasoning_effort",specs.effort);
+            if(config.provider==NotebookAiConfig.Provider.DEEPSEEK)request.put("thinking",new JSONObject().put("type","enabled"));
+        }
+        if(anthropic&&!specs.thinking.isEmpty()&&(specs.thinkingRequired||!specs.effort.isEmpty())){
+            JSONObject thinking=new JSONObject().put("type",specs.thinking);
+            if(specs.thinking.equals("enabled"))thinking.put("budget_tokens",Math.min(8192,Math.max(1024,budget/2)));
+            request.put("thinking",thinking);
         }
         for (NotebookAiConversation.Message message:history) {
             Object content=message.content;

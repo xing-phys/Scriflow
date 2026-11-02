@@ -113,8 +113,9 @@ final class NotebookAiSession {
     void send(String text) {
         if (closed||!loaded||loadFailed||busy||switching) return;
         if(!sendProblem.isEmpty()){status=sendProblem;changed.run();return;}
-        try { config.validate(); if (!chat.awaitingReply()) chat=chat.question(text); }
-        catch (IllegalArgumentException error) { status=error.getMessage(); changed.run(); return; }
+        try { config.validate();NotebookAiConversation candidate=chat.awaitingReply()?chat:chat.question(text);
+            config.specs.validateRequest(candidate.messages,config.specs.replyBudget(config.provider));chat=candidate; }
+        catch (IllegalArgumentException|IOException error) { status=error.getMessage(); changed.run(); return; }
         busy=true; status="Generating…"; final int request=++generation;
         cancellation=new NotebookAiClient.Cancellation(); final NotebookAiClient.Cancellation cancel=cancellation;
         final NotebookAiConversation history=chat;

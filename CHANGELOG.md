@@ -6,6 +6,26 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.36.0-alpha.4 — Automatic model specifications (2026-11-02)
+
+- Fetch model capabilities alongside IDs and add selected models to a local,
+  endpoint-specific library. Read context/input and output limits, image support
+  and advertised thinking efforts; keep up to 64 saved models per endpoint.
+- Read native Claude/DeepSeek metadata and Google's native model API. Supplement
+  the standard OpenAI catalog with public official model documentation, without
+  credentials. Preserve unknown values and provider-default fallbacks rather
+  than guessing specifications from model IDs.
+- Configure model limits automatically and default thinking effort to Automatic.
+  Offer only reported effort choices, apply each provider's request format and
+  cap reply budgets to known limits. Keep locally rejected prompts editable;
+  never silently truncate saved history to fit a model's context.
+- Tap the chat's provider/model name to start a new session using a saved model
+  and make it the default. Save the previous conversation before switching.
+  Reopened chats retain their original destination and use its saved model profile.
+- Pass 272,886 JVM assertions in 97 suites, fourteen real-browser cases and
+  Android debug/release lint/build checks. VersionCode 86 retains permanent
+  signing and notebook/backup format 8; physical/live-account acceptance is pending.
+
 ## 0.36.0-alpha.3 — Saved AI chat sessions (2026-11-02)
 
 - Start a new session whenever the chat is explicitly opened. Save conversations
