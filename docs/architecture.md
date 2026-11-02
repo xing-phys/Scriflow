@@ -192,8 +192,14 @@ and DeepSeek metadata, Google's native model API at its standard endpoint, and
 OpenAI-compatible catalogs elsewhere. OpenAI's standard catalog exposes only
 basic model identity; its public Markdown documentation supplies selected model
 specifications without receiving the API key. Unknown metadata stays unknown.
-The settings UI saves model profiles and defaults thinking to the provider's
-automatic behavior. The request policy clamps output budgets to known limits,
+The settings UI shows an inline, virtualized list of names, checkboxes and gears.
+`NotebookAiModelDialog` holds detailed parameters, initialized from fetched
+metadata. Model records preserve an automatic baseline separately from manual
+overrides, so refresh updates defaults without erasing edits and reset recovers
+the newest defaults. The catalog supports 1,000 records, with 64 enabled per
+endpoint. One preferences commit publishes the connection, encrypted key,
+catalog and selected profiles. Thinking defaults to the provider's automatic
+behavior. The request policy clamps output budgets to configured limits,
 uses the appropriate provider effort/thinking fields, and rejects known
 non-chat/image-incompatible requests before network work. A conservative UTF-8
 text estimate guards known context/input limits while retaining the original

@@ -54,6 +54,17 @@ final class NotebookAiSettings {
         String encoded=NotebookAiModelLibrary.encode(models);
         if(!prefs(context).edit().putString(libraryKey(provider,url),encoded).commit())throw new IOException("Could not save selected models. Check storage and retry.");
     }
+    static java.util.List<NotebookAiModel> catalog(Context context,NotebookAiConfig.Provider provider,String url){
+        java.util.List<NotebookAiModel> cached=NotebookAiModelLibrary.catalog(prefs(context).getString("catalog."+libraryKey(provider,url),"[]"));
+        java.util.LinkedHashMap<String,NotebookAiModel> values=new java.util.LinkedHashMap<>();for(NotebookAiModel model:cached)values.put(model.id,model);
+        for(NotebookAiModel model:models(context,provider,url)){
+            NotebookAiModel latest=values.get(model.id);values.put(model.id,latest==null||!latest.known()?model:latest.refreshed(model));
+        }
+        return new java.util.ArrayList<>(values.values());
+    }
+    static void saveCatalog(Context context,NotebookAiConfig.Provider provider,String url,java.util.List<NotebookAiModel> models)throws IOException{
+        if(!prefs(context).edit().putString("catalog."+libraryKey(provider,url),NotebookAiModelLibrary.encodeCatalog(models)).commit())throw new IOException("Could not save the model list. Check storage and retry.");
+    }
     static java.util.List<NotebookAiConfig> publicConfigs(Context context) {
         java.util.List<NotebookAiConfig> configs=new java.util.ArrayList<>();
         for(NotebookAiConfig.Provider provider:NotebookAiConfig.Provider.values()) {
@@ -95,11 +106,17 @@ final class NotebookAiSettings {
     }
     static void save(Context context,NotebookAiConfig.Provider provider,String baseUrl,String model,String replacementKey)
             throws GeneralSecurityException,IOException {
+        save(context,provider,baseUrl,model,replacementKey,null,null);
+    }
+    static void save(Context context,NotebookAiConfig.Provider provider,String baseUrl,String model,String replacementKey,
+            java.util.List<NotebookAiModel> selected,java.util.List<NotebookAiModel> catalog)throws GeneralSecurityException,IOException {
         String apiKey=replacementKey.trim();
         if (apiKey.isEmpty() && hasKey(context,provider)) apiKey=decrypt(context,provider);
-        NotebookAiConfig config=new NotebookAiConfig(provider,baseUrl,model,apiKey); config.validate();
+        NotebookAiConfig config=new NotebookAiConfig(provider,baseUrl,model,apiKey);if(config.model.isEmpty())config.validateConnection();else config.validate();
         SharedPreferences.Editor editor=prefs(context).edit().putString("provider",provider.name())
-            .putString(provider.name()+".url",config.baseUrl).putString(provider.name()+".model",config.model).putBoolean("configured",true);
+            .putString(provider.name()+".url",config.baseUrl).putString(provider.name()+".model",config.model).putBoolean("configured",!config.model.isEmpty());
+        if(selected!=null)editor.putString(libraryKey(provider,config.baseUrl),NotebookAiModelLibrary.encode(selected));
+        if(catalog!=null)editor.putString("catalog."+libraryKey(provider,config.baseUrl),NotebookAiModelLibrary.encodeCatalog(catalog));
         if (!config.apiKey.isEmpty()) {
             Cipher cipher=Cipher.getInstance("AES/GCM/NoPadding"); cipher.init(Cipher.ENCRYPT_MODE,key());
             cipher.updateAAD(provider.name().getBytes(StandardCharsets.UTF_8));

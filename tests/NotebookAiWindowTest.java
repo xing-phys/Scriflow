@@ -40,6 +40,22 @@ public final class NotebookAiWindowTest {
         resizeControls();
         sendDrafts();
         historyLifecycle();
+        settingsRows();
+    }
+    private static void settingsRows()throws Exception{
+        String fixture=String.join("\n",
+            "package org.eink.inkprobe.notebook;import java.util.*;import java.util.function.*;public class AiSettingsRowsFixture {",
+            "static class View{}static class ViewGroup extends View{}static class Gravity{static int CENTER_VERTICAL;}static class Color{static int BLACK;}static class TextUtils{static class TruncateAt{static Object END;}}static class android{static class content{static class res{static class ColorStateList{static Object valueOf(int n){return null;}}}}}",
+            "static class LinearLayout extends View{List<View> children=new ArrayList<>();LinearLayout(Object a){}void setGravity(int n){}void addView(View v,Object p){children.add(v);}static class LayoutParams{LayoutParams(int a,int b){}LayoutParams(int a,int b,int c){}}}",
+            "interface Changed{void change(CheckBox button,boolean on);}static class CheckBox extends View{String text;boolean checked,enabled;Changed listener;CheckBox(Object a){}void setText(String s){text=s;}void setTextSize(int n){}void setTextColor(int n){}void setSingleLine(boolean b){}void setEllipsize(Object o){}void setChecked(boolean b){if(checked==b)return;checked=b;if(listener!=null)listener.change(this,b);}void setEnabled(boolean b){enabled=b;}void setButtonTintList(Object o){}void setContentDescription(String s){}void setOnCheckedChangeListener(Changed l){listener=l;}}",
+            "static class NotebookIconDrawable{enum Icon{SETTINGS}}static class NotebookIconButton extends View{NotebookIconDrawable.Icon icon;boolean available;Consumer<View> click;NotebookIconButton(Object a,NotebookIconDrawable.Icon i,String s){icon=i;}void setTooltipText(String s){}void setAvailable(boolean b){available=b;}void setOnClickListener(Consumer<View> c){click=c;}void press(){if(available)click.accept(this);}}",
+            "static class NotebookAiModel{String id,name;NotebookAiModel(String i,String n){id=i;name=n;}}static class NotebookAiModelLibrary{static int MAX_MODELS=2;}static class Toast{static int LENGTH_SHORT;static Toast makeText(Object a,String s,int n){return new Toast();}void show(){}}static class Status{void setText(String s){}}",
+            "Object activity=new Object();boolean working;final Status status=new Status();Set<String> checked=new HashSet<>();List<NotebookAiModel> available=Arrays.asList(new NotebookAiModel(\"hidden-id\",\"Friendly model\"),new NotebookAiModel(\"second\",\"Second\"),new NotebookAiModel(\"third\",\"Third\"));NotebookAiModel edited;int dp(int n){return n;}void editModel(NotebookAiModel m){edited=m;}",
+            method(read("NotebookAiSettingsSection"),"public View getView(int position"),
+            "public static void run(){AiSettingsRowsFixture f=new AiSettingsRowsFixture();LinearLayout row=(LinearLayout)f.getView(0,null,null);CheckBox name=(CheckBox)row.children.get(0);NotebookIconButton gear=(NotebookIconButton)row.children.get(1);if(row.children.size()!=2||!name.text.equals(\"Friendly model\")||gear.icon!=NotebookIconDrawable.Icon.SETTINGS)throw new AssertionError(\"A model row contains only its selection/name and settings gear\");",
+            "name.setChecked(true);if(!f.checked.contains(\"hidden-id\"))throw new AssertionError(\"Inline checking selects the actual model ID\");gear.press();if(f.edited!=f.available.get(0))throw new AssertionError(\"The gear edits its own model\");f.checked.add(\"second\");CheckBox third=(CheckBox)((LinearLayout)f.getView(2,null,null)).children.get(0);third.setChecked(true);if(third.checked||f.checked.size()!=2)throw new AssertionError(\"Inline selection enforces the enabled model bound\");",
+            "f.working=true;LinearLayout busy=(LinearLayout)f.getView(2,null,null);if(((CheckBox)busy.children.get(0)).enabled||((NotebookIconButton)busy.children.get(1)).available)throw new AssertionError(\"Fetch/save prevents edits to the in-flight selection\");System.out.println(\"NotebookAiSettingsRows: 5 assertions passed (production inline name-only rows, selection, model gear and worker guards).\");}}"
+        );NotebookWorkspaceActivationTest.runFixture("org.eink.inkprobe.notebook.AiSettingsRowsFixture",fixture);
     }
     private static void historyLifecycle() throws Exception {
         String fixture=String.join("\n",

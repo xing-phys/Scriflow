@@ -21,6 +21,15 @@ public final class NotebookSymbols {
     public static void draw(String icon, Sink out) {
         if (icon == null || out == null) throw new IllegalArgumentException("Missing icon or sink");
         switch (icon) {
+            case "SETTINGS":
+                out.begin();
+                for(int i=0;i<32;i++){
+                    double angle=Math.PI*2*i/32-Math.PI/2;float radius=i%4==1||i%4==2?10:7.7f;
+                    float x=12+(float)Math.cos(angle)*radius,y=12+(float)Math.sin(angle)*radius;
+                    if(i==0)out.moveTo(x,y);else out.lineTo(x,y);
+                }
+                out.close();out.end(false);circle(out,12,12,3.1f);
+                break;
             case "AI_CHAT":
                 line(out, 4, 3, 20, 3, 22, 5, 22, 15, 20, 17, 10, 17, 5, 21, 5, 17, 2, 15, 2, 5, 4, 3);
                 polygon(out, false, 12, 6, 13.5f, 9.5f, 17, 11, 13.5f, 12.5f, 12, 16, 10.5f, 12.5f, 7, 11, 10.5f, 9.5f);

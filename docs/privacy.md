@@ -42,13 +42,17 @@ included in subsequent follow-ups and stored in the private transcript.
 Fetch available models authenticates with your entered/saved key and retrieves
 model IDs, capabilities and limits without conversation or notebook content.
 For Google's standard endpoint, discovery uses its native model API with the key
-in a header. For OpenAI's standard endpoint, fetching the current model or adding
-selected models can also read their public documentation from
+in a header. For OpenAI's standard endpoint, fetching enabled models or completing
+a model's missing settings can also read its public documentation from
 `developers.openai.com`, with no API key or chat content attached. Custom servers
 use their own reported metadata and are not assumed to match official models
 with similar IDs. Model specifications, selected IDs and optional thinking
 preferences are cached locally by provider/endpoint, independently of credentials
-and outside notebook backups. Unavailable metadata uses provider defaults.
+and outside notebook backups. The cached catalog also keeps unchecked model
+names, fetched defaults and optional manual overrides. Refresh preserves
+overrides; resetting a model restores its fetched defaults. Unavailable metadata
+uses provider defaults. Saving publishes the connection, encrypted key, selected
+models and parameters together; API keys are never in model records.
 Your provider's data and retention policies apply.
 OpenAI requests set `store: false`; other provider policies still apply.
 There are no automatic provider calls, retries, analytics or background sync.

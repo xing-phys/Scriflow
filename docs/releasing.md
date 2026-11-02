@@ -18,6 +18,13 @@ is connected for this release either; physical acceptance remains pending.
 
 ## Before publishing
 
+**0.36.0-alpha.5** (versionCode **87**) replaces Model ID/Manage controls with
+an inline name-only model list and per-model settings gears. Prefill parameters
+automatically, support durable manual overrides and reset to fetched defaults.
+Publish the signed alpha before owner testing; keep 0.33.2 Latest stable,
+format 8 and chat archives unchanged. Verify source/tag, permanent signer and
+downloaded assets. Physical and live-account acceptance remain pending.
+
 **0.36.0-alpha.4** (`versionCode` **86**) adds selected model profiles with
 automatic provider specifications, supported thinking efforts and bounded
 request budgets. Retain saved chat sessions, format 8 and the permanent signer.

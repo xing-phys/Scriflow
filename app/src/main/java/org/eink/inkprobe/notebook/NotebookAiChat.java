@@ -125,6 +125,7 @@ final class NotebookAiChat {
         if (!NotebookPopupHost.show(popup,anchor,Gravity.TOP|Gravity.LEFT,bounds.left,bounds.top)) { close(); return; }
         NotebookAiConfig config=NotebookAiSettings.publicConfig(activity);
         settingsProfile=config.profile();
+        if(config.model.isEmpty()){displayProblem="Fetch and select a model in Settings → AI chat to start chatting.";refresh();return;}
         String id=NotebookAiHistory.restoreId(restoredId,restoredProfile,config.profile());
         openSession(config,id,false,true);
     }
@@ -190,7 +191,7 @@ final class NotebookAiChat {
             }
             attachmentStrip.setVisibility(session.chat.draftImages.isEmpty()?View.GONE:View.VISIBLE);
         } else {
-            attachments.removeAllViews();attachmentStrip.setVisibility(View.GONE);title.setText("Opening AI chat…");
+            attachments.removeAllViews();attachmentStrip.setVisibility(View.GONE);title.setText(displayProblem.isEmpty()?"Opening AI chat…":"AI chat");
         }
         markdown.messages(session==null?java.util.Collections.emptyList():session.chat.messages);
         String text=session!=null&&session.loadFailed?session.status:!displayProblem.isEmpty()?displayProblem:session==null?"Loading AI settings…":session.status;
@@ -249,7 +250,7 @@ final class NotebookAiChat {
         main.removeCallbacks(saveDraft);saveDraft();hideKeyboard();
         java.util.List<NotebookAiConfig> choices=NotebookAiSettings.savedModels(activity);
         if(choices.isEmpty()){Toast.makeText(activity,"Add models in Settings → AI chat → Fetch available models",Toast.LENGTH_LONG).show();finishContact();return;}
-        String[] labels=new String[choices.size()];for(int i=0;i<choices.size();i++){NotebookAiConfig config=choices.get(i);labels[i]=config.provider.label+" · "+config.model+"\n"+config.specs.summary(config.provider);}
+        String[] labels=new String[choices.size()];for(int i=0;i<choices.size();i++){NotebookAiConfig config=choices.get(i);labels[i]=config.provider.label+" · "+config.specs.name;}
         historyDialog=new AlertDialog.Builder(activity).setTitle("Model for a new chat")
             .setItems(labels,(dialog,index)->selectModel(choices.get(index)))
             .setNegativeButton("Cancel",null).create();

@@ -1,67 +1,74 @@
-# AI chat — 0.36.0-alpha.4
+# AI chat — 0.36.0-alpha.5
 
 Open **Settings → AI chat** from the time/battery/Wi-Fi pill. Choose OpenAI,
 Anthropic, Google Gemini, DeepSeek, or **Custom (OpenAI compatible)**. Enter
-your API key, check the API base URL, then tap **Fetch available models**.
-Check the models you want and tap **Add selected**. Their available
-specifications are configured and saved automatically. Choose a saved model
-from the Model ID dropdown and tap **Save AI settings**.
+your API key and API base URL, then tap **Fetch available models**.
+
+Models appear directly below Fetch as compact rows: a checkbox, the model's
+name and a settings gear. Check the ones you want and **Save AI settings**.
+There is no Model ID field, Add selected dialog or Manage saved models screen.
+Detailed parameters stay behind each gear and are filled automatically.
+
 Fetching uses the current fields, including an unsaved new key or a saved key
-when its field is blank. Adding models saves public profiles; the provider and
-API key are saved when you tap **Save AI settings**. Known non-chat models are
-excluded from addition. Choose image support for handwriting/image selections.
-Manual model entry remains available if your endpoint has no model-list API.
-Each provider remembers its own configuration. A blank key field keeps an
-existing saved key; **Remove saved key** removes it. Custom HTTPS endpoints
-may use an empty key. API subscriptions, account access and usage charges are
-managed by your provider.
+when its field is blank. Fetch caches public model metadata; saving publishes
+the connection, encrypted key, selected models and parameters together. You can
+save the connection before choosing any models, then fetch and select later.
+Custom endpoints need a model-list API for discovery; earlier saved profiles
+remain available offline. Known non-chat models are excluded.
 
-Preset model IDs are editable examples checked against provider documentation
-on 2026-11-01: `gpt-6-luna`, `claude-sonnet-5-5`, `gemini-3.8-flash`, and
-`deepseek-flash`. Select a model your API account can access. Presets use the
-provider's public API, rather than a ChatGPT, Claude, or Gemini website login.
-Custom URLs accept either an API base (for example `https://host.example/v1`)
-or the complete `/chat/completions` endpoint. Anthropic uses `/messages`.
-HTTP endpoints, embedded URL credentials, query strings and URL fragments are
-rejected. Redirects are not followed; enter the final endpoint directly.
+Each provider remembers its configuration. A blank key field keeps an existing
+saved key; **Remove saved key** removes it. Custom HTTPS endpoints may use an
+empty key. Provider API subscriptions, account access and charges are managed
+by the provider, independently of its chat website subscriptions.
 
-## Automatic model configuration
+Custom URLs accept an API base such as https://host.example/v1 or the complete
+/chat/completions endpoint. Anthropic uses /messages. Cleartext endpoints,
+embedded credentials, query strings and fragments are rejected. Redirects are
+not followed; enter the final endpoint directly.
 
-The app reads published context/input limits, maximum output tokens, input
-modalities and supported thinking efforts. These appear below the Model ID
-field with the metadata source and check date. No manual entry of context or
-token limits is required. Up to 64 selected models are saved per provider
-endpoint and remain available offline. **Manage saved models → Keep selected**
-removes unchecked shortcuts and profiles; it does not delete chat sessions.
+## Automatic defaults and optional model settings
 
-Leave **Thinking effort → Automatic (provider default)** for normal use. When a
-provider reports specific effort levels, the dropdown also offers those values.
-Choosing a level saves that model's preference; unsupported levels are never
-sent. Anthropic uses its own thinking/output configuration, DeepSeek uses its
-thinking switch and effort field, and OpenAI-compatible requests use the
-advertised effort field. Automatic leaves effort to the provider and supplies
-required thinking configuration only when reported by the model.
+The main list shows names and selection controls. Each **gear** opens the model's
+context/input limits, maximum output, reply token budget, image support,
+supported effort levels and preferred thinking effort. The source and check
+date are shown there too. No manual parameter entry is required.
 
-Anthropic and DeepSeek catalogs include native capability metadata. For Google's
-standard endpoint, the app reads its native model API for input/output limits
-and then uses the same model ID with the existing chat interface. OpenAI's model
-list reports identity rather than detailed specifications. Fetch checks the
-current model's public OpenAI documentation; adding other selected models reads
-their documentation too. These public GETs never carry the API key or chat
-content. Documented dated snapshots can resolve through their official alias.
-Custom endpoints use the metadata they return; a familiar model ID does not
-cause the app to assume another provider's limits. Partial or unavailable
-specifications remain marked as provider defaults, with cached metadata used
-when available. Retrying Fetch refreshes published specifications.
+You can edit those values by hand. **Apply** stages changes; **Save AI settings**
+saves them. **Cancel** discards form edits. Fetching again retains your overrides
+while updating the underlying defaults. **Use fetched defaults** restores those
+defaults in the form; Apply and Save retain the reset. Blank limits mean
+unknown/provider defaults; a blank reply budget uses automatic sizing.
 
-The app uses a bounded reply budget: normally 8,192 tokens, 16,384 for OpenAI,
-or 32,768 when thinking capabilities are reported, capped by the model's maximum
-and one quarter of a reported total context window. Model maximums and the
-actual reply budget are shown separately. Known incompatible image/text models
-are rejected locally. A conservative UTF-8 text estimate checks known
-input/context limits before sending; images and exact token accounting remain
-provider-dependent. This may reject some text that an exact tokenizer could
-fit. Rejected drafts stay editable. History is never silently truncated or
+Thinking defaults to **Automatic (provider default)**. Fetched effort choices
+come from advertised levels. The supported-level list can also be edited for
+a manual configuration. Requests use the existing provider-specific effort
+and thinking fields.
+
+Up to 64 checked models are enabled per provider endpoint. The larger catalog
+is cached offline. Uncheck a row and save to remove it from the chat picker;
+this keeps its cached configuration and does not delete its chat sessions.
+The current default remains selected if still checked; otherwise the first
+checked model becomes the default. The chat's model picker can switch it later.
+
+Anthropic and DeepSeek catalogs include native capability metadata. Google's
+standard endpoint uses its native model API for limits and the same model IDs
+with the chat interface. OpenAI's catalog reports identity rather than detailed
+specifications. Fetch can check current/enabled models' public documentation;
+opening a gear or saving a newly checked model can complete missing details.
+These public GETs never carry the API key, conversation or notebook content.
+Cached known details can open without a new request. Custom endpoints use their
+own metadata; similar model IDs do not imply another provider's limits.
+
+The automatic reply budget is normally 8,192 tokens, 16,384 for OpenAI, or
+32,768 when thinking capabilities are reported, capped by the model's output
+maximum and one quarter of a reported total context window. A manual reply
+budget must fit its configured output maximum and leave input space in a known
+context window. The gear shows model limits separately from a reply preference.
+
+Known incompatible image/text requests are rejected locally. A conservative
+UTF-8 text estimate guards input/context limits; images and exact token accounting
+remain provider-dependent. It can reject text that an exact tokenizer could
+fit. Rejected drafts remain editable. History is never silently truncated or
 summarized to fit a model.
 
 Tap the **sparkle in a chat bubble** in the toolbox to open the floating chat.
@@ -204,6 +211,9 @@ modal barriers, Activity session retention and the production resize
 grip/placement. Model fixtures cover provider metadata, native Gemini pagination,
 public documentation without credentials, snapshot identity, saved profiles,
 supported effort parameters, bounded replies and editable context rejections.
+Manual-parameter fixtures cover save/reopen, actual request fields, refresh,
+invalid edits and reset to the newest defaults. Production model-row callbacks
+verify name-only labels, inline selection, matching gears and worker guards.
 Fourteen real-browser cases
 cover note/chat Markdown, math, CJK, diagrams, follow-up retention, local image
 previews, invalid image URLs, reset, sanitization and zero external requests.
@@ -214,7 +224,7 @@ No new runtime dependency is added. Prepare tablet updates only with
 `scripts/build-release.sh` and the permanent release signing certificate.
 Page and backup format 8 are unchanged.
 
-The completed build passes **272,886 JVM assertions in 97 suites**, fourteen
+The completed build passes **272,919 JVM assertions in 98 suites**, fourteen
 browser cases, debug/release lint and builds, and permanent-signer verification.
 The Markdown chat screenshot was visually inspected for text, equations,
 tables, code, diagrams and Chinese; it does not verify the native panel on e-ink.

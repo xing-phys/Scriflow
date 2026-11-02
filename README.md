@@ -33,15 +33,16 @@ contrast, and long-press word selection with Eudic floating lookup. Continuous
 scrolling at Fit width remains the default. Crop and contrast affect display;
 original PDF bytes, saved annotation coordinates and PDF exports are preserved.
 
-The **[0.36.0-alpha.4 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.36.0-alpha.4)** adds optional [AI chat](docs/ai-chat.md) with saved sessions and automatically configured models.
+The **[0.36.0-alpha.5 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.36.0-alpha.5)** adds optional [AI chat](docs/ai-chat.md) with saved sessions and automatically configured models.
 Configure a provider, model and API key in Settings, then tap the chat-bubble
 sparkle in the toolbox for a movable, resizable conversation window. Replies
 reuse the existing offline Markdown/math/code renderer. Presets cover OpenAI,
 Anthropic, Gemini and DeepSeek, with a custom OpenAI-compatible HTTPS option.
-Fetch available models using your key in Settings, select the ones you want,
-then **Add selected**. Reported context/output limits, image support and thinking
-options are saved automatically. Thinking defaults to **Automatic**; optional
-effort choices are restricted to advertised values. Tap the chat's model name
+Fetch available models using your URL and key in Settings. Models appear directly
+below Fetch as names with checkboxes and settings gears. Check the ones you want,
+then **Save AI settings**. Each gear opens automatically filled limits, image
+support and thinking options for optional manual edits; **Use fetched defaults**
+resets those edits. Tap the chat's model name
 to choose a saved model for a new session. Append selected handwriting,
 images or Markdown with the chat icon in their selection controls, then press
 Send. Only submitted chat text, selected attachments and their conversation

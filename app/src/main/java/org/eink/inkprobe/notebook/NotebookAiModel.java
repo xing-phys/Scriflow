@@ -9,16 +9,24 @@ import org.json.*;
 final class NotebookAiModel {
     static final List<String> EFFORTS=Collections.unmodifiableList(Arrays.asList("none","minimal","low","medium","high","xhigh","max","ultra"));
     final String id,name,source,thinking,outputParameter,effort;
-    final int context,input,output,vision,chat;
+    final int context,input,output,vision,chat,reply;
     final long fetched;
     final boolean thinkingRequired;
     final List<String> efforts;
+    private final String automatic,overrides;
 
     NotebookAiModel(String id) { this(new JSONObject(),id); }
     private NotebookAiModel(JSONObject data,String id) {
         if(id.isEmpty()||id.length()>200||id.matches("(?s).*[\\p{Cntrl}].*"))throw new IllegalArgumentException("Invalid model ID");
+        JSONObject original=data.optJSONObject("automatic");if(original==null)original=data;
+        JSONObject edits=data.optJSONObject("overrides");
+        automatic=fields(original,false).toString();overrides=fields(edits,true).toString();
+        String preference=data.optString("effort","");
+        data=fields(original,false);
+        try{JSONObject changes=new JSONObject(overrides);for(String key:EDITABLE)if(changes.has(key))data.put(key,changes.get(key));data.put("effort",preference);}
+        catch(JSONException error){throw new IllegalArgumentException("Invalid model settings",error);}
         this.id=id;name=text(data,"name",id,200);source=text(data,"source","",200);
-        context=limit(data,"context");input=limit(data,"input");output=limit(data,"output");
+        context=limit(data,"context");input=limit(data,"input");output=limit(data,"output");reply=limit(data,"reply");
         vision=flag(data,"vision");chat=flag(data,"chat");fetched=Math.max(0,data.optLong("fetched",0));
         List<String> levels=new ArrayList<>();JSONArray values=data.optJSONArray("efforts");
         if(values!=null)for(int i=0;i<values.length();i++){String value=values.optString(i);if(EFFORTS.contains(value)&&!levels.contains(value))levels.add(value);}
@@ -27,20 +35,57 @@ final class NotebookAiModel {
         thinkingRequired=data.optBoolean("thinkingRequired",false)&&!thinking.isEmpty();
         outputParameter=data.optString("outputParameter","").equals("max_completion_tokens")?"max_completion_tokens":"max_tokens";
     }
+    private static final List<String> EDITABLE=Arrays.asList("context","input","output","reply","vision","efforts");
+    private static JSONObject fields(JSONObject value,boolean edits){
+        JSONObject result=new JSONObject();if(value==null)return result;
+        try{for(String key:edits?EDITABLE:Arrays.asList("id","name","source","context","input","output","vision","chat","fetched","efforts","thinking","thinkingRequired","outputParameter"))if(value.has(key))result.put(key,value.get(key));}
+        catch(JSONException error){throw new IllegalArgumentException("Invalid model settings",error);}return result;
+    }
     private static String text(JSONObject value,String key,String fallback,int bound){String s=value.optString(key,fallback);return s.length()<=bound&&!s.matches("(?s).*[\\p{Cntrl}].*")?s:fallback;}
     private static int limit(JSONObject value,String key){long n=value.optLong(key,0);return n>0&&n<=100000000?(int)n:0;}
     private static int flag(JSONObject value,String key){int n=value.optInt(key,-1);return n==0||n==1?n:-1;}
     private static int support(JSONObject value,String key){if(value==null||!value.has(key)||value.isNull(key))return -1;Object v=value.opt(key);if(v instanceof Boolean)return (Boolean)v?1:0;return v instanceof JSONObject?support((JSONObject)v,"supported"):-1;}
     private static boolean contains(JSONArray values,String value){if(values!=null)for(int i=0;i<values.length();i++)if(value.equals(values.optString(i)))return true;return false;}
     JSONObject json() throws JSONException {
-        return new JSONObject().put("id",id).put("name",name).put("source",source).put("context",context).put("input",input).put("output",output)
+        JSONObject value=new JSONObject().put("id",id).put("name",name).put("source",source).put("context",context).put("input",input).put("output",output)
             .put("vision",vision).put("chat",chat).put("fetched",fetched).put("efforts",new JSONArray(efforts)).put("effort",effort)
             .put("thinking",thinking).put("thinkingRequired",thinkingRequired).put("outputParameter",outputParameter);
+        if(edited())value.put("automatic",new JSONObject(automatic)).put("overrides",new JSONObject(overrides)).put("reply",reply);
+        return value;
     }
     static NotebookAiModel stored(JSONObject data)throws JSONException{return new NotebookAiModel(data,data.getString("id"));}
     NotebookAiModel withEffort(String value) {
         if(!value.isEmpty()&&!efforts.contains(value))throw new IllegalArgumentException("This model does not advertise that thinking effort");
         try{return new NotebookAiModel(json().put("effort",value),id);}catch(JSONException error){throw new IllegalArgumentException("Invalid model settings",error);}
+    }
+    boolean edited(){return !overrides.equals("{}");}
+    NotebookAiModel automatic(){
+        try{return new NotebookAiModel(new JSONObject(automatic).put("effort",""),id);}catch(JSONException error){throw new IllegalArgumentException("Invalid fetched defaults",error);}
+    }
+    /** Refresh server defaults while retaining explicit local edits and the user's effort preference. */
+    NotebookAiModel refreshed(NotebookAiModel previous){
+        if(previous==null||!previous.id.equals(id))return this;
+        try{
+            JSONObject value=json();if(previous.edited())value.put("automatic",new JSONObject(automatic)).put("overrides",new JSONObject(previous.overrides));
+            return new NotebookAiModel(value.put("effort",previous.effort),id);
+        }catch(JSONException error){throw new IllegalArgumentException("Invalid model settings",error);}
+    }
+    NotebookAiModel edit(int context,int input,int output,int reply,int vision,String levels,String effort){
+        for(int limit:new int[]{context,input,output,reply})if(limit<0||limit>100000000)throw new IllegalArgumentException("Token limits must be between 0 and 100,000,000; blank means automatic.");
+        if(vision<-1||vision>1)throw new IllegalArgumentException("Choose a valid image-input setting");
+        if(reply>0&&output>0&&reply>output)throw new IllegalArgumentException("Reply budget cannot exceed the maximum output tokens");
+        if(reply>0&&context>0&&reply>=context)throw new IllegalArgumentException("Reply budget must leave room for input in the context window");
+        List<String> supported=new ArrayList<>();
+        if(!levels.trim().isEmpty())for(String raw:levels.split(",",-1)){String level=raw.trim();if(!EFFORTS.contains(level))throw new IllegalArgumentException("Unrecognized thinking effort: "+level);if(!supported.contains(level))supported.add(level);}
+        if(!effort.isEmpty()&&!supported.contains(effort))throw new IllegalArgumentException("Choose a listed thinking effort or Automatic");
+        try{
+            NotebookAiModel defaults=automatic();JSONObject changes=new JSONObject();
+            if(context!=defaults.context)changes.put("context",context);if(input!=defaults.input)changes.put("input",input);if(output!=defaults.output)changes.put("output",output);
+            if(reply>0)changes.put("reply",reply);if(vision!=defaults.vision)changes.put("vision",vision);if(!supported.equals(defaults.efforts))changes.put("efforts",new JSONArray(supported));
+            JSONObject value=new JSONObject(automatic).put("effort",effort);
+            if(changes.length()>0)value.put("automatic",new JSONObject(automatic)).put("overrides",changes);
+            return new NotebookAiModel(value,id);
+        }catch(JSONException error){throw new IllegalArgumentException("Invalid model settings",error);}
     }
     static NotebookAiModel provider(NotebookAiConfig.Provider provider,JSONObject row) throws JSONException {
         String id=row.has("id")?row.getString("id"):row.getString("name").replaceFirst("^models/","");
@@ -94,7 +139,7 @@ final class NotebookAiModel {
     }
     private static int number(String text,String expression){Matcher match=Pattern.compile(expression,Pattern.CASE_INSENSITIVE).matcher(text);if(!match.find())return 0;try{long n=Long.parseLong(match.group(1).replace(",",""));return n>0&&n<=100000000?(int)n:0;}catch(NumberFormatException error){return 0;}}
     boolean known(){return context>0||input>0||output>0||vision>=0||chat>=0||!efforts.isEmpty();}
-    int replyBudget(NotebookAiConfig.Provider provider){int target=!efforts.isEmpty()||!thinking.isEmpty()?32768:provider==NotebookAiConfig.Provider.OPENAI?16384:8192;if(context>0)target=Math.min(target,Math.max(1,context/4));return output>0?Math.min(target,output):target;}
+    int replyBudget(NotebookAiConfig.Provider provider){int target=reply>0?reply:!efforts.isEmpty()||!thinking.isEmpty()?32768:provider==NotebookAiConfig.Provider.OPENAI?16384:8192;if(context>0)target=Math.min(target,Math.max(1,reply>0?context-1:context/4));return output>0?Math.min(target,output):target;}
     String summary(NotebookAiConfig.Provider provider){
         String limits=context>0?"Context: "+String.format(Locale.ROOT,"%,d",context)+" tokens":input>0?"Input: "+String.format(Locale.ROOT,"%,d",input)+" tokens":"Context: provider default";
         if(output>0)limits+=" · Max output: "+String.format(Locale.ROOT,"%,d",output);

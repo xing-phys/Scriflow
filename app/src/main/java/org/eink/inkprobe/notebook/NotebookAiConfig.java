@@ -47,7 +47,8 @@ final class NotebookAiConfig {
     boolean sameEndpoint(NotebookAiConfig other) { return other!=null&&provider==other.provider&&endpoint().equals(other.endpoint()); }
     void validate() {
         validateConnection();
-        if (model.isEmpty() || model.length()>200 || control(model)) throw new IllegalArgumentException("Enter a valid model ID");
+        if(model.isEmpty())throw new IllegalArgumentException("Select a model in Settings → AI chat");
+        if (model.length()>200 || control(model)) throw new IllegalArgumentException("Enter a valid model ID");
     }
     void validateConnection() {
         try {

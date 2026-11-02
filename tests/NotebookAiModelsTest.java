@@ -19,7 +19,7 @@ public final class NotebookAiModelsTest {
         +"## Model details\n- Input modalities: text, image\n- Output modalities: text\n- 100,000 context window\n- Maximum input tokens: 80,000\n- 20,000 max output tokens\n"
         +"## Endpoints\n| Endpoint | Route | Support |\n| Chat Completions | `v1/chat/completions` | Supported |\n## Snapshots\n- `gpt-example`\n- `gpt-example-2026-11-01`\n";
     public static void main(String[] args)throws Exception{
-        metadata();documents();transport();requests();library();
+        metadata();documents();transport();requests();library();manualSettings();
         System.out.println("NotebookAiModels: "+assertions+" assertions passed (live-shaped specifications, native discovery, credential isolation, saved selections and context/thinking policy). No live API calls.");
     }
     private static void metadata()throws Exception{
@@ -153,5 +153,51 @@ public final class NotebookAiModelsTest {
         check(!endpointA.equals(endpointB),"Saved model libraries have different identities for different endpoints");
         NotebookAiConfig wrong=new NotebookAiConfig(a.provider,a.baseUrl,"different-model","key",one);
         check(!wrong.specs.known()&&wrong.specs.id.equals("different-model"),"A model cannot accidentally inherit another ID's limits or thinking options");
+    }
+    private static void manualSettings()throws Exception{
+        NotebookAiModel original=claude();String defaults=String.join(", ",original.efforts);
+        NotebookAiModel unchanged=original.edit(original.context,original.input,original.output,0,original.vision,defaults,"");
+        check(!unchanged.edited()&&unchanged.reply==0,"Applying untouched fetched fields leaves automatic configuration intact");
+        NotebookAiModel edited=original.edit(100000,80000,16000,12000,0,"low, medium, high","medium");
+        check(edited.edited()&&edited.context==100000&&edited.input==80000&&edited.output==16000,"Manual context, input and output edits apply to that model");
+        check(edited.replyBudget(NotebookAiConfig.Provider.ANTHROPIC)==12000&&edited.vision==0&&edited.effort.equals("medium"),"Manual reply, image and effort preferences are effective");
+        JSONObject request=NotebookAiClient.request(config(NotebookAiConfig.Provider.ANTHROPIC,edited),new NotebookAiConversation().question("Explain").messages);
+        check(request.getInt("max_tokens")==12000&&request.getJSONObject("output_config").getString("effort").equals("medium"),"The actual provider request uses the edited output budget and effort");
+        NotebookAiModel restored=NotebookAiModelLibrary.decode(NotebookAiModelLibrary.encode(Collections.singletonList(edited))).get(0);
+        check(restored.edited()&&restored.context==100000&&restored.reply==12000&&restored.effort.equals("medium"),"Manual parameters survive an offline save/reopen round trip");
+        NotebookAiModel reset=restored.automatic();
+        check(!reset.edited()&&reset.input==original.input&&reset.output==original.output&&reset.vision==original.vision,"Reset restores fetched limits and image support");
+        check(reset.reply==0&&reset.effort.isEmpty()&&reset.efforts.equals(original.efforts),"Reset restores automatic reply and thinking preferences");
+        NotebookAiModel fresh=NotebookAiModel.stored(original.json().put("context",300000).put("input",250000).put("output",128000).put("vision",1));
+        NotebookAiModel refreshed=fresh.refreshed(restored);
+        check(refreshed.context==100000&&refreshed.input==80000&&refreshed.output==16000&&refreshed.reply==12000,"Fetching again preserves explicit manual limits");
+        check(refreshed.vision==0&&refreshed.effort.equals("medium"),"Fetching again preserves manual capabilities and thinking choices");
+        check(refreshed.automatic().context==300000&&refreshed.automatic().input==250000&&refreshed.automatic().output==128000,"Reset after refresh uses the latest fetched defaults");
+        NotebookAiModel oneEdit=original.edit(50000,original.input,original.output,0,original.vision,defaults,"");
+        NotebookAiModel oneRefreshed=fresh.refreshed(oneEdit);
+        check(oneRefreshed.context==50000&&oneRefreshed.input==250000&&oneRefreshed.output==128000,"Only edited fields override a newer provider specification");
+        NotebookAiModel unknown=new NotebookAiModel("private-model").edit(32000,28000,4096,2048,1,"low, high","high");
+        check(unknown.known()&&unknown.edited()&&!unknown.automatic().known(),"An opaque model can be configured manually without inventing fetched defaults");
+        check(NotebookAiClient.request(config(NotebookAiConfig.Provider.CUSTOM,unknown),new NotebookAiConversation().question("Hi").messages).getString("reasoning_effort").equals("high"),"Explicitly configured thinking options work for compatible custom servers");
+        NotebookAiModel blank=original.edit(0,0,0,0,-1,"","");
+        check(blank.context==0&&blank.input==0&&blank.output==0&&blank.vision==-1&&blank.efforts.isEmpty(),"Clearing a field records an explicit unknown/provider-default choice");
+        check(blank.automatic().input==original.input,"Clearing fields does not destroy the fetched baseline");
+        fails(IllegalArgumentException.class,()->original.edit(-1,0,0,0,-1,"",""));
+        fails(IllegalArgumentException.class,()->original.edit(100000001,0,0,0,-1,"",""));
+        fails(IllegalArgumentException.class,()->original.edit(0,0,1000,2000,-1,"",""));
+        fails(IllegalArgumentException.class,()->original.edit(2000,0,0,2000,-1,"",""));
+        fails(IllegalArgumentException.class,()->original.edit(0,0,0,0,2,"",""));
+        fails(IllegalArgumentException.class,()->original.edit(0,0,0,0,-1,"invalid",""));
+        fails(IllegalArgumentException.class,()->original.edit(0,0,0,0,-1,"low","high"));
+        List<NotebookAiModel> catalog=new ArrayList<>();for(int i=0;i<80;i++)catalog.add(new NotebookAiModel("model-"+i));catalog.set(0,edited);
+        String cached=NotebookAiModelLibrary.encodeCatalog(catalog);
+        check(NotebookAiModelLibrary.catalog(cached).size()==80,"The inline catalog can retain more rows than the enabled-model limit");
+        check(NotebookAiModelLibrary.catalog(cached).get(0).reply==12000,"Catalog caching retains model parameters even for an unchecked row");
+        fails(IOException.class,()->NotebookAiModelLibrary.encode(catalog));
+        List<NotebookAiModel> merged=NotebookAiModelLibrary.refreshed(Arrays.asList(fresh,new NotebookAiModel("newly-discovered")),Arrays.asList(edited,new NotebookAiModel("saved-offline")));
+        check(merged.size()==3&&NotebookAiModelLibrary.find(merged,edited.id).context==100000,"Refresh combines discovered rows with previous configurations and local edits");
+        check(NotebookAiModelLibrary.refreshed(Collections.singletonList(new NotebookAiModel(edited.id)),Collections.singletonList(edited)).get(0).context==100000,"An ID-only refresh does not erase known limits or manual edits");
+        int size=edited.json().toString().length();for(int i=0;i<20;i++)edited=NotebookAiModel.stored(edited.json());
+        check(edited.json().toString().length()==size,"Repeated saves do not nest or grow automatic/default metadata");
     }
 }

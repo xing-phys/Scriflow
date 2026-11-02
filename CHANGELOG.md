@@ -6,6 +6,23 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.36.0-alpha.5 — Inline model settings (2026-11-02)
+
+- Remove the Model ID field, Add selected dialog and Manage saved models button.
+  Show fetched models directly below Fetch as name-only checkbox rows with a
+  settings gear. Use compact names in the chat model picker too.
+- Move parameters into each gear: context/input limits, output maximum, reply
+  budget, image support and thinking options. Prefill fetched defaults, allow
+  manual edits, validate them, and provide Use fetched defaults.
+- Preserve manual overrides across save/reopen and later fetches while updating
+  the underlying defaults. Cache unchecked profiles and enable up to 64 checked
+  models. Unchecking changes the picker without deleting chat history.
+- Save the connection, encrypted key, catalog and selected parameters together.
+  Allow connection-only saves before choosing a model; retain earlier profiles.
+- Pass 272,919 JVM assertions in 98 suites, fourteen real-browser cases and
+  Android debug/release lint/build checks. VersionCode 87 retains permanent
+  signing and existing data formats; physical tablet acceptance is pending.
+
 ## 0.36.0-alpha.4 — Automatic model specifications (2026-11-02)
 
 - Fetch model capabilities alongside IDs and add selected models to a local,

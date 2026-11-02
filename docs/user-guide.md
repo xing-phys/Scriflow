@@ -54,13 +54,18 @@ for syntax, recovery, size limits and compatibility.
 ## AI chat
 
 Open **Settings → AI chat**, select a provider, enter your API key, check the
-API base URL, then tap **Fetch available models**. Check the models you want and
-tap **Add selected**. Their reported limits, image support and thinking options
-are saved automatically. Select one in the Model ID dropdown and tap
-**Save AI settings**. Leave **Thinking effort → Automatic** to use the model's
-default; optional choices show only advertised values. **Manage saved models**
-keeps the models you check, without deleting chat histories. If specifications
-are unavailable, the app shows provider defaults. Manual model entry also works.
+API base URL, then tap **Fetch available models**. Models appear directly below
+the button as names with checkboxes and settings gears. Check the ones you
+want and tap **Save AI settings**. Uncheck a model to remove it from the chat
+picker without deleting its history. There is no Model ID entry or separate
+Manage saved models screen.
+
+Tap a model's gear for its automatically filled context/input limits, output
+maximum, reply budget, image support and thinking settings. Manual edits are
+optional. **Apply** stages changes; **Save AI settings** saves them. **Use fetched
+defaults** resets the form to its latest fetched values. Fetching again keeps
+your overrides. Thinking defaults to Automatic; unavailable specifications use
+provider defaults. The connection can also be saved before choosing a model.
 Tap the chat-bubble
 sparkle in the toolbox to chat in a floating window. Drag its title to move it
 or its lower-right handle to resize it. Resizing keeps the top-left corner fixed
