@@ -152,31 +152,32 @@ public final class NotebookAiTest {
             session.draft("draft"); storage.drain(); main.drain();
             session.send("first"); check(session.busy&&calls[0]==0&&network.work.isEmpty(),"Do not bill a request before its question is durable");
             storage.drain(); main.drain();
-            check(NotebookAiConversation.read(directory,config.profile()).awaitingReply()&&network.work.size()==1,"Durable question precedes network worker");
+            check(NotebookAiHistory.read(directory,session.id).chat.awaitingReply()&&network.work.size()==1,"Durable question precedes network worker");
             session.send("duplicate"); check(network.work.size()==1,"Repeated Send cannot duplicate a paid request");
             session.stop(); network.drain(); main.drain(); check(calls[0]==0&&session.chat.awaitingReply(),"Stop before network begins skips provider and retains Retry");
             session.send(""); storage.drain(); main.drain(); network.drain();
             session.stop(); main.drain(); check(session.chat.awaitingReply(),"Stop rejects an already queued successful reply");
             session.send(""); storage.drain(); main.drain(); network.drain(); main.drain(); storage.drain(); main.drain();
             check(!session.busy&&session.chat.messages.size()==2&&session.chat.lastAnswer().equals("# Answer"),"Retry completes the original turn once");
-            check(NotebookAiConversation.read(directory,config.profile()).messages.size()==2,"Assistant reply is durable");
+            check(NotebookAiHistory.read(directory,session.id).chat.messages.size()==2,"Assistant reply is durable");
             session.send("second"); storage.drain(); main.drain(); network.drain(); session.close(); main.drain();
             check(session.chat.messages.size()==3,"Closing a window rejects stale network success");
-            NotebookAiSession reopened=new NotebookAiSession(directory,config,main::execute,()->{},storage,network,transport);
+            NotebookAiSession reopened=new NotebookAiSession(directory,config,session.id,main::execute,()->{},storage,network,transport);
             reopened.load(); storage.drain(); main.drain(); check(reopened.chat.awaitingReply(),"Reopen restores interrupted turn");
+            String archived=reopened.id;
             reopened.send(""); storage.drain(); main.drain(); network.drain(); reopened.clear(); main.drain(); storage.drain(); main.drain();
-            check(reopened.chat.messages.isEmpty()&&NotebookAiConversation.read(directory,config.profile()).messages.isEmpty(),"New chat rejects prior reply and atomically replaces history");
+            check(reopened.chat.messages.isEmpty()&&!reopened.id.equals(archived)&&NotebookAiHistory.read(directory,archived).chat.awaitingReply(),"New chat rejects prior reply and preserves the old session for reopening");
             reopened.draft("survives close"); reopened.close(); storage.drain(); main.drain();
-            check(NotebookAiConversation.read(directory,config.profile()).draft.equals("survives close"),"Queued draft flush survives closing and activity destruction");
+            check(NotebookAiHistory.read(directory,reopened.id).chat.draft.equals("survives close"),"Queued draft flush survives closing and activity destruction");
             File blocker=new File(directory,"not-a-directory"); Files.write(blocker.toPath(),new byte[]{1});
             NotebookAiSession failed=new NotebookAiSession(blocker,config,main::execute,()->{},storage,network,transport);
             failed.load(); storage.drain(); main.drain(); int before=calls[0]; failed.send("cannot save"); storage.drain(); main.drain(); network.drain();
             check(!failed.busy&&failed.saveFailed&&failed.chat.awaitingReply()&&before==calls[0],"Storage failure preserves question and prevents paid request");
-            File saved=new File(directory,"ai-chat-"+config.profile()+".bin"); Files.write(saved.toPath(),new byte[]{0});
-            NotebookAiSession corrupt=new NotebookAiSession(directory,config,main::execute,()->{},storage,network,transport);
+            File saved=new File(new File(directory,"ai-chat-sessions"),archived+".chat"); Files.write(saved.toPath(),new byte[]{0});
+            NotebookAiSession corrupt=new NotebookAiSession(directory,config,archived,main::execute,()->{},storage,network,transport);
             corrupt.load(); storage.drain(); main.drain(); corrupt.send("must not replace");
             check(corrupt.loadFailed&&Files.size(saved.toPath())==1,"Corrupt history is not silently overwritten");
-            corrupt.clear(); storage.drain(); main.drain(); check(!corrupt.loadFailed&&NotebookAiConversation.read(directory,config.profile()).messages.isEmpty(),"Explicit New chat recovers damaged history");
+            corrupt.clear(); storage.drain(); main.drain(); check(!corrupt.loadFailed&&corrupt.chat.isEmpty()&&Files.size(saved.toPath())==1,"New chat leaves the damaged saved session untouched for explicit deletion or recovery");
         } finally { delete(directory.toPath()); }
     }
     private static void models() throws Exception {
@@ -252,7 +253,7 @@ public final class NotebookAiTest {
             network.drain();main.drain();storage.drain();main.drain();
             check(requests[0]==1&&session.chat.messages.get(0).images.size()==1&&session.chat.draftImages.size()==1&&session.chat.draft.equals("Next question"),"Appending during generation prepares the next message without altering the in-flight question");
             session.close();storage.drain();main.drain();
-            check(NotebookAiConversation.read(directory,settings.profile()).draftImages.size()==1,"Unsent appended image remains after closing the chat");
+            check(NotebookAiHistory.read(directory,session.id).chat.draftImages.size()==1,"Unsent appended image remains after closing the chat");
         } finally {delete(directory.toPath());}
     }
     private static void resizeGeometry() {

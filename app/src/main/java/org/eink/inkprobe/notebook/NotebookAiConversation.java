@@ -9,6 +9,7 @@ import java.util.zip.CRC32;
 /** Bounded, atomic local transcript. A final user turn is retained for explicit Retry. */
 final class NotebookAiConversation {
     static final int MAX_MESSAGES=80, MAX_MESSAGE_BYTES=128*1024, MAX_TOTAL_BYTES=1024*1024;
+    static final int MAX_SNAPSHOT_BYTES=MAX_TOTAL_BYTES+NotebookAiAttachment.MAX_TOTAL_BYTES+65536;
     static final class Message {
         final String role, content;
         final List<NotebookAiAttachment> images;
@@ -48,6 +49,7 @@ final class NotebookAiConversation {
         this.draftImages=Collections.unmodifiableList(new ArrayList<>(images));
     }
     boolean awaitingReply() { return messages.size()%2==1; }
+    boolean isEmpty() { return messages.isEmpty()&&draft.isEmpty()&&draftImages.isEmpty(); }
     NotebookAiConversation draft(String text) { return new NotebookAiConversation(messages,text,draftImages); }
     NotebookAiConversation attach(NotebookAiAttachment image) {
         List<NotebookAiAttachment> images=new ArrayList<>(draftImages); images.add(image);
@@ -84,8 +86,11 @@ final class NotebookAiConversation {
     static NotebookAiConversation read(File directory,String profile) throws IOException {
         File file=file(directory,profile);
         if (!file.exists()) return new NotebookAiConversation();
-        if (file.length()>MAX_TOTAL_BYTES+NotebookAiAttachment.MAX_TOTAL_BYTES+65536) throw new IOException("Saved AI chat exceeds its size limit");
-        byte[] data=Files.readAllBytes(file.toPath());
+        if (file.length()>MAX_SNAPSHOT_BYTES) throw new IOException("Saved AI chat exceeds its size limit");
+        return fromSnapshot(Files.readAllBytes(file.toPath()));
+    }
+    static NotebookAiConversation fromSnapshot(byte[] data) throws IOException {
+        if (data.length>MAX_SNAPSHOT_BYTES) throw new IOException("Saved AI chat exceeds its size limit");
         try (DataInputStream in=new DataInputStream(new ByteArrayInputStream(data))) {
             int version=in.readInt();
             if (version!=0x53414931&&version!=0x53414932) throw new IOException("Unrecognized saved AI chat");
@@ -105,6 +110,9 @@ final class NotebookAiConversation {
         catch (IllegalArgumentException error) { throw new IOException("Saved AI chat is damaged",error); }
     }
     static void write(File directory,String profile,NotebookAiConversation chat) throws IOException {
+        publish(file(directory,profile),snapshot(chat));
+    }
+    static byte[] snapshot(NotebookAiConversation chat) throws IOException {
         ByteArrayOutputStream body=new ByteArrayOutputStream();
         try (DataOutputStream out=new DataOutputStream(body)) {
             out.writeInt(chat.messages.size());
@@ -112,10 +120,17 @@ final class NotebookAiConversation {
             writeText(out,chat.draft); writeImages(out,chat.draftImages);
         }
         byte[] data=body.toByteArray(); CRC32 crc=new CRC32(); crc.update(data);
-        File target=file(directory,profile), temporary=new File(directory,target.getName()+".tmp");
+        ByteArrayOutputStream result=new ByteArrayOutputStream();
+        try (DataOutputStream out=new DataOutputStream(result)) {
+            out.writeInt(0x53414932); out.writeLong(crc.getValue()); out.write(data);
+        }
+        return result.toByteArray();
+    }
+    static void publish(File target,byte[] data) throws IOException {
+        File temporary=new File(target.getParentFile(),target.getName()+".tmp");
         try {
             try (FileOutputStream stream=new FileOutputStream(temporary); DataOutputStream out=new DataOutputStream(stream)) {
-                out.writeInt(0x53414932); out.writeLong(crc.getValue()); out.write(data); out.flush(); stream.getFD().sync();
+                out.write(data); out.flush(); stream.getFD().sync();
             }
             try { Files.move(temporary.toPath(),target.toPath(),StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING); }
             catch (AtomicMoveNotSupportedException error) { Files.move(temporary.toPath(),target.toPath(),StandardCopyOption.REPLACE_EXISTING); }

@@ -171,8 +171,17 @@ this is process-interruption recovery, not a guarantee against every power-loss/
 
 `NotebookAiConfig`, `NotebookAiClient` and `NotebookAiConversation` keep provider
 protocols, bounded HTTPS requests and atomic local history independent of Android
-UI. `NotebookAiSession` serializes durable question publication before sending
-and rejects cancelled or retired worker callbacks. `NotebookAiSettings` encrypts
+UI. `NotebookAiHistory` stores an atomic archive per UUID session under
+`files/ai-chat-sessions`, with a small checksummed metadata header followed by a
+version-2 conversation snapshot. History lists headers without decoding images;
+legacy profile-based chats are imported once. Deletion markers prevent stale
+saves from recreating deleted sessions. `NotebookAiSession` serializes archive
+reads/writes and durable question publication before sending, checkpoints before
+switching sessions, and rejects cancelled or retired worker callbacks. Explicit
+opens create a new session; Activity restoration retains the active ID while
+the Settings profile remains unchanged. Reopening uses the archived provider,
+endpoint and model, with credentials resolved separately for that endpoint.
+`NotebookAiSettings` encrypts
 credentials with Android Keystore; public provider/model/endpoint preferences
 and private transcripts are separate from notebook data.
 

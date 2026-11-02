@@ -33,7 +33,7 @@ contrast, and long-press word selection with Eudic floating lookup. Continuous
 scrolling at Fit width remains the default. Crop and contrast affect display;
 original PDF bytes, saved annotation coordinates and PDF exports are preserved.
 
-The **[0.36.0-alpha.2 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.36.0-alpha.2)** adds optional [AI chat](docs/ai-chat.md).
+The **[0.36.0-alpha.3 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.36.0-alpha.3)** adds optional [AI chat](docs/ai-chat.md) with saved sessions.
 Configure a provider, model and API key in Settings, then tap the chat-bubble
 sparkle in the toolbox for a movable, resizable conversation window. Replies
 reuse the existing offline Markdown/math/code renderer. Presets cover OpenAI,
@@ -42,6 +42,9 @@ Fetch available models using your key in Settings. Append selected handwriting,
 images or Markdown with the chat icon in their selection controls, then press
 Send. Only submitted chat text, selected attachments and their conversation
 history are sent. Resizing keeps the top-left corner fixed and all borders visible.
+Opening chat starts a new session. Use the history icon in the chat header to
+reopen or delete earlier sessions; **+** starts another while keeping the previous
+chat and draft. Existing conversations are imported automatically.
 
 The owner confirmed clear stationary Markdown and figure dragging in alpha.3/4.
 Alpha.5 keeps page rendering in one persistent regular View through scrolling,
@@ -140,7 +143,7 @@ acceptance of this APK. See [release notes](docs/releases/0.33.2.md) for scope a
 - Compact circular tools in a movable, rotatable, collapsible dock, plus floating
   notebook and time/battery/Wi-Fi islands over a full-screen page.
 - Optional floating AI chat with configurable provider/model/endpoint, encrypted
-  API-key storage, local conversation recovery and Markdown/math replies.
+  API-key storage, saved sessions to reopen/delete and Markdown/math replies.
 
 Notes stay on the tablet. Scriflow has no app account, analytics, or cloud sync.
 Optional AI chat sends the text and selected attachments you submit, and that chat's history, directly to

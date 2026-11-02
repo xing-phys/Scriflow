@@ -39,6 +39,7 @@ final class NotebookAiConfig {
         String endpoint=endpoint(),suffix=provider==Provider.ANTHROPIC?"/messages":"/chat/completions";
         return endpoint.substring(0,endpoint.length()-suffix.length())+"/models";
     }
+    boolean sameEndpoint(NotebookAiConfig other) { return other!=null&&provider==other.provider&&endpoint().equals(other.endpoint()); }
     void validate() {
         validateConnection();
         if (model.isEmpty() || model.length()>200 || control(model)) throw new IllegalArgumentException("Enter a valid model ID");

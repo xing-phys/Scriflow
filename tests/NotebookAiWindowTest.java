@@ -14,7 +14,7 @@ public final class NotebookAiWindowTest {
             "static class NotebookFloatingTools {enum Action{AI_CHAT}final Button b=new Button();Button button(Action a){return b;}}static class Button {boolean selected=true;void setToolSelected(boolean b){selected=b;}}",
             "final List<String> events=new ArrayList<>();class Ink {void pauseForEdit(){events.add(\"pause\");}void redrawAfterOverlayChange(){events.add(\"redraw\");}void start(){events.add(\"start\");}}",
             "interface Result{void ready(NotebookPage p,IOException e);}class Session{Result pending;void load(Result r){pending=r;}void finish(IOException e){Result r=pending;pending=null;r.ready(new NotebookPage(),e);}}",
-            "boolean active=true,editing,aiContact,aiMoved,restoreAiChat=true,pauseFails;int generation=1,merges,restores;long lastInputAt;IOException shownError;Object aiChat=new Object();Ink ink=new Ink();final Session session=new Session();final Rect aiChatBounds=new Rect();final NotebookFloatingTools floatingTools=new NotebookFloatingTools();",
+            "String restoredAiId,restoredAiProfile;boolean active=true,editing,aiContact,aiMoved,restoreAiChat=true,pauseFails;int generation=1,merges,restores;long lastInputAt;IOException shownError;Object aiChat=new Object();Ink ink=new Ink();final Session session=new Session();final Rect aiChatBounds=new Rect();final NotebookFloatingTools floatingTools=new NotebookFloatingTools();",
             "boolean canEdit(){return active&&!editing&&shownError==null&&ink!=null;}void pauseForEdit(){editing=true;ink.pauseForEdit();if(pauseFails)shownError=new IOException(\"native pause failed\");}void updateOverlayBounds(){events.add(\"bounds\");}void mergeWindow(){merges++;}void installViewport(){restores++;events.add(\"restore\");}void showError(IOException e){shownError=e;}",
             method(activity,"private void finishAiContact("),
             "class Listener {",method(toggle,"public boolean contactStart("),method(toggle,"public void contactEnd("),method(toggle,"public void boundsChanged(Rect"),method(toggle,"public void closed("),"}",
@@ -32,13 +32,30 @@ public final class NotebookAiWindowTest {
         NotebookWorkspaceActivationTest.runFixture("org.eink.inkprobe.notebook.AiWindowFixture",fixture);
         String chat=read("NotebookAiChat");
         String modal=String.join("\n",
-            "package org.eink.inkprobe.notebook;public class AiModalFixture {boolean contact=true;Dialog clearDialog;final Listener listener=new Listener();static class Dialog{boolean showing=true;boolean isShowing(){return showing;}}static class Listener{int ends;void contactEnd(){ends++;}}",
+            "package org.eink.inkprobe.notebook;public class AiModalFixture {boolean contact=true;Dialog clearDialog,historyDialog;final Listener listener=new Listener();static class Dialog{boolean showing=true;boolean isShowing(){return showing;}}static class Listener{int ends;void contactEnd(){ends++;}}",
             method(chat,"private void finishContact("),
-            "public static void run(){AiModalFixture f=new AiModalFixture();f.clearDialog=new Dialog();f.finishContact();if(!f.contact||f.listener.ends!=0)throw new AssertionError(\"confirmation retains the native input barrier\");f.clearDialog=null;f.finishContact();f.finishContact();if(f.contact||f.listener.ends!=1)throw new AssertionError(\"dismiss resumes the writer exactly once\");System.out.println(\"NotebookAiModal: 2 assertions passed (production confirmation contact barrier).\");}}"
+            "public static void run(){AiModalFixture f=new AiModalFixture();f.clearDialog=new Dialog();f.finishContact();if(!f.contact||f.listener.ends!=0)throw new AssertionError(\"confirmation retains the native input barrier\");f.clearDialog=null;f.historyDialog=new Dialog();f.finishContact();if(!f.contact||f.listener.ends!=0)throw new AssertionError(\"history also retains the native input barrier\");f.historyDialog=null;f.finishContact();f.finishContact();if(f.contact||f.listener.ends!=1)throw new AssertionError(\"dismiss resumes the writer exactly once\");System.out.println(\"NotebookAiModal: 3 assertions passed (production confirmation contact barrier).\");}}"
         );
         NotebookWorkspaceActivationTest.runFixture("org.eink.inkprobe.notebook.AiModalFixture",modal);
         resizeControls();
         sendDrafts();
+        historyLifecycle();
+    }
+    private static void historyLifecycle() throws Exception {
+        String fixture=String.join("\n",
+            "package org.eink.inkprobe.notebook;public class AiHistoryUiFixture {",
+            "static class Session{boolean loaded=true,switching;String draft=\"\";int newChats;void clear(){newChats++;}}static class Handler{int removed;void removeCallbacks(Object r){removed++;}}final Handler main=new Handler();final Object saveDraft=new Object();Session session=new Session();String text=\"selected Markdown\",displayProblem=\"old error\";void saveDraft(){session.draft=text;}",
+            method(read("NotebookAiChat"),"private void newChat("),
+            "public static void run(){AiHistoryUiFixture f=new AiHistoryUiFixture();f.newChat();if(f.session.newChats!=1||!f.session.draft.equals(f.text)||!f.displayProblem.isEmpty())throw new AssertionError(\"New preserves the source draft before starting a separate session\");f.session.switching=true;f.newChat();if(f.session.newChats!=1)throw new AssertionError(\"double New waits for the first archive barrier\");System.out.println(\"NotebookAiHistoryUi: 2 assertions passed (production non-destructive New and switching guard).\");}}"
+        );
+        NotebookWorkspaceActivationTest.runFixture("org.eink.inkprobe.notebook.AiHistoryUiFixture",fixture);
+        String lifecycle=String.join("\n",
+            "package org.eink.inkprobe.notebook;public class AiHistoryLifecycleFixture {",
+            "String restoredAiId,restoredAiProfile;boolean restoreAiChat;class Chat{String sessionId(){return \"session-id\";}String profile(){return \"settings-fingerprint\";}void close(){restoredAiId=null;restoredAiProfile=null;restoreAiChat=false;aiChat=null;}}Chat aiChat=new Chat();",
+            method(read("NotebookActivity"),"private void pauseAiChat("),
+            "public static void run(){AiHistoryLifecycleFixture f=new AiHistoryLifecycleFixture();f.pauseAiChat();if(f.aiChat!=null||!f.restoreAiChat||!\"session-id\".equals(f.restoredAiId)||!\"settings-fingerprint\".equals(f.restoredAiProfile))throw new AssertionError(\"pause keeps selected session identity despite the close callback\");f.pauseAiChat();if(!f.restoreAiChat)throw new AssertionError(\"repeated canvas teardown keeps reopen state\");System.out.println(\"NotebookAiHistoryLifecycle: 2 assertions passed (production pause/restore identity capture).\");}}"
+        );
+        NotebookWorkspaceActivationTest.runFixture("org.eink.inkprobe.notebook.AiHistoryLifecycleFixture",lifecycle);
     }
     private static void sendDrafts() throws Exception {
         String fixture=String.join("\n",

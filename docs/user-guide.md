@@ -60,8 +60,15 @@ sparkle in the toolbox to chat in a floating window. Drag its title to move it
 or its lower-right handle to resize it. Resizing keeps the top-left corner fixed
 and all borders visible. Send a question, then ask follow-ups; replies render
 Markdown, math, code and tables using the existing local engine.
-**Stop**, **Retry**, **Copy reply**, **New chat (+)** and **Close (×)** are in
-the panel. Closing preserves the conversation and unsent draft.
+**Stop**, **Retry**, **Copy reply**, **History**, **New chat (+)** and **Close (×)**
+are in the panel. Opening chat starts a new session. Chats and text/image drafts
+save automatically; closing keeps them, and **+** starts another without erasing
+the previous one. Tap the history list icon in the header to find saved sessions,
+newest first. Tap a row to reopen it with its original provider/model and
+follow-up context, or its trash icon to confirm deletion. History is shared
+across notebooks. Empty untouched sessions are not saved. Older chats are
+imported automatically. Rotation or returning from Settings keeps the active
+session if its Settings configuration has not changed.
 
 Sending shares this chat's text and history with the configured provider;
 provider usage may incur charges. Notebook pages and PDFs are not automatically

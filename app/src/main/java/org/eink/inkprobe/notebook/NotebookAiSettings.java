@@ -32,6 +32,20 @@ final class NotebookAiSettings {
         return prefs(context).contains(provider.name()+".key");
     }
     static boolean configured(Context context) { return prefs(context).getBoolean("configured",false); }
+    static NotebookAiConfig publicConfig(Context context) {
+        NotebookAiConfig.Provider provider=provider(context);
+        return new NotebookAiConfig(provider,baseUrl(context,provider),model(context,provider),"");
+    }
+    static java.util.List<NotebookAiConfig> publicConfigs(Context context) {
+        java.util.List<NotebookAiConfig> configs=new java.util.ArrayList<>();
+        for(NotebookAiConfig.Provider provider:NotebookAiConfig.Provider.values()) {
+            NotebookAiConfig config=new NotebookAiConfig(provider,baseUrl(context,provider),model(context,provider),"");
+            try {new NotebookAiConfig(provider,config.baseUrl,config.model,"local-validation").validate();configs.add(config);}
+            catch(IllegalArgumentException ignored){/* An unused custom provider has no endpoint. */}
+        }
+        return configs;
+    }
+    static String apiKey(Context context,NotebookAiConfig.Provider provider) throws GeneralSecurityException,IOException { return decrypt(context,provider); }
     static NotebookAiConfig read(Context context) throws GeneralSecurityException,IOException {
         NotebookAiConfig.Provider provider=provider(context);
         return new NotebookAiConfig(provider,baseUrl(context,provider),model(context,provider),decrypt(context,provider));

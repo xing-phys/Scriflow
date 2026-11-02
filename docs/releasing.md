@@ -18,6 +18,13 @@ is connected for this release either; physical acceptance remains pending.
 
 ## Before publishing
 
+**0.36.0-alpha.3** (`versionCode` **85**) adds independently saved AI sessions,
+fresh chats by default, and history with reopen/delete actions. Import older
+conversations and retain notebook/backup format 8. Publish the permanently
+signed APK and checksum before owner testing; keep 0.33.2 Latest stable. Verify
+the exact source/tag, certificate and downloaded assets. Automated session and
+renderer checks do not replace physical tablet or live-provider acceptance.
+
 **0.36.0-alpha.2** (`versionCode` **84**) adds the requested resize fixes,
 model fetching and selection-to-chat actions. Publish the signed APK and
 checksum as an alpha before owner testing. Keep 0.33.2 Latest stable; disclose

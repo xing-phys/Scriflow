@@ -1,4 +1,4 @@
-# AI chat — 0.36.0-alpha.2
+# AI chat — 0.36.0-alpha.3
 
 Open **Settings → AI chat** from the time/battery/Wi-Fi pill. Choose OpenAI,
 Anthropic, Google Gemini, DeepSeek, or **Custom (OpenAI compatible)**. Enter
@@ -43,14 +43,37 @@ original Markdown; ordinary text selection also works. Chat Markdown does not
 open links or load remote images. A rendering problem retains the original
 reply, which remains available through Copy.
 
-**+** starts a new chat after confirming removal of this configuration's
-current conversation and draft. The **×** closes the panel; the toolbox icon
+## Saved sessions
+
+Opening chat from the toolbox starts a new session by default. Conversations
+and unsent text/image drafts save automatically. **+** starts another session
+while keeping the previous one, without a deletion prompt. Untouched empty
+sessions are not added to history. The **×** closes the panel; the toolbox icon
 also toggles it. Closing or leaving the editor stops pending requests and keeps
-the transcript and draft. Returning from Settings or rotating restores an open
-panel; interrupted questions wait for an explicit Retry. Each provider,
-endpoint and model has its own current conversation, shared across notebooks.
-Changing an API key alone keeps that conversation. There is no chat archive or
-attachment picker in this version.
+the transcript and draft.
+
+Tap the **history list icon** in the chat header to find earlier sessions,
+shared across notebooks and providers. Rows show an automatic title from the
+first question or draft, provider/model, last activity time, message count and
+a draft indicator. The most recently saved session appears first. Tap a row to
+reopen its messages, attachments and unsent draft. Only that session's messages
+are sent on follow-ups. Opening history or a saved session makes no provider
+request. Tap a row's **trash icon**, then confirm, to delete that session's local
+transcript and drafts. Other sessions and provider-side records are unaffected.
+
+Reopened sessions use their original provider, endpoint and model. API keys are
+looked up separately and are not included in history. A saved chat remains
+readable if its key is missing or cannot be unlocked. If that provider now uses
+a different endpoint in Settings, the session remains readable; configure its
+original endpoint and key before sending. Returning from Settings or rotating
+restores the active session if the Settings provider/endpoint/model has not
+changed; changing an API key alone preserves it. Interrupted questions wait for
+an explicit Retry.
+
+Existing version-1/2 conversations are imported into history automatically,
+including saved drafts and images. Older files store only a configuration
+fingerprint. If its provider/model cannot be matched to saved Settings, opening
+it asks whether to use the current configuration. It never sends automatically.
 
 ## Append selected notebook content
 
@@ -71,7 +94,8 @@ Pending images appear as removable **Ink/Image ×** chips above the message
 field. Review them, add your question, and tap **Send**. Sent images appear in
 the conversation and remain available to the model on follow-up turns.
 Appending while a reply is being generated prepares the next draft without
-changing the in-flight request. Unsent image drafts survive closing/reopening.
+changing the in-flight request. Unsent image drafts survive closing and are
+restored when their session is reopened from History.
 Your selected provider and model must support image input to analyze images.
 
 ## Data and request handling
@@ -94,15 +118,19 @@ unencrypted files in app-private storage, outside notebook backups. Android
 automatic backup remains disabled. Uninstalling or clearing app storage removes
 these local settings and histories.
 
-History is bounded to 80 messages, 128 KiB of UTF-8 per message, and 1 MiB total
-including the draft, with a separate 8 MiB image budget. Chat file version 2
-stores image history and drafts; existing version-1 chats remain readable without
-rewriting on open. Earlier AI APKs cannot read newly saved version-2 chats;
-notebook and backup format 8 is unchanged. Questions and attachments are saved atomically before a provider request
-starts. Storage errors retain the in-memory text and offer Retry/Save; damaged
-history is reported and requires an explicit New chat to reset. The previous
-durable transcript survives a failed replacement. Replies that hit a provider's
-output-token limit are marked so you can ask it to continue.
+Each session is bounded to 80 messages, 128 KiB of UTF-8 per message, and 1 MiB
+total including the draft, with a separate 8 MiB image budget. There is no
+automatic summarization or mixing of sessions. Session archive format 1 wraps
+the existing version-2 conversation snapshot with checksummed metadata. Earlier
+AI APKs cannot read these session archives; notebook and backup format 8 is
+unchanged. Questions and attachments are saved atomically before a provider
+request starts. Storage errors retain the in-memory text and offer Retry/Save;
+starting another session waits for the current chat to save. Damaged history
+is reported and kept for recovery, and can be deleted from History. New chat
+starts fresh without overwriting the damaged archive. The previous durable
+transcript survives a failed replacement. Deletion markers prevent late saves
+or cancelled replies from recreating a deleted chat. Replies that hit a
+provider's output-token limit are marked so you can ask it to continue.
 
 The visible WebView has blocked network loads and the same local content
 security policy and sanitizer as note Markdown. No JavaScript bridge is
@@ -110,7 +138,7 @@ installed. API requests run separately from Markdown rendering and native ink;
 they use finite connection/read timeouts and bounded response reads.
 Panel contacts pause native input before child dispatch. Writer barriers run
 before resuming; moving or resizing updates native exclusions and restores
-newly uncovered paper. Clear-chat confirmation keeps native input paused.
+newly uncovered paper. History and deletion dialogs keep native input paused.
 The software keyboard's visible area is also excluded from native handwriting
 while typing in chat, including while keyboard dismissal completes.
 
@@ -121,8 +149,12 @@ the production HTTP, transcript, and session code with deterministic connection
 and worker fixtures; they make no paid provider calls. They cover all provider
 formats, role order, authentication headers, redirects, errors, bounds,
 cancellation, retries, file corruption, publication failure, reopening and stale
-callbacks. Production window-callback checks exercise native contact and writer
-ordering and the production resize grip/placement. Fourteen real-browser cases
+callbacks. Session-history fixtures cover independent new chats, draft/image
+round trips, metadata-only listing, original destinations, legacy migration,
+deletion/retry and preventing resurrection by late replies. Production
+window-callback checks exercise native contact and writer ordering, history
+modal barriers, Activity session retention and the production resize
+grip/placement. Fourteen real-browser cases
 cover note/chat Markdown, math, CJK, diagrams, follow-up retention, local image
 previews, invalid image URLs, reset, sanitization and zero external requests.
 
@@ -132,7 +164,7 @@ No new runtime dependency is added. Prepare tablet updates only with
 `scripts/build-release.sh` and the permanent release signing certificate.
 Page and backup format 8 are unchanged.
 
-The completed build passes **272,750 JVM assertions in 93 suites**, fourteen
+The completed build passes **272,815 JVM assertions in 96 suites**, fourteen
 browser cases, debug/release lint and builds, and permanent-signer verification.
 The Markdown chat screenshot was visually inspected for text, equations,
 tables, code, diagrams and Chinese; it does not verify the native panel on e-ink.

@@ -6,6 +6,26 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.36.0-alpha.3 — Saved AI chat sessions (2026-11-02)
+
+- Start a new session whenever the chat is explicitly opened. Save conversations
+  and unsent text/image drafts automatically; **+** starts another chat while
+  keeping the previous session. Untouched empty sessions do not fill history.
+- Add a history icon to the chat header. List saved sessions across notebooks
+  and providers by most recent activity, with automatic titles, provider/model,
+  timestamps, message counts and draft indicators. Reopen a session or confirm
+  its deletion without affecting other chats or provider-side records.
+- Keep each reopened session's original provider, endpoint, model and follow-up
+  context. Allow reading without an API key; require the saved endpoint and its
+  configured key before sending. Rotation and temporary app suspension preserve
+  the active session when Settings have not changed.
+- Import existing version-1/2 chats, including image drafts, into atomic session
+  archives. Prevent cancelled replies or stale windows from reviving deleted
+  chats. Keep credentials outside history and notebook/backup format 8 unchanged.
+- Pass 272,815 JVM assertions in 96 suites, fourteen real-browser cases and
+  Android debug/release lint/build checks. VersionCode 85 uses the permanent
+  signing key; publish the signed alpha APK and checksum for tablet acceptance.
+
 ## 0.36.0-alpha.2 — AI selections, models and resize fixes (2026-11-01)
 
 - Keep the AI window's top-left corner fixed during bottom-right resizing.

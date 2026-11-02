@@ -49,9 +49,15 @@ preferences. They do not enter the Markdown WebView, notebook exports/backups,
 text-field saved state or logs. Settings → AI chat → Remove saved key removes
 the selected provider's credential. Chat histories and unsent drafts are
 unencrypted private files, independent of notebooks and excluded from editable
-backups. Each provider/endpoint/model has its own current history. New chat
-clears that history and draft after confirmation; closing keeps them.
-Clearing app storage or uninstalling removes histories and credentials.
+backups. Sessions save independently with their provider, endpoint, model,
+automatic title, timestamps, messages and draft attachments; no API key is stored
+in a session. New chat and closing preserve earlier sessions. History lists local
+sessions and can reopen or delete one after confirmation. Opening history makes
+no provider request. Deletion removes that session's local transcript and drafts;
+a small deletion marker prevents pending work from recreating it. This does not
+delete any records held by the provider. Earlier local chats are imported
+automatically. Clearing app storage or uninstalling removes histories and
+credentials.
 
 Chat rendering uses bundled scripts and fonts, blocked WebView network loads,
 sanitized content and no JavaScript bridge. Links cannot navigate and external

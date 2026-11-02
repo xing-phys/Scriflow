@@ -104,6 +104,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     private final Rect aiChatBounds = new Rect();
     private final Rect aiKeyboardBounds = new Rect();
     private boolean aiContact, aiMoved, restoreAiChat;
+    private String restoredAiId,restoredAiProfile;
     private float toolsX = 0.5f, toolsY;
     private boolean placeToolsBelowStatus;
     private final Rect toolsBounds = new Rect();
@@ -206,6 +207,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         if (saved != null && saved.getBoolean("lasso", false)) tool = NotebookInk.Tool.LASSO;
         zenMode = saved != null && saved.getBoolean("zenMode", false);
         restoreAiChat = saved != null && saved.getBoolean("aiChatOpen", false);
+        if(saved!=null){restoredAiId=saved.getString("aiSessionId");restoredAiProfile=saved.getString("aiSettingsProfile");}
         if (saved != null && saved.getByteArray("markdownDraft") != null) {
             try { pendingMarkdownDraft = NotebookMarkdownDraft.fromSnapshot(saved.getByteArray("markdownDraft")); }
             catch (IOException ignored) { /* The independently saved typing draft remains recoverable. */ }
@@ -1214,16 +1216,23 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                 }
                 public void closed() {
                     aiChat = null;
-                    if (active) restoreAiChat = false;
+                    if (active) {restoreAiChat=false;restoredAiId=null;restoredAiProfile=null;}
                     if (floatingTools != null) floatingTools.button(NotebookFloatingTools.Action.AI_CHAT).setToolSelected(false);
                 }
             });
             floatingTools.button(NotebookFloatingTools.Action.AI_CHAT).setToolSelected(true);
+            aiChat.restore(restoredAiId,restoredAiProfile);restoredAiId=null;restoredAiProfile=null;
             aiChat.show();
             updateAiKeyboardBounds();
         }
         final int request = generation;
         session.load((loaded, error) -> finishEdit(request, loaded, error));
+    }
+
+    private void pauseAiChat() {
+        if(aiChat==null)return;
+        String id=aiChat.sessionId(),profile=aiChat.profile();
+        aiChat.close();aiChat=null;restoreAiChat=true;restoredAiId=id;restoredAiProfile=profile;
     }
 
     /** The editor itself keeps ADJUST_NOTHING; a chat IME must still be a native pen exclusion. */
@@ -3327,7 +3336,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         if (ink != null) ink.pauseForEdit();
         captureViewCenter();
         active = false; ++generation; whenReady = null;
-        if (aiChat != null) { restoreAiChat = true; aiChat.close(); aiChat = null; }
+        pauseAiChat();
         pauseMarkdown();
         if (stylusGesture != null) stylusGesture.stop();
         stylusShortcut.reset(); main.removeCallbacks(applyStylusShortcut);
@@ -3388,12 +3397,14 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         state.putBoolean("lasso", tool == NotebookInk.Tool.LASSO);
         state.putBoolean("zenMode", zenMode);
         state.putBoolean("aiChatOpen", aiChat != null || restoreAiChat);
+        state.putString("aiSessionId",aiChat==null?restoredAiId:aiChat.sessionId());
+        state.putString("aiSettingsProfile",aiChat==null?restoredAiProfile:aiChat.profile());
         NotebookMarkdownDraft draft=markdownEditor!=null?markdownEditor.draft():pendingMarkdownDraft;
         if(draft!=null)try{state.putByteArray("markdownDraft",draft.snapshot());}catch(IOException ignored){}
         super.onSaveInstanceState(state);
     }
     private void disposeCanvas() {
-        if (aiChat != null) { restoreAiChat = true; aiChat.close(); aiChat = null; }
+        pauseAiChat();
         if(restingPaper!=null){restingPaper.close();restingPaper=null;}
         clearPdfText();
         if(readingMenu!=null){readingMenu.retire();readingMenu=null;}
