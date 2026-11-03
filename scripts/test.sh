@@ -13,6 +13,7 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookBackup.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookRestore.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookTasks.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookWritingGate.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookTransform.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPage.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookFigure.java \
@@ -78,7 +79,7 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPenSliderLayout.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPenSliderState.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPenSliderClose.java \
-  tests/CallbackTimingTest.java tests/NotebookStoreTest.java \
+  tests/CallbackTimingTest.java tests/NotebookStoreTest.java tests/NotebookWritingGateTest.java tests/NotebookWritingPresentationTest.java \
   tests/NotebookReadingTest.java tests/NotebookPdfReadingInteractionTest.java tests/NotebookFiguresTest.java tests/NotebookMarkdownTest.java tests/NotebookMarkdownInteractionTest.java tests/NotebookMarkdownRasterizerTest.java tests/NotebookRestingPaperTest.java tests/NotebookViewPaperTest.java tests/NotebookFigurePaperTest.java tests/NotebookFigureFixture.java tests/NotebookFigureHitTest.java tests/NotebookFigureTapTest.java tests/NotebookFigureTransformTest.java tests/NotebookInlineFigureTest.java \
   tests/NotebookWorkspaceActivationTest.java tests/NotebookWorkspaceTest.java tests/NotebookAiWorkspaceTest.java tests/NotebookCacheBudgetTest.java tests/NotebookWorkspaceDisplayTest.java \
   tests/NotebookReaderInteractionTest.java tests/NotebookWindowGripTest.java tests/NotebookResizeOutlineTest.java \
@@ -102,6 +103,8 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   tests/NotebookPenConfigTest.java tests/NotebookPenSliderTest.java \
   tests/NotebookPenSliderCloseTest.java tests/NotebookRegionEraserTest.java tests/NotebookRegionEraserInteractionTest.java tests/NotebookEraserTest.java tests/NotebookEraserCommitTest.java tests/NotebookFoundationTest.java \
   tests/NotebookStrokeScaleTest.java tests/NotebookViewportSaveTest.java
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookWritingGateTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookWritingPresentationTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPdfReadingInteractionTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookReadingTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookMarkdownTest

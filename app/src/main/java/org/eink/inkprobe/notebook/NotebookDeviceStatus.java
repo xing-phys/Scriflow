@@ -38,7 +38,7 @@ final class NotebookDeviceStatus extends View {
     private final ConnectivityManager connectivity;
     private int clockWidth;
     private final int percentWidth;
-    private boolean started, networkRegistered, zenMode;
+    private boolean started, networkRegistered, zenMode, writing;
     private final Runnable secondTick = this::tickSeconds;
     private int networkEpoch;
     private ConnectivityManager.NetworkCallback network;
@@ -138,6 +138,7 @@ final class NotebookDeviceStatus extends View {
 
     void stop() {
         main.removeCallbacks(secondTick);
+        writing = false;
         if (!started) return;
         started = false;
         ++networkEpoch;
@@ -150,10 +151,12 @@ final class NotebookDeviceStatus extends View {
         wifiNetworks.clear();
     }
 
-    /** Normal status waits for idle; Zen seconds repaint only this small clock view. */
+    /** All status, including Zen seconds, waits for a complete writing burst to settle. */
     void refresh() {
         if (!started) return;
-        NotebookDeviceStatusState.Snapshot next = state.publish(zenMode || idle.getAsBoolean());
+        boolean ready = !writing && idle.getAsBoolean();
+        if (ready) state.clock(clock());
+        NotebookDeviceStatusState.Snapshot next = state.publish(ready);
         if (next == null) return;
         boolean clockChanged = !next.clock.equals(shown.clock);
         shown = next;
@@ -161,6 +164,13 @@ final class NotebookDeviceStatus extends View {
         updateDescription();
         if (zenMode && !clockChanged) return; // Hidden battery/Wi-Fi events need no repaint.
         invalidate();
+    }
+
+    void setWriting(boolean value) {
+        if (writing == value) return;
+        writing = value;
+        if (value) main.removeCallbacks(secondTick);
+        else { refresh(); scheduleSeconds(); }
     }
 
     void setZenMode(boolean value) {
@@ -176,13 +186,13 @@ final class NotebookDeviceStatus extends View {
     }
 
     private void tickSeconds() {
-        if (!started || !zenMode) return;
+        if (!started || !zenMode || writing) return;
         state.clock(clock()); refresh(); scheduleSeconds();
     }
 
     private void scheduleSeconds() {
         main.removeCallbacks(secondTick);
-        if (started && zenMode)
+        if (started && zenMode && !writing)
             main.postDelayed(secondTick, 1000 - Math.floorMod(System.currentTimeMillis(), 1000));
     }
 

@@ -44,10 +44,18 @@ import java.util.UUID;
 import java.util.Collections;
 
 /** Durable notebook pages, native pen ink, and document-level editing. */
-public final class NotebookActivity extends NotebookDisplayActivity {
+public final class NotebookActivity extends NotebookDisplayActivity implements NotebookWritingGate.Owner {
     private final Handler main = new Handler(Looper.getMainLooper());
     private NotebookSession session;
     private NotebookInkBackend ink;
+    private final NotebookWritingGate writingGate = new NotebookWritingGate(SystemClock::uptimeMillis,
+        new NotebookWritingGate.Scheduler() {
+            public void postDelayed(Runnable task, long delay) { main.postDelayed(task, delay); }
+            public void removeCallbacks(Runnable task) { main.removeCallbacks(task); }
+        }, () -> ink != null && ink.hasPendingInput());
+    private final Runnable writingUi = this::finishWritingUi;
+    private final Runnable paperAfterWriting = this::refreshRestingPaper;
+    @Override public NotebookWritingGate writingGate() { return writingGate; }
     private NotebookRestingPaper restingPaper;
     private FrameLayout canvas, workspaceRoot, workspaceArea;
     private final NotebookWorkspace workspace = new NotebookWorkspace();
@@ -270,7 +278,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         saveState.setEllipsize(TextUtils.TruncateAt.END);
         saveState.setVisibility(View.GONE);
         deviceStatus = new NotebookDeviceStatus(this,
-            () -> canEdit() && SystemClock.uptimeMillis() - lastInputAt >= 1000);
+            () -> canEdit() && writingGate.isQuiet());
         NotebookButton more = new NotebookButton(this); more.setText("⋮"); more.setTextSize(20);
         more.setContentDescription("Expand note action icons: background, figures and export");
         more.setOnClickListener(v -> noteActions());
@@ -351,6 +359,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
             ensureWorkspace(); restoreWorkspaceView();
         }
         active = true;
+        writingGate.resume();
         stylusGesture.start();
         deviceStatus.start();
         if(resumeDictionaryEditor())return;
@@ -452,7 +461,9 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                 @Override public void onPenStateChanged(boolean down) {
                     if (!active || surfaceOwner != inkGeneration) return;
                     penDown = down;
+                    writingGate.contact(down);
                     if (down) {
+                        deviceStatus.setWriting(true);
                         writingHistory = tool == NotebookInk.Tool.PEN;
                         ++writingRevision; linkTap.cancel(); clearPdfText();
                         if (widthPopup != null && !widthContact) widthPopup.dismiss();
@@ -461,7 +472,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
                     lastInputAt = SystemClock.uptimeMillis();
                     main.removeCallbacks(updateSaveState);
                     if (!down) {
-                        main.post(() -> { collapseNoteActions(); updateHistoryControls(); refreshRestingPaper(); });
+                        writingGate.defer(writingUi);
                         scheduleSaveState(); if (stylusShortcut.hasPending()) main.post(applyStylusShortcut);
                     }
                 }
@@ -755,7 +766,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         // Immediate preview state includes completed ink even before the background save.
         final long token = viewportBuffer.append(split);
         updatePreviewPages();
-        main.post(this::refreshRestingPaper);
+        writingGate.defer(paperAfterWriting);
         session.appendViewport(split, (ignored, error) -> {
             if (!active || request != generation) return;
             viewportBuffer.complete(token, session.window(), wantedPages());
@@ -1014,7 +1025,21 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     }
     private void refreshRestingPaper(){
         if(restingPaper==null)return;
+        // Navigation/editing already owns a paused writer and needs its replacement immediately.
+        // Ordinary completed ink stays visible natively throughout a burst, including pending saves.
+        if (active && !editing && !scrolling && !dragging && !writingGate.isQuiet()) {
+            writingGate.defer(paperAfterWriting); return;
+        }
+        writingGate.cancel(paperAfterWriting);
         if(restingPaperReady()){prepareStrokePaths();restingPaper.show();}
+    }
+
+    private void finishWritingUi() {
+        if (!active || ink == null || shownError != null) return;
+        deviceStatus.setWriting(false);
+        collapseNoteActions();
+        updateHistoryControls();
+        refreshRestingPaper();
     }
     private List<Rect> restingPaperExclusions(){
         // Persistent paper is below native ink and every popup. Paint behind
@@ -1351,6 +1376,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
 
     private void updateHistoryControls() {
         if (statusIslands == null || updatingHistory || ink != null && ink.isPenDown()) return;
+        if (active && !editing && !writingGate.isQuiet()) { writingGate.defer(writingUi); return; }
         boolean show = active && !zenMode && writingHistory && shownError == null && session.error() == null;
         if (show && !canEdit()) return; // Retain the current controls through an Undo/Redo writer barrier.
         boolean undo = show && session.canUndo(activePage), redo = show && session.canRedo(activePage);
@@ -3318,6 +3344,7 @@ public final class NotebookActivity extends NotebookDisplayActivity {
     }
 
     @Override protected void onPause() {
+        writingGate.suspend();
         writingHistory = false;
         // Keep paper visible beneath Eudic's transparent activity, with native input paused.
         if(retainDictionaryEditor()){super.onPause();return;}
@@ -3413,10 +3440,13 @@ public final class NotebookActivity extends NotebookDisplayActivity {
         if (floatingTools != null) floatingTools.hide();
         if (noteTray != null) noteTray.hide();
         if (ink != null) { ink.release(); ink = null; }
+        writingGate.reset();
+        if (deviceStatus != null) deviceStatus.setWriting(false);
         if (canvas != null) canvas.removeAllViews();
     }
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
     @Override protected void onDestroy() {
+        writingGate.close();
         if(aiWindows!=null)aiWindows.suspend();main.removeCallbacks(refreshAiDock);
         if (stylusGesture != null) stylusGesture.stop();
         if (toolHint != null) toolHint.hide();

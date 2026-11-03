@@ -33,7 +33,13 @@ contrast, and long-press word selection with Eudic floating lookup. Continuous
 scrolling at Fit width remains the default. Crop and contrast affect display;
 original PDF bytes, saved annotation coordinates and PDF exports are preserved.
 
-The **[0.37.0-alpha.2 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.37.0-alpha.2)** refines multiple floating [AI chats](docs/ai-chat.md), using the same window controls as floating notes.
+The **[0.37.0-alpha.3 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.37.0-alpha.3)**
+protects [bursts of handwriting](docs/handwriting-priority.md) from automatic
+history, Markdown, chat, clock and inactive-note display updates. These updates
+catch up after native input settles and a 300 ms quiet interval; pen drawing
+and background stroke saving continue immediately. Physical latency acceptance
+remains pending. It retains multiple floating [AI chats](docs/ai-chat.md), using
+the same window controls as floating notes.
 Configure a provider, model and API key in Settings, then tap the chat-bubble
 sparkle in the toolbox for a movable, resizable conversation window. Replies
 reuse the existing offline Markdown/math/code renderer. Presets cover OpenAI,

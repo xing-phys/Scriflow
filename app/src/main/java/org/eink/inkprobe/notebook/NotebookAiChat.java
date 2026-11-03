@@ -25,6 +25,8 @@ final class NotebookAiChat {
     private final NotebookAiWorkspace.Window window;
     private final NotebookWindowControls controls;
     private final Listener listener;
+    private final NotebookWritingGate writingGate;
+    private final Runnable refreshAfterWriting = this::refresh;
     private final PopupWindow popup;
     private final NotebookAiFrame frame;
     private final LinearLayout content;
@@ -49,6 +51,7 @@ final class NotebookAiChat {
 
     NotebookAiChat(Activity activity,FrameLayout anchor,NotebookAiWorkspace workspace,NotebookAiWorkspace.Window window,Listener listener) {
         this.activity=activity;this.anchor=anchor;this.workspace=workspace;this.window=window;this.listener=listener;
+        writingGate=NotebookWritingGate.from(activity);
         content=new LinearLayout(activity);
         content.setOrientation(LinearLayout.VERTICAL); content.setBackgroundColor(Color.WHITE);
         content.setPadding(dp(6),dp(4),dp(6),dp(4));
@@ -164,6 +167,7 @@ final class NotebookAiChat {
         content.addView(markdown.view,1,new LinearLayout.LayoutParams(-1,0,1));
     }
     private void releaseRenderer(){
+        if(writingGate!=null)writingGate.cancel(refreshAfterWriting);
         ++rendererGeneration;if(markdown!=null){content.removeView(markdown.view);markdown.close();markdown=null;}
     }
     private void openSession(NotebookAiConfig publicConfig,String id,boolean rebind) {
@@ -202,7 +206,12 @@ final class NotebookAiChat {
         },"ai-chat-open").start();
     }
     private void refresh() {
-        if (closed||status==null) return;
+        if (closed||hidden||status==null) return;
+        // Requests and persistence continue independently; only their presentation waits.
+        // An explicit chat contact already owns the native writer barrier.
+        if (!contact && writingGate!=null && !writingGate.isQuiet()) {
+            writingGate.defer(refreshAfterWriting); return;
+        }
         if (session!=null&&session.loaded&&(!composerLoaded||!session.id.equals(visibleSessionId))) {
             composerLoaded=true;visibleSessionId=session.id;setText(session.chat.draft);
             java.util.List<Runnable> pending=new java.util.ArrayList<>(pendingSelections); pendingSelections.clear();

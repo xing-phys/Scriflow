@@ -6,6 +6,29 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.37.0-alpha.3 — Protect handwriting bursts (2026-11-03)
+
+- Share one writing coordinator across optional display updates. Protect active
+  strokes, unmatched native completions and a 300 ms interval after the latest
+  pen-up. Coalesce each owner's notifications, recheck before execution, and
+  cancel retired callbacks on canvas/window disposal.
+- Defer automatic history/menu presentation and completed-ink paper redraws
+  across rapid strokes. Retain the native live trails and immediate background
+  stroke saving. Keep explicit editing/navigation and recovery paths responsive.
+- Freeze Zen seconds during writing and catch up once afterward. Defer AI
+  conversation presentation, Markdown formatting, render polling and automatic
+  scrolling; keep requests and persistence running. Exclude intentional writing
+  waits from the renderer timeout.
+- Protect passive floating-note metadata/PDF/image refreshes and automatic tool
+  hint expiration. Retain explicit reader gestures and immediate lifecycle cleanup.
+- Add fake-clock and production-callback regressions for rapid strokes, delayed
+  native commits, immediate save dispatch, JavaScript callback races, long writing,
+  reply coalescing and owner retirement. Pass 276,325 JVM assertions in 114 suites,
+  fourteen browser cases and Android debug/release lint/build checks. Publish
+  versionCode 91 with permanent signing and unchanged formats. Physical stylus
+  latency and e-ink behavior remain
+  unverified; see the [design and limits](docs/handwriting-priority.md).
+
 ## 0.37.0-alpha.2 — Compact AI chat UI (2026-11-02)
 
 - Move New chat and History into the toolbox AI tray alongside minimized chats.

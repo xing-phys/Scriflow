@@ -14,12 +14,14 @@ final class NotebookToolHint {
     static final long DURATION_MS = 650;
     private final Context context;
     private final Listener listener;
+    private final NotebookWritingGate writingGate;
     private final NotebookIconButton icon;
     private final PopupWindow popup;
     private final Handler main = new Handler(Looper.getMainLooper());
-    private final Runnable hide = this::hide;
+    private final Runnable hide = this::expire;
     NotebookToolHint(Context context, Listener listener) {
         this.context = context; this.listener = listener;
+        writingGate = NotebookWritingGate.from(context);
         icon = new NotebookIconButton(context, NotebookIconDrawable.Icon.PEN, "Pen");
         icon.setClickable(false); icon.setFocusable(false);
         popup = new PopupWindow(icon, dp(44), dp(44), false);
@@ -31,6 +33,7 @@ final class NotebookToolHint {
     void show(View root, boolean pen) {
         if (!root.isAttachedToWindow() || root.getWidth() < 1) return;
         main.removeCallbacks(hide);
+        if (writingGate != null) writingGate.cancel(hide);
         icon.setIcon(pen ? NotebookIconDrawable.Icon.PEN : NotebookIconDrawable.Icon.ERASER);
         icon.setContentDescription(pen ? "Pen" : "Eraser");
         int[] origin = new int[2]; root.getLocationOnScreen(origin);
@@ -44,8 +47,13 @@ final class NotebookToolHint {
     }
     void hide() {
         main.removeCallbacks(hide);
+        if (writingGate != null) writingGate.cancel(hide);
         if (popup.isShowing()) popup.dismiss();
         else listener.boundsChanged(new Rect());
+    }
+    private void expire() {
+        if (writingGate != null && !writingGate.isQuiet()) { writingGate.defer(hide); return; }
+        hide();
     }
     private int dp(int value) { return Math.round(value * context.getResources().getDisplayMetrics().density); }
 }

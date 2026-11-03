@@ -26,6 +26,9 @@ final class NotebookReader extends View {
     private final NotebookSession session;
     private final NotebookWorkspace.Pane pane;
     private final Listener listener;
+    private final NotebookWritingGate writingGate;
+    private final Runnable refreshAfterWriting = this::refreshDisplay;
+    private final Runnable configureAfterWriting = this::requestConfiguration;
     private final NotebookPdfBackgrounds pdf;
     private final NotebookFigureLayer images;
     private final ScaleGestureDetector scale;
@@ -58,6 +61,7 @@ final class NotebookReader extends View {
 
     NotebookReader(Context context, NotebookSession session, NotebookWorkspace.Pane pane, Listener listener) {
         super(context); this.session = session; this.pane = pane; this.listener = listener;
+        writingGate = NotebookWritingGate.from(context);
         float dpi = getResources().getDisplayMetrics().xdpi;
         if (dpi < 80 || dpi > 1000) dpi = getResources().getDisplayMetrics().density * 160;
         pixelsPerMm = dpi / 25.4f;
@@ -70,12 +74,12 @@ final class NotebookReader extends View {
         },dp(4),pixelsPerMm);
         setContentDescription("Note; scroll and pinch with fingers, tap a figure with a finger or tap with stylus to edit");
         pdf = new NotebookPdfBackgrounds(context, new NotebookPdfBackgrounds.Listener() {
-            public void changed() { preparePdf(); invalidate(); }
-            public void failed(IOException error) { pdfFailed = true; message = "PDF unavailable. Reopen this note to retry."; invalidate(); }
+            public void changed() { requestDisplayRefresh(); }
+            public void failed(IOException error) { pdfFailed = true; message = "PDF unavailable. Reopen this note to retry."; requestDisplayRefresh(); }
         }, false);
         images = new NotebookFigureLayer(new NotebookFigureLayer.Listener() {
-            public void changed() { preparePdf(); invalidate(); }
-            public void failed(IOException error) { imagesFailed = true; message = "Figure unavailable. Reopen this note to retry."; invalidate(); }
+            public void changed() { requestDisplayRefresh(); }
+            public void failed(IOException error) { imagesFailed = true; message = "Figure unavailable. Reopen this note to retry."; requestDisplayRefresh(); }
         });
         scale = new ScaleGestureDetector(context, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
             @Override public boolean onScale(ScaleGestureDetector detector) {
@@ -103,11 +107,25 @@ final class NotebookReader extends View {
         final int request = ++epoch;
         metadataRequest = session.companionMetadata(pane.notebookId, (loaded, file, error) -> {
             if (!opened || request != epoch) return;
-            if (error != null || loaded.isEmpty()) { retainedFrame = null; message = "Note unavailable. Reopen it to retry."; invalidate(); return; }
+            if (error != null || loaded.isEmpty()) { retainedFrame = null; message = "Note unavailable. Reopen it to retry."; requestDisplayRefresh(); return; }
             sizes = loaded; source = file;
             pane.page = Math.max(1, Math.min(sizes.size(), pane.page));
-            configure();
+            requestConfiguration();
         });
+    }
+    private void requestConfiguration() {
+        if (!opened) return;
+        if (writingGate != null && !writingGate.isQuiet()) { writingGate.defer(configureAfterWriting); return; }
+        configure();
+    }
+    private void requestDisplayRefresh() {
+        if (!opened) return;
+        if (writingGate != null && !writingGate.isQuiet()) { writingGate.defer(refreshAfterWriting); return; }
+        refreshDisplay();
+    }
+    private void refreshDisplay() {
+        if (!opened) return;
+        requestPages(); preparePdf(); invalidate();
     }
     private void configure() {
         if (sizes.isEmpty() || getWidth() < 1 || getHeight() < 1) return;
@@ -150,7 +168,7 @@ final class NotebookReader extends View {
                 loadingPage = false;
                 if (error != null) errors.add(number);
                 else if (viewport.visiblePages(scrollY).contains(number)) pages.put(number, page);
-                requestPages(); preparePdf(); invalidate();
+                requestDisplayRefresh();
             });
             break;
         }
@@ -182,7 +200,7 @@ final class NotebookReader extends View {
                 cropRequest=NotebookPdfReading.crop(source,page.pdfPage,page.width,page.height,area,(box,error)->{
                     cropRequest=null;if(!opened||request!=epoch)return;
                     if(error!=null)cropFailures.add(page.id);
-                    remember();configure();
+                    remember();requestConfiguration();
                 });
             }
             return false;
@@ -321,6 +339,7 @@ final class NotebookReader extends View {
     android.graphics.Rect textBounds(){return pdfTextTools.bounds();}
     void trimCaches() { paths.clear(); pdf.trimMemory(); }
     void hide() {
+        if (writingGate != null) { writingGate.cancel(refreshAfterWriting); writingGate.cancel(configureAfterWriting); }
         clearPdfText();
         if(cropRequest!=null){cropRequest.cancel();cropRequest=null;}cropFailures.clear();
         figureTap.cancel(); remember(); opened = false; ++epoch; loadingPage = false; stylusContact = false;

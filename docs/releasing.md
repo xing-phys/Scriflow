@@ -46,6 +46,17 @@ it does not arbitrarily change the patch number or signing identity.
 
 ## Before publishing
 
+**0.37.0-alpha.3** (versionCode **91**) protects native handwriting across rapid
+strokes and pending native completions. Hold optional paper/history/chat/clock/
+inactive-note updates until a 300 ms quiet interval, coalesce obsolete notices,
+and cancel retired owners. Retain the native input/brush path, immediate stroke
+saving, explicit edit/navigation barriers, format 8 and chat archive format 1.
+Validate fake-clock races and actual production callbacks, full host/browser/PDF
+regressions and Android debug/release lint/builds. Publish the permanently signed
+APK and checksum before tablet testing; verify the pinned certificate, exact
+source/tag and downloaded bytes. Keep 0.33.2 Latest stable. Automated scheduling
+checks do not establish physical pen latency or native/e-ink acceptance.
+
 **0.37.0-alpha.2** (versionCode **90**) refines the current multi-chat alpha UI.
 Move New chat and History to the toolbox tray, remove the chat settings shortcut,
 move model selection below the composer and use an icon-only action beside the
@@ -301,11 +312,12 @@ build unsigned release APKs without possessing the permanent key.
 
 ## Version numbers
 
-The current prerelease is **0.34.0-alpha.1**, Android `versionCode` **73**,
-promoting **0.34.0-dev.1** (code **72**) without app-code changes. It introduces
-format 8 to public releases: versions 1–7 remain readable unchanged, but older
-APKs cannot read newly edited pages or new editable backups. Alpha status
-reflects pending physical acceptance of the new Markdown feature.
+The current prerelease is **0.37.0-alpha.3**, Android `versionCode` **91**,
+protecting handwriting bursts from optional presentation work. It retains
+notebook/backup format 8 and chat archive format 1. Versions 1–7 remain readable
+unchanged; APKs before 0.34 cannot read format-8 pages or backups. Alpha status
+reflects pending physical acceptance of writing, e-ink composition and recent UI
+features; scheduling regressions do not measure physical pen-to-ink latency.
 
 The latest stable release is **0.33.2**, Android `versionCode` **71**,
 including all changes through **0.33.2-dev.6** (`versionCode` **70**). The previous

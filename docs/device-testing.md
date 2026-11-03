@@ -4,6 +4,30 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## Handwriting scheduling alpha 0.37.0-alpha.3 (2026-11-03)
+
+The owner authorized implementing handwriting protection after a read-only
+comparison with 0.32/0.33. VersionCode **91** retains the permanent signer,
+native handwriting adapter, brush reconstruction, stroke saving, firmware policy
+13 and existing file formats. Optional display work waits for settled native
+input and a 300 ms quiet interval. Explicit editing/navigation keeps its writer
+barriers. See the [design and limits](handwriting-priority.md) and
+[alpha release notes](releases/0.37.0-alpha.3.md).
+
+**276,325 JVM assertions in 114 suites**, fourteen browser cases, Android
+debug/release lint/build checks and permanent-certificate verification pass.
+New fake-clock and production-method checks exercise rapid strokes, pending
+native commits, independent saving/preview, history/clock updates, AI/WebView
+callback races, long writing, inactive readers, popup expiry and retired owners.
+They do not operate the owner's notebooks or measure the physical e-ink panel.
+
+No physical stylus trial or optical latency measurement was performed for this
+alpha. The original intermittent problem is not claimed reproduced or resolved
+on hardware. Tablet acceptance should include rapid dots/characters on plain
+and Markdown pages with Zen, incoming replies and loading floating notes, then
+scroll/reopen and explicit tool/Undo/navigation checks. Publish the signed APK
+and checksum before that testing; keep 0.33.2 Latest stable.
+
 ## Authorized alpha release 0.34.0-alpha.1 (2026-10-30)
 
 The owner explicitly requested publication and delegated the label choice.
