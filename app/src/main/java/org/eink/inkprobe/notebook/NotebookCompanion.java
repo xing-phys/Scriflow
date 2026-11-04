@@ -15,7 +15,8 @@ import java.util.List;
 /** Border-only note frame with two overlaid corner controls and one shared native editor. */
 final class NotebookCompanion {
     interface Listener {
-        void lookup(String word); void interact(); void menu(); void activate(); void figure(NotebookFigureHit.Hit hit); void collapse(); void boundsChanged();
+        void lookup(String word); void interact(); void menu(); void activate(); void figure(NotebookFigureHit.Hit hit); void collapse(); void boundsChanged();void raised();
+        boolean shouldRaise();void raiseEditor();long stackRevision();
         boolean beginMove(); void endMove(); void save(); boolean allowInput(); int writingRevision();
     }
     static final class ReadingView {
@@ -38,7 +39,20 @@ final class NotebookCompanion {
     NotebookCompanion(Context context, FrameLayout root, NotebookWorkspace workspace, NotebookWorkspace.Pane pane,
             NotebookSession session, Listener listener) {
         this.context = context; this.root = root; this.workspace = workspace; this.pane = pane; this.listener = listener;
-        content = new FrameLayout(context); content.setPadding(dp(2), dp(2), dp(2), dp(2));
+        content = new FrameLayout(context) {
+            private boolean raiseAfterContact;
+            @Override public boolean dispatchTouchEvent(android.view.MotionEvent event) {
+                int action=event.getActionMasked();
+                if(action==android.view.MotionEvent.ACTION_DOWN)
+                    raiseAfterContact=(!editor||event.getToolType(event.getActionIndex())==android.view.MotionEvent.TOOL_TYPE_FINGER)&&listener.allowInput();
+                try{return super.dispatchTouchEvent(event);}finally{
+                    if(action==android.view.MotionEvent.ACTION_UP||action==android.view.MotionEvent.ACTION_CANCEL){
+                        boolean raise=raiseAfterContact&&action==android.view.MotionEvent.ACTION_UP;raiseAfterContact=false;
+                        if(raise){long revision=listener.stackRevision();post(()->{if(revision==listener.stackRevision())raiseFloating();});}
+                    }
+                }
+            }
+        }; content.setPadding(dp(2), dp(2), dp(2), dp(2));
         android.graphics.drawable.GradientDrawable background = new android.graphics.drawable.GradientDrawable();
         background.setColor(Color.WHITE); content.setBackground(background);
         android.graphics.drawable.GradientDrawable border = new android.graphics.drawable.GradientDrawable();
@@ -112,6 +126,7 @@ final class NotebookCompanion {
             popup.setWidth(Math.max(1, box.width)); popup.setHeight(Math.max(1, box.height));
             if (popup.isShowing()) popup.update(x, y, box.width, box.height);
             else if (!NotebookPopupHost.show(popup, root, Gravity.TOP | Gravity.LEFT, x, y)) { visible = false; listener.boundsChanged(); return; }
+            else listener.raised();
         } else {
             if (popup.isShowing()) popup.dismiss();
             if (content.getParent() != root) {
@@ -126,6 +141,12 @@ final class NotebookCompanion {
         }
         visible = true; listener.boundsChanged(); finishResizeOutline();
     }
+    private void raiseFloating() {
+        if(!visible||!workspace.floating(pane)||!popup.isShowing()||!listener.allowInput()||!listener.shouldRaise())return;
+        if(editor)listener.raiseEditor();else raisePopup();
+    }
+    /** The active editor is reparented only after its owner pauses native ink. */
+    void raisePopup(){if(visible&&workspace.floating(pane)&&popup.isShowing()){popup.dismiss();position();}}
     private void finishResizeOutline() { controls.presented(); }
     List<Rect> exclusions() {
         List<Rect> bounds = new ArrayList<>();

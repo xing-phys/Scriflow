@@ -28,7 +28,7 @@ final class NotebookMarkdownRenderer {
     private final Callback callback;
     private final String source;
     private final boolean sourceMode;
-    private final int width;
+    private final int width, minHeight;
     private final Runnable poll = this::poll;
     private boolean closed, started;
     private long deadline;
@@ -36,8 +36,11 @@ final class NotebookMarkdownRenderer {
     private String warning = "";
 
     NotebookMarkdownRenderer(Activity activity, FrameLayout parent, String source, boolean sourceMode, int width, Callback callback) {
+        this(activity,parent,source,sourceMode,width,0,callback);
+    }
+    NotebookMarkdownRenderer(Activity activity, FrameLayout parent, String source, boolean sourceMode, int width, int minHeight, Callback callback) {
         this.activity = activity; this.parent = parent; this.source = source; this.sourceMode = sourceMode;
-        this.width = width; this.callback = callback;
+        this.width = width; this.minHeight=minHeight; this.callback = callback;
         view = new WebView(activity); view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
         view.setFocusable(false); view.setFocusableInTouchMode(false); view.setLongClickable(false);
         // Outside the hit-testable page, but attached so browser layout/fonts remain available.
@@ -56,13 +59,13 @@ final class NotebookMarkdownRenderer {
         });
         view.setWebViewClient(new WebViewClient() {
             @Override public WebResourceResponse shouldInterceptRequest(WebView v, WebResourceRequest request) {
-                return asset(request.getUrl());
+                return asset(activity,request.getUrl());
             }
             @Override public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest request) { return true; }
             @Override public void onPageFinished(WebView v, String url) {
                 if (closed || started || !url.equals(ORIGIN + "/markdown/index.html")) return;
                 started = true; deadline = SystemClock.uptimeMillis() + 60000;
-                view.evaluateJavascript("window.ScriflowMarkdown&&window.ScriflowMarkdown.render("+JSONObject.quote(source)+","+width+");", null);
+                view.evaluateJavascript("window.ScriflowMarkdown&&window.ScriflowMarkdown.render("+JSONObject.quote(source)+","+width+","+minHeight+");", null);
                 main.removeCallbacks(poll); main.post(poll);
             }
             @Override public void onReceivedError(WebView v, WebResourceRequest request, WebResourceError error) {
@@ -77,7 +80,7 @@ final class NotebookMarkdownRenderer {
         main.postDelayed(poll, 100);
     }
 
-    private WebResourceResponse asset(Uri uri) {
+    static WebResourceResponse asset(Activity activity,Uri uri) {
         String path = uri.getPath();
         if (!"https".equals(uri.getScheme()) || !"appassets.androidplatform.net".equals(uri.getHost())
                 || path == null || !path.startsWith("/markdown/") || path.contains("..") || path.contains("\\")
@@ -89,7 +92,7 @@ final class NotebookMarkdownRenderer {
             response.setResponseHeaders(Collections.singletonMap("Cache-Control", "no-store")); return response;
         } catch (IOException error) { return missing(); }
     }
-    private WebResourceResponse missing() {
+    private static WebResourceResponse missing() {
         return new WebResourceResponse("text/plain", "UTF-8", 404, "Not found", Collections.emptyMap(), new ByteArrayInputStream(new byte[0]));
     }
     private void poll() {

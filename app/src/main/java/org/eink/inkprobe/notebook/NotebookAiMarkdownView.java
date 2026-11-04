@@ -62,7 +62,8 @@ final class NotebookAiMarkdownView {
         try {
             for (NotebookAiConversation.Message message:messages) {
                 JSONArray images=new JSONArray();
-                for (NotebookAiAttachment image:message.images) images.put(new JSONObject().put("name",image.name).put("data",image.dataUrl()));
+                for (NotebookAiAttachment image:message.images) images.put(new JSONObject().put("name",image.name)
+                    .put("kind",image.isPdf()?"pdf":"image").put("data",image.isPdf()?"":image.dataUrl()));
                 array.put(new JSONObject().put("role",message.role).put("content",message.content).put("images",images));
             }
         }

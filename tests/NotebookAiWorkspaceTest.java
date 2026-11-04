@@ -17,6 +17,10 @@ public final class NotebookAiWorkspaceTest {
     private static void windows(){
         NotebookAiWorkspace w=new NotebookAiWorkspace();NotebookAiWorkspace.Window first=add(w),second=add(w);
         check(first!=second&&!first.sessionId.equals(second.sessionId)&&w.active()==second,"New windows have independent sessions and activation");
+        w.focus(first);check(w.windows().get(1)==first,"focusing a chat records it at the front of the stack");
+        NotebookAiWorkspace stack=new NotebookAiWorkspace();stack.restore(w.encode());
+        check(stack.windows().get(1).sessionId.equals(first.sessionId)&&stack.active().sessionId.equals(first.sessionId),"chat stacking order survives restoration");
+        w.focus(second);
         NotebookWorkspace.Box before=w.geometry.box(second.pane,1404,1872);
         first.pane.x=.1f;first.pane.y=.8f;w.geometry.resize(first.pane,.1f,false);
         check(same(before,w.geometry.box(second.pane,1404,1872)),"Resizing and moving one chat preserves the other");

@@ -102,7 +102,7 @@ final class NotebookAiSession {
     }
     void attach(NotebookAiAttachment image) {
         if (closed||!loaded||loadFailed||switching) return;
-        try { chat=chat.attach(image); status="Selection attached. Add a message and tap the send arrow."; save(chat,null); changed.run(); }
+        try { chat=chat.attach(image); status=""; save(chat,null); changed.run(); }
         catch (IllegalArgumentException error) { status=error.getMessage(); changed.run(); }
     }
     void removeImage(int index) {
@@ -114,7 +114,7 @@ final class NotebookAiSession {
         if (closed||!loaded||loadFailed||busy||switching) return;
         if(!sendProblem.isEmpty()){status=sendProblem;changed.run();return;}
         try { config.validate();NotebookAiConversation candidate=chat.awaitingReply()?chat:chat.question(text);
-            config.specs.validateRequest(candidate.messages,config.specs.replyBudget(config.provider));chat=candidate; }
+            config.specs.validateRequest(candidate.messages,config.specs.replyBudget(config.provider));NotebookAiClient.validateAttachments(config,candidate.messages);chat=candidate; }
         catch (IllegalArgumentException|IOException error) { status=error.getMessage(); changed.run(); return; }
         busy=true; status="Generating…"; final int request=++generation;
         cancellation=new NotebookAiClient.Cancellation(); final NotebookAiClient.Cancellation cancel=cancellation;

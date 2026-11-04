@@ -143,6 +143,30 @@ $$e^{i\pi}+1=0$$`);
     const bad = await render('invalid-math', '$\\notARealCommand{x}$',true);
     assert(bad.info.warning.includes('Math:'));
 
+    // Width changes use browser reflow without a PDF round-trip; the committed
+    // vector keeps the same wrapping and enough height to show its content.
+    currentCase='live-markdown-reflow';
+    await page.goto(origin + '/preview.html', { waitUntil:'networkidle0' });
+    await page.waitForFunction('window.ScriflowMarkdown', { timeout:30000 });
+    const paragraph='# Reflow\n\n量子 state $\\psi$: '+('This editable paragraph wraps naturally as the block width changes. '.repeat(12));
+    assert.equal(await page.evaluate(()=>typeof window.pdfMake),'undefined','Preview startup does not load the vector compiler');
+    await page.evaluate(source=>{ScriflowMarkdown.preview(source,false,640);},paragraph);
+    await page.waitForFunction("['ready','error'].includes(ScriflowMarkdown.info().phase)",{timeout:60000});
+    assert.equal((await page.evaluate(()=>ScriflowMarkdown.info())).phase,'ready');
+    await page.evaluate(()=>{window.previewMath=document.querySelector('#block mjx-container');});
+    assert(await page.evaluate(()=>!!window.previewMath),'The lightweight preview renders mathematics and CJK');
+    const wide=await page.$eval('#block',node=>({width:node.getBoundingClientRect().width,height:node.getBoundingClientRect().height,font:getComputedStyle(node).fontSize}));
+    await page.evaluate(()=>{ScriflowMarkdown.previewWidth(240);});
+    const narrow=await page.$eval('#block',node=>({width:node.getBoundingClientRect().width,height:node.getBoundingClientRect().height,font:getComputedStyle(node).fontSize}));
+    assert.equal(wide.width,640);assert.equal(narrow.width,240);assert(narrow.height>wide.height);assert.equal(narrow.font,wide.font);
+    assert(await page.evaluate(()=>window.previewMath===document.querySelector('#block mjx-container')),'Width changes reuse the existing rendered content');
+    await page.goto(origin + '/index.html', { waitUntil:'networkidle0' });
+    await page.waitForFunction('window.ScriflowMarkdown', { timeout:30000 });
+    await page.evaluate(source=>{ScriflowMarkdown.render(source,240,1200);},paragraph);
+    await page.waitForFunction("['ready','error'].includes(ScriflowMarkdown.info().phase)",{timeout:60000});
+    const reflow=await page.evaluate(()=>ScriflowMarkdown.info());
+    assert.equal(reflow.phase,'ready',reflow.message);assert.equal(reflow.rw,240);assert(reflow.rh>=1200&&reflow.sh>=1200);
+
     // Chat runs the same production formatter without producing vector PDF snapshots.
     await page.goto(origin + '/chat.html', { waitUntil:'networkidle0' });
     await page.waitForFunction('window.ScriflowMarkdown', { timeout:30000 });
@@ -184,6 +208,9 @@ $$e^{i\pi}+1=0$$`);
     await chat('chat-attachment',imageHistory);
     await page.waitForFunction("document.querySelector('.chat-image img')?.naturalWidth===1");
     assert.equal(await page.$eval('.chat-image figcaption',node=>node.textContent),'Handwriting selection');
+    await chat('chat-notebook',[{role:'user',content:'Read my notebook',images:[{name:'Notebook: Quantum',kind:'pdf',data:''}]}]);
+    assert((await page.$eval('.chat-file',node=>node.textContent)).includes('Notebook: Quantum'));
+    await chat('chat-attachment',imageHistory);
     await page.evaluate(()=>{window.firstImage=document.querySelector('.chat-image img');});
     imageHistory.push({role:'assistant',content:'The attached image can be read by a vision model.'},{role:'user',content:'Explain that selection again'});
     await chat('chat-image-follow-up',imageHistory);
@@ -197,7 +224,7 @@ $$e^{i\pi}+1=0$$`);
     assert.deepEqual(missing,[],`Missing local assets: ${missing}`);
     assert.deepEqual(egress,[],`Unexpected external request: ${egress}`);
     assert.deepEqual(errors,[],`Browser errors: ${errors}`);
-    fs.writeFileSync(path.join(output,'renderer-qa.json'),JSON.stringify({ cases:14, main:main.info, math:math.info, clarity:clarity.info, cjk:cjk.info, missing,egress,errors,blockedAttackHandlers },null,2));
-    console.log('Offline Markdown renderer: 14 browser cases passed; note and chat math, CJK, diagrams, follow-ups, reset, sanitization and zero network egress.');
+    fs.writeFileSync(path.join(output,'renderer-qa.json'),JSON.stringify({ cases:16, main:main.info, math:math.info, clarity:clarity.info, cjk:cjk.info, missing,egress,errors,blockedAttackHandlers },null,2));
+    console.log('Offline Markdown renderer: 16 browser cases passed; live reflow, notebook attachments, math, CJK, diagrams, sanitization and zero network egress.');
   } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
 })().catch(error => { console.error(error); process.exitCode=1; });

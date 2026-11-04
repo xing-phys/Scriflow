@@ -41,12 +41,19 @@ appearances are static: links, task checkboxes, details and diagrams are not
 interactive controls inside the note.
 
 Source and rendered appearances are separate one-page vector PDFs. The note
-uses native PDF tiles at its current display scale, including after zooming,
-rotation and resizing; it does not upscale one fixed screenshot. Resizing
-scales the block's existing layout, like resizing a figure. A short-lived
-WebView compiles edited source; it is destroyed afterward and never replaces
-the native handwriting canvas. PDF export imports the active appearance as a
-vector form, retaining embedded fonts, text and formula paths.
+uses native PDF tiles at its current display scale, including after zooming and
+rotation; it does not upscale one fixed screenshot. Drag the resize handle in
+either direction: text reflows to the new width, and the height can be increased
+independently. The finished block grows when necessary to keep all text visible.
+The temporary offline browser preview changes its CSS width during the drag;
+it does not regenerate PDF on each pointer movement. On release a compiler
+builds the new vector appearance before publishing a single undoable edit. If
+compilation fails or the editor closes, the previous saved block remains intact.
+PDF export imports the active appearance as a vector form, retaining embedded
+fonts, text and formula paths. The browser preview is created on selection and
+may need time to load on the tablet; background preparation waits for a quiet
+handwriting interval, while an explicit resize starts it immediately. Physical
+responsiveness is not yet measured.
 
 From **0.35.0-alpha.5**, a note uses one persistent ordinary View for paper,
 PDF backgrounds, figures/Markdown and saved handwriting. When Markdown first
@@ -88,7 +95,8 @@ commits and surface recreation. **Alpha.5's optical result and live writing
 on the transparent surface still need physical tablet confirmation.**
 
 Each block accepts up to 128 KiB of UTF-8 source and 4 MiB per appearance.
-Layout uses a 640 CSS-pixel width and a maximum height of 16,384 pixels.
+New blocks start at 640 CSS pixels wide. Reflow uses widths from 160 to 1,600 CSS
+pixels and a maximum height of 16,384 pixels.
 Oversized blocks should be split. Existing per-page object and snapshot limits
 still apply, and reported failures preserve the source draft.
 

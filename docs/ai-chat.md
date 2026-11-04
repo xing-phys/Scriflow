@@ -1,4 +1,4 @@
-# AI chat — 0.37.0-alpha.2
+# AI chat — 0.37.0-alpha.4
 
 Open **Settings → AI chat** from the time/battery/Wi-Fi pill. Choose OpenAI,
 Anthropic, Google Gemini, DeepSeek, or **Custom (OpenAI compatible)**. Enter
@@ -96,6 +96,8 @@ Chats and notes share their actual corner controls, gestures and window geometry
 - **Size:** Smaller pane, Equal split / Reset size, or Larger pane.
 
 Windows keep independent conversations, drafts, models and pending replies.
+Touching an overlapping chat focuses it and brings it in front after the
+current touch gesture. Its relative order is restored with the windows.
 Minimizing preserves a reply already requested with Send and releases the
 Markdown WebView until restoration. Closing stops that window's request and
 keeps its saved history and draft. Other windows continue independently.
@@ -104,9 +106,9 @@ restore after rotation, Settings, backgrounding and app reopen. Leaving the
 editor stops pending requests; interrupted questions wait for an explicit Retry.
 At most 64 chat windows can be retained at once; close one to free a slot.
 
-The window header contains its conversation title and Copy control. New chat
-and History live in the toolbox tray; AI settings open from the normal app
-Settings. There is no settings icon in the chat window.
+The conversation has no title bar. New chat and History live in the toolbox
+tray; AI settings open from the normal app Settings. The bottom-left window
+options menu includes **Copy last AI reply**.
 
 Tap the **model name at the bottom**, below the message field, to choose a saved
 model for a new floating chat. This control shows the model's friendly name;
@@ -133,10 +135,10 @@ Replies appear as complete messages, avoiding token-by-token refresh on e-ink.
 The chat reuses the note-block Markdown engine for headings, lists, tables,
 highlighted code, LaTeX/MathJax, Mermaid diagrams, and multilingual text.
 Use `$…$` and `$$…$$` for inline and display math. Existing rendered turns stay
-attached when a follow-up arrives. **Copy** copies the latest AI answer as
-original Markdown; ordinary text selection also works. Chat Markdown does not
-open links or load remote images. A rendering problem retains the original
-reply, which remains available through Copy.
+attached when a follow-up arrives. **Copy last AI reply** in the window options
+copies the latest answer as original Markdown; ordinary text selection also
+works. Chat Markdown does not open links or load remote images. A rendering
+problem retains the original reply, which remains available through that menu.
 
 ## Saved sessions
 
@@ -186,8 +188,8 @@ Selected Markdown appends its original source to the message field. Selected
 handwriting becomes a tightly cropped PNG containing only the selected strokes,
 with the native pressure outlines and white background. Images append a copy
 of their source pixels. Image copies are bounded to 2048 pixels per edge and
-1 MiB each, downscaling if necessary. Up to four images can accompany a message;
-the chat has an 8 MiB total image budget in addition to its text budget.
+1 MiB each, downscaling if necessary. Up to four attachments can accompany a
+message; the chat has a 16 MiB total attachment budget in addition to text.
 
 Pending images appear as removable **Ink/Image ×** chips above the message
 field. Review them, add your question, and tap the **send arrow**. Sent images appear in
@@ -197,9 +199,26 @@ changing the in-flight request. Unsent image drafts survive closing and are
 restored when their session is reopened from History.
 Your selected provider and model must support image input to analyze images.
 
+Tap **+** to the left of the message field and choose a notebook to attach all
+of its pages, handwriting, figures and source PDF content as a PDF snapshot.
+Each notebook PDF is limited to 8 MiB. If the notebook changes during export,
+preparation fails and can be retried; no partial attachment is sent. Attaching
+does not contact the provider. The finished notebook appears as its own
+removable chip and is sent only with the message.
+
+OpenAI and Anthropic receive notebook PDFs using their documented
+[file](https://developers.openai.com/api/docs/guides/file-inputs) and
+[document](https://platform.claude.com/docs/en/build-with-claude/pdf-support)
+formats. Standard Gemini uses its [native document API](https://ai.google.dev/gemini-api/docs/generate-content/document-processing)
+for chats containing PDFs; set its thinking effort to Automatic for these
+requests. A custom OpenAI-compatible endpoint may support OpenAI's file format.
+DeepSeek and nonstandard Gemini endpoints cannot receive these PDF parts here;
+Send explains the limitation and leaves the draft intact. A model must support
+the relevant visual/document input, and provider limits still apply.
+
 ## Data and request handling
 
-Sending transmits this chat's text, explicitly appended image history, and the app's Markdown
+Sending transmits this chat's text, explicitly attached image and notebook history, and the app's Markdown
 formatting instructions directly to the configured provider over HTTPS.
 Scriflow does not upload handwriting, notes, figures or PDFs automatically.
 Paste text or use the selection's append icon to share it, then press the send arrow.
@@ -223,10 +242,11 @@ credentials or full transcripts. Uninstalling or clearing app storage removes
 these local settings and histories.
 
 Each session is bounded to 80 messages, 128 KiB of UTF-8 per message, and 1 MiB
-total including the draft, with a separate 8 MiB image budget. There is no
+total including the draft, with a separate 16 MiB attachment budget. There is no
 automatic summarization or mixing of sessions. Session archive format 1 wraps
-the existing version-2 conversation snapshot with checksummed metadata. Earlier
-AI APKs cannot read these session archives; notebook and backup format 8 is
+a checksummed conversation snapshot. PDF-bearing snapshots or snapshots with
+more than 8 MiB of attachments use version 3, which older APKs cannot read;
+ordinary smaller text/image chats retain version 2. Notebook and backup format 8 is
 unchanged. Questions and attachments are saved atomically before a provider
 request starts. Storage errors retain the in-memory text and offer Retry/Save;
 opening another window flushes the source draft and leaves its controller intact.
@@ -282,8 +302,8 @@ supported effort parameters, bounded replies and editable context rejections.
 Manual-parameter fixtures cover save/reopen, actual request fields, refresh,
 invalid edits and reset to the newest defaults. Production model-row callbacks
 verify name-only labels, inline selection, matching gears and worker guards.
-Fourteen real-browser cases
-cover note/chat Markdown, math, CJK, diagrams, follow-up retention, local image
+Sixteen real-browser cases
+cover live reflow, note/chat Markdown, math, CJK, diagrams, follow-up retention, local image
 previews, invalid image URLs, reset, sanitization and zero external requests.
 
 The host AI test bootstrap downloads checksum-pinned JSON-java **20240303**
@@ -292,8 +312,10 @@ No new runtime dependency is added. Prepare tablet updates only with
 `scripts/build-release.sh` and the permanent release signing certificate.
 Page and backup format 8 are unchanged.
 
-The completed build passes **273,098 JVM assertions in 108 suites**, fourteen
-browser cases, debug/release lint and builds, and permanent-signer verification.
+The alpha.4 validation run passed **276,370 JVM assertions in 119 suites**,
+sixteen browser cases, debug/release lint and builds, and permanent-signer
+verification. The final composer and multitouch cancellation changes were
+rerun in their focused fixtures after the full suite.
 The new action icons were visually inspected from the production vector paths.
 The Markdown chat screenshot was visually inspected for text, equations,
 tables, code, diagrams and Chinese; it does not verify the native panel on e-ink.

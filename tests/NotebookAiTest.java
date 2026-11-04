@@ -216,6 +216,37 @@ public final class NotebookAiTest {
         check(chat.messages.isEmpty()&&chat.draftImages.size()==1,"Append prepares a draft without sending or changing history");
         File directory=Files.createTempDirectory("ai-images-").toFile(); String profile=config(NotebookAiConfig.Provider.OPENAI).profile();
         try {
+            byte[] document="%PDF-1.4\nnotebook fixture\n%%EOF".getBytes(StandardCharsets.US_ASCII);
+            NotebookAiAttachment book=new NotebookAiAttachment("Notebook: Quantum",document);
+            NotebookAiConversation bookChat=new NotebookAiConversation().draft("Summarize").attach(image).attach(book);
+            NotebookAiConversation restoredBook=NotebookAiConversation.fromSnapshot(NotebookAiConversation.snapshot(bookChat));
+            check(restoredBook.draftImages.get(1).isPdf()&&Arrays.equals(restoredBook.draftImages.get(1).bytes(),document),"whole notebook PDF and image survive draft recovery");
+            restoredBook=restoredBook.question("Summarize all pages");
+            for(NotebookAiConfig.Provider provider:Arrays.asList(NotebookAiConfig.Provider.OPENAI,NotebookAiConfig.Provider.ANTHROPIC)) {
+                NotebookAiConfig cfg=config(provider);NotebookAiClient.validateAttachments(cfg,restoredBook.messages);
+                JSONArray parts=NotebookAiClient.request(cfg,restoredBook.messages).getJSONArray("messages").getJSONObject(provider==NotebookAiConfig.Provider.ANTHROPIC?0:1).getJSONArray("content");
+                JSONObject file=parts.getJSONObject(2);
+                if(provider==NotebookAiConfig.Provider.ANTHROPIC)check(file.getString("type").equals("document")&&file.getJSONObject("source").getString("data").equals(book.base64()),"Anthropic receives the complete PDF as a document");
+                else check(file.getString("type").equals("file")&&file.getJSONObject("file").getString("file_data").equals(book.dataUrl()),"OpenAI receives the complete PDF as a file");
+            }
+            final NotebookAiConversation unsupported=restoredBook;
+            NotebookAiConfig gemini=config(NotebookAiConfig.Provider.GEMINI);
+            NotebookAiClient.validateAttachments(gemini,unsupported.messages);
+            Connection geminiPdf=new Connection();geminiPdf.response="{\"candidates\":[{\"content\":{\"parts\":[{\"thought\":true,\"text\":\"private\"},{\"text\":\"**Notebook answer**\"}]},\"finishReason\":\"MAX_TOKENS\"}]}";
+            NotebookAiClient.Reply nativeReply=new NotebookAiClient(url->{check(url.toString().equals("https://generativelanguage.googleapis.com/v1beta/models/"+gemini.model+":generateContent"),"Gemini PDF uses only its standard native endpoint");return geminiPdf;})
+                .complete(gemini,unsupported.messages,new NotebookAiClient.Cancellation());
+            check(nativeReply.text.equals("**Notebook answer**")&&nativeReply.truncated,"Gemini native response omits thoughts and reports truncation");
+            check(geminiPdf.getRequestProperty("x-goog-api-key").equals(gemini.apiKey)&&geminiPdf.getRequestProperty("Authorization")==null,"Gemini native credentials remain in their documented header");
+            JSONArray nativeParts=new JSONObject(new String(geminiPdf.output.toByteArray(),StandardCharsets.UTF_8)).getJSONArray("contents").getJSONObject(0).getJSONArray("parts");
+            check(nativeParts.getJSONObject(1).getJSONObject("inlineData").getString("mimeType").equals("image/png")&&nativeParts.getJSONObject(2).getJSONObject("inlineData").getString("data").equals(book.base64()),"Gemini receives both the image and complete notebook PDF");
+            NotebookAiConfig proxy=new NotebookAiConfig(NotebookAiConfig.Provider.GEMINI,"https://proxy.example/v1",gemini.model,gemini.apiKey);
+            fails(IOException.class,()->NotebookAiClient.validateAttachments(proxy,unsupported.messages));
+            NotebookAiModel manual=gemini.specs.edit(0,0,0,0,-1,"low,high","high");
+            NotebookAiConfig effort=new NotebookAiConfig(gemini.provider,gemini.baseUrl,gemini.model,gemini.apiKey,manual);
+            fails(IOException.class,()->NotebookAiClient.validateAttachments(effort,unsupported.messages));
+            fails(IOException.class,()->NotebookAiClient.validateAttachments(config(NotebookAiConfig.Provider.DEEPSEEK),unsupported.messages));
+            NotebookAiConversation recoveredSent=NotebookAiConversation.fromSnapshot(NotebookAiConversation.snapshot(restoredBook));
+            check(recoveredSent.messages.get(0).images.get(1).isPdf(),"sent notebook PDF survives chat history recovery");
             NotebookAiConversation.write(directory,profile,chat); NotebookAiConversation restored=NotebookAiConversation.read(directory,profile);
             check(restored.draft.equals("Question")&&Arrays.equals(restored.draftImages.get(0).bytes(),image.bytes()),"Unsent images and prompt survive reopening");
             check(restored.removeImage(0).draftImages.isEmpty(),"User can remove an attachment before Send");

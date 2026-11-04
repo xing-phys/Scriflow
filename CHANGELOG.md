@@ -6,6 +6,29 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.37.0-alpha.4 — Flexible Markdown and compact chat (2026-11-04)
+
+- Resize Markdown independently in both directions. A lightweight offline browser
+  preview reflows existing content during a drag; the completed layout is saved
+  as a vector appearance with editable source and one undoable change. Height
+  grows when needed to keep the text visible.
+- Remove the chat header, shrink its composer and controls, outline each
+  removable attachment, and keep Copy last AI reply in the window options.
+  Tapping an overlapping chat or note brings it forward after the contact
+  completes; active note surfaces use the existing paused-writer handoff.
+- Add a + action for attaching an entire selected notebook as a bounded PDF.
+  OpenAI and Anthropic use their document formats; standard Gemini uses its
+  native document API with automatic thinking. Custom compatible endpoints may
+  accept OpenAI-style PDF files. DeepSeek rejects PDFs locally, retaining the draft.
+- Show available undo/redo after pen, eraser and lasso editing, including a
+  completed selection move. Preserve native input barriers and quiet periods.
+- Bump versionCode to 92; notebook page and backup formats remain unchanged.
+  New PDF-bearing chat snapshots use a newer conversation format. Physical
+  e-ink, window stacking, IME, and live resizing remain to be tested on tablet.
+- Pass 276,370 JVM assertions in 119 suites and sixteen real-browser cases;
+  rerun the final composer and multitouch cancellation checks after review.
+  Debug/release lint and builds pass, and the APK matches the permanent signer.
+
 ## 0.37.0-alpha.3 — Protect handwriting bursts (2026-11-03)
 
 - Share one writing coordinator across optional display updates. Protect active

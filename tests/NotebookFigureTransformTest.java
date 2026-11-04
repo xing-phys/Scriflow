@@ -33,6 +33,19 @@ public final class NotebookFigureTransformTest {
             check(Math.abs(enlarged.cornerX(0)-ax)<.002 && Math.abs(enlarged.cornerY(0)-ay)<.002
                 && Math.abs(enlarged.width/enlarged.height-value.width/value.height)<.001, "rotated resize fixes the opposite corner and aspect ratio");
         }
+        byte[] pdf="%PDF-1.4\nfixture\n%%EOF".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        NotebookMarkdown markdown=new NotebookMarkdown("A block that wraps",false,640,240,pdf,640,240,pdf);
+        NotebookFigure block=NotebookFigure.markdown(UUID.randomUUID(),150,140,200,37,markdown);
+        float ax=block.cornerX(0),ay=block.cornerY(0),w=310,h=55;
+        NotebookFigure stretched=NotebookFigureGeometry.resize(block,ax+w*block.cosine()-h*block.sine(),ay+w*block.sine()+h*block.cosine());
+        check(Math.abs(stretched.width-w)<.001&&Math.abs(stretched.height-h)<.001,"Markdown resize follows both pointer axes independently");
+        check(Math.abs(stretched.cornerX(0)-ax)<.001&&Math.abs(stretched.cornerY(0)-ay)<.001,"rotated Markdown resize keeps its opposite corner fixed");
+        int layout=NotebookFigureGeometry.markdownWidth(block,stretched),minimum=NotebookFigureGeometry.markdownHeight(stretched,layout);
+        check(layout==992&&minimum==176,"reflow retains text scale while passing the requested height to the renderer");
+        NotebookMarkdown reflowed=new NotebookMarkdown(markdown.source,false,layout,350,pdf,layout,350,pdf);
+        NotebookFigure fitted=NotebookFigureGeometry.reflow(stretched,reflowed);
+        check(Math.abs(fitted.cornerX(0)-ax)<.001&&Math.abs(fitted.cornerY(0)-ay)<.001&&Math.abs(fitted.height-w*350/layout)<.001,"reflow grows to fit the content without moving its anchor or stretching text");
+        check(NotebookFigureGeometry.markdownWidth(block,block.placed(block.x,block.y,2,block.height))==160,"extreme widths respect browser layout bounds");
         NotebookFigure portrait = original.placed(-150,200,500,100).turned(90);
         NotebookPage.empty().withSize(200,600).withFigures(Collections.singletonList(portrait));
         check(portrait.left()>=0&&portrait.right()<=200&&portrait.width>200,"valid rotated images can have a negative unrotated origin");

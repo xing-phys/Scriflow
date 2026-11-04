@@ -11,6 +11,7 @@ import java.util.*;
 final class NotebookAiWindows {
     interface Listener {
         boolean allowed();boolean contactStart();void contactEnd();void boundsChanged();void workspaceChanged();
+        void attachNotebook(NotebookAiChat chat);void chatRaised();
     }
     private final Activity activity;
     private final FrameLayout root;
@@ -21,6 +22,7 @@ final class NotebookAiWindows {
     private final NotebookNoteTray tray;
     private final android.content.SharedPreferences prefs;
     private boolean suspended=true;
+    private int frontId;
     private String saved;
     private AlertDialog menu;
     private NotebookAiChat menuOwner;
@@ -102,7 +104,12 @@ final class NotebookAiWindows {
             public boolean contactStart(){return !suspended&&listener.contactStart();}
             public void contactEnd(){listener.contactEnd();}
             public void boundsChanged(Rect rect){bounds.put(id,new Rect(rect));listener.boundsChanged();}
-            public void activated(){if(workspace.find(id)!=null){workspace.focus(state);persist();}}
+            public boolean activated(){
+                if(workspace.find(id)==null)return false;
+                boolean raise=frontId!=id;frontId=id;listener.chatRaised();workspace.focus(state);persist();return raise;
+            }
+            public boolean mayRaise(){return frontId==id;}
+            public void attachNotebook(NotebookAiChat chat){listener.attachNotebook(chat);}
             public void minimized(){if(workspace.find(id)!=null){workspace.minimize(state);persist();positionAll();listener.workspaceChanged();}}
             public void options(){showMenu(state,owner[0]);}
             public void open(NotebookAiConfig config,String sessionId,boolean rebind){NotebookAiWindows.this.open(config,sessionId,rebind);}
@@ -121,7 +128,9 @@ final class NotebookAiWindows {
     private void show(NotebookAiWorkspace.Window state,boolean raise){
         if(state==null||suspended)return;NotebookAiChat chat=windows.get(state.pane.notebookId);
         if(chat==null){chat=create(state);chat.show();}else if(raise)chat.raise();else chat.show();
+        frontId=state.pane.notebookId;listener.chatRaised();
     }
+    void noteRaised(){frontId=0;}
     private void restore(NotebookAiWorkspace.Window state){if(state==null)return;workspace.focus(state);show(state,true);persist();positionAll();listener.workspaceChanged();}
     private String windowName(NotebookAiWorkspace.Window state){if(state==null)return "Chat";String name=state.title;if(name.equals("New chat"))name+=" "+(state.pane.notebookId-1);return name+" · "+state.model;}
     private void positionAll(){if(suspended)return;for(NotebookAiChat chat:new ArrayList<>(windows.values()))chat.position();listener.boundsChanged();}
@@ -132,7 +141,7 @@ final class NotebookAiWindows {
     }
     String snapshot(){persist();return workspace.encode();}
     void suspend(){
-        if(suspended)return;persist();suspended=true;tray.hide();if(menu!=null)menu.dismiss();if(history!=null)history.close();
+        if(suspended)return;persist();suspended=true;frontId=0;tray.hide();if(menu!=null)menu.dismiss();if(history!=null)history.close();
         for(NotebookAiChat chat:new ArrayList<>(windows.values()))chat.close();windows.clear();bounds.clear();listener.boundsChanged();
     }
     void append(String source,NotebookAiAttachment image){
@@ -146,11 +155,14 @@ final class NotebookAiWindows {
     }
     private void showMenu(NotebookAiWorkspace.Window state,NotebookAiChat chat){
         if(menu!=null){chat.optionsFinished();return;}final int[] choice={-1};menuOwner=chat;
-        menu=new AlertDialog.Builder(activity).setTitle(windowName(state)).setItems(NotebookWindowControls.options("chat"),(d,index)->choice[0]=index).setNegativeButton("Cancel",null).create();
+        String[] standard=NotebookWindowControls.options("chat"),items=Arrays.copyOf(standard,standard.length+1);
+        items[standard.length]="Copy last AI reply";
+        menu=new AlertDialog.Builder(activity).setTitle(windowName(state)).setItems(items,(d,index)->choice[0]=index).setNegativeButton("Cancel",null).create();
         menu.setOnDismissListener(d->{menu=null;menuOwner=null;
             if(!suspended&&workspace.find(state.pane.notebookId)!=null){
                 if(choice[0]==0){showPosition(state,chat);return;}
-                if(choice[0]==1)chat.minimize();else if(choice[0]==2)chat.close();else if(choice[0]>=3){workspace.geometry.resize(state.pane,choice[0]==3?-.1f:.1f,choice[0]==4);persist();positionAll();listener.workspaceChanged();}
+                if(choice[0]==1)chat.minimize();else if(choice[0]==2)chat.close();else if(choice[0]==standard.length)chat.copyLastReply();
+                else if(choice[0]>=3&&choice[0]<standard.length){workspace.geometry.resize(state.pane,choice[0]==3?-.1f:.1f,choice[0]==4);persist();positionAll();listener.workspaceChanged();}
             }chat.optionsFinished();
         });NotebookUi.show(menu);
     }

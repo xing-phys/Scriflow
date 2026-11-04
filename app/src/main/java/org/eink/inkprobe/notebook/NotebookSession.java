@@ -22,6 +22,7 @@ final class NotebookSession {
     interface Callback { void complete(NotebookPage page, IOException error); }
     interface PreviewCallback { void complete(Bitmap bitmap, IOException error); }
     interface LassoCallback { void complete(NotebookLasso.Selection selection, IOException error); }
+    interface AiNotebookCallback { void complete(NotebookAiAttachment attachment, IOException error); }
     static final class PreviewRequest {
         private volatile boolean cancelled;
         void cancel() { cancelled = true; }
@@ -347,6 +348,61 @@ final class NotebookSession {
                 expectedNotebook, count, expectedRevision, number), source, headings));
         });
         return job;
+    }
+
+    /** Export the selected book on the export worker, with page reads serialized through the writer. */
+    void attachNotebook(Context context,int id,String name,AiNotebookCallback callback) {
+        final Context app=context.getApplicationContext();
+        worker.execute(()->{
+            try {
+                if(document.error()!=null)throw new IOException("Save the notebook before attaching it",document.error());
+                final long expectedRevision=revision;
+                final int count=document.companionCount(id);
+                final File source=document.companionSourcePdf(id);
+                final List<NotebookOutline.Entry> outline=document.companionOutline(id);
+                tasks.exports.execute(()->{
+                    NotebookAiAttachment attachment=null;IOException problem=null;
+                    try {
+                        NotebookPdfEngine.initialize(app);
+                        java.io.ByteArrayOutputStream bytes=new java.io.ByteArrayOutputStream();
+                        java.io.OutputStream bounded=new java.io.FilterOutputStream(bytes) {
+                            private int size;
+                            private void reserve(int length)throws IOException {
+                                if(length<0||length>NotebookAiAttachment.MAX_PDF_BYTES-size)throw new IOException("Notebook PDF exceeds the 8 MiB attachment limit");
+                                size+=length;
+                            }
+                            @Override public void write(int value)throws IOException {reserve(1);out.write(value);}
+                            @Override public void write(byte[] value,int offset,int length)throws IOException {reserve(length);out.write(value,offset,length);}
+                        };
+                        NotebookPdfEngine.write(bounded,source,name,count,number->readAiNotebookPage(id,count,expectedRevision,number),null,
+                            NotebookStrokeRenderer::outline,outline);
+                        bounded.flush();
+                        String label="Notebook: "+name;
+                        while(label.getBytes(java.nio.charset.StandardCharsets.UTF_8).length>120)
+                            label=label.substring(0,label.offsetByCodePoints(label.length(),-1));
+                        attachment=new NotebookAiAttachment(label,bytes.toByteArray());
+                    } catch(IOException|RuntimeException|OutOfMemoryError error) {
+                        problem=new IOException(error.getMessage()==null?"Could not prepare the notebook attachment":error.getMessage(),error);
+                    }
+                    final NotebookAiAttachment result=attachment;final IOException failure=problem;
+                    main.post(()->callback.complete(result,failure));
+                });
+            } catch(IOException|RuntimeException error) {
+                IOException problem=new IOException(error.getMessage()==null?"Could not open the notebook":error.getMessage(),error);
+                main.post(()->callback.complete(null,problem));
+            }
+        });
+    }
+    private NotebookPage readAiNotebookPage(int id,int count,long expectedRevision,int number)throws IOException {
+        try {
+            return worker.submit(()->{
+                if(revision!=expectedRevision||document.companionCount(id)!=count)
+                    throw new IOException("The notebook changed while preparing its attachment. Try again.");
+                if(document.error()!=null)throw new IOException("Save the notebook before attaching it",document.error());
+                return document.companionPage(id,number);
+            }).get();
+        } catch(InterruptedException error) {Thread.currentThread().interrupt();throw new IOException("Notebook attachment interrupted",error);}
+        catch(ExecutionException error) {if(error.getCause() instanceof IOException)throw (IOException)error.getCause();throw new IOException("Could not read the notebook",error.getCause());}
     }
 
     interface TransferCallback { void complete(IOException error); }

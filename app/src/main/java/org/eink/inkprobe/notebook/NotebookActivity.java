@@ -60,6 +60,8 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
     private FrameLayout canvas, workspaceRoot, workspaceArea;
     private final NotebookWorkspace workspace = new NotebookWorkspace();
     private final Map<NotebookWorkspace.Pane, NotebookCompanion> noteWindows = new LinkedHashMap<>();
+    private NotebookWorkspace.Pane frontNote;
+    private long windowStackRevision;
     private NotebookNoteTray noteTray;
     private NotebookStylusGesture stylusGesture;
     private final NotebookStylusShortcut stylusShortcut = new NotebookStylusShortcut();
@@ -70,6 +72,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
     private int pendingReadingPage;
     private Runnable whenReady;
     private NotebookMarkdownSourceEditor markdownEditor;
+    private NotebookMarkdownRenderer markdownResizeRenderer;
     private NotebookMarkdownDraft pendingMarkdownDraft;
     private boolean markdownRecoveryChecked, markdownRecovering;
     private final Map<UUID,NotebookPdfReading.Request> cropRequests=new LinkedHashMap<>();
@@ -170,7 +173,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
     private long viewportRevision;
     private NotebookScrollStore.State reopenPosition;
     private NotebookPageOverview overview;
-    private AlertDialog outlineMenu, outlineChild, externalLinkMenu;
+    private AlertDialog outlineMenu, outlineChild, externalLinkMenu, aiNotebookPicker;
     private final NotebookViewHistory viewHistory = new NotebookViewHistory();
     private final NotebookLinkTapGesture linkTap = new NotebookLinkTapGesture();
     private int writingRevision;
@@ -464,7 +467,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
                     writingGate.contact(down);
                     if (down) {
                         deviceStatus.setWriting(true);
-                        writingHistory = tool == NotebookInk.Tool.PEN;
+                        writingHistory = true;
                         ++writingRevision; linkTap.cancel(); clearPdfText();
                         if (widthPopup != null && !widthContact) widthPopup.dismiss();
                     }
@@ -1221,6 +1224,8 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
                 pauseForEdit();if(shownError!=null)aiContact=false;return aiContact;
             }
             public void contactEnd(){finishAiContact();}
+            public void attachNotebook(NotebookAiChat chat){chooseAiNotebook(chat);}
+            public void chatRaised(){frontNote=null;++windowStackRevision;}
             public void boundsChanged(){
                 List<Rect> current=aiWindows==null?java.util.Collections.emptyList():aiWindows.exclusions();
                 if(aiExclusions.equals(current))return;aiExclusions=current;
@@ -1234,6 +1239,27 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
     private void toggleAiChat(){
         if(!canEdit()||aiWindows==null)return;if(noteTray!=null)noteTray.hide();
         aiWindows.toggle(floatingTools.button(NotebookFloatingTools.Action.AI_CHAT),floatingTools.bounds(),floatingTools.isVertical());
+    }
+    private void chooseAiNotebook(NotebookAiChat chat){
+        if(aiNotebookPicker!=null){chat.optionsFinished();return;}
+        List<NotebookCatalog.Entry> choices=new ArrayList<>();
+        for(NotebookCatalog.Entry entry:session.entries())if(entry.status==NotebookCatalog.ACTIVE)choices.add(entry);
+        if(choices.isEmpty()){chat.optionsFinished();Toast.makeText(this,"No notebooks available",Toast.LENGTH_SHORT).show();return;}
+        String[] labels=new String[choices.size()];for(int i=0;i<choices.size();i++)labels[i]=choices.get(i).name;
+        final int[] selected={-1};
+        aiNotebookPicker=new AlertDialog.Builder(this).setTitle("Attach a notebook")
+            .setItems(labels,(dialog,which)->selected[0]=which).setNegativeButton("Cancel",null).create();
+        aiNotebookPicker.setOnDismissListener(dialog->{
+            aiNotebookPicker=null;chat.optionsFinished();
+            if(selected[0]<0||!active)return;
+            NotebookCatalog.Entry book=choices.get(selected[0]);
+            session.attachNotebook(this,book.id,book.name,(attachment,error)->{
+                if(!active)return;
+                if(error!=null)Toast.makeText(this,error.getMessage(),Toast.LENGTH_LONG).show();
+                else chat.append("",attachment);
+            });
+        });
+        NotebookUi.show(aiNotebookPicker);
     }
     private void pauseAiChat(){if(aiWindows!=null)aiWindows.suspend();}
     private boolean applyChatDock(){return applyChatDock(false);}
@@ -1522,7 +1548,10 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         final int request = generation;
         List<NotebookViewport.EraseGesture> gestures = viewport.splitErase(path, radius, scrollY);
         if (!gestures.isEmpty()) activePage = gestures.get(0).pageId;
-        session.eraseViewport(gestures, (updated, error) -> finishEdit(request, updated, error));
+        session.eraseViewport(gestures, (updated, error) -> {
+            if(error==null&&active&&request==generation)writingHistory=true;
+            finishEdit(request, updated, error);
+        });
     }
 
     private void lasso(List<NotebookPage.Point> path) {
@@ -1554,12 +1583,13 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         final int request=generation;
         Map<Integer,List<NotebookPage.Point>> regions=viewport.splitRegion(path,scrollY);
         if(!regions.isEmpty())activePage=regions.keySet().iterator().next();
-        session.eraseRegionViewport(regions,(updated,error)->finishEdit(request,updated,error));
+        session.eraseRegionViewport(regions,(updated,error)->{if(error==null&&active&&request==generation)writingHistory=true;finishEdit(request,updated,error);});
     }
 
     private void finishLasso(int request, int id, NotebookLasso.Selection selected,
             IOException error, boolean keepOutline) {
         if (!active || request != generation) return;
+        if (error == null && tool == NotebookInk.Tool.LASSO) writingHistory = true;
         NotebookLasso.Selection previous = selection;
         selection = selected == null || selected.isEmpty() ? null : selected;
         selectionPage = id; activePage = id;
@@ -2611,6 +2641,14 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
             }
             public int writingRevision() { return writingRevision; }
             public void collapse() { collapsePane(pane, false); }
+            public void raised() { frontNote=pane;++windowStackRevision;if(aiWindows!=null)aiWindows.noteRaised(); }
+            public boolean shouldRaise(){return frontNote!=pane;}
+            public long stackRevision(){return windowStackRevision;}
+            public void raiseEditor(){
+                NotebookCompanion window=noteWindows.get(pane);
+                if(window==null||!canEdit()||changingWorkspace||!retainEditorFrame())return;
+                changeWorkspace(window::raisePopup);
+            }
             public void boundsChanged() { updateOverlayBounds(); }
             public boolean beginMove() {
                 if (!canEdit() || changingWorkspace) return false;
@@ -3093,6 +3131,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
     }
 
     private void pauseMarkdown() {
+        if(markdownResizeRenderer!=null){markdownResizeRenderer.close();markdownResizeRenderer=null;}
         if(markdownEditor!=null){pendingMarkdownDraft=markdownEditor.draft();markdownEditor.pause();markdownEditor=null;}
         markdownRecoveryChecked=false;
     }
@@ -3183,7 +3222,9 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
                 }
                 public void fallback(Canvas drawing, NotebookFigure figure) { figureImages.draw(drawing, figure); }
                 public void change(int source, UUID pageId, NotebookFigure before, int destination, NotebookFigure after) {
-                    commitFigure(source, destination, pageId, before, after, false);
+                    if(before.markdown!=null&&(Math.abs(before.width-after.width)>.001f||Math.abs(before.height-after.height)>.001f))
+                        resizeMarkdown(source,destination,pageId,before,after);
+                    else commitFigure(source, destination, pageId, before, after, false);
                 }
                 public void action(NotebookFigureEditor.Action action, int source, UUID pageId, NotebookFigure figure) {
                     if (action == NotebookFigureEditor.Action.AI_CHAT) {
@@ -3269,6 +3310,28 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         });
     }
 
+    private void resizeMarkdown(int source,int destination,UUID pageId,NotebookFigure before,NotebookFigure after) {
+        final NotebookFigureEditor owner=figureEditor;final int request=generation;
+        ink.pauseForEdit();editing=true;if(owner!=null)owner.saving();
+        int width=NotebookFigureGeometry.markdownWidth(before,after),height=NotebookFigureGeometry.markdownHeight(after,width);
+        try {
+            markdownResizeRenderer=new NotebookMarkdownRenderer(this,workspaceRoot,before.markdown.source,before.markdown.sourceMode,width,height,(value,error)->{
+                markdownResizeRenderer=null;
+                if(!active||request!=generation||owner!=figureEditor)return;
+                if(error!=null){
+                    Toast.makeText(this,error.getMessage(),Toast.LENGTH_LONG).show();
+                    if(owner!=null)owner.failed();finishEdit(request,session.current(),null);return;
+                }
+                NotebookFigure reflowed=NotebookFigureGeometry.reflow(after,value)
+                    .fitted(viewport.pageWidth(destination),viewport.pageHeight(destination));
+                commitFigure(source,destination,pageId,before,reflowed,false);
+            });
+        } catch(RuntimeException error) {
+            if(owner!=null)owner.failed();Toast.makeText(this,"Could not start Markdown reflow",Toast.LENGTH_LONG).show();
+            finishEdit(request,session.current(),null);
+        }
+    }
+
     private void dismissFigureEditor() {
         figureNavigationPreview = false; main.removeCallbacks(previewFrame);
         NotebookFigureEditor owner = figureEditor; figureEditor = null;
@@ -3345,6 +3408,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
 
     @Override protected void onPause() {
         writingGate.suspend();
+        if(aiNotebookPicker!=null)aiNotebookPicker.dismiss();
         writingHistory = false;
         // Keep paper visible beneath Eudic's transparent activity, with native input paused.
         if(retainDictionaryEditor()){super.onPause();return;}

@@ -44,7 +44,7 @@ final class NotebookAiConversation {
             for (NotebookAiAttachment image:message.images) imageBytes+=image.byteCount();
         }
         if (total>MAX_TOTAL_BYTES) throw new IllegalArgumentException("Chat is full. Start a new chat.");
-        if (imageBytes>NotebookAiAttachment.MAX_TOTAL_BYTES) throw new IllegalArgumentException("Chat images exceed 8 MiB. Start a new chat.");
+        if (imageBytes>NotebookAiAttachment.MAX_TOTAL_BYTES) throw new IllegalArgumentException("Chat attachments exceed 16 MiB. Start a new chat.");
         this.messages=Collections.unmodifiableList(new ArrayList<>(messages)); this.draft=draft;
         this.draftImages=Collections.unmodifiableList(new ArrayList<>(images));
     }
@@ -63,7 +63,7 @@ final class NotebookAiConversation {
         if (awaitingReply()) throw new IllegalArgumentException("Retry the last message or start a new chat");
         if (messages.size()>MAX_MESSAGES-2) throw new IllegalArgumentException("Chat is full. Start a new chat.");
         String content=text.trim();
-        if (content.isEmpty()&&!draftImages.isEmpty()) content="Please help me with the attached selection.";
+        if (content.isEmpty()&&!draftImages.isEmpty()) content="Please help me with the attached material.";
         List<Message> next=new ArrayList<>(messages); next.add(new Message("user",content,draftImages));
         return new NotebookAiConversation(next,"",Collections.emptyList());
     }
@@ -93,17 +93,17 @@ final class NotebookAiConversation {
         if (data.length>MAX_SNAPSHOT_BYTES) throw new IOException("Saved AI chat exceeds its size limit");
         try (DataInputStream in=new DataInputStream(new ByteArrayInputStream(data))) {
             int version=in.readInt();
-            if (version!=0x53414931&&version!=0x53414932) throw new IOException("Unrecognized saved AI chat");
+            if (version!=0x53414931&&version!=0x53414932&&version!=0x53414933) throw new IOException("Unrecognized saved AI chat");
             long expected=in.readLong(); CRC32 crc=new CRC32(); crc.update(data,12,data.length-12);
             if (expected!=crc.getValue()) throw new IOException("Saved AI chat is damaged");
             int count=in.readInt(); if (count<0||count>MAX_MESSAGES) throw new IOException("Invalid AI chat length");
             List<Message> messages=new ArrayList<>();
             for (int i=0;i<count;i++) {
                 String role=in.readBoolean()?"user":"assistant",content=readText(in);
-                messages.add(new Message(role,content,version==0x53414932?readImages(in):Collections.emptyList()));
+                messages.add(new Message(role,content,version!=0x53414931?readImages(in,version):Collections.emptyList()));
             }
             String draft=readText(in);
-            NotebookAiConversation value=new NotebookAiConversation(messages,draft,version==0x53414932?readImages(in):Collections.emptyList());
+            NotebookAiConversation value=new NotebookAiConversation(messages,draft,version!=0x53414931?readImages(in,version):Collections.emptyList());
             if (in.read()!=-1) throw new IOException("Unexpected saved AI chat data");
             return value;
         } catch (EOFException error) { throw new IOException("Saved AI chat is incomplete",error); }
@@ -113,6 +113,10 @@ final class NotebookAiConversation {
         publish(file(directory,profile),snapshot(chat));
     }
     static byte[] snapshot(NotebookAiConversation chat) throws IOException {
+        boolean newFormat=false;int attachmentBytes=0;
+        for(NotebookAiAttachment value:chat.draftImages){newFormat|=value.isPdf();attachmentBytes+=value.byteCount();}
+        for(Message message:chat.messages)for(NotebookAiAttachment value:message.images){newFormat|=value.isPdf();attachmentBytes+=value.byteCount();}
+        newFormat|=attachmentBytes>8*1024*1024;
         ByteArrayOutputStream body=new ByteArrayOutputStream();
         try (DataOutputStream out=new DataOutputStream(body)) {
             out.writeInt(chat.messages.size());
@@ -122,7 +126,7 @@ final class NotebookAiConversation {
         byte[] data=body.toByteArray(); CRC32 crc=new CRC32(); crc.update(data);
         ByteArrayOutputStream result=new ByteArrayOutputStream();
         try (DataOutputStream out=new DataOutputStream(result)) {
-            out.writeInt(0x53414932); out.writeLong(crc.getValue()); out.write(data);
+            out.writeInt(newFormat?0x53414933:0x53414932); out.writeLong(crc.getValue()); out.write(data);
         }
         return result.toByteArray();
     }
@@ -143,14 +147,15 @@ final class NotebookAiConversation {
         out.writeInt(images.size());
         for (NotebookAiAttachment image:images) { writeText(out,image.name); byte[] data=image.bytes(); out.writeInt(data.length); out.write(data); }
     }
-    private static List<NotebookAiAttachment> readImages(DataInputStream in) throws IOException {
+    private static List<NotebookAiAttachment> readImages(DataInputStream in,int version) throws IOException {
         int count=in.readInt();
         if (count<0||count>NotebookAiAttachment.MAX_PER_MESSAGE) throw new IOException("Invalid AI image count");
         List<NotebookAiAttachment> images=new ArrayList<>();
         for (int i=0;i<count;i++) {
             String name=readText(in); int length=in.readInt();
-            if (length<8||length>NotebookAiAttachment.MAX_BYTES) throw new IOException("Invalid AI image size");
-            byte[] data=new byte[length]; in.readFully(data); images.add(new NotebookAiAttachment(name,data));
+            if (length<8||length>(version==0x53414932?NotebookAiAttachment.MAX_BYTES:NotebookAiAttachment.MAX_PDF_BYTES)) throw new IOException("Invalid AI attachment size");
+            byte[] data=new byte[length]; in.readFully(data); NotebookAiAttachment value=new NotebookAiAttachment(name,data);
+            if(version==0x53414932&&value.isPdf())throw new IOException("Invalid legacy AI image");images.add(value);
         }
         return images;
     }

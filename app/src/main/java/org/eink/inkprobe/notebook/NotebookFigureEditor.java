@@ -39,6 +39,7 @@ final class NotebookFigureEditor extends FrameLayout {
     private final Path outline = new Path();
     private final Handler main = new Handler(Looper.getMainLooper());
     private final NotebookFigureLayer images;
+    private NotebookMarkdownPreview markdownPreview;
     private final EnumMap<Action, NotebookIconButton> buttons = new EnumMap<>(Action.class);
     private final NotebookIconButton rotate, resize;
     private final ScaleGestureDetector scaleGesture;
@@ -76,9 +77,11 @@ final class NotebookFigureEditor extends FrameLayout {
         markdownActions();
         rotate = handle(NotebookIconDrawable.Icon.ROTATE, "Drag to rotate figure freely", 3);
         resize = handle(NotebookIconDrawable.Icon.RESIZE, "Drag to resize figure", 2);
+        setMarkdownPreview(figure);
         scaleGesture = new ScaleGestureDetector(context, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
             @Override public boolean onScale(ScaleGestureDetector detector) {
                 if (busy) return false;
+                if(markdownPreview!=null)markdownPreview.hide();
                 navigating = true; mode = 0; main.removeCallbacks(edgeScroll);
                 listener.navigate(0, 0, detector.getScaleFactor(), detector.getFocusX(), detector.getFocusY());
                 return true;
@@ -122,31 +125,40 @@ final class NotebookFigureEditor extends FrameLayout {
         prepareImage(); placeControls(); repaint();
     }
     void acknowledged(int target, NotebookFigure value) {
+        if(markdownPreview!=null)markdownPreview.hide();
         awaitingSave = false;
         previewing = false; restorePending = true;
-        page = storedPage = target; figure = stored = value; pageId = null;
+        page = storedPage = target; figure = stored = value; pageId = null;setMarkdownPreview(value);
         markdownActions();
         prepareImage(); placeControls(); repaint();
     }
     void saving() { busy = awaitingSave = true; placeControls(); }
-    void failed() { busy = awaitingSave = previewing = false; restorePending = true; page = storedPage; figure = stored; placeControls(); repaint(); }
+    void failed() { if(markdownPreview!=null)markdownPreview.hide();busy = awaitingSave = previewing = false; restorePending = true; page = storedPage; figure = stored; placeControls(); repaint(); }
     boolean omits(NotebookFigure value) { return previewing && stored.id.equals(value.id); }
     boolean covers(NotebookFigure value) { return (previewing || restorePending) && stored.id.equals(value.id); }
     /** Logical page coordinates; the complete scene keeps saved ink above the moving block. */
     void drawPreview(Canvas canvas, int number) {
         if (closed || number != page || !(previewing || restorePending)) return;
+        if(markdownPreview!=null&&markdownPreview.showing())return;
         if (imageReady) images.draw(canvas, figure); else listener.fallback(canvas, figure);
     }
     void nativeReady() { if (!busy && !previewing && !awaitingSave) { restorePending = false; repaint(); } }
     boolean isBusy() { return busy || restorePending || pointer >= 0 || pressedAction != null; }
     void cancel() { if (!isBusy()) listener.done(); }
     void dismiss() {
-        if (closed) return; closed = true; main.removeCallbacks(edgeScroll); images.close();
+        if (closed) return; closed = true; main.removeCallbacks(edgeScroll); images.close();if(markdownPreview!=null)markdownPreview.close();
         popup.dismiss();
     }
     private void prepareImage() {
         if (viewport == null || closed) return;
         imageReady = images.prepare(Collections.singletonList(NotebookFigureLayer.Request.inView(figure, viewport, page, scroll)));
+    }
+    private void setMarkdownPreview(NotebookFigure value) {
+        if(markdownPreview!=null&&!markdownPreview.matches(value.markdown)) {
+            removeView(markdownPreview.view);markdownPreview.close();markdownPreview=null;
+        }
+        if(markdownPreview==null&&value.markdown!=null)
+            markdownPreview=new NotebookMarkdownPreview((android.app.Activity)getContext(),this,value.markdown,()->{prepareImage();repaint();});
     }
     @Override public void draw(Canvas canvas) {
         if (closed) return;
@@ -263,6 +275,7 @@ final class NotebookFigureEditor extends FrameLayout {
         scaleGesture.onTouchEvent(event);
         if (event.getPointerCount() > 1) {
             navigating = true; mode = 0; page = storedPage; figure = stored; main.removeCallbacks(edgeScroll);
+            if(markdownPreview!=null)markdownPreview.hide();
             if (previewing) { previewing = false; restorePending = true; listener.preview(); }
             if (event.getActionMasked() == MotionEvent.ACTION_POINTER_UP) {
                 int remaining = event.getActionIndex() == 0 ? 1 : 0;
@@ -292,6 +305,7 @@ final class NotebookFigureEditor extends FrameLayout {
         }
         if (pointer < 0) return true;
         if (action == MotionEvent.ACTION_POINTER_DOWN || action == MotionEvent.ACTION_POINTER_UP) {
+            if(markdownPreview!=null)markdownPreview.hide();
             mode = 0; navigating = true; main.removeCallbacks(edgeScroll); return true;
         }
         if (action == MotionEvent.ACTION_MOVE || action == MotionEvent.ACTION_UP) {
@@ -308,8 +322,10 @@ final class NotebookFigureEditor extends FrameLayout {
             boolean changed = action == MotionEvent.ACTION_UP && moved && mode != 0 && !navigating;
             if (changed) {
                 figure = viewport.fitFigure(page,figure); saving();
+                if(mode==2&&markdownPreview!=null)markdownPreview.update(start,figure,viewport,page,scroll);
                 listener.change(storedPage, pageId, stored, page, figure);
             } else {
+                if(markdownPreview!=null)markdownPreview.hide();
                 page = storedPage; figure = stored; placeControls(); repaint();
                 if (previewing) { previewing = false; restorePending = true; listener.preview(); }
                 if (action == MotionEvent.ACTION_UP && outside && !moved && !navigating) listener.done();
@@ -335,7 +351,9 @@ final class NotebookFigureEditor extends FrameLayout {
                 figure = NotebookFigureGeometry.rotate(start, dx, dy, px, py);
             }
         }
-        prepareImage(); placeControls(); repaint();
+        if(mode==2&&markdownPreview!=null)markdownPreview.update(start,figure,viewport,page,scroll);
+        if(markdownPreview==null||!markdownPreview.showing())prepareImage();
+        placeControls(); repaint();
     }
     private void edgeScroll() {
         if (closed || busy || pointer < 0 || mode != 1) return;

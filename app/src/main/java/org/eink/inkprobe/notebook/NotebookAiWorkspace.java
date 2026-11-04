@@ -27,7 +27,7 @@ final class NotebookAiWorkspace {
         NotebookWorkspace.Pane pane=geometry.add(next++,NotebookWorkspace.Position.FLOATING);
         Window window=new Window(pane,sessionId,provider,url,model,rebind);windows.put(pane.notebookId,window);active=pane.notebookId;return window;
     }
-    void focus(Window window){require(window);window.pane.collapsed=false;active=window.pane.notebookId;}
+    void focus(Window window){require(window);window.pane.collapsed=false;windows.remove(window.pane.notebookId);windows.put(window.pane.notebookId,window);active=window.pane.notebookId;}
     void minimize(Window window){require(window);geometry.minimize(window.pane);}
     void close(Window window){require(window);geometry.close(window.pane);windows.remove(window.pane.notebookId);if(active==window.pane.notebookId){active=0;for(Window other:windows.values())active=other.pane.notebookId;}}
     private void require(Window window){if(window==null||windows.get(window.pane.notebookId)!=window)throw new IllegalArgumentException("Unknown chat window");}
@@ -58,9 +58,15 @@ final class NotebookAiWorkspace {
                 }catch(IllegalArgumentException ignored){}
             }
             if(in.read()!=-1)return;
-            for(Window old:valid){NotebookWorkspace.Pane pane=geometry.add(old.pane.notebookId,NotebookWorkspace.Position.FLOATING);
+            Map<Integer,Window> validById=new HashMap<>(),rebuilt=new HashMap<>();
+            for(Window old:valid)validById.put(old.pane.notebookId,old);
+            // Geometry has its own stable pane order; the window list records stacking order.
+            for(NotebookWorkspace.Pane restoredPane:restored.panes()){
+                Window old=validById.get(restoredPane.notebookId);if(old==null)continue;
+                NotebookWorkspace.Pane pane=geometry.add(old.pane.notebookId,NotebookWorkspace.Position.FLOATING);
                 pane.x=old.pane.x;pane.y=old.pane.y;pane.width=old.pane.width;pane.height=old.pane.height;pane.split=old.pane.split;pane.collapsed=old.pane.collapsed;
-                geometry.place(pane,old.pane.position);Window window=new Window(pane,old.sessionId,old.provider,old.url,old.model,old.rebind);window.title=old.title;windows.put(pane.notebookId,window);next=Math.max(next,pane.notebookId+1);}
+                geometry.place(pane,old.pane.position);Window window=new Window(pane,old.sessionId,old.provider,old.url,old.model,old.rebind);window.title=old.title;rebuilt.put(pane.notebookId,window);next=Math.max(next,pane.notebookId+1);}
+            for(Window old:valid)windows.put(old.pane.notebookId,rebuilt.get(old.pane.notebookId));
             if(restoredNext>=next&&restoredNext<Integer.MAX_VALUE)next=restoredNext;
             for(Window window:windows.values())active=window.pane.notebookId;
             if(windows.containsKey(restoredActive))active=restoredActive;

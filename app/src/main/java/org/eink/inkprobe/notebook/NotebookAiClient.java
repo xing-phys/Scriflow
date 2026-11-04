@@ -11,7 +11,7 @@ import org.json.*;
 final class NotebookAiClient {
     static final String SYSTEM="You are a helpful assistant in Scriflow, a notebook app. Answer in well-structured Markdown. "
         +"Use headings, lists, tables and fenced code blocks where useful. Use $...$ for inline math and $$...$$ for display math. "
-        +"Match the user's language. You can see this chat and explicitly attached selections, but cannot see the rest of their notebooks or PDFs.";
+        +"Match the user's language. You can see this chat and explicitly attached selections or notebooks, but cannot see other notebooks or PDFs.";
     interface Connections { HttpURLConnection open(URL url) throws IOException; }
     static final class Cancellation {
         private volatile boolean cancelled;
@@ -102,8 +102,10 @@ final class NotebookAiClient {
     Reply complete(NotebookAiConfig config,List<NotebookAiConversation.Message> history,Cancellation cancellation) throws IOException {
         config.validate(); cancellation.check();
         if (history.isEmpty() || !history.get(history.size()-1).role.equals("user")) throw new IOException("No message to send");
-        config.specs.validateRequest(history,config.specs.replyBudget(config.provider));
-        HttpURLConnection connection=connections.open(new URL(config.endpoint()));
+        config.specs.validateRequest(history,config.specs.replyBudget(config.provider));validateAttachments(config,history);
+        boolean gemini=usesNativeGemini(config,history);
+        String endpoint=gemini?"https://generativelanguage.googleapis.com/v1beta/models/"+config.model+":generateContent":config.endpoint();
+        HttpURLConnection connection=connections.open(new URL(endpoint));
         try {
             cancellation.attach(connection);
             connection.setInstanceFollowRedirects(false); connection.setConnectTimeout(20000); connection.setReadTimeout(180000);
@@ -113,8 +115,9 @@ final class NotebookAiClient {
             if (config.provider==NotebookAiConfig.Provider.ANTHROPIC) {
                 connection.setRequestProperty("Authorization","Bearer "+config.apiKey);
                 connection.setRequestProperty("anthropic-version","2026-10-21");
-            } else if (!config.apiKey.isEmpty()) connection.setRequestProperty("Authorization","Bearer "+config.apiKey);
-            byte[] body=NotebookAiConversation.bytes(request(config,history).toString());
+            } else if(gemini)connection.setRequestProperty("x-goog-api-key",config.apiKey);
+            else if (!config.apiKey.isEmpty()) connection.setRequestProperty("Authorization","Bearer "+config.apiKey);
+            byte[] body=NotebookAiConversation.bytes((gemini?geminiRequest(config,history):request(config,history)).toString());
             connection.setFixedLengthStreamingMode(body.length);
             try (OutputStream out=connection.getOutputStream()) { cancellation.check(); out.write(body); }
             cancellation.check(); int status=connection.getResponseCode();
@@ -130,7 +133,7 @@ final class NotebookAiClient {
                     :"Check the API base URL, model ID, and provider configuration in Settings.";
                 throw new IOException("AI provider returned HTTP "+status+". "+message);
             }
-            try (InputStream in=connection.getInputStream()) { return response(config,read(in,cancellation)); }
+            try (InputStream in=connection.getInputStream()) { String data=read(in,cancellation);return gemini?geminiResponse(data):response(config,data); }
         } catch (JSONException error) { throw new IOException("Provider returned an invalid chat response",error); }
         finally { cancellation.release(); connection.disconnect(); }
     }
@@ -160,7 +163,11 @@ final class NotebookAiClient {
             if (!message.images.isEmpty()) {
                 JSONArray parts=new JSONArray().put(new JSONObject().put("type","text").put("text",message.content));
                 for (NotebookAiAttachment image:message.images) {
-                    if (anthropic) parts.put(new JSONObject().put("type","image").put("source",new JSONObject()
+                    if(image.isPdf()&&anthropic)parts.put(new JSONObject().put("type","document").put("title",image.name).put("source",new JSONObject()
+                        .put("type","base64").put("media_type","application/pdf").put("data",image.base64())));
+                    else if(image.isPdf())parts.put(new JSONObject().put("type","file").put("file",new JSONObject()
+                        .put("filename",image.name+".pdf").put("file_data",image.dataUrl())));
+                    else if (anthropic) parts.put(new JSONObject().put("type","image").put("source",new JSONObject()
                         .put("type","base64").put("media_type","image/png").put("data",image.base64())));
                     else parts.put(new JSONObject().put("type","image_url").put("image_url",new JSONObject().put("url",image.dataUrl())));
                 }
@@ -169,6 +176,49 @@ final class NotebookAiClient {
             messages.put(new JSONObject().put("role",message.role).put("content",content));
         }
         return request.put("messages",messages);
+    }
+    static void validateAttachments(NotebookAiConfig config,List<NotebookAiConversation.Message> history)throws IOException {
+        if(!hasPdf(history))return;
+        if(config.provider==NotebookAiConfig.Provider.DEEPSEEK)
+            throw new IOException("DeepSeek's chat endpoint does not support whole-notebook PDFs. Choose an image-capable provider that supports PDF input.");
+        if(config.provider==NotebookAiConfig.Provider.GEMINI) {
+            if(!config.endpoint().equals(NotebookAiConfig.Provider.GEMINI.baseUrl+"/chat/completions")||!config.model.matches("[A-Za-z0-9._-]{1,200}"))
+                throw new IOException("Notebook PDFs require the standard Gemini endpoint and a valid Gemini model ID.");
+            if(!config.specs.effort.isEmpty())
+                throw new IOException("Set Gemini thinking effort to Automatic before sending a notebook PDF.");
+        }
+    }
+    private static boolean hasPdf(List<NotebookAiConversation.Message> history){
+        for(NotebookAiConversation.Message message:history)for(NotebookAiAttachment attachment:message.images)if(attachment.isPdf())return true;
+        return false;
+    }
+    private static boolean usesNativeGemini(NotebookAiConfig config,List<NotebookAiConversation.Message> history){
+        return config.provider==NotebookAiConfig.Provider.GEMINI&&hasPdf(history);
+    }
+    /** Gemini's OpenAI-compatible endpoint does not accept PDFs; use its native API only for those chats. */
+    static JSONObject geminiRequest(NotebookAiConfig config,List<NotebookAiConversation.Message> history)throws JSONException {
+        JSONArray contents=new JSONArray();
+        for(NotebookAiConversation.Message message:history) {
+            JSONArray parts=new JSONArray().put(new JSONObject().put("text",message.content));
+            for(NotebookAiAttachment attachment:message.images)parts.put(new JSONObject().put("inlineData",new JSONObject()
+                .put("mimeType",attachment.isPdf()?"application/pdf":"image/png").put("data",attachment.base64())));
+            contents.put(new JSONObject().put("role",message.role.equals("assistant")?"model":"user").put("parts",parts));
+        }
+        return new JSONObject().put("systemInstruction",new JSONObject().put("parts",new JSONArray().put(new JSONObject().put("text",SYSTEM))))
+            .put("contents",contents).put("generationConfig",new JSONObject().put("maxOutputTokens",config.specs.replyBudget(config.provider)));
+    }
+    static Reply geminiResponse(String data)throws IOException,JSONException {
+        JSONArray candidates=new JSONObject(data).optJSONArray("candidates");
+        if(candidates==null||candidates.length()==0)throw new IOException("Gemini returned no answer. Retry or choose another model.");
+        JSONObject candidate=candidates.getJSONObject(0),content=candidate.optJSONObject("content");
+        JSONArray parts=content==null?null:content.optJSONArray("parts");StringBuilder answer=new StringBuilder();
+        if(parts!=null)for(int i=0;i<parts.length();i++) {
+            JSONObject part=parts.getJSONObject(i);if(!part.optBoolean("thought",false))answer.append(part.optString("text",""));
+        }
+        String text=answer.toString();
+        if(text.trim().isEmpty())throw new IOException("Gemini returned no answer. Retry or choose another model.");
+        if(NotebookAiConversation.bytes(text).length>NotebookAiConversation.MAX_MESSAGE_BYTES)throw new IOException("AI reply exceeds 128 KiB. Start a new chat with a shorter request.");
+        return new Reply(text,candidate.optString("finishReason").equals("MAX_TOKENS"));
     }
     static Reply response(NotebookAiConfig config,String data) throws IOException,JSONException {
         JSONObject response=new JSONObject(data); String text,reason;

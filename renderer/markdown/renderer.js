@@ -45,7 +45,7 @@ md.renderer.rules.fence = (tokens, n, options, env, self) => {
 mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', maxTextSize: 32768,
   maxEdges: 500, theme: 'neutral', fontFamily: 'Roboto', htmlLabels: false,
   flowchart: { htmlLabels: false }, themeVariables: { fontFamily: 'Roboto', primaryTextColor: '#111' } });
-pdfMake.addFonts({
+if(window.pdfMake) pdfMake.addFonts({
   Roboto: { normal: 'Roboto-Regular.ttf', bold: 'Roboto-Medium.ttf', italics: 'Roboto-Italic.ttf', bolditalics: 'Roboto-MediumItalic.ttf' },
   ScriflowCode: { normal: 'Code-Regular.ttf', bold: 'Code-Bold.ttf', italics: 'Code-Regular.ttf', bolditalics: 'Code-Bold.ttf' },
   ScriflowCJK: { normal: 'CJK-Regular.otf', bold: 'CJK-Bold.otf', italics: 'CJK-Regular.otf', bolditalics: 'CJK-Bold.otf' }
@@ -119,6 +119,7 @@ let cjkReady = false;
 async function prepareCJK(body) {
   if (!eastAsian.test(body.textContent)) return;
   if (!cjkReady) {
+    if(window.pdfMake) {
     const vfs = {};
     for (const name of ['CJK-Regular.otf', 'CJK-Bold.otf']) {
       const response = await fetch(`fonts/${name}`); if (!response.ok) throw new Error('Cannot load the bundled CJK font');
@@ -127,7 +128,9 @@ async function prepareCJK(body) {
       vfs[name] = btoa(binary);
     }
     // addVirtualFileSystem replaces the active VFS; retain the text and code fonts too.
-    Object.assign(window.ScriflowFonts,vfs);pdfMake.addVirtualFileSystem(window.ScriflowFonts); cjkReady = true;
+    Object.assign(window.ScriflowFonts,vfs);pdfMake.addVirtualFileSystem(window.ScriflowFonts);
+    }
+    cjkReady = true;
   }
   const nodes = [], walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
   while (walker.nextNode()) if (eastAsian.test(walker.currentNode.textContent)) nodes.push(walker.currentNode);
@@ -191,11 +194,13 @@ async function renderContent(source, body, width, diagramPrefix='diagram') {
     return errors;
 }
 
-async function render(source, width) {
+async function render(source, width, minHeight=0) {
   if (result.phase === 'working') throw new Error('A Markdown render is already running');
   result = { phase: 'working' };
   try {
     const body = document.getElementById('block');
+    if (!Number.isFinite(minHeight) || minHeight < 0 || minHeight > 16384) throw new Error('Invalid Markdown block height');
+    body.style.minHeight = `${Math.round(minHeight)}px`;
     const errors = await renderContent(source, body, width);
     const rendered = await vectorAppearance(body);
     const code = document.createElement('pre'); code.className = 'md-source'; code.textContent = source || ' ';
@@ -203,6 +208,27 @@ async function render(source, width) {
     const original = await vectorAppearance(body);
     result = { phase: 'ready', rendered, original, warning: errors.join('\n').slice(0,1000) };
   } catch (error) { result = { phase: 'error', message: String(error && error.message || error).slice(0, 1000) }; }
+}
+
+// Keep a browser layout alive during a resize; changing CSS width does not
+// parse Markdown or regenerate PDF vectors on every pointer movement.
+async function preview(source, sourceMode, width) {
+  if (result.phase === 'working') return;
+  result = { phase: 'working' };
+  try {
+    const body=document.getElementById('block');body.style.minHeight='0';
+    if(sourceMode) {
+      if(typeof source!=='string'||new TextEncoder().encode(source).length>128*1024)throw new Error('Markdown source exceeds 128 KiB');
+      body.style.width=`${Math.round(width)}px`;body.textContent='';
+      const code=document.createElement('pre');code.className='md-source';code.textContent=source||' ';body.appendChild(code);
+      await prepareCJK(body);await document.fonts.ready;
+    } else await renderContent(source,body,width,'preview');
+    result={phase:'ready'};
+  } catch(error) { result={phase:'error',message:String(error?.message||error).slice(0,1000)}; }
+}
+function previewWidth(width) {
+  if(result.phase!=='ready'||!Number.isFinite(width)||width<160||width>1600)return;
+  document.getElementById('block').style.width=`${Math.round(width)}px`;
 }
 
 let chatMessages=[], chatRevision=0;
@@ -217,7 +243,7 @@ async function chat(messages) {
       if (message.images!==undefined && (!Array.isArray(message.images)||message.images.length>4)) throw new Error('Invalid chat images');
       for (const image of message.images||[]) {
         if (message.role!=='user'||typeof image.name!=='string'||image.name.length>120||typeof image.data!=='string'
-            ||image.data.length>1400000||!/^data:image\/png;base64,[A-Za-z0-9+/]+=*$/.test(image.data)) throw new Error('Invalid chat image');
+            ||(image.kind==='pdf'?image.data!=='':image.data.length>1400000||!/^data:image\/png;base64,[A-Za-z0-9+/]+=*$/.test(image.data))) throw new Error('Invalid chat attachment');
       }
     }
     const body=document.getElementById('block'); document.body.classList.add('chat');
@@ -240,6 +266,7 @@ async function chat(messages) {
         catch (error) { content.textContent=message.content; content.className='chat-plain'; errors.push('Could not format this reply; showing its Markdown source.'); }
       } else { content.textContent=message.content; content.className='chat-plain'; await prepareCJK(content); }
       for (const image of message.images||[]) {
+        if(image.kind==='pdf') { const label=document.createElement('p');label.className='chat-file';label.textContent=`📄 ${image.name}`;article.appendChild(label);continue; }
         const figure=document.createElement('figure'),preview=document.createElement('img'),caption=document.createElement('figcaption');
         figure.className='chat-image'; preview.src=image.data; preview.alt=image.name; caption.textContent=image.name;
         figure.append(preview,caption); article.appendChild(figure);
@@ -252,7 +279,7 @@ async function chat(messages) {
 }
 
 window.ScriflowMarkdown = {
-  render, chat,
+  render, preview, previewWidth, chat,
   info() { return { phase: result.phase, message: result.message, warning: result.warning,
     rw: result.rendered?.width, rh: result.rendered?.height, sw: result.original?.width, sh: result.original?.height,
     renderedLength: result.rendered?.pdf.length, sourceLength: result.original?.pdf.length }; },

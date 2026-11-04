@@ -124,7 +124,9 @@ final class NotebookMarkdownSourceEditor {
             }
             try{
                 Toast.makeText(activity,"Rendering Markdown…",Toast.LENGTH_SHORT).show();
-                renderer=new NotebookMarkdownRenderer(activity,root,current.source,sourceMode,640,(value,error)->{
+                int width=before==null?640:Math.max(160,Math.min(1600,Math.round(before.markdown.width())));
+                int height=before==null?0:NotebookFigureGeometry.markdownHeight(before,width);
+                renderer=new NotebookMarkdownRenderer(activity,root,current.source,sourceMode,width,height,(value,error)->{
                     NotebookMarkdownRenderer completed=renderer;renderer=null;
                     if(closed)return;
                     if(error!=null){failed(error);return;}
