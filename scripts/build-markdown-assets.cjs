@@ -38,8 +38,21 @@ async function main() {
     esbuild.buildSync({...build,stdin:{contents:'import "core-js/stable";',resolveDir:install},outfile:path.join(assets,'polyfills.js')});
     // texmath's parser uses our asynchronous MathJax adapter; its default KaTeX is unused.
     const stub = path.join(install,'unused-katex.js'); fs.writeFileSync(stub,'exports.renderToString=function(){throw Error("MathJax engine required")};');
+    // Keep each measured range selectable without forcing whole-element
+    // selection, and pin the patch to the exact locked dependency code.
+    const patchedDom = path.join(install,'dom-to-svg-patched');
+    fs.rmSync(patchedDom,{recursive:true,force:true});
+    fs.cpSync(path.join(modules,'dom-to-svg','lib'),patchedDom,{recursive:true});
+    const textModule=path.join(patchedDom,'text.js'), original=fs.readFileSync(textModule,'utf8');
+    const needle="parentElement.style.userSelect = 'all';";
+    const lineCheck='lineRectangles[1] && lineRectangles[0].top !== lineRectangles[1].top';
+    if(original.split(needle).length!==2||original.split(lineCheck).length!==2)throw new Error('Unexpected dom-to-svg text implementation');
+    // A newline can add a zero-width second rectangle on the same line; the
+    // first rectangle on the next line is then the third or later rectangle.
+    fs.writeFileSync(textModule,original.replace(needle,"parentElement.style.userSelect = 'text';")
+      .replace(lineCheck,'Array.from(lineRectangles).some(rect => rect.top !== lineRectangles[0].top)'));
     esbuild.buildSync({...build,entryPoints:[path.join(source,'renderer.js')],nodePaths:[modules],
-      alias:{katex:stub},define:{'import.meta.url':'location.href'},outfile:path.join(assets,'renderer.js')});
+      alias:{katex:stub,'dom-to-svg':path.join(patchedDom,'index.js')},define:{'import.meta.url':'location.href'},outfile:path.join(assets,'renderer.js')});
     for (const name of ['index.html','chat.html','preview.html','bootstrap.js','renderer.css']) fs.copyFileSync(path.join(source,name),path.join(assets,name));
     const transform = (from,to) => {
       fs.mkdirSync(path.dirname(to),{recursive:true});

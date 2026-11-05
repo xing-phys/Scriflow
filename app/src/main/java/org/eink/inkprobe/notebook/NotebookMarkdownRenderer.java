@@ -28,7 +28,8 @@ final class NotebookMarkdownRenderer {
     private final Callback callback;
     private final String source;
     private final boolean sourceMode;
-    private final int width, minHeight;
+    private final int width, minHeight, previewSize, sourceSize;
+    private final boolean ownsView;
     private final Runnable poll = this::poll;
     private boolean closed, started;
     private long deadline;
@@ -39,8 +40,12 @@ final class NotebookMarkdownRenderer {
         this(activity,parent,source,sourceMode,width,0,callback);
     }
     NotebookMarkdownRenderer(Activity activity, FrameLayout parent, String source, boolean sourceMode, int width, int minHeight, Callback callback) {
+        this(activity,parent,source,sourceMode,width,minHeight,NotebookSettings.markdownTextSize(activity),NotebookSettings.markdownTextSize(activity),callback);
+    }
+    NotebookMarkdownRenderer(Activity activity, FrameLayout parent, String source, boolean sourceMode, int width, int minHeight,
+            int previewSize,int sourceSize,Callback callback) {
         this.activity = activity; this.parent = parent; this.source = source; this.sourceMode = sourceMode;
-        this.width = width; this.minHeight=minHeight; this.callback = callback;
+        this.width = width; this.minHeight=minHeight;this.previewSize=previewSize;this.sourceSize=sourceSize;this.callback = callback;ownsView=true;
         view = new WebView(activity); view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
         view.setFocusable(false); view.setFocusableInTouchMode(false); view.setLongClickable(false);
         // Outside the hit-testable page, but attached so browser layout/fonts remain available.
@@ -66,7 +71,7 @@ final class NotebookMarkdownRenderer {
             @Override public void onPageFinished(WebView v, String url) {
                 if (closed || started || !url.equals(ORIGIN + "/markdown/index.html")) return;
                 started = true; deadline = SystemClock.uptimeMillis() + 60000;
-                view.evaluateJavascript("window.ScriflowMarkdown&&window.ScriflowMarkdown.render("+JSONObject.quote(source)+","+width+","+minHeight+","+NotebookSettings.markdownTextSize(activity)+");", null);
+                view.evaluateJavascript("window.ScriflowMarkdown&&window.ScriflowMarkdown.render("+JSONObject.quote(source)+","+width+","+minHeight+","+previewSize+","+sourceSize+");", null);
                 main.removeCallbacks(poll); main.post(poll);
             }
             @Override public void onReceivedError(WebView v, WebResourceRequest request, WebResourceError error) {
@@ -79,6 +84,15 @@ final class NotebookMarkdownRenderer {
         deadline = SystemClock.uptimeMillis() + 60000;
         view.loadUrl(ORIGIN + "/markdown/index.html");
         main.postDelayed(poll, 100);
+    }
+
+    /** Compile a prewarmed resize preview without loading or typesetting its rendered content again. */
+    NotebookMarkdownRenderer(Activity activity,WebView preview,NotebookMarkdown block,int width,int minHeight,Callback callback) {
+        this.activity=activity;parent=null;view=preview;source=block.source;sourceMode=block.sourceMode;
+        this.width=width;this.minHeight=minHeight;previewSize=block.previewFontSize;sourceSize=block.sourceFontSize;
+        this.callback=callback;ownsView=false;started=true;deadline=SystemClock.uptimeMillis()+60000;
+        view.evaluateJavascript("window.ScriflowMarkdown&&window.ScriflowMarkdown.commitPreview("+width+","+minHeight+");",null);
+        main.postDelayed(poll,50);
     }
 
     static WebResourceResponse asset(Activity activity,Uri uri) {
@@ -140,7 +154,7 @@ final class NotebookMarkdownRenderer {
             NotebookMarkdown block = null; IOException problem = null;
             try {
                 block = new NotebookMarkdown(source, sourceMode, (float)dimensions.getDouble("rw"), (float)dimensions.getDouble("rh"),
-                    Base64.decode(rendered, Base64.NO_WRAP), (float)dimensions.getDouble("sw"), (float)dimensions.getDouble("sh"), Base64.decode(code, Base64.NO_WRAP));
+                    Base64.decode(rendered, Base64.NO_WRAP), (float)dimensions.getDouble("sw"), (float)dimensions.getDouble("sh"), Base64.decode(code, Base64.NO_WRAP),previewSize,sourceSize);
                 NotebookMarkdownRasterizer.validate(block);
             } catch (JSONException | IOException | RuntimeException | OutOfMemoryError error) { problem = new IOException("Cannot prepare Markdown vectors", error); }
             final NotebookMarkdown result = block; final IOException error = problem;
@@ -151,9 +165,10 @@ final class NotebookMarkdownRenderer {
         if (Looper.myLooper() != Looper.getMainLooper()) { main.post(() -> fail(message)); return; }
         if (closed) return; close(); callback.complete(null, new IOException(message));
     }
+    void abort(String message){fail(message);}
     void close() {
         if (closed) return; closed = true; main.removeCallbacks(poll);
-        view.stopLoading(); parent.removeView(view); view.destroy(); worker.shutdownNow();
+        if(ownsView){view.stopLoading();parent.removeView(view);view.destroy();}worker.shutdownNow();
     }
     String warning() { return warning; }
 }

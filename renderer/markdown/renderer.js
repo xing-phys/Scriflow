@@ -149,6 +149,19 @@ async function vectorAppearance(body) {
     await new Promise(resolve => { image.onload = image.onerror = resolve; });
   const bounds = body.getBoundingClientRect(), height = Math.max(40, Math.ceil(bounds.height));
   if (height > 16384 || body.scrollWidth > bounds.width + 4) throw new Error('This block is too large; split it into smaller Markdown blocks');
+  // dom-to-svg measures wrapped text by extending a Range one character at a
+  // time. Bound each HTML text node so long source blocks do not repeatedly
+  // remeasure an ever-growing range. Adjacent text nodes keep browser wrapping.
+  const nodes=[],walker=document.createTreeWalker(body,NodeFilter.SHOW_TEXT);
+  while(walker.nextNode())if(walker.currentNode.length>64&&walker.currentNode.parentElement?.namespaceURI==='http://www.w3.org/1999/xhtml')nodes.push(walker.currentNode);
+  for(const original of nodes) {
+    let node=original;
+    while(node.length>64) {
+      let at=64;
+      if(at<node.length&&/[\uD800-\uDBFF]/.test(node.data[at-1])&&/[\uDC00-\uDFFF]/.test(node.data[at]))at--;
+      node=node.splitText(at);
+    }
+  }
   const svg = elementToSVG(body).documentElement;
   normalizeBaselines(svg);
   svg.setAttribute('width', String(bounds.width)); svg.setAttribute('height', String(height));
@@ -194,18 +207,19 @@ async function renderContent(source, body, width, diagramPrefix='diagram') {
     return errors;
 }
 
-function markdownFont(body,size) {
-  if(!Number.isFinite(size)||size<10||size>28)throw new Error('Invalid Markdown text size');
-  body.style.setProperty('--markdown-size',`${size}px`);
-  body.style.setProperty('--source-size',`${size*14/18}px`);
+function markdownFont(body,previewSize,sourceSize) {
+  if(!Number.isFinite(previewSize)||previewSize<10||previewSize>28||!Number.isFinite(sourceSize)||sourceSize<10||sourceSize>28)
+    throw new Error('Invalid Markdown text size');
+  body.style.setProperty('--markdown-size',`${previewSize}px`);
+  body.style.setProperty('--source-size',`${sourceSize}px`);
 }
 
-async function render(source, width, minHeight=0, fontSize=18) {
+async function render(source, width, minHeight=0, fontSize=18, sourceSize=fontSize) {
   if (result.phase === 'working') throw new Error('A Markdown render is already running');
   result = { phase: 'working' };
   try {
     const body = document.getElementById('block');
-    markdownFont(body,fontSize);
+    markdownFont(body,fontSize,sourceSize);
     if (!Number.isFinite(minHeight) || minHeight < 0 || minHeight > 16384) throw new Error('Invalid Markdown block height');
     body.style.minHeight = `${Math.round(minHeight)}px`;
     const errors = await renderContent(source, body, width);
@@ -219,23 +233,53 @@ async function render(source, width, minHeight=0, fontSize=18) {
 
 // Keep a browser layout alive during a resize; changing CSS width does not
 // parse Markdown or regenerate PDF vectors on every pointer movement.
-async function preview(source, sourceMode, width, fontSize=18) {
+let previewData=null;
+async function preview(source, sourceMode, width, fontSize=18, sourceSize=fontSize) {
   if (result.phase === 'working') return;
   result = { phase: 'working' };
   try {
-    const body=document.getElementById('block');body.style.minHeight='0';markdownFont(body,fontSize);
+    const body=document.getElementById('block');body.style.minHeight='0';markdownFont(body,fontSize,sourceSize);
     if(sourceMode) {
       if(typeof source!=='string'||new TextEncoder().encode(source).length>128*1024)throw new Error('Markdown source exceeds 128 KiB');
       body.style.width=`${Math.round(width)}px`;body.textContent='';
       const code=document.createElement('pre');code.className='md-source';code.textContent=source||' ';body.appendChild(code);
       await prepareCJK(body);await document.fonts.ready;
     } else await renderContent(source,body,width,'preview');
-    result={phase:'ready'};
+    previewData={source,sourceMode,fontSize,sourceSize};result={phase:'ready'};
   } catch(error) { result={phase:'error',message:String(error?.message||error).slice(0,1000)}; }
 }
 function previewWidth(width) {
   if(result.phase!=='ready'||!Number.isFinite(width)||width<160||width>1600)return;
   document.getElementById('block').style.width=`${Math.round(width)}px`;
+}
+
+// Reuse the pre-typeset preview and compiler after a resize. The offscreen
+// source snapshot leaves the visible preview intact while vectors are built.
+async function commitPreview(width,minHeight=0) {
+  if(result.phase!=='ready'||!previewData)return;
+  result={phase:'working'};
+  const body=document.getElementById('block'),scratch=[];
+  try {
+    if(!Number.isFinite(width)||width<160||width>1600||!Number.isFinite(minHeight)||minHeight<0||minHeight>16384)
+      throw new Error('Invalid Markdown block dimensions');
+    const makeScratch=()=>{
+      const node=body.cloneNode(false);node.style.position='absolute';node.style.left='-10000px';node.style.top='0';
+      node.style.width=`${Math.round(width)}px`;node.style.minHeight=`${Math.round(minHeight)}px`;
+      document.body.appendChild(node);scratch.push(node);return node;
+    };
+    body.style.width=`${Math.round(width)}px`;body.style.minHeight=`${Math.round(minHeight)}px`;
+    let renderedBody=body,errors=[];
+    if(previewData.sourceMode) {
+      renderedBody=makeScratch();
+      errors=await renderContent(previewData.source,renderedBody,width,'resize-commit');
+    }
+    const rendered=await vectorAppearance(renderedBody);
+    const sourceBody=makeScratch(),code=document.createElement('pre');
+    code.className='md-source';code.textContent=previewData.source||' ';sourceBody.appendChild(code);
+    const original=await vectorAppearance(sourceBody);
+    result={phase:'ready',rendered,original,warning:errors.join('\n').slice(0,1000)};
+  } catch(error) { result={phase:'error',message:String(error?.message||error).slice(0,1000)}; }
+  finally { for(const node of scratch){MathJax.typesetClear([node]);node.remove();} }
 }
 
 let chatMessages=[], chatRevision=0;
@@ -288,7 +332,7 @@ async function chat(messages, fontSize=14) {
 }
 
 window.ScriflowMarkdown = {
-  render, preview, previewWidth, chat,
+  render, preview, previewWidth, commitPreview, chat,
   info() { return { phase: result.phase, message: result.message, warning: result.warning,
     rw: result.rendered?.width, rh: result.rendered?.height, sw: result.original?.width, sh: result.original?.height,
     renderedLength: result.rendered?.pdf.length, sourceLength: result.original?.pdf.length }; },

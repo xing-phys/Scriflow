@@ -73,6 +73,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
     private Runnable whenReady;
     private NotebookMarkdownSourceEditor markdownEditor;
     private NotebookMarkdownRenderer markdownResizeRenderer;
+    private AlertDialog markdownFontDialog;
     private NotebookMarkdownDraft pendingMarkdownDraft;
     private boolean markdownRecoveryChecked, markdownRecovering;
     private final Map<UUID,NotebookPdfReading.Request> cropRequests=new LinkedHashMap<>();
@@ -3132,6 +3133,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
     }
 
     private void pauseMarkdown() {
+        if(markdownFontDialog!=null){AlertDialog dialog=markdownFontDialog;markdownFontDialog=null;dialog.dismiss();}
         if(markdownResizeRenderer!=null){markdownResizeRenderer.close();markdownResizeRenderer=null;}
         if(markdownEditor!=null){pendingMarkdownDraft=markdownEditor.draft();markdownEditor.pause();markdownEditor=null;}
         markdownRecoveryChecked=false;
@@ -3230,6 +3232,8 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
                 public void action(NotebookFigureEditor.Action action, int source, UUID pageId, NotebookFigure figure) {
                     if (action == NotebookFigureEditor.Action.AI_CHAT) {
                         appendAiSelection(figure,null);
+                    } else if (action == NotebookFigureEditor.Action.FONT_SIZE) {
+                        chooseMarkdownFontSize(source,pageId,figure);
                     } else if (action == NotebookFigureEditor.Action.EDIT_SOURCE) {
                         editMarkdown(source,pageId,figure);
                     } else if (action == NotebookFigureEditor.Action.MARKDOWN) {
@@ -3316,7 +3320,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         ink.pauseForEdit();editing=true;if(owner!=null)owner.saving();
         int width=NotebookFigureGeometry.markdownWidth(before,after),height=NotebookFigureGeometry.markdownHeight(after,width);
         try {
-            markdownResizeRenderer=new NotebookMarkdownRenderer(this,workspaceRoot,before.markdown.source,before.markdown.sourceMode,width,height,(value,error)->{
+            NotebookMarkdownRenderer.Callback done=(value,error)->{
                 markdownResizeRenderer=null;
                 if(!active||request!=generation||owner!=figureEditor)return;
                 if(error!=null){
@@ -3326,11 +3330,43 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
                 NotebookFigure reflowed=NotebookFigureGeometry.reflow(after,value)
                     .fitted(viewport.pageWidth(destination),viewport.pageHeight(destination));
                 commitFigure(source,destination,pageId,before,reflowed,false);
-            });
+            };
+            markdownResizeRenderer=owner==null?null:owner.compileMarkdown(width,height,done);
+            if(markdownResizeRenderer==null)markdownResizeRenderer=new NotebookMarkdownRenderer(this,workspaceRoot,
+                before.markdown.source,before.markdown.sourceMode,width,height,before.markdown.previewFontSize,before.markdown.sourceFontSize,done);
         } catch(RuntimeException error) {
             if(owner!=null)owner.failed();Toast.makeText(this,"Could not start Markdown reflow",Toast.LENGTH_LONG).show();
             finishEdit(request,session.current(),null);
         }
+    }
+
+    private void chooseMarkdownFontSize(int page,UUID pageId,NotebookFigure before) {
+        if(!canEdit()||before.markdown==null||figureEditor==null||markdownFontDialog!=null)return;
+        final NotebookFigureEditor owner=figureEditor;final int request=generation;
+        ink.pauseForEdit();if(shownError!=null)return;editing=true;owner.saving();
+        final int[] selected={before.markdown.previewFontSize};final boolean[] apply={false};
+        String[] sizes=new String[NotebookMarkdown.MAX_FONT_SIZE-NotebookMarkdown.MIN_FONT_SIZE+1];
+        for(int i=0;i<sizes.length;i++)sizes[i]=String.valueOf(i+NotebookMarkdown.MIN_FONT_SIZE);
+        markdownFontDialog=new AlertDialog.Builder(this).setTitle("Markdown preview text size")
+            .setSingleChoiceItems(sizes,selected[0]-NotebookMarkdown.MIN_FONT_SIZE,(dialog,which)->selected[0]=which+NotebookMarkdown.MIN_FONT_SIZE)
+            .setNegativeButton("Cancel",null).setPositiveButton("Apply",(dialog,which)->apply[0]=true).create();
+        markdownFontDialog.setOnDismissListener(dialog->{
+            markdownFontDialog=null;
+            if(!active||request!=generation||owner!=figureEditor)return;
+            if(!apply[0]||selected[0]==before.markdown.previewFontSize){owner.failed();editing=false;installViewport();return;}
+            int width=Math.max(160,Math.min(1600,Math.round(before.markdown.width())));
+            int height=NotebookFigureGeometry.markdownHeight(before,width);
+            try {
+                markdownResizeRenderer=new NotebookMarkdownRenderer(this,workspaceRoot,before.markdown.source,before.markdown.sourceMode,
+                    width,height,selected[0],before.markdown.sourceFontSize,(value,error)->{
+                        markdownResizeRenderer=null;if(!active||request!=generation||owner!=figureEditor)return;
+                        if(error!=null){Toast.makeText(this,error.getMessage(),Toast.LENGTH_LONG).show();owner.failed();finishEdit(request,session.current(),null);return;}
+                        NotebookFigure changed=NotebookFigureGeometry.reflow(before,value).fitted(viewport.pageWidth(page),viewport.pageHeight(page));
+                        commitFigure(page,page,pageId,before,changed,false);
+                    });
+            } catch(RuntimeException error){owner.failed();Toast.makeText(this,"Could not render Markdown text size",Toast.LENGTH_LONG).show();finishEdit(request,session.current(),null);}
+        });
+        showStaticDialog(markdownFontDialog);
     }
 
     private void dismissFigureEditor() {

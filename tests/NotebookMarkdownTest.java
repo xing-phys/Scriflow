@@ -16,7 +16,7 @@ public final class NotebookMarkdownTest {
     private static NotebookMarkdown markdown(){return new NotebookMarkdown("# 状态\n\n$\\ket{\\psi}$",false,640,320,pdf("vector"),640,480,pdf("source"));}
     private static NotebookFigure figure(){return NotebookFigure.markdown(UUID.randomUUID(),100,150,120,37,markdown()).fitted(200,300);}
     public static void main(String[] args)throws Exception{
-        try{payload();durability();legacy();drafts();tiles();
+        try{payload();durability();legacy();fontSizes();drafts();tiles();
             System.out.println("NotebookMarkdown: "+checks+" assertions passed (source/vector codec, v7 migration, backup, linked undo, draft recovery and zoom tiles).");
         }finally{for(File root:roots)NotebookBackup.deleteTree(root);}
     }
@@ -86,6 +86,38 @@ public final class NotebookMarkdownTest {
         check(new NotebookStore(root).load().figures.get(1).equals(figureFrom(document)),"migrated source and vectors reopen");
     }
     private static NotebookFigure figureFrom(NotebookDocument d){return d.current().figures.get(1);}
+    private static void fontSizes()throws Exception{
+        NotebookMarkdown styled=new NotebookMarkdown("# font",false,640,320,pdf("rendered"),640,480,pdf("raw"),24,16);
+        ByteArrayOutputStream data=new ByteArrayOutputStream();styled.writeTo(new DataOutputStream(data));
+        check(data.size()==styled.byteCount(),"font metadata is included in stored byte accounting");
+        check(NotebookMarkdown.readFrom(new DataInputStream(new ByteArrayInputStream(data.toByteArray())),true).equals(styled),"independent preview and source sizes round-trip");
+        check(styled.asSource(true).previewFontSize==24&&styled.asSource(true).sourceFontSize==16,"mode switching preserves independent font sizes");
+        byte[] corrupt=data.toByteArray();corrupt[corrupt.length-1]=0;
+        reject(()->NotebookMarkdown.readFrom(new DataInputStream(new ByteArrayInputStream(corrupt)),true));
+        reject(()->new NotebookMarkdown("x",false,640,320,pdf("a"),640,480,pdf("b"),29,16));
+        File root=root();NotebookFigure old=figure();NotebookPage page=NotebookPage.empty().withSize(200,300).withFigures(Collections.singletonList(old));
+        ByteArrayOutputStream legacy=new ByteArrayOutputStream();NotebookStore.writeSnapshot(legacy,page);
+        check(ByteBuffer.wrap(legacy.toByteArray()).getInt(4)==8,"a legacy block remains readable by the earlier app");
+        File appendRoot=root();Files.write(new File(appendRoot,"page.nbk").toPath(),legacy.toByteArray());
+        NotebookStore append=new NotebookStore(appendRoot);append.load();
+        append.appendStroke(new NotebookPage.Stroke(1,2,0xff000000,Collections.singletonList(new NotebookPage.Point(10,10,0,1))));
+        check(ByteBuffer.wrap(Files.readAllBytes(new File(appendRoot,"page.nbk").toPath())).getInt(4)==8,"ordinary ink does not migrate an existing format-8 page");
+        Files.write(new File(root,"page.nbk").toPath(),legacy.toByteArray());
+        NotebookDocument document=new NotebookDocument(root);document.load();
+        NotebookFigure changed=old.withMarkdown(styled).fitted(200,300),oldCopy=old.duplicate();document.setFigures(Arrays.asList(changed,oldCopy));
+        byte[] upgraded=Files.readAllBytes(new File(root,"page.nbk").toPath());
+        check(ByteBuffer.wrap(upgraded).getInt(4)==9,"a block with individual sizes uses page format 9");
+        check(Arrays.equals(legacy.toByteArray(),Files.readAllBytes(new File(root,"page.nbk.bak").toPath())),"font-size migration preserves the exact older page");
+        NotebookFigure reopened=new NotebookStore(root).load().figures.get(0);
+        check(reopened.markdown.equals(styled),"both size settings survive a page reopen");
+        check(new NotebookStore(root).load().figures.get(1).markdown.equals(old.markdown),"format 9 retains legacy and sized blocks together");
+        ByteArrayOutputStream archive=new ByteArrayOutputStream();NotebookBackup.write(archive,"Fonts",1,n->document.current(),()->false);
+        NotebookBackup.Restored copy=NotebookBackup.read(new ByteArrayInputStream(archive.toByteArray()),new File(root(),"restore"),()->false);
+        NotebookBook restored=new NotebookBook(copy.directory);restored.load();
+        check(restored.current().figures.get(0).markdown.equals(styled),"backup and restore retain per-block sizes");
+        document.undo();check(document.current().figures.get(0).equals(old),"font changes remain undoable");
+        check(ByteBuffer.wrap(Files.readAllBytes(new File(root,"page.nbk").toPath())).getInt(4)==8,"undo returns to a compatible page when no custom font metadata remains");
+    }
     private static NotebookMarkdownDraft draft(int book,String source){return new NotebookMarkdownDraft(UUID.randomUUID(),book,1,UUID.randomUUID(),UUID.randomUUID(),true,10,20,100,60,37,"",source);}
     private static void drafts()throws Exception{
         File root=root();NotebookMarkdownDraft a=draft(1,"original $\\psi$ 中文");NotebookMarkdownDraft.write(root,a);

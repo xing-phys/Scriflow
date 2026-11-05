@@ -283,7 +283,7 @@ final class NotebookAiChat {
     private NotebookButton attachmentChip(NotebookAiAttachment image,int index) {
         String label=image.name.startsWith("Handwriting")?"Ink "+(index+1):image.name.startsWith("Selected image")?"Image "+(index+1):image.name;
         NotebookButton chip=button(label+"  ×",()->session.removeImage(index));
-        chip.setTextSize(10);chip.setPadding(dp(7),0,dp(7),0);
+        chip.setTextSize(10);chip.setGravity(Gravity.CENTER);chip.setIncludeFontPadding(false);chip.setPadding(dp(7),0,dp(7),0);
         android.graphics.drawable.GradientDrawable border=new android.graphics.drawable.GradientDrawable();
         border.setColor(Color.WHITE);border.setCornerRadius(dp(1000));border.setStroke(dp(1),0xff999999);chip.setBackground(border);
         chip.setContentDescription("Remove attached "+image.name);chip.setTooltipText(image.name);return chip;

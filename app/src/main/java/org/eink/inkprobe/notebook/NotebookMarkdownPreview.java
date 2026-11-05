@@ -18,13 +18,15 @@ final class NotebookMarkdownPreview {
     private final Handler main=new Handler(Looper.getMainLooper());
     private final Runnable changed,poll=this::poll;
     private final Runnable startAfterWriting=this::startPreview;
+    private final Runnable placeFrame=()->{placeQueued=false;place();};
     private final NotebookWritingGate writingGate;
     private final NotebookMarkdown source;
     private NotebookFigure original,current;
     private NotebookViewport viewport;
     private int page,width=640,sentWidth=-1;
     private float scroll;
-    private boolean closed,ready,requested,pageReady,started;
+    private boolean closed,ready,requested,pageReady,started,placeQueued;
+    private NotebookMarkdownRenderer activeCompiler;
     private long deadline,pollingPausedAt=-1;
 
     NotebookMarkdownPreview(Activity activity,FrameLayout parent,NotebookMarkdown source,Runnable changed) {
@@ -33,9 +35,14 @@ final class NotebookMarkdownPreview {
         view.setFocusable(false);view.setFocusableInTouchMode(false);view.setClickable(false);view.setLongClickable(false);
         view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
         view.setVerticalScrollBarEnabled(false);view.setHorizontalScrollBarEnabled(false);view.setOverScrollMode(View.OVER_SCROLL_NEVER);
-        parent.addView(view,0,new FrameLayout.LayoutParams(1,1));
+        // A WebView chooses its initial viewport when the page loads. Starting at
+        // 1px can leave a wrong page scale even after the Android view grows.
+        float density=activity.getResources().getDisplayMetrics().density;
+        int initialWidth=Math.max(1,Math.round(Math.max(160,Math.min(1600,source.width()))*density));
+        parent.addView(view,0,new FrameLayout.LayoutParams(initialWidth,Math.max(1,Math.round(400*density))));
         WebSettings settings=view.getSettings();settings.setJavaScriptEnabled(true);settings.setAllowFileAccess(false);
         settings.setTextZoom(100);
+        settings.setUseWideViewPort(false);settings.setLoadWithOverviewMode(false);settings.setSupportZoom(false);
         settings.setAllowContentAccess(false);settings.setBlockNetworkLoads(true);settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setDomStorageEnabled(false);settings.setDatabaseEnabled(false);settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
         settings.setJavaScriptCanOpenWindowsAutomatically(false);settings.setSupportMultipleWindows(false);
@@ -51,7 +58,10 @@ final class NotebookMarkdownPreview {
                 if(closed||!url.equals(ORIGIN+"/markdown/preview.html"))return;
                 pageReady=true;startPreview();
             }
-            @Override public boolean onRenderProcessGone(WebView v,RenderProcessGoneDetail detail){close();changed.run();return true;}
+            @Override public boolean onRenderProcessGone(WebView v,RenderProcessGoneDetail detail){
+                if(activeCompiler!=null)activeCompiler.abort("Markdown preview stopped. The previous block is retained.");
+                close();changed.run();return true;
+            }
         });
         view.loadUrl(ORIGIN+"/markdown/preview.html");
     }
@@ -59,14 +69,17 @@ final class NotebookMarkdownPreview {
         if(closed)return;
         this.original=original;this.current=current;this.viewport=viewport;this.page=page;this.scroll=scroll;
         requested=true;width=NotebookFigureGeometry.markdownWidth(original,current);
-        if(ready)place();else startPreview();
+        if(ready){
+            if(view.getVisibility()!=View.VISIBLE)place();
+            else if(!placeQueued){placeQueued=true;view.postOnAnimation(placeFrame);}
+        }else startPreview();
     }
     private void startPreview() {
         if(closed||!pageReady||started)return;
         if(!requested&&writingGate!=null&&!writingGate.isQuiet()){writingGate.defer(startAfterWriting);return;}
         if(writingGate!=null)writingGate.cancel(startAfterWriting);
         started=true;deadline=SystemClock.uptimeMillis()+60000;
-        view.evaluateJavascript("window.ScriflowMarkdown&&window.ScriflowMarkdown.preview("+JSONObject.quote(source.source)+","+source.sourceMode+",640,"+NotebookSettings.markdownTextSize(activity)+");",null);
+        view.evaluateJavascript("window.ScriflowMarkdown&&window.ScriflowMarkdown.preview("+JSONObject.quote(source.source)+","+source.sourceMode+",640,"+source.previewFontSize+","+source.sourceFontSize+");",null);
         main.postDelayed(poll,50);
     }
     private void poll() {
@@ -104,11 +117,17 @@ final class NotebookMarkdownPreview {
         view.setScaleX(factor);view.setScaleY(factor);view.setRotation(current.angle);
         view.setVisibility(View.VISIBLE);
     }
-    boolean showing(){return requested&&ready&&!closed;}
-    boolean matches(NotebookMarkdown value){return value!=null&&source.sourceMode==value.sourceMode&&source.source.equals(value.source);}
-    void hide(){requested=false;if(!closed)view.setVisibility(View.INVISIBLE);}
+    boolean showing(){return requested&&ready&&!closed&&view.getVisibility()==View.VISIBLE;}
+    boolean matches(NotebookMarkdown value){return value!=null&&source.sourceMode==value.sourceMode&&source.source.equals(value.source)
+        &&source.previewFontSize==value.previewFontSize&&source.sourceFontSize==value.sourceFontSize;}
+    NotebookMarkdownRenderer compile(int width,int height,NotebookMarkdownRenderer.Callback callback){
+        if(closed||!ready||activeCompiler!=null)return null;
+        activeCompiler=new NotebookMarkdownRenderer(activity,view,source,width,height,(value,error)->{activeCompiler=null;callback.complete(value,error);});
+        return activeCompiler;
+    }
+    void hide(){requested=false;view.removeCallbacks(placeFrame);placeQueued=false;if(!closed)view.setVisibility(View.INVISIBLE);}
     void close(){
-        if(closed)return;closed=true;main.removeCallbacks(poll);
+        if(closed)return;closed=true;main.removeCallbacks(poll);view.removeCallbacks(placeFrame);
         if(writingGate!=null){writingGate.cancel(startAfterWriting);writingGate.cancel(poll);}
         view.stopLoading();
         if(view.getParent() instanceof android.view.ViewGroup)((android.view.ViewGroup)view.getParent()).removeView(view);

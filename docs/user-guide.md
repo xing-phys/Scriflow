@@ -42,7 +42,8 @@ keep their original coordinates and PDF printing scale.
 Use the top-left **⋮ → Markdown M↓ icon** to insert a block. Type Markdown,
 then tap the small eye for rendered content, or tap outside to keep code visible.
 Select a block with a finger; its code/eye icon switches views and its pen icon
-in code mode reopens editing. Move, resize, rotate, copy/cut/delete and drag
+in code mode reopens editing. The **A with arrows** sets this block's preview
+font size; Settings provides the default for new rendered and raw blocks. Move, resize, rotate, copy/cut/delete and drag
 between pages just like a figure. Tap outside to finish.
 
 Tables, lists, task checkboxes, highlighted code, footnotes, Mermaid/callouts

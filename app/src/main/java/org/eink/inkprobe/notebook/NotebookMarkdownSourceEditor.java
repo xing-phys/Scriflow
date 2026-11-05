@@ -56,7 +56,7 @@ final class NotebookMarkdownSourceEditor {
                 return super.onKeyPreIme(keyCode,event);
             }
         };
-        editor.setBackground(null);editor.setTextColor(Color.BLACK);editor.setTextSize(14);editor.setTypeface(Typeface.MONOSPACE);
+        editor.setBackground(null);editor.setTextColor(Color.BLACK);editor.setTextSize(NotebookSettings.markdownTextSize(activity));editor.setTypeface(Typeface.MONOSPACE);
         editor.setGravity(Gravity.TOP|Gravity.LEFT);editor.setPadding(dp(5),dp(4),dp(34),dp(4));
         editor.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_MULTI_LINE|InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         editor.setImeOptions(EditorInfo.IME_FLAG_NO_EXTRACT_UI|EditorInfo.IME_FLAG_NO_FULLSCREEN);
@@ -126,7 +126,9 @@ final class NotebookMarkdownSourceEditor {
                 Toast.makeText(activity,"Rendering Markdown…",Toast.LENGTH_SHORT).show();
                 int width=before==null?640:Math.max(160,Math.min(1600,Math.round(before.markdown.width())));
                 int height=before==null?0:NotebookFigureGeometry.markdownHeight(before,width);
-                renderer=new NotebookMarkdownRenderer(activity,root,current.source,sourceMode,width,height,(value,error)->{
+                int previewSize=before==null?NotebookSettings.markdownTextSize(activity):before.markdown.previewFontSize;
+                int sourceSize=before==null?NotebookSettings.markdownTextSize(activity):before.markdown.sourceFontSize;
+                renderer=new NotebookMarkdownRenderer(activity,root,current.source,sourceMode,width,height,previewSize,sourceSize,(value,error)->{
                     NotebookMarkdownRenderer completed=renderer;renderer=null;
                     if(closed)return;
                     if(error!=null){failed(error);return;}

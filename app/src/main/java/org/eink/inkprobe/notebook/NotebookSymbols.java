@@ -220,6 +220,10 @@ public final class NotebookSymbols {
                 out.begin(); out.moveTo(2, 12); out.cubicTo(7, 3, 17, 3, 22, 12);
                 out.cubicTo(17, 21, 7, 21, 2, 12); out.close(); out.end(false); circle(out, 12, 12, 3);
                 break;
+            case "FONT_SIZE":
+                line(out,2,19,7,5,12,19);line(out,4,14,10,14);
+                line(out,15,8,19,4,23,8);line(out,19,4,19,20);line(out,15,16,19,20,23,16);
+                break;
             case "INSERT_FIGURE":
                 polygon(out, false, 3, 4, 18, 4, 18, 18, 3, 18);
                 line(out, 4, 16, 9, 11, 13, 15, 16, 12, 18, 14); circle(out, 14, 8, 1.5f);

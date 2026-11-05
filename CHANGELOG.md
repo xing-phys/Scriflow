@@ -6,6 +6,28 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.37.0-alpha.6 — Markdown font and resize corrections (2026-11-05)
+
+- Let each Markdown block set its rendered preview size with an A icon. The
+  Settings default applies to new rendered/raw blocks and the source editor;
+  changing a block's preview leaves its raw size intact. The choice survives
+  editing, resizing, copy, undo and backup.
+- Initialize the preview WebView at its actual layout width; keep the previous
+  appearance at its original scale until the preview is ready. Coalesce drag
+  updates, avoid full-paper redraws, and reuse the warmed preview to compile
+  vector appearances after release. Correct multiline text conversion that
+  previously compressed source lines and bound text-node measurement work.
+- Center AI attachment labels vertically using explicit text gravity and font
+  metrics. Increase versionCode to 94.
+- Pages containing newly rendered Markdown with saved text sizes use format 9;
+  other pages continue to use format 8. Older APKs cannot read format-9 pages
+  or backups containing them. Existing pages are read without rewriting and
+  retain their exact predecessor when migrated.
+- The physical tablet was unavailable; verify resize smoothness, text scale,
+  font controls, attachment alignment and e-ink behavior on the device.
+- Pass 276,426 reported JVM assertions across 124 suites, the real-browser and
+  PDF checks, Android debug/release lint and builds, and signer verification.
+
 ## 0.37.0-alpha.5 — Chat layout, text size and editing fixes (2026-11-05)
 
 - Put smaller move/options and resize/minimize grips, attachment, model and send

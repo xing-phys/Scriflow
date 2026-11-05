@@ -33,9 +33,10 @@ contrast, and long-press word selection with Eudic floating lookup. Continuous
 scrolling at Fit width remains the default. Crop and contrast affect display;
 original PDF bytes, saved annotation coordinates and PDF exports are preserved.
 
-The **[0.37.0-alpha.5 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.37.0-alpha.5)**
-adds a smaller, expanding chat composer, independent chat and Markdown text-size
-settings, and more stable undo/redo controls. It retains freely resizable,
+The **[0.37.0-alpha.6 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.37.0-alpha.6)**
+adds a per-block Markdown preview font control and fixes raw-text vector layout
+and resize preview scaling. It retains the compact chat composer, independent
+chat and Markdown text-size defaults, and more stable undo/redo controls. It retains freely resizable,
 reflowing Markdown blocks and whole-notebook attachments. It also
 protects [bursts of handwriting](docs/handwriting-priority.md) from automatic
 history, Markdown, chat, clock and inactive-note display updates. These updates
@@ -91,9 +92,10 @@ including strokes crossing the loop boundary. Figures and PDF content remain.
 The choice is remembered; the width slider applies to Stroke mode.
 
 It also includes editable [Markdown blocks](docs/markdown-blocks.md) with offline
-MathJax, tables, code, diagrams and CJK fonts. This build writes **page format 8**
-on edit and in new backups, as in 0.34. Older APKs, including stable 0.33.2,
-cannot read those pages/backups. Preserve independent backups before updating.
+MathJax, tables, code, diagrams and CJK fonts. Pages with newly rendered or
+individually sized Markdown use **page format 9**; other pages continue to use
+format 8. Older APKs cannot read format-9 pages or backups containing them.
+Preserve independent backups before updating.
 The new reading and Markdown interactions await tablet acceptance; 0.33.2
 remains the latest stable release. Download the alpha's signed APK and SHA-256
 file from its release page.

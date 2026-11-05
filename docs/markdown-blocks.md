@@ -7,7 +7,8 @@ no Apply/Cancel footer or separate document screen.
 
 Tap a block with a finger to select it. Its nearby **code/eye** icon switches
 between source and rendering. In code mode the nearby pen icon reopens the
-source editor. Drag the block to move it, drag its lower-right handle to resize,
+source editor. Tap the nearby **A with arrows** to set that block's rendered
+preview text size; the raw/source size is unchanged. Drag the block to move it, drag its lower-right handle to resize,
 or drag its upper-right handle to rotate to any angle. Copy, Cut, Delete and
 Paste use the existing figure controls. Blocks move across pages, including
 edge scrolling, and each completed change is undoable. A cross-page move undoes
@@ -46,8 +47,10 @@ rotation; it does not upscale one fixed screenshot. Drag the resize handle in
 either direction: text reflows to the new width, and the height can be increased
 independently. The finished block grows when necessary to keep all text visible.
 The temporary offline browser preview changes its CSS width during the drag;
-it does not regenerate PDF on each pointer movement. On release a compiler
-builds the new vector appearance before publishing a single undoable edit. If
+it does not regenerate PDF on each pointer movement. While the preview warms,
+the saved appearance stays at its original scale. Pointer updates are coalesced
+per display frame. On release the warmed preview compiles the new vector
+appearance before publishing a single undoable edit. If
 compilation fails or the editor closes, the previous saved block remains intact.
 PDF export imports the active appearance as a vector form, retaining embedded
 fonts, text and formula paths. The browser preview is created on selection and
@@ -55,10 +58,14 @@ may need time to load on the tablet; background preparation waits for a quiet
 handwriting interval, while an explicit resize starts it immediately. Physical
 responsiveness is not yet measured.
 
-Use **Settings → Text size → Markdown blocks** to choose the size for new blocks.
-Existing blocks retain their saved vector appearance until resized, or until
-their source editor is opened and the eye is tapped to render them again. The
-source view scales with the same setting. These updates are undoable.
+Use **Settings → Text size → Markdown blocks** to set the default for both
+rendered and raw text in new blocks and for the source editor. Existing blocks
+keep their own saved sizes. The block's A icon changes its rendered preview size
+independently, and the choice survives editing, resizing, copying and backups.
+The size change is undoable.
+Blocks saved before per-block sizes existed retain their saved appearance until
+re-rendered; then their legacy defaults are 18 for preview and 14 for source.
+Use the A icon to adjust the preview if the earlier block used a different size.
 
 From **0.35.0-alpha.5**, a note uses one persistent ordinary View for paper,
 PDF backgrounds, figures/Markdown and saved handwriting. When Markdown first
@@ -116,16 +123,18 @@ removed or independently changed, recovery creates a new block rather than
 overwriting newer content. Typing drafts are local recovery files, not part of
 editable notebook backups until the block is successfully committed.
 
-**This build reads page versions 1–7 without rewriting them on open, and writes
-format 8 on edits and in new editable backups. Older APKs, including stable
-0.33.2, cannot open format-8 pages or backups. Keep independent editable backups
-before updating; do not downgrade over edited notes.**
+**This build reads page versions 1–9 without rewriting them on open. Pages with
+newly rendered Markdown and per-block sizes use format 9; pages without that
+metadata continue to use format 8. Older APKs cannot open format-9 pages or
+backups containing them. Keep independent editable backups before updating;
+do not downgrade over edited notes.**
 
 Format 8 adds an object-kind byte plus editable UTF-8 source and the two vector
 appearances to the existing ordered figure collection. Geometry, page identity,
 rotation, clipping, linked history, backup and PDF export share the existing
 figure implementation. Images retain their original PNG payload. Migration
-retains the exact predecessor snapshot. Private drafts and notebook files are
+retains the exact predecessor snapshot. Format 9 additionally stores independent
+preview and source font sizes. Private drafts and notebook files are
 unencrypted, under the existing app-private storage policy.
 
 ## Validation

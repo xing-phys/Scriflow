@@ -39,7 +39,7 @@ public final class NotebookSettingsActivity extends NotebookDisplayActivity {
         section(body, "Text size");
         textSizeRow(body, "AI chat replies", true);
         textSizeRow(body, "Markdown blocks", false);
-        hint(body, "Chat size applies when chats reopen. Markdown size applies to new blocks and when a saved block is edited and rendered or resized.");
+        hint(body, "Chat size applies when chats reopen. Markdown sets the default for new blocks and the source editor; select a block's A icon to change its preview size.");
 
         section(body, "Screen orientation");
         LinearLayout orientationRow = row();

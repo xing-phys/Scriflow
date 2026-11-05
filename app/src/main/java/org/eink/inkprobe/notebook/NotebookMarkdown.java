@@ -8,20 +8,29 @@ import java.util.Arrays;
 /** Editable source and two self-contained vector appearances. Placement belongs to its page object. */
 public final class NotebookMarkdown {
     public static final int MAX_SOURCE_BYTES = 128 * 1024, MAX_PDF_BYTES = 4 * 1024 * 1024;
+    public static final int MIN_FONT_SIZE=10, MAX_FONT_SIZE=28, LEGACY_PREVIEW_SIZE=18, LEGACY_SOURCE_SIZE=14;
     public final String source;
     public final boolean sourceMode;
     public final float renderedWidth, renderedHeight, sourceWidth, sourceHeight;
+    public final int previewFontSize, sourceFontSize;
+    private final boolean fontSizesStored;
     private final byte[] text, rendered, code;
 
     public NotebookMarkdown(String source, boolean sourceMode, float renderedWidth, float renderedHeight,
             byte[] rendered, float sourceWidth, float sourceHeight, byte[] code) {
-        this(source, sourceMode, renderedWidth, renderedHeight, rendered, sourceWidth, sourceHeight, code, true);
+        this(source, sourceMode, renderedWidth, renderedHeight, rendered, sourceWidth, sourceHeight, code, 0, 0, true);
+    }
+
+    public NotebookMarkdown(String source, boolean sourceMode, float renderedWidth, float renderedHeight,
+            byte[] rendered, float sourceWidth, float sourceHeight, byte[] code, int previewSize, int sourceSize) {
+        this(source,sourceMode,renderedWidth,renderedHeight,rendered,sourceWidth,sourceHeight,code,previewSize,sourceSize,true);
     }
 
     private NotebookMarkdown(String source, boolean sourceMode, float rw, float rh, byte[] rendered,
-            float sw, float sh, byte[] code, boolean copy) {
+            float sw, float sh, byte[] code, int previewSize, int sourceSize, boolean copy) {
         if (source == null || !dimension(rw) || !dimension(rh) || !dimension(sw) || !dimension(sh)
-                || !pdf(rendered) || !pdf(code)) throw new IllegalArgumentException("Invalid Markdown block");
+                || !pdf(rendered) || !pdf(code) || !(previewSize==0&&sourceSize==0)
+                && (!fontSize(previewSize)||!fontSize(sourceSize))) throw new IllegalArgumentException("Invalid Markdown block");
         try {
             ByteBuffer encoded = StandardCharsets.UTF_8.newEncoder().onMalformedInput(CodingErrorAction.REPORT)
                 .onUnmappableCharacter(CodingErrorAction.REPORT).encode(java.nio.CharBuffer.wrap(source));
@@ -29,11 +38,16 @@ public final class NotebookMarkdown {
             text = new byte[encoded.remaining()]; encoded.get(text);
         } catch (CharacterCodingException error) { throw new IllegalArgumentException("Invalid Markdown text", error); }
         this.source = source; this.sourceMode = sourceMode;
+        fontSizesStored=previewSize!=0;
+        previewFontSize=fontSizesStored?previewSize:LEGACY_PREVIEW_SIZE;
+        sourceFontSize=fontSizesStored?sourceSize:LEGACY_SOURCE_SIZE;
         renderedWidth = rw; renderedHeight = rh; sourceWidth = sw; sourceHeight = sh;
         this.rendered = copy ? rendered.clone() : rendered; this.code = copy ? code.clone() : code;
     }
 
     private static boolean dimension(float value) { return Float.isFinite(value) && value >= 1 && value <= 32768; }
+    private static boolean fontSize(int value) {return value>=MIN_FONT_SIZE&&value<=MAX_FONT_SIZE;}
+    boolean hasFontSizes(){return fontSizesStored;}
     private static boolean pdf(byte[] data) {
         return data != null && data.length >= 16 && data.length <= MAX_PDF_BYTES
             && data[0] == '%' && data[1] == 'P' && data[2] == 'D' && data[3] == 'F' && data[4] == '-';
@@ -42,9 +56,9 @@ public final class NotebookMarkdown {
     public float height() { return sourceMode ? sourceHeight : renderedHeight; }
     public NotebookMarkdown asSource(boolean value) {
         return value == sourceMode ? this : new NotebookMarkdown(source, value, renderedWidth, renderedHeight,
-            rendered, sourceWidth, sourceHeight, code, false);
+            rendered, sourceWidth, sourceHeight, code, fontSizesStored?previewFontSize:0, fontSizesStored?sourceFontSize:0, false);
     }
-    public int byteCount() { return 29 + text.length + rendered.length + code.length; }
+    public int byteCount() { return 29 + text.length + rendered.length + code.length + (fontSizesStored?2:0); }
     byte[] appearance() { return sourceMode ? code : rendered; } // Package readers never mutate these bytes.
     public byte[] pdf() { return appearance().clone(); }
 
@@ -52,8 +66,12 @@ public final class NotebookMarkdown {
         out.writeBoolean(sourceMode); out.writeInt(text.length); out.write(text);
         out.writeFloat(renderedWidth); out.writeFloat(renderedHeight); out.writeInt(rendered.length); out.write(rendered);
         out.writeFloat(sourceWidth); out.writeFloat(sourceHeight); out.writeInt(code.length); out.write(code);
+        if(fontSizesStored){out.writeByte(previewFontSize);out.writeByte(sourceFontSize);}
     }
     static NotebookMarkdown readFrom(DataInputStream in) throws IOException {
+        return readFrom(in,false);
+    }
+    static NotebookMarkdown readFrom(DataInputStream in,boolean sizes) throws IOException {
         boolean mode = in.readBoolean(); byte[] text = bytes(in, MAX_SOURCE_BYTES);
         final String source;
         try { source = StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
@@ -61,7 +79,9 @@ public final class NotebookMarkdown {
         catch (CharacterCodingException error) { throw new IOException("Invalid Markdown text", error); }
         float rw = in.readFloat(), rh = in.readFloat(); byte[] rendered = bytes(in, MAX_PDF_BYTES);
         float sw = in.readFloat(), sh = in.readFloat(); byte[] code = bytes(in, MAX_PDF_BYTES);
-        try { return new NotebookMarkdown(source, mode, rw, rh, rendered, sw, sh, code, false); }
+        int previewSize=sizes?in.readUnsignedByte():0,sourceSize=sizes?in.readUnsignedByte():0;
+        if(sizes&&(!fontSize(previewSize)||!fontSize(sourceSize)))throw new IOException("Invalid Markdown font size");
+        try { return new NotebookMarkdown(source, mode, rw, rh, rendered, sw, sh, code, previewSize,sourceSize,false); }
         catch (IllegalArgumentException error) { throw new IOException("Invalid Markdown block", error); }
     }
     private static byte[] bytes(DataInputStream in, int maximum) throws IOException {
@@ -74,6 +94,7 @@ public final class NotebookMarkdown {
         NotebookMarkdown m = (NotebookMarkdown) other;
         return sourceMode == m.sourceMode && source.equals(m.source) && renderedWidth == m.renderedWidth
             && renderedHeight == m.renderedHeight && sourceWidth == m.sourceWidth && sourceHeight == m.sourceHeight
+            && fontSizesStored==m.fontSizesStored && previewFontSize==m.previewFontSize && sourceFontSize==m.sourceFontSize
             && Arrays.equals(rendered, m.rendered) && Arrays.equals(code, m.code);
     }
     @Override public int hashCode() { return source.hashCode(); }

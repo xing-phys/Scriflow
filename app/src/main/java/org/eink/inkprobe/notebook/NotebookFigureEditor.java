@@ -18,7 +18,7 @@ import java.util.*;
 
 /** In-note selection overlay: existing viewport, nearby actions and per-gesture durable edits. */
 final class NotebookFigureEditor extends FrameLayout {
-    enum Action { COPY, CUT, DELETE, PASTE, MARKDOWN, EDIT_SOURCE, AI_CHAT }
+    enum Action { COPY, CUT, DELETE, PASTE, MARKDOWN, EDIT_SOURCE, FONT_SIZE, AI_CHAT }
     interface Listener {
         void preview();
         /** Draw the complete clear paper scene, or return false to use the native backdrop. */
@@ -73,6 +73,7 @@ final class NotebookFigureEditor extends FrameLayout {
         buttons.get(Action.PASTE).setVisibility(GONE);
         addAction(Action.MARKDOWN, NotebookIconDrawable.Icon.CODE, "Show Markdown source");
         addAction(Action.EDIT_SOURCE, NotebookIconDrawable.Icon.PEN, "Edit Markdown source");
+        addAction(Action.FONT_SIZE, NotebookIconDrawable.Icon.FONT_SIZE, "Set Markdown preview text size");
         addAction(Action.AI_CHAT, NotebookIconDrawable.Icon.AI_CHAT, "Append selection to AI chat");
         markdownActions();
         rotate = handle(NotebookIconDrawable.Icon.ROTATE, "Drag to rotate figure freely", 3);
@@ -140,10 +141,14 @@ final class NotebookFigureEditor extends FrameLayout {
     void drawPreview(Canvas canvas, int number) {
         if (closed || number != page || !(previewing || restorePending)) return;
         if(markdownPreview!=null&&markdownPreview.showing())return;
-        if (imageReady) images.draw(canvas, figure); else listener.fallback(canvas, figure);
+        NotebookFigure shown=previewFigure();
+        if (imageReady) images.draw(canvas, shown); else listener.fallback(canvas, shown);
     }
     void nativeReady() { if (!busy && !previewing && !awaitingSave) { restorePending = false; repaint(); } }
     boolean isBusy() { return busy || restorePending || pointer >= 0 || pressedAction != null; }
+    NotebookMarkdownRenderer compileMarkdown(int width,int height,NotebookMarkdownRenderer.Callback callback) {
+        return markdownPreview==null?null:markdownPreview.compile(width,height,callback);
+    }
     void cancel() { if (!isBusy()) listener.done(); }
     void dismiss() {
         if (closed) return; closed = true; main.removeCallbacks(edgeScroll); images.close();if(markdownPreview!=null)markdownPreview.close();
@@ -151,7 +156,12 @@ final class NotebookFigureEditor extends FrameLayout {
     }
     private void prepareImage() {
         if (viewport == null || closed) return;
-        imageReady = images.prepare(Collections.singletonList(NotebookFigureLayer.Request.inView(figure, viewport, page, scroll)));
+        imageReady = images.prepare(Collections.singletonList(NotebookFigureLayer.Request.inView(previewFigure(), viewport, page, scroll)));
+    }
+    private NotebookFigure previewFigure(){
+        // While the browser warms, keep the saved appearance at its original
+        // scale instead of stretching it into the changing resize rectangle.
+        return mode==2&&start!=null&&markdownPreview!=null&&!markdownPreview.showing()?start:figure;
     }
     private void setMarkdownPreview(NotebookFigure value) {
         if(markdownPreview!=null&&!markdownPreview.matches(value.markdown)) {
@@ -178,7 +188,8 @@ final class NotebookFigureEditor extends FrameLayout {
         boolean completePaper = listener.paper(canvas);
         if (!completePaper && (previewing || restorePending)) {
             int saved = canvas.save(); canvas.translate(viewport.pageLeft(page), viewport.pageTop(page, scroll)); canvas.scale(scale, scale);
-            if (imageReady) images.draw(canvas, figure); else listener.fallback(canvas, figure);
+            NotebookFigure shown=previewFigure();
+            if (imageReady) images.draw(canvas, shown); else listener.fallback(canvas, shown);
             canvas.restoreToCount(saved);
         }
         outline.reset();
@@ -195,13 +206,17 @@ final class NotebookFigureEditor extends FrameLayout {
         if (viewport == null) return;
         int count = 0;
         for (NotebookIconButton button : buttons.values()) if (button.getVisibility() == VISIBLE) count++;
-        float x = screenX(figure.left()), y = screenY(figure.top()) - dp(44);
+        int columns=Math.max(1,Math.min(count,Math.max(1,getWidth()/Math.max(1,dp(30)))));
+        int rows=(count+columns-1)/columns;
+        int groupWidth=dp(columns*30),groupHeight=dp(Math.max(28,rows*30-2));
+        float x = screenX(figure.left()), y = screenY(figure.top()) - groupHeight - dp(16);
         if (y < 0) y = screenY(figure.bottom()) + dp(16);
-        float[] group = freePosition(x, y, dp(count * 30), dp(28)); x = group[0]; y = group[1];
+        float[] group = freePosition(x, y, groupWidth, groupHeight); x = group[0]; y = group[1];
+        int index=0;
         for (Action action : Action.values()) {
             NotebookIconButton button = buttons.get(action);
             if (button.getVisibility() == GONE) continue;
-            position(button, x, y); button.setAvailable(!busy); x += dp(30);
+            position(button, x+dp((index%columns)*30), y+dp((index/columns)*30));button.setAvailable(!busy);index++;
         }
         float[] corner = freePosition(screenX(figure.cornerX(1)) - dp(14), screenY(figure.cornerY(1)) - dp(14), dp(28), dp(28));
         position(rotate, corner[0], corner[1]);
@@ -224,6 +239,7 @@ final class NotebookFigureEditor extends FrameLayout {
         String label = code ? "Show rendered Markdown" : "Show Markdown source";
         mode.setContentDescription(label); mode.setTooltipText(label);
         buttons.get(Action.EDIT_SOURCE).setVisibility(code ? VISIBLE : GONE);
+        buttons.get(Action.FONT_SIZE).setVisibility(isMarkdown ? VISIBLE : GONE);
     }
 
     private float[] freePosition(float x, float y, int width, int height) {
@@ -249,9 +265,9 @@ final class NotebookFigureEditor extends FrameLayout {
     }
     private void position(NotebookIconButton button, float x, float y) {
         FrameLayout.LayoutParams item = (FrameLayout.LayoutParams) button.getLayoutParams();
-        item.leftMargin = Math.round(Math.max(0, Math.min(Math.max(0, getWidth() - dp(28)), x)));
-        item.topMargin = Math.round(Math.max(0, Math.min(Math.max(0, getHeight() - dp(28)), y)));
-        button.setLayoutParams(item);
+        int left=Math.round(Math.max(0, Math.min(Math.max(0, getWidth() - dp(28)), x)));
+        int top=Math.round(Math.max(0, Math.min(Math.max(0, getHeight() - dp(28)), y)));
+        if(item.leftMargin!=left||item.topMargin!=top){item.leftMargin=left;item.topMargin=top;button.setLayoutParams(item);}
     }
     @Override protected void onSizeChanged(int w, int h, int oldW, int oldH) { placeControls(); }
     @Override public boolean onTouchEvent(MotionEvent event) {
@@ -351,9 +367,15 @@ final class NotebookFigureEditor extends FrameLayout {
                 figure = NotebookFigureGeometry.rotate(start, dx, dy, px, py);
             }
         }
+        boolean wasShowing=markdownPreview!=null&&markdownPreview.showing();
         if(mode==2&&markdownPreview!=null)markdownPreview.update(start,figure,viewport,page,scroll);
-        if(markdownPreview==null||!markdownPreview.showing())prepareImage();
-        placeControls(); repaint();
+        boolean showing=markdownPreview!=null&&markdownPreview.showing();
+        placeControls();
+        if(mode==2&&markdownPreview!=null){
+            // The fallback stays at its old scale while warming. Once the browser
+            // appears, neither path needs a full note repaint for every sample.
+            if(showing&&!wasShowing)repaint();else invalidate();
+        }else{prepareImage();repaint();}
     }
     private void edgeScroll() {
         if (closed || busy || pointer < 0 || mode != 1) return;
