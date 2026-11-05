@@ -35,6 +35,7 @@ final class NotebookMarkdownPreview {
         view.setVerticalScrollBarEnabled(false);view.setHorizontalScrollBarEnabled(false);view.setOverScrollMode(View.OVER_SCROLL_NEVER);
         parent.addView(view,0,new FrameLayout.LayoutParams(1,1));
         WebSettings settings=view.getSettings();settings.setJavaScriptEnabled(true);settings.setAllowFileAccess(false);
+        settings.setTextZoom(100);
         settings.setAllowContentAccess(false);settings.setBlockNetworkLoads(true);settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setDomStorageEnabled(false);settings.setDatabaseEnabled(false);settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
         settings.setJavaScriptCanOpenWindowsAutomatically(false);settings.setSupportMultipleWindows(false);
@@ -65,7 +66,7 @@ final class NotebookMarkdownPreview {
         if(!requested&&writingGate!=null&&!writingGate.isQuiet()){writingGate.defer(startAfterWriting);return;}
         if(writingGate!=null)writingGate.cancel(startAfterWriting);
         started=true;deadline=SystemClock.uptimeMillis()+60000;
-        view.evaluateJavascript("window.ScriflowMarkdown&&window.ScriflowMarkdown.preview("+JSONObject.quote(source.source)+","+source.sourceMode+",640);",null);
+        view.evaluateJavascript("window.ScriflowMarkdown&&window.ScriflowMarkdown.preview("+JSONObject.quote(source.source)+","+source.sourceMode+",640,"+NotebookSettings.markdownTextSize(activity)+");",null);
         main.postDelayed(poll,50);
     }
     private void poll() {

@@ -20,13 +20,18 @@ final class NotebookWindowControls {
     private final NotebookResizeOutline outline;
     private final Grip moveGrip,resizeGrip;
     NotebookWindowControls(Context context,FrameLayout root,FrameLayout content,NotebookWorkspace workspace,NotebookWorkspace.Pane pane,Listener listener,String noun){
+        this(context,root,content,workspace,pane,listener,noun,false);
+    }
+    NotebookWindowControls(Context context,FrameLayout root,FrameLayout content,NotebookWorkspace workspace,NotebookWorkspace.Pane pane,Listener listener,String noun,boolean embedded){
         this.context=context;this.root=root;this.content=content;this.workspace=workspace;this.pane=pane;this.listener=listener;
         outline=new NotebookResizeOutline(context);
         menu=new NotebookIconButton(context,NotebookIconDrawable.Icon.MORE,noun+" options; drag to move floating window");
         minimize=new NotebookIconButton(context,NotebookIconDrawable.Icon.MINIMIZE,"Minimize "+noun+"; drag to resize floating window");
         menu.setOnClickListener(v->listener.menu());minimize.setOnClickListener(v->listener.minimize());
-        FrameLayout.LayoutParams left=new FrameLayout.LayoutParams(dp(32),dp(32),Gravity.BOTTOM|Gravity.LEFT);left.setMargins(dp(5),0,0,dp(5));content.addView(menu,left);
-        FrameLayout.LayoutParams right=new FrameLayout.LayoutParams(dp(32),dp(32),Gravity.BOTTOM|Gravity.RIGHT);right.setMargins(0,0,dp(5),dp(5));content.addView(minimize,right);
+        if(!embedded){
+            FrameLayout.LayoutParams left=new FrameLayout.LayoutParams(dp(32),dp(32),Gravity.BOTTOM|Gravity.LEFT);left.setMargins(dp(5),0,0,dp(5));content.addView(menu,left);
+            FrameLayout.LayoutParams right=new FrameLayout.LayoutParams(dp(32),dp(32),Gravity.BOTTOM|Gravity.RIGHT);right.setMargins(0,0,dp(5),dp(5));content.addView(minimize,right);
+        }
         moveGrip=new Grip(false);resizeGrip=new Grip(true);menu.setOnTouchListener(moveGrip);minimize.setOnTouchListener(resizeGrip);
     }
     boolean resizing(){return resizeGrip.moving;}

@@ -21,6 +21,7 @@ final class NotebookSettings {
     private static final String PREFERENCES = "notebookSettings";
     private static final String ORIENTATION = "orientation";
     private static final String PEN_WIDTH_MODE = "penWidthMode";
+    static final int MIN_TEXT_SIZE=10, MAX_TEXT_SIZE=28, DEFAULT_AI_TEXT_SIZE=14, DEFAULT_MARKDOWN_TEXT_SIZE=18;
 
     private NotebookSettings() { }
 
@@ -110,6 +111,19 @@ final class NotebookSettings {
 
     static void setKeepScreenOn(Context context, boolean enabled) {
         preferences(context).edit().putBoolean("keepScreenOn", enabled).apply();
+    }
+
+    static int aiTextSize(Context context) {
+        return boundedPreference(context,"aiTextSize",DEFAULT_AI_TEXT_SIZE,MIN_TEXT_SIZE,MAX_TEXT_SIZE);
+    }
+
+    static int markdownTextSize(Context context) {
+        return boundedPreference(context,"markdownTextSize",DEFAULT_MARKDOWN_TEXT_SIZE,MIN_TEXT_SIZE,MAX_TEXT_SIZE);
+    }
+
+    static void setTextSize(Context context,boolean ai,int value) {
+        if(value<MIN_TEXT_SIZE||value>MAX_TEXT_SIZE)throw new IllegalArgumentException("Text size is out of range");
+        preferences(context).edit().putInt(ai?"aiTextSize":"markdownTextSize",value).apply();
     }
 
     private static int boundedPreference(Context context, String key, int fallback, int minimum, int maximum) {

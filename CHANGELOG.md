@@ -6,6 +6,27 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.37.0-alpha.5 — Chat layout, text size and editing fixes (2026-11-05)
+
+- Put smaller move/options and resize/minimize grips, attachment, model and send
+  controls inside the message bar. Short prompts use one row; longer prompts
+  expand to a full-width editor above the controls. Give attachment pills the
+  note status-bar styling and separate them from the message bar.
+- Add independent AI reply and Markdown block text sizes in Settings. AI replies
+  default to 14 instead of 16 CSS pixels. New Markdown blocks use the selected
+  size; saved blocks update when resized or rendered again from their editor.
+- Retain available undo/redo while switching or using the pen, eraser and lasso,
+  including edit barriers and incidental finger contact. Other operations may
+  still dismiss the controls; unavailable history remains hidden.
+- Prevent browser text autosizing and bound Markdown drag widths to the renderer's
+  supported range so resizing does not inflate text at the width limits. Live
+  preview and vector compilation use the same configured size.
+- Increase versionCode to 93; document and chat formats remain unchanged. Tablet
+  input, resizing, legibility and e-ink behavior remain to be checked on device.
+- Pass 276,378 reported JVM assertions across 120 suites, the offline browser
+  renderer cases, PDF checks, Android debug/release lint and builds, and the
+  permanent signing-certificate verification.
+
 ## 0.37.0-alpha.4 — Flexible Markdown and compact chat (2026-11-04)
 
 - Resize Markdown independently in both directions. A lightweight offline browser

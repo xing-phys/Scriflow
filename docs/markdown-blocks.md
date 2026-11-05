@@ -55,6 +55,11 @@ may need time to load on the tablet; background preparation waits for a quiet
 handwriting interval, while an explicit resize starts it immediately. Physical
 responsiveness is not yet measured.
 
+Use **Settings → Text size → Markdown blocks** to choose the size for new blocks.
+Existing blocks retain their saved vector appearance until resized, or until
+their source editor is opened and the eye is tapped to render them again. The
+source view scales with the same setting. These updates are undoable.
+
 From **0.35.0-alpha.5**, a note uses one persistent ordinary View for paper,
 PDF backgrounds, figures/Markdown and saved handwriting. When Markdown first
 becomes visible, the paused native writer switches to its transparent-color

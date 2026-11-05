@@ -93,7 +93,7 @@ Use its trash icon to confirm deletion. History is shared across notebooks;
 empty untouched sessions are not saved. Older chats are imported automatically.
 All window placements, minimized states and sessions restore across rotation,
 Settings and app reopen. Returning from Settings retains each window's original
-model. Tap the **model name below the message field** to select a saved model
+model. Tap the **model name in the message bar** to select a saved model
 for a new window; existing windows remain open. This choice becomes the toolbox
 default. AI settings remain in app Settings; there is no settings icon in the chat.
 

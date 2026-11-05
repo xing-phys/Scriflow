@@ -34,6 +34,7 @@ final class NotebookAiMarkdownView {
         view.setOverScrollMode(android.view.View.OVER_SCROLL_NEVER);
         view.setContentDescription("AI chat messages");
         WebSettings settings=view.getSettings(); settings.setJavaScriptEnabled(true);
+        settings.setTextZoom(100);
         settings.setAllowFileAccess(false); settings.setAllowContentAccess(false); settings.setBlockNetworkLoads(true);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW); settings.setDomStorageEnabled(false);
         settings.setDatabaseEnabled(false); settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
@@ -74,7 +75,7 @@ final class NotebookAiMarkdownView {
         if (closed||!ready||rendering||pending.equals(shown)) return;
         if (writingGate!=null&&!writingGate.isQuiet()) { writingGate.defer(renderAfterWriting); return; }
         rendering=true; shown=pending; pollingPausedAt=-1;deadline=SystemClock.uptimeMillis()+60000;
-        view.evaluateJavascript("window.ScriflowMarkdown&&window.ScriflowMarkdown.chat("+pending+");",null);
+        view.evaluateJavascript("window.ScriflowMarkdown&&window.ScriflowMarkdown.chat("+pending+","+NotebookSettings.aiTextSize(activity)+");",null);
         main.postDelayed(poll,100);
     }
     private void poll() {

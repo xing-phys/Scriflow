@@ -13,7 +13,11 @@ final class NotebookFigureGeometry {
         float ax = start.cornerX(0), ay = start.cornerY(0), dx = pointerX - ax, dy = pointerY - ay;
         float u = dx * start.cosine() + dy * start.sine(), v = -dx * start.sine() + dy * start.cosine();
         float w,h;
-        if(start.markdown!=null) {w=Math.max(start.width*.02f,u);h=Math.max(start.height*.02f,v);}
+        if(start.markdown!=null) {
+            // Keep page pixels per layout pixel stable, including at the browser's width limits.
+            float unit=start.width/start.markdown.width();
+            w=Math.max(160*unit,Math.min(1600*unit,u));h=Math.max(start.height*.02f,v);
+        }
         else {
             float factor = Math.max(.02f, (u * start.width + v * start.height)
                 / (start.width * start.width + start.height * start.height));

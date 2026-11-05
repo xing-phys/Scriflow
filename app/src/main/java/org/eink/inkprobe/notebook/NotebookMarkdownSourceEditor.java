@@ -117,7 +117,7 @@ final class NotebookMarkdownSourceEditor {
         if(before==null&&current.source.trim().isEmpty()){saved();listener.dismissed(this,false);return;}
         persist(()->{
             if(!current.source.equals(editor.getText().toString())){busy=false;commit(sourceMode,selectAfter);return;}
-            if(before!=null&&before.markdown.source.equals(current.source)){
+            if(sourceMode&&before!=null&&before.markdown.source.equals(current.source)){
                 if(before.markdown.sourceMode==sourceMode){saved();listener.dismissed(this,selectAfter);}
                 else listener.save(this,current,before.markdown.asSource(sourceMode),selectAfter);
                 return;

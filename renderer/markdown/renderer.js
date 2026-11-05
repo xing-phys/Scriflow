@@ -194,11 +194,18 @@ async function renderContent(source, body, width, diagramPrefix='diagram') {
     return errors;
 }
 
-async function render(source, width, minHeight=0) {
+function markdownFont(body,size) {
+  if(!Number.isFinite(size)||size<10||size>28)throw new Error('Invalid Markdown text size');
+  body.style.setProperty('--markdown-size',`${size}px`);
+  body.style.setProperty('--source-size',`${size*14/18}px`);
+}
+
+async function render(source, width, minHeight=0, fontSize=18) {
   if (result.phase === 'working') throw new Error('A Markdown render is already running');
   result = { phase: 'working' };
   try {
     const body = document.getElementById('block');
+    markdownFont(body,fontSize);
     if (!Number.isFinite(minHeight) || minHeight < 0 || minHeight > 16384) throw new Error('Invalid Markdown block height');
     body.style.minHeight = `${Math.round(minHeight)}px`;
     const errors = await renderContent(source, body, width);
@@ -212,11 +219,11 @@ async function render(source, width, minHeight=0) {
 
 // Keep a browser layout alive during a resize; changing CSS width does not
 // parse Markdown or regenerate PDF vectors on every pointer movement.
-async function preview(source, sourceMode, width) {
+async function preview(source, sourceMode, width, fontSize=18) {
   if (result.phase === 'working') return;
   result = { phase: 'working' };
   try {
-    const body=document.getElementById('block');body.style.minHeight='0';
+    const body=document.getElementById('block');body.style.minHeight='0';markdownFont(body,fontSize);
     if(sourceMode) {
       if(typeof source!=='string'||new TextEncoder().encode(source).length>128*1024)throw new Error('Markdown source exceeds 128 KiB');
       body.style.width=`${Math.round(width)}px`;body.textContent='';
@@ -232,7 +239,7 @@ function previewWidth(width) {
 }
 
 let chatMessages=[], chatRevision=0;
-async function chat(messages) {
+async function chat(messages, fontSize=14) {
   if (result.phase === 'working') return;
   result = { phase:'working' };
   try {
@@ -247,6 +254,8 @@ async function chat(messages) {
       }
     }
     const body=document.getElementById('block'); document.body.classList.add('chat');
+    if(!Number.isFinite(fontSize)||fontSize<10||fontSize>28)throw new Error('Invalid chat text size');
+    body.style.setProperty('--chat-size',`${fontSize}px`);
     if (chatMessages.length>messages.length || chatMessages.some((m,i)=>m.role!==messages[i]?.role || m.content!==messages[i]?.content
         ||JSON.stringify(m.images||[])!==JSON.stringify(messages[i]?.images||[]))) {
       MathJax.typesetClear([body]); body.textContent=''; chatMessages=[];

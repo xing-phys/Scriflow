@@ -48,6 +48,7 @@ final class NotebookMarkdownRenderer {
         view.setTranslationX(-pixels - 32); view.setAlpha(0);
         parent.addView(view, new FrameLayout.LayoutParams(pixels, 1024));
         WebSettings settings = view.getSettings();
+        settings.setTextZoom(100);
         settings.setJavaScriptEnabled(true); settings.setAllowFileAccess(false); settings.setAllowContentAccess(false);
         settings.setBlockNetworkLoads(true); settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setDomStorageEnabled(false); settings.setDatabaseEnabled(false); settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
@@ -65,7 +66,7 @@ final class NotebookMarkdownRenderer {
             @Override public void onPageFinished(WebView v, String url) {
                 if (closed || started || !url.equals(ORIGIN + "/markdown/index.html")) return;
                 started = true; deadline = SystemClock.uptimeMillis() + 60000;
-                view.evaluateJavascript("window.ScriflowMarkdown&&window.ScriflowMarkdown.render("+JSONObject.quote(source)+","+width+","+minHeight+");", null);
+                view.evaluateJavascript("window.ScriflowMarkdown&&window.ScriflowMarkdown.render("+JSONObject.quote(source)+","+width+","+minHeight+","+NotebookSettings.markdownTextSize(activity)+");", null);
                 main.removeCallbacks(poll); main.post(poll);
             }
             @Override public void onReceivedError(WebView v, WebResourceRequest request, WebResourceError error) {

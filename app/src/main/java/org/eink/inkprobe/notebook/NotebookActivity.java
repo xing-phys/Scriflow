@@ -303,7 +303,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
                 if (!canEdit()) return false;
                 lastInputAt = SystemClock.uptimeMillis();
                 toolsContact = true; toolsMoved = false; pendingToolAction = null;
-                pauseForEdit(floatingTools.isZenContact());
+                pauseForEdit(figureEditor == null || floatingTools.isZenContact());
                 if (shownError != null) toolsContact = false;
                 return shownError == null;
             }
@@ -791,7 +791,6 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
                 && shownError == null && session.error() == null && ink != null && !ink.isPenDown();
             if (!canEdit() && !continueLoading) return;
             collapseNoteActions();
-            hideHistoryControls();
             linkTap.begin(event.getX(changed), event.getY(changed), event.getEventTime(), dp(4), writingRevision);
             rememberGestureStart();
             fingerWritingRevision=writingRevision;
@@ -1181,7 +1180,9 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         if (!toolsContact) return;
         lastInputAt = SystemClock.uptimeMillis();
         toolsContact = false;
-        if (pendingToolAction != NotebookFloatingTools.Action.ZEN) writingHistory = false;
+        if (pendingToolAction == NotebookFloatingTools.Action.PEN || pendingToolAction == NotebookFloatingTools.Action.ERASER
+                || pendingToolAction == NotebookFloatingTools.Action.LASSO) writingHistory = true;
+        else if (pendingToolAction != null && pendingToolAction != NotebookFloatingTools.Action.ZEN) writingHistory = false;
         if (!active || shownError != null || ink == null) { pendingToolAction = null; return; }
         final int request = generation;
         final boolean restore = toolsMoved;
@@ -1445,14 +1446,14 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
 
     private void selectTool(NotebookInk.Tool selected) {
         if (!canEdit()) return;
-        writingHistory = false;
+        writingHistory = true;
         stylusShortcut.discard();
         if (tool == selected) {
             if (selected == NotebookInk.Tool.LASSO) selectionMenu(); else chooseWidth(selected);
             return;
         }
         boolean redraw = selectionOutline != null;
-        if (redraw) { pauseForEdit(); clearSelection(); } else hideHistoryControls();
+        if (redraw) { pauseForEdit(true); clearSelection(); }
         tool = selected;
         ink.setTool(inputTool());
         if (redraw) { editing = false; installViewport(); }
@@ -1475,7 +1476,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
 
     private void chooseWidth(NotebookInk.Tool selected) {
         if (!canEdit()) return;
-        pauseForEdit();
+        pauseForEdit(true);
         if (shownError != null) return;
         final int request = generation;
         final boolean erasing = selected == NotebookInk.Tool.ERASER;
@@ -1492,7 +1493,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
                 new NotebookWidthPopup.Listener() {
                     @Override public boolean onContactStart() {
                         if (!active || request != generation || !canEdit()) return false;
-                        widthContact = true; pauseForEdit();
+                        widthContact = true; pauseForEdit(true);
                         if (shownError != null) { widthContact = false; return false; }
                         return true;
                     }
@@ -1543,7 +1544,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
 
     private void erase(List<NotebookPage.Point> path, float radius) {
         if (!canEdit()) return;
-        pauseForEdit();
+        pauseForEdit(true);
         if (shownError != null) return;
         final int request = generation;
         List<NotebookViewport.EraseGesture> gestures = viewport.splitErase(path, radius, scrollY);
@@ -1556,7 +1557,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
 
     private void lasso(List<NotebookPage.Point> path) {
         if (!canEdit() || viewport == null) return;
-        pauseForEdit();
+        pauseForEdit(true);
         if (shownError != null) return;
         final int request = generation;
         clearSelection();
@@ -1578,7 +1579,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
 
     private void eraseRegion(List<NotebookPage.Point> path){
         if(!canEdit()||viewport==null)return;
-        pauseForEdit();if(shownError!=null)return;clearSelection();
+        pauseForEdit(true);if(shownError!=null)return;clearSelection();
         if(path==null||path.isEmpty()){editing=false;installViewport();return;}
         final int request=generation;
         Map<Integer,List<NotebookPage.Point>> regions=viewport.splitRegion(path,scrollY);
@@ -1665,7 +1666,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         if (action == NotebookSelectionTools.Action.COPY) { session.copy(selection); selectionTools.copied(); return; }
         if (action == NotebookSelectionTools.Action.EXPORT) { exportSelection(); return; }
         if (action == NotebookSelectionTools.Action.MOVE) { moveSelectionToPage(); return; }
-        pauseForEdit();
+        pauseForEdit(true);
         if (shownError != null) return;
         final int request = generation, id = selectionPage;
         if (action == NotebookSelectionTools.Action.CUT) session.copy(selection);
@@ -1707,7 +1708,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
             float scale = viewport.scale(selectionPage), top = viewport.pageTop(selectionPage, scrollY);
             boolean inside = selection != null && NotebookLasso.contains(selectionOutline,
                 (event.getX(changed) - viewport.pageLeft(selectionPage)) / scale, (event.getY(changed) - top) / scale);
-            pauseForEdit();
+            pauseForEdit(true);
             if (shownError != null) return;
             selectionPointer = event.getPointerId(changed);
             selectionPointerX = event.getX(changed); selectionPointerY = event.getY(changed); selectionStartScroll = scrollY;
@@ -1956,7 +1957,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
     private void selectionMenu() {
         if (!canEdit() || lassoMenu != null) return;
         if (selectionOutline != null) { showSelectionTools(); return; }
-        pauseForEdit();
+        pauseForEdit(true);
         if (shownError != null) return;
         final int request = generation;
         final int id = activePage;

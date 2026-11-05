@@ -36,6 +36,11 @@ public final class NotebookSettingsActivity extends NotebookDisplayActivity {
 
         aiSettings=new NotebookAiSettingsSection(this, body);
 
+        section(body, "Text size");
+        textSizeRow(body, "AI chat replies", true);
+        textSizeRow(body, "Markdown blocks", false);
+        hint(body, "Chat size applies when chats reopen. Markdown size applies to new blocks and when a saved block is edited and rendered or resized.");
+
         section(body, "Screen orientation");
         LinearLayout orientationRow = row();
         for (NotebookSettings.Orientation orientation : NotebookSettings.Orientation.values()) {
@@ -102,6 +107,26 @@ public final class NotebookSettingsActivity extends NotebookDisplayActivity {
         line.addView(label("  Columns ", 12));
         line.addView(number("shelfColumns", landscape, NotebookSettings.bookshelfColumns(this, landscape)), new LinearLayout.LayoutParams(dp(104), dp(34)));
         body.addView(line);
+    }
+
+    private void textSizeRow(LinearLayout body,String name,boolean ai) {
+        LinearLayout line=row();
+        line.addView(label(name,13),new LinearLayout.LayoutParams(0,dp(38),1));
+        LinearLayout control=row();control.setPadding(dp(1),dp(1),dp(1),dp(1));
+        control.setBackground(NotebookUi.border(getResources().getDisplayMetrics().density));
+        final int[] current={ai?NotebookSettings.aiTextSize(this):NotebookSettings.markdownTextSize(this)};
+        TextView value=label("",13);value.setGravity(Gravity.CENTER);
+        NotebookButton less=button("−",()->{}),more=button("+",()->{});
+        less.setTextSize(18);more.setTextSize(18);less.setGravity(Gravity.CENTER);more.setGravity(Gravity.CENTER);
+        less.setContentDescription("Decrease "+name+" text size");more.setContentDescription("Increase "+name+" text size");
+        Runnable update=()->{value.setText(String.valueOf(current[0]));value.setContentDescription(name+" text size: "+current[0]);
+            less.setAvailable(current[0]>NotebookSettings.MIN_TEXT_SIZE);more.setAvailable(current[0]<NotebookSettings.MAX_TEXT_SIZE);};
+        less.setOnClickListener(v->{if(current[0]>NotebookSettings.MIN_TEXT_SIZE){NotebookSettings.setTextSize(this,ai,--current[0]);update.run();}});
+        more.setOnClickListener(v->{if(current[0]<NotebookSettings.MAX_TEXT_SIZE){NotebookSettings.setTextSize(this,ai,++current[0]);update.run();}});
+        control.addView(less,new LinearLayout.LayoutParams(dp(32),-1));
+        control.addView(value,new LinearLayout.LayoutParams(0,-1,1));
+        control.addView(more,new LinearLayout.LayoutParams(dp(32),-1));
+        line.addView(control,new LinearLayout.LayoutParams(dp(104),dp(34)));body.addView(line);update.run();
     }
 
     private LinearLayout number(String kind, boolean landscape, int value) {

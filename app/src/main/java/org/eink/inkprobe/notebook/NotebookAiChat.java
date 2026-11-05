@@ -78,12 +78,13 @@ final class NotebookAiChat {
         composer=new EditText(activity); composer.setTextColor(Color.BLACK); composer.setTextSize(12); composer.setGravity(Gravity.TOP|Gravity.START);
         composer.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_MULTI_LINE|InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
         composer.setImeOptions(EditorInfo.IME_FLAG_NO_EXTRACT_UI|EditorInfo.IME_FLAG_NO_FULLSCREEN);
-        composer.setMinLines(1);composer.setMinimumHeight(dp(28));composer.setMaxLines(4); composer.setHint("Message AI…"); composer.setContentDescription("Message AI");
+        composer.setMinLines(1);composer.setMinimumHeight(dp(24));composer.setMaxLines(6); composer.setHint("Message AI…"); composer.setContentDescription("Message AI");
         composer.setFilters(new InputFilter[]{new InputFilter.LengthFilter(NotebookAiConversation.MAX_MESSAGE_BYTES)});
         composer.setSaveEnabled(false);
         composer.addTextChangedListener(new TextWatcher() {
             public void beforeTextChanged(CharSequence s,int start,int count,int after) { }
             public void onTextChanged(CharSequence s,int start,int before,int count) {
+                if(composer.getParent() instanceof View) ((View)composer.getParent()).requestLayout();
                 if (settingText||closed) return; main.removeCallbacks(saveDraft); main.postDelayed(saveDraft,400); updateSend();
             }
             public void afterTextChanged(Editable value) { }
@@ -95,7 +96,7 @@ final class NotebookAiChat {
         send=icon(NotebookIconDrawable.Icon.SEND,"Send message (Ctrl+Enter)",this::send);
         add=icon(NotebookIconDrawable.Icon.PLUS,"Attach a notebook",this::chooseNotebook);
         model=button("Choose model ▾",this::chooseModel);model.setTextSize(10);model.setSingleLine(true);model.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        model.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);model.setOnTouchListener(new ModelTap());layoutInput();
+        model.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);model.setOnTouchListener(new ModelTap());
         controls=new NotebookWindowControls(activity,anchor,frame,workspace.geometry,window.pane,new NotebookWindowControls.Listener(){
             public void menu(){if(!contact){if(!listener.contactStart())return;contact=true;}optionsOpen=true;listener.options();}
             public void minimize(){NotebookAiChat.this.minimize();}
@@ -103,7 +104,8 @@ final class NotebookAiChat {
             public void endMove(){position();listener.changed();}
             public void save(){listener.changed();}public void position(){NotebookAiChat.this.position();}
             public boolean ready(){return !hidden&&!closed;}
-        },"chat");
+        },"chat",true);
+        layoutInput();
         frame.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->controls.presented());
         popup=new PopupWindow(frame,1,1,true); popup.setOutsideTouchable(false); popup.setTouchModal(false);
         NotebookAiFrame.configure(popup);popup.setAnimationStyle(0); popup.setElevation(0);
@@ -120,15 +122,11 @@ final class NotebookAiChat {
         refresh();
     }
     private void layoutInput(){
-        LinearLayout row=new LinearLayout(activity);row.setOrientation(LinearLayout.HORIZONTAL);row.setGravity(Gravity.BOTTOM);
+        NotebookAiComposer row=new NotebookAiComposer(activity,composer,controls.menu,add,model,send,controls.minimize);
         android.graphics.drawable.GradientDrawable outline=new android.graphics.drawable.GradientDrawable();outline.setColor(Color.WHITE);outline.setCornerRadius(dp(14));outline.setStroke(dp(1),Color.BLACK);row.setBackground(outline);row.setPadding(dp(3),dp(2),dp(3),dp(2));
         composer.setBackground(null);composer.setPadding(dp(4),dp(3),dp(4),dp(3));
-        row.addView(add,new LinearLayout.LayoutParams(dp(28),dp(28)));
-        row.addView(composer,new LinearLayout.LayoutParams(0,-2,1));
-        LinearLayout.LayoutParams action=new LinearLayout.LayoutParams(dp(28),dp(28));row.addView(send,action);
+        model.setPadding(dp(3),0,dp(3),0);
         content.addView(row,new LinearLayout.LayoutParams(-1,-2));
-        LinearLayout footer=new LinearLayout(activity);footer.setPadding(dp(30),0,dp(30),0);footer.setGravity(Gravity.CENTER_VERTICAL);footer.setMinimumHeight(dp(34));
-        footer.addView(model,new LinearLayout.LayoutParams(-1,dp(28)));content.addView(footer,new LinearLayout.LayoutParams(-1,-2));
     }
     private final class ModelTap implements View.OnTouchListener {
         final NotebookGripGesture gesture=new NotebookGripGesture(ViewConfiguration.get(activity).getScaledTouchSlop());
@@ -225,7 +223,7 @@ final class NotebookAiChat {
             for (int i=0;i<session.chat.draftImages.size();i++) {
                 final int index=i; NotebookAiAttachment image=session.chat.draftImages.get(i);
                 NotebookButton chip=attachmentChip(image,index);
-                LinearLayout.LayoutParams item=new LinearLayout.LayoutParams(-2,dp(26));item.rightMargin=dp(4);
+                LinearLayout.LayoutParams item=new LinearLayout.LayoutParams(-2,dp(26));item.rightMargin=dp(6);item.bottomMargin=dp(6);
                 attachments.addView(chip,item);
             }
             attachmentStrip.setVisibility(session.chat.draftImages.isEmpty()?View.GONE:View.VISIBLE);
@@ -287,7 +285,7 @@ final class NotebookAiChat {
         NotebookButton chip=button(label+"  ×",()->session.removeImage(index));
         chip.setTextSize(10);chip.setPadding(dp(7),0,dp(7),0);
         android.graphics.drawable.GradientDrawable border=new android.graphics.drawable.GradientDrawable();
-        border.setColor(Color.WHITE);border.setCornerRadius(dp(7));border.setStroke(dp(1),Color.BLACK);chip.setBackground(border);
+        border.setColor(Color.WHITE);border.setCornerRadius(dp(1000));border.setStroke(dp(1),0xff999999);chip.setBackground(border);
         chip.setContentDescription("Remove attached "+image.name);chip.setTooltipText(image.name);return chip;
     }
     void copyLastReply() {

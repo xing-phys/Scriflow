@@ -160,12 +160,23 @@ $$e^{i\pi}+1=0$$`);
     const narrow=await page.$eval('#block',node=>({width:node.getBoundingClientRect().width,height:node.getBoundingClientRect().height,font:getComputedStyle(node).fontSize}));
     assert.equal(wide.width,640);assert.equal(narrow.width,240);assert(narrow.height>wide.height);assert.equal(narrow.font,wide.font);
     assert(await page.evaluate(()=>window.previewMath===document.querySelector('#block mjx-container')),'Width changes reuse the existing rendered content');
+    await page.setViewport({width:320,height:800,deviceScaleFactor:2,isMobile:true,hasTouch:true});
+    await page.evaluate(source=>{ScriflowMarkdown.preview(source,false,640,24);},paragraph);
+    await page.waitForFunction("['ready','error'].includes(ScriflowMarkdown.info().phase)",{timeout:60000});
+    assert.equal(await page.$eval('#block p',n=>getComputedStyle(n).fontSize),'24px','Configured Markdown size is honored on a narrow mobile viewport');
+    await page.evaluate(()=>ScriflowMarkdown.previewWidth(160));
+    assert.equal(await page.$eval('#block p',n=>getComputedStyle(n).fontSize),'24px','Resizing cannot trigger mobile text autosizing');
+    await page.evaluate(source=>{ScriflowMarkdown.preview(source,true,240,24);},paragraph);
+    await page.waitForFunction("['ready','error'].includes(ScriflowMarkdown.info().phase)",{timeout:60000});
+    assert(Math.abs(parseFloat(await page.$eval('.md-source',n=>getComputedStyle(n).fontSize))-24*14/18)<.1,'Source view follows the Markdown size setting');
     await page.goto(origin + '/index.html', { waitUntil:'networkidle0' });
     await page.waitForFunction('window.ScriflowMarkdown', { timeout:30000 });
-    await page.evaluate(source=>{ScriflowMarkdown.render(source,240,1200);},paragraph);
+    await page.evaluate(()=>{const create=pdfMake.createPdf.bind(pdfMake);pdfMake.createPdf=(definition,...args)=>{if(!window.compiledFont)window.compiledFont=getComputedStyle(document.querySelector('#block p')).fontSize;return create(definition,...args);};});
+    await page.evaluate(source=>{ScriflowMarkdown.render(source,240,1200,24);},paragraph);
     await page.waitForFunction("['ready','error'].includes(ScriflowMarkdown.info().phase)",{timeout:60000});
     const reflow=await page.evaluate(()=>ScriflowMarkdown.info());
     assert.equal(reflow.phase,'ready',reflow.message);assert.equal(reflow.rw,240);assert(reflow.rh>=1200&&reflow.sh>=1200);
+    assert.equal(await page.evaluate(()=>window.compiledFont),'24px','Compiled vectors use the same configured size as the preview');
 
     // Chat runs the same production formatter without producing vector PDF snapshots.
     await page.goto(origin + '/chat.html', { waitUntil:'networkidle0' });
@@ -183,6 +194,10 @@ $$e^{i\pi}+1=0$$`);
     }
     const history=[{role:'user',content:'Explain the evolution of a quantum state. <b>plain user text</b>'},{role:'assistant',content:sample}];
     assert.equal((await chat('chat-rich',history)).warning,'');
+    assert.equal(await page.$eval('.chat-assistant',n=>getComputedStyle(n).fontSize),'14px','AI text defaults to a smaller size');
+    await page.evaluate(messages=>ScriflowMarkdown.chat(messages,21),history);
+    await page.waitForFunction("['ready','error'].includes(ScriflowMarkdown.info().phase)",{timeout:60000});
+    assert.equal(await page.$eval('.chat-assistant',n=>getComputedStyle(n).fontSize),'21px','AI text follows its independent size setting');
     assert.equal(await page.$$eval('.chat-message',items=>items.length),2);
     assert.equal(await page.$$eval('.chat-user b',items=>items.length),0,'User messages stay literal');
     assert(await page.$('.chat-assistant mjx-container'));

@@ -110,7 +110,7 @@ The conversation has no title bar. New chat and History live in the toolbox
 tray; AI settings open from the normal app Settings. The bottom-left window
 options menu includes **Copy last AI reply**.
 
-Tap the **model name at the bottom**, below the message field, to choose a saved
+Tap the **model name in the message bar**, beside Send, to choose a saved
 model for a new floating chat. This control shows the model's friendly name;
 provider/model ID details remain in its tooltip/accessibility name.
 The selected model also becomes the default for subsequent chats opened from the toolbox.
@@ -122,9 +122,10 @@ available to its history even if that model is unchecked in Settings.
 
 Write a message and tap the **up-arrow icon at its right**, or use **Ctrl+Enter**
 on a keyboard; Enter inserts a line break. The AI receives the conversation's
-earlier turns so you can ask follow-up questions. The rounded message field
-and icon share a row; multiline input grows up to four lines while the icon
-keeps its width. The button shows a **stop square** during generation, a
+earlier turns so you can ask follow-up questions. The rounded message bar
+contains the window grips, attachment button, model picker and send control.
+Short messages share their row; a long message or a line break expands the editor
+to the full bar width above those controls, up to six visible lines. The button shows a **stop square** during generation, a
 **retry arrow** for an unanswered question, or a **save icon** after a storage
 failure. Tooltips and accessibility labels describe the current action.
 Stop cancels the local request. Retry resends an unanswered question after interruption or failure;
@@ -132,6 +133,8 @@ the app never retries automatically. Cancellation may arrive after a provider
 has started processing, so provider billing can still apply.
 
 Replies appear as complete messages, avoiding token-by-token refresh on e-ink.
+Adjust their text size under **Settings → Text size → AI chat replies**; open
+chats are restored with the new size after returning from Settings.
 The chat reuses the note-block Markdown engine for headings, lists, tables,
 highlighted code, LaTeX/MathJax, Mermaid diagrams, and multilingual text.
 Use `$…$` and `$$…$$` for inline and display math. Existing rendered turns stay

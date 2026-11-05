@@ -46,6 +46,10 @@ public final class NotebookFigureTransformTest {
         NotebookFigure fitted=NotebookFigureGeometry.reflow(stretched,reflowed);
         check(Math.abs(fitted.cornerX(0)-ax)<.001&&Math.abs(fitted.cornerY(0)-ay)<.001&&Math.abs(fitted.height-w*350/layout)<.001,"reflow grows to fit the content without moving its anchor or stretching text");
         check(NotebookFigureGeometry.markdownWidth(block,block.placed(block.x,block.y,2,block.height))==160,"extreme widths respect browser layout bounds");
+        NotebookFigure huge=NotebookFigureGeometry.resize(block,ax+2000*block.cosine(),ay+2000*block.sine());
+        check(Math.abs(huge.width/block.width-1600f/block.markdown.width())<.001,"dragging beyond the renderer limit cannot magnify the text");
+        NotebookFigure tiny=NotebookFigureGeometry.resize(block,ax,ay);
+        check(Math.abs(tiny.width/block.width-160f/block.markdown.width())<.001,"dragging below the renderer limit keeps the same text scale");
         NotebookFigure portrait = original.placed(-150,200,500,100).turned(90);
         NotebookPage.empty().withSize(200,600).withFigures(Collections.singletonList(portrait));
         check(portrait.left()>=0&&portrait.right()<=200&&portrait.width>200,"valid rotated images can have a negative unrotated origin");

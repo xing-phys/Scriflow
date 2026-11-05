@@ -33,9 +33,10 @@ contrast, and long-press word selection with Eudic floating lookup. Continuous
 scrolling at Fit width remains the default. Crop and contrast affect display;
 original PDF bytes, saved annotation coordinates and PDF exports are preserved.
 
-The **[0.37.0-alpha.4 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.37.0-alpha.4)**
-adds freely resizable, reflowing Markdown blocks, a compact floating chat,
-whole-notebook attachments and undo/redo after erasing or lasso edits. It also
+The **[0.37.0-alpha.5 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.37.0-alpha.5)**
+adds a smaller, expanding chat composer, independent chat and Markdown text-size
+settings, and more stable undo/redo controls. It retains freely resizable,
+reflowing Markdown blocks and whole-notebook attachments. It also
 protects [bursts of handwriting](docs/handwriting-priority.md) from automatic
 history, Markdown, chat, clock and inactive-note display updates. These updates
 catch up after native input settles and a 300 ms quiet interval; pen drawing
@@ -56,8 +57,9 @@ images or Markdown with the chat icon in their selection controls, then press
 Send. Only submitted chat text, selected attachments and their conversation
 history are sent. Use the toolbox AI icon for a tray with **+**, **History** and
 minimized chats. History works even with no windows open. The window has a
-compact message row with **+** for a notebook attachment and a send arrow,
-and a selectable model at the bottom. Copy the last reply from the bottom-left
+compact message row with **+** for a notebook attachment, a model picker and a
+send arrow. Longer messages expand into a full-width editor above the controls.
+Copy the last reply from the bottom-left
 options menu. Tapping an overlapping floating chat or note brings it to the
 front. Each new window has its own session,
 draft and model. Tap the bottom-left
