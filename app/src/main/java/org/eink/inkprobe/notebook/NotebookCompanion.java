@@ -8,6 +8,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
+import android.widget.LinearLayout;
 import android.widget.PopupWindow;
 import java.util.ArrayList;
 import java.util.List;
@@ -15,7 +16,7 @@ import java.util.List;
 /** Border-only note frame with two overlaid corner controls and one shared native editor. */
 final class NotebookCompanion {
     interface Listener {
-        void lookup(String word); void interact(); void menu(); void activate(); void figure(NotebookFigureHit.Hit hit); void collapse(); void boundsChanged();void raised();
+        void lookup(String word); void interact(); void menu(); void activate(); void figure(NotebookFigureHit.Hit hit); void collapse(); void boundsChanged();void raised(); void history(boolean forward);
         boolean shouldRaise();void raiseEditor();long stackRevision();
         boolean beginMove(); void endMove(); void save(); boolean allowInput(); int writingRevision();
     }
@@ -32,6 +33,8 @@ final class NotebookCompanion {
     private final Listener listener;
     private final PopupWindow popup;
     private final NotebookIconButton menu, minimize;
+    private final NotebookIconButton historyBack, historyForward;
+    private final LinearLayout history;
     private final NotebookReader reader;
     private boolean visible, editor, editorPrepared;
     private final NotebookWindowControls controls;
@@ -75,6 +78,17 @@ final class NotebookCompanion {
             public void endMove(){listener.endMove();}public void save(){listener.save();}
             public void position(){NotebookCompanion.this.position();}public boolean ready(){return visible&&(!editor||editorPrepared);}
         },"note");menu=controls.menu;minimize=controls.minimize;
+        history = new LinearLayout(context); history.setOrientation(LinearLayout.HORIZONTAL);
+        historyBack = new NotebookIconButton(context, NotebookIconDrawable.Icon.VIEW_BACK, "Previous view");
+        historyForward = new NotebookIconButton(context, NotebookIconDrawable.Icon.VIEW_FORWARD, "Next view");
+        historyBack.setOnClickListener(v -> listener.history(false)); historyForward.setOnClickListener(v -> listener.history(true));
+        history.addView(historyBack, new LinearLayout.LayoutParams(dp(32), dp(32)));
+        LinearLayout.LayoutParams next = new LinearLayout.LayoutParams(dp(32), dp(32)); next.leftMargin=dp(4);
+        history.addView(historyForward, next);
+        FrameLayout.LayoutParams historyPosition = new FrameLayout.LayoutParams(-2, dp(32), Gravity.BOTTOM | Gravity.RIGHT);
+        historyPosition.setMargins(0, 0, dp(41), dp(5)); content.addView(history, historyPosition);
+        history.setVisibility(View.GONE);
+        history.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob) -> listener.boundsChanged());
         popup = new PopupWindow(content, 1, 1, false);
         popup.setTouchable(true); popup.setOutsideTouchable(false); popup.setClippingEnabled(false);
         popup.setIsLaidOutInScreen(true); popup.setAnimationStyle(0); popup.setElevation(0);
@@ -106,6 +120,15 @@ final class NotebookCompanion {
         reader.setVisibility(View.VISIBLE); reader.bringToFront();
     }
     void refreshReadingSettings(){reader.refreshReadingSettings();}
+    void history(boolean back, boolean forward) {
+        boolean show = workspace.floating(pane) && (back || forward);
+        historyBack.setVisibility(back ? View.VISIBLE : View.GONE);
+        historyForward.setVisibility(forward ? View.VISIBLE : View.GONE);
+        LinearLayout.LayoutParams next = (LinearLayout.LayoutParams) historyForward.getLayoutParams();
+        int margin = back && forward ? dp(4) : 0;
+        if (next.leftMargin != margin) { next.leftMargin = margin; historyForward.setLayoutParams(next); }
+        history.setVisibility(show ? View.VISIBLE : View.GONE);
+    }
 
     void editorReady() {
         if (!editor || editorPrepared || controls.resizing()) return;
@@ -156,6 +179,7 @@ final class NotebookCompanion {
         else if (editor) {
             if (menu.getVisibility() == View.VISIBLE) bounds.add(screenBounds(menu));
             if (minimize.getVisibility() == View.VISIBLE) bounds.add(screenBounds(minimize));
+            if (history.getVisibility() == View.VISIBLE) bounds.add(screenBounds(history));
         }
         return bounds;
     }

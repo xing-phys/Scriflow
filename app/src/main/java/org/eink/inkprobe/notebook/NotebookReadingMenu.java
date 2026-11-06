@@ -13,7 +13,7 @@ final class NotebookReadingMenu {
     interface Listener{void close(NotebookReadingSettings settings,boolean cropArea);}
     private final Activity activity;private final View anchor;private final PopupWindow popup;private final Listener listener;
     private NotebookReadingSettings settings;private boolean retired,cropArea;
-    NotebookReadingMenu(Activity activity,View anchor,NotebookReadingSettings initial,boolean pdf,Listener listener){
+    NotebookReadingMenu(Activity activity,View anchor,NotebookReadingSettings initial,boolean pdf,java.util.function.Consumer<Float> previewContrast,java.util.function.Consumer<Float> saveContrast,Listener listener){
         this.activity=activity;this.anchor=anchor;this.settings=initial;this.listener=listener;
         LinearLayout content=new LinearLayout(activity);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(dp(12),dp(8),dp(12),dp(10));
         GradientDrawable background=new GradientDrawable();background.setColor(Color.WHITE);background.setStroke(dp(1),Color.BLACK);background.setCornerRadius(dp(6));content.setBackground(background);
@@ -35,11 +35,11 @@ final class NotebookReadingMenu {
             slider.setProgressBackgroundTintList(ColorStateList.valueOf(0xffbbbbbb));slider.setStateListAnimator(null);
             slider.setContentDescription("PDF contrast; larger values darken text and images");
             slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
-                public void onStartTrackingTouch(SeekBar s){}public void onStopTrackingTouch(SeekBar s){}
-                public void onProgressChanged(SeekBar s,int n,boolean user){float factor=(n+4)/20f;settings=settings.contrast(factor);value.setText(contrastLabel(factor));}
+                public void onStartTrackingTouch(SeekBar s){}public void onStopTrackingTouch(SeekBar s){saveContrast.accept(settings.contrast);}
+                public void onProgressChanged(SeekBar s,int n,boolean user){float factor=(n+4)/20f;settings=settings.contrast(factor);value.setText(contrastLabel(factor));previewContrast.accept(factor);}
             });
             content.addView(slider,new LinearLayout.LayoutParams(-1,dp(36)));
-            LinearLayout reset=new LinearLayout(activity);add(reset,"Reset contrast",()->slider.setProgress(16));content.addView(reset);
+            LinearLayout reset=new LinearLayout(activity);add(reset,"Reset contrast",()->{slider.setProgress(16);saveContrast.accept(settings.contrast);});content.addView(reset);
             content.addView(label("Applies to PDF text and images. Ink is unchanged.",11));
         }
         popup=new PopupWindow(content,1,1,true);popup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));

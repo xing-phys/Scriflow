@@ -165,10 +165,12 @@ final class NotebookStatusIslands {
 
     private PopupWindow window(View content) {
         PopupWindow result = new PopupWindow(content, 0, 0, false);
+        // Keep both islands above split chat panels, but below floating chats.
+        result.setWindowLayoutType(WindowManager.LayoutParams.TYPE_APPLICATION_SUB_PANEL);
         result.setTouchable(true);
         result.setOutsideTouchable(false);
         result.setFocusable(false);
-        result.setInputMethodMode(PopupWindow.INPUT_METHOD_NOT_NEEDED);
+        result.setInputMethodMode(PopupWindow.INPUT_METHOD_NEEDED);
         result.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING);
         result.setClippingEnabled(false);
         result.setIsLaidOutInScreen(true);

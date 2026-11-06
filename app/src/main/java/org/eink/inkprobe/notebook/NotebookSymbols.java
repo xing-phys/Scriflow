@@ -50,6 +50,9 @@ public final class NotebookSymbols {
                 line(out, 3, 8, 7, 8);
                 line(out, 16, 16, 20, 15);
                 break;
+            case "FOLDER":
+                line(out, 3, 19, 3, 5, 10, 5, 12, 8, 21, 8, 21, 19, 3, 19);
+                break;
             case "PREVIOUS":
                 line(out, 15, 5, 8, 12, 15, 19);
                 break;

@@ -131,6 +131,14 @@ final class NotebookAiWindows {
         frontId=state.pane.notebookId;listener.chatRaised();
     }
     void noteRaised(){frontId=0;}
+    void raiseFloatingAboveTools(){
+        if(suspended)return;
+        NotebookAiWorkspace.Window active=workspace.active();
+        for(NotebookAiWorkspace.Window state:workspace.windows())if(state!=active){
+            NotebookAiChat chat=windows.get(state.pane.notebookId);if(chat!=null)chat.raiseAboveTools();
+        }
+        if(active!=null){NotebookAiChat chat=windows.get(active.pane.notebookId);if(chat!=null)chat.raiseAboveTools();}
+    }
     private void restore(NotebookAiWorkspace.Window state){if(state==null)return;workspace.focus(state);show(state,true);persist();positionAll();listener.workspaceChanged();}
     private String windowName(NotebookAiWorkspace.Window state){if(state==null)return "Chat";String name=state.title;if(name.equals("New chat"))name+=" "+(state.pane.notebookId-1);return name+" · "+state.model;}
     private void positionAll(){if(suspended)return;for(NotebookAiChat chat:new ArrayList<>(windows.values()))chat.position();listener.boundsChanged();}

@@ -29,6 +29,7 @@ final class NotebookAiChat {
     private final NotebookWritingGate writingGate;
     private final Runnable refreshAfterWriting = this::refresh;
     private final PopupWindow popup;
+    private int popupLayer = -1;
     private final NotebookAiFrame frame;
     private final LinearLayout content;
     private final EditText composer;
@@ -321,12 +322,20 @@ final class NotebookAiChat {
     }
     void position() {
         if(closed||hidden||window.pane.collapsed||anchor.getWidth()<1||anchor.getHeight()<1)return;
+        int layer=workspace.geometry.floating(window.pane)
+            ? WindowManager.LayoutParams.TYPE_APPLICATION_SUB_PANEL
+            : WindowManager.LayoutParams.TYPE_APPLICATION_PANEL;
+        if(layer!=popupLayer){
+            popupLayer=layer;popup.setWindowLayoutType(layer);
+            if(popup.isShowing()){raise(composer.hasFocus());return;}
+        }
         NotebookWorkspace.Box box=workspace.geometry.box(window.pane,anchor.getWidth(),anchor.getHeight());
         int[] origin=new int[2];anchor.getLocationOnScreen(origin);int x=origin[0]+box.x,y=origin[1]+box.y;
         publish(new Rect(x,y,x+box.width,y+box.height));
         if(popup.isShowing())popup.update(x,y,box.width,box.height);else{popup.setWidth(box.width);popup.setHeight(box.height);}
         controls.presented();
     }
+    void raiseAboveTools(){if(!closed&&!hidden&&workspace.geometry.floating(window.pane)&&popup.isShowing())raise(composer.hasFocus());}
     void optionsFinished(){optionsOpen=false;finishContact();}
     void minimize(){
         if(closed||hidden)return;main.removeCallbacks(saveDraft);saveDraft();hidden=true;controls.cancel();

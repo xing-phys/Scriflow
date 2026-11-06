@@ -53,7 +53,8 @@ finger navigation. Changing focus preserves each pane's independent view.
 Increase **PDF contrast** for darker text edges and images on e-ink. Values range
 from 0.20 to 3.00; 1.00 preserves original tones, higher values darken middle
 tones and lower values lighten them. Pure black and white remain unchanged.
-Reset contrast restores 1.00. Changes apply when the settings panel closes.
+Reset contrast restores 1.00. The page updates while the settings panel is open,
+as soon as the replacement PDF tiles have rendered.
 
 Contrast applies to PDF pixels after native rasterization, on the PDF display
 worker. It affects PDF text and images together, without thickening handwriting

@@ -6,6 +6,25 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.38.0-alpha.1 — Reader navigation and monochrome interface (2026-11-06)
+
+- Refresh the bookshelf, page management and Settings screens with flat,
+  outlined black-and-white controls and icons. Match the lasso action icons
+  to the figure and Markdown toolbar.
+- Collapse or expand nested outline headings. Show previous/next view controls
+  only when available at the note's lower right or inside a floating note;
+  direct page-overview jumps now enter view history.
+- Keep the toolbox and status controls above note and split-chat content, put
+  floating chats in front of the toolbox, and let the system keyboard cover the
+  controls. Preview PDF contrast while the reading settings remain open.
+- Keep file-transfer activities through orientation changes while the system
+  picker is open. This is a candidate fix for landscape transfers; the cause
+  and behavior on the owner's tablet remain unverified.
+- VersionCode 95; no document format change. Host tests, browser/PDF checks,
+  Android lint and signed release verification run for this alpha. The tablet
+  was unavailable; visual layout, window layers, contrast and landscape
+  import/export still require device testing.
+
 ## 0.37.0-alpha.6 — Markdown font and resize corrections (2026-11-05)
 
 - Let each Markdown block set its rendered preview size with an A icon. The

@@ -32,6 +32,7 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPdfStaging.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPdfImportFlow.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookOutline.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookOutlineTree.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookViewHistory.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookLinkTapGesture.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPaperSize.java \
@@ -94,6 +95,7 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   tests/NotebookPageCatalogTest.java \
   tests/NotebookPdfStagingTest.java \
   tests/NotebookViewHistoryTest.java \
+  tests/NotebookOutlineTreeTest.java \
   tests/NotebookLinkTapGestureTest.java \
   tests/NotebookCatalogTest.java tests/NotebookLibraryTest.java tests/NotebookShelfTest.java tests/NotebookPaperSizeTest.java \
   tests/NotebookViewportTest.java tests/NotebookViewportZoomTest.java tests/NotebookScrollStoreTest.java \
@@ -152,6 +154,7 @@ java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPdfTilesTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPageCatalogTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPdfStagingTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookViewHistoryTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookOutlineTreeTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookLinkTapGestureTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookCatalogTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookLibraryTest

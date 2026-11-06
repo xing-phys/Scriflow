@@ -44,14 +44,15 @@ public final class NotebookViewHistory {
         @Override public int hashCode() { return Objects.hash(pageId, x, y, zoom, fit); }
     }
 
-    /** Capture the outgoing view only for a PDF link or outline jump. Scrolling, zoom, and ordinary page changes do not record. */
+    /** Capture an outgoing view before an explicit navigation. */
     public void record(State current) {
         require(current); push(back, current); forward.clear();
     }
-    /** A central policy keeps normal reading movements out of link/outline return history. */
+    /** Normal reading movements remain separate from explicit jump history. */
     public void record(State current, Navigation navigation) {
         if (navigation == null) throw new IllegalArgumentException("Missing navigation cause");
-        if (navigation == Navigation.PDF_LINK || navigation == Navigation.OUTLINE) record(current);
+        if (navigation == Navigation.PDF_LINK || navigation == Navigation.OUTLINE
+                || navigation == Navigation.PAGE_OVERVIEW) record(current);
     }
     public boolean canBack() { return !back.isEmpty(); }
     public boolean canForward() { return !forward.isEmpty(); }

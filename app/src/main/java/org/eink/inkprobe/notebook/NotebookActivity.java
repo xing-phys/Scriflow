@@ -22,6 +22,7 @@ import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.FrameLayout;
@@ -31,6 +32,7 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.ArrayAdapter;
+import android.widget.BaseAdapter;
 import android.widget.ListView;
 import android.widget.Toast;
 import java.io.File;
@@ -80,11 +82,13 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
     private final HashSet<UUID> cropFailures=new HashSet<>();
     private boolean readingFlowKnown;
     private NotebookReadingMenu readingMenu;
+    private Float readingPreviewContrast;
     private NotebookCropEditor cropEditor;
     private NotebookPdfReading.Request cropPreviewRequest;
     private boolean changingWorkspace, workspaceLayoutPending;
     private int inkGeneration;
     private final Map<Integer, byte[]> workspaceHistories = new LinkedHashMap<>();
+    private final Map<Integer, HashSet<UUID>> outlineCollapsed = new LinkedHashMap<>();
     private TextView saveState;
     private NotebookButton noteNameButton, pageLabel, zoomValue;
     private int statusPageCount;
@@ -112,6 +116,8 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
     private final Runnable selectionFrame = this::drawSelectionFrame;
     private NotebookIconButton previousButton, nextButton, addButton;
     private NotebookFloatingTools floatingTools;
+    private NotebookViewNavigation viewNavigation;
+    private final Rect viewNavigationBounds = new Rect();
     private NotebookAiWindows aiWindows;
     private List<Rect> aiExclusions=new ArrayList<>();
     private String restoredAiWindows,legacyAiId,legacyAiProfile;
@@ -211,6 +217,13 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
             restoreCenterPage = saved.getInt("viewCenterPage", 1);
             restoreCenterX = saved.getFloat("viewCenterX", 0);
             restoreCenterY = saved.getFloat("viewCenterY", 0);
+        }
+        if (saved != null) {
+            Bundle histories = saved.getBundle("workspaceViewHistories");
+            if (histories != null) for (String key : histories.keySet()) {
+                try { workspaceHistories.put(Integer.parseInt(key), histories.getByteArray(key)); }
+                catch (NumberFormatException ignored) { }
+            }
         }
         penWidth = NotebookPenConfig.restore(getPreferences(MODE_PRIVATE)
             .getFloat("penWidth", NotebookPenConfig.DEFAULT_WIDTH));
@@ -329,8 +342,9 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         floatingTools.setVertical(getPreferences(MODE_PRIVATE).getBoolean("toolsVertical", false));
         floatingTools.setCollapsed(getPreferences(MODE_PRIVATE).getBoolean("toolsCollapsed", false));
         addButton = floatingTools.button(NotebookFloatingTools.Action.ADD_PAGE);
-        floatingTools.button(NotebookFloatingTools.Action.VIEW_BACK).setContentDescription("Return to previous link or outline view");
-        floatingTools.button(NotebookFloatingTools.Action.VIEW_FORWARD).setContentDescription("Go forward to next link or outline view");
+        viewNavigation = new NotebookViewNavigation(this, this::changeViewHistory, bounds -> {
+            viewNavigationBounds.set(bounds); updateOverlayBounds();
+        });
         penButton = floatingTools.button(NotebookFloatingTools.Action.PEN);
         eraserButton = floatingTools.button(NotebookFloatingTools.Action.ERASER);
         lassoButton = floatingTools.button(NotebookFloatingTools.Action.LASSO);
@@ -630,6 +644,13 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
     private void backgroundsChanged() {
         if (!active || shownError != null) return;
         tiles.clear(); selectionTiles.clear(); selectionTilePages.clear();
+        if (readingMenu != null && editing && ink != null && viewport != null && preparePdfBackgrounds()) {
+            try {
+                // The settings panel owns a paused editor. Repost the completed PDF
+                // tiles without resuming pen input or closing the panel.
+                ink.updateViewport(viewport.compose(pages, scrollY), this::drawPaper);
+            } catch (RuntimeException error) { showError(new IOException("Could not preview PDF contrast", error)); }
+        }
         if (figureEditor != null) figureEditor.update(viewport, pages, scrollY);
         if (selectionDrag.isActive()) { selectionBackgroundDirty = true; scheduleSelectionFrame(); }
         else if (dragging || figureNavigationPreview) schedulePreview();
@@ -642,7 +663,8 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         File source = session.pdfSource();
         if (viewport == null) return true;
         if(!prepareCrop())return false;
-        pdfBackgrounds.setContrast(session.readingSettings(session.notebookId()).contrast);
+        pdfBackgrounds.setContrast(readingPreviewContrast == null
+            ? session.readingSettings(session.notebookId()).contrast : readingPreviewContrast);
         List<NotebookPdfTiles.Tile> visible = new ArrayList<>();
         HashSet<Integer> sourcePages = new HashSet<>();
         if (source != null) for (int id : viewport.visiblePages(scrollY)) {
@@ -1140,6 +1162,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
                 placeToolsBelowStatus = false;
                 getPreferences(MODE_PRIVATE).edit().putBoolean("floatingStatusLayout", true).apply();
             }
+            if (floatingTools.isShowing() && aiWindows != null) aiWindows.raiseFloatingAboveTools();
         }
     }
 
@@ -1153,7 +1176,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         if(aiWindows!=null)bounds.addAll(aiWindows.exclusions());
         bounds.add(aiKeyboardBounds);
         bounds.add(toolHintBounds);
-        bounds.add(toolsBounds); bounds.add(notebookStatusBounds); bounds.add(deviceStatusBounds); bounds.add(widthPopupBounds);
+        bounds.add(toolsBounds); bounds.add(notebookStatusBounds); bounds.add(deviceStatusBounds); bounds.add(widthPopupBounds); bounds.add(viewNavigationBounds);
         if (viewport != null) {
             int[] origin = new int[2]; ink.view().getLocationOnScreen(origin);
             int left = Math.max(0, (int) Math.floor(viewport.viewLeft(1)));
@@ -1210,8 +1233,6 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
             case LASSO: selectTool(NotebookInk.Tool.LASSO); break;
             case MORE: pageInformation(); break;
             case OUTLINE: showOutline(); break;
-            case VIEW_BACK: changeViewHistory(false); break;
-            case VIEW_FORWARD: changeViewHistory(true); break;
             case ZEN: toggleZenMode(); break;
             case ORIENTATION: toggleToolsOrientation(); break;
             case COLLAPSE: toggleToolsCollapsed(); break;
@@ -1381,8 +1402,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         addButton.setAvailable(ready && session.pageCount() < NotebookIndex.MAX_PAGES);
         floatingTools.button(NotebookFloatingTools.Action.OUTLINE).setAvailable(ready);
         floatingTools.button(NotebookFloatingTools.Action.AI_CHAT).setAvailable(ready);
-        floatingTools.button(NotebookFloatingTools.Action.VIEW_BACK).setAvailable(ready && viewHistory.canBack());
-        floatingTools.button(NotebookFloatingTools.Action.VIEW_FORWARD).setAvailable(ready && viewHistory.canForward());
+        updateViewNavigation(ready);
         penButton.setToolSelected(tool == NotebookInk.Tool.PEN);
         eraserButton.setToolSelected(tool == NotebookInk.Tool.ERASER);
         eraserButton.setIcon(regionEraser?NotebookIconDrawable.Icon.REGION_ERASER:NotebookIconDrawable.Icon.ERASER);
@@ -1395,6 +1415,22 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         eraserButton.setContentDescription((regionEraser?"Region eraser; draw a dashed loop":"Stroke eraser, width "+NotebookWidthRange.ERASER.label(eraserWidth))
             + (tool == NotebookInk.Tool.ERASER ? "; tap for eraser options" : "; select eraser"));
         updateHistoryControls();
+    }
+
+    private void updateViewNavigation(boolean ready) {
+        if (viewNavigation == null) return;
+        NotebookWorkspace.Pane current = workspace.find(session.notebookId());
+        boolean floating = current != null && workspace.floating(current);
+        if (ready && overview == null && !floating) viewNavigation.show(canvas, viewHistory.canBack(), viewHistory.canForward());
+        else viewNavigation.hide();
+        for (Map.Entry<NotebookWorkspace.Pane, NotebookCompanion> item : noteWindows.entrySet()) {
+            NotebookWorkspace.Pane pane = item.getKey();
+            NotebookViewHistory history = viewHistory;
+            if (pane.notebookId != session.notebookId()) {
+                history = new NotebookViewHistory(); history.restore(pane.notebookId, workspaceHistories.get(pane.notebookId));
+            }
+            item.getValue().history(active && !pane.collapsed && history.canBack(), active && !pane.collapsed && history.canForward());
+        }
     }
 
     private void hideHistoryControls() {
@@ -2168,12 +2204,12 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         if (!canEdit() || !(forward ? viewHistory.canForward() : viewHistory.canBack())) return;
         NotebookViewHistory.State current = currentView();
         if (current == null) return;
+        pauseForEdit();
+        if (shownError != null) return;
         NotebookViewHistory.State target = forward ? viewHistory.forward(current) : viewHistory.back(current);
         if (target == null) return;
         int number = session.pageNumber(target.pageId);
-        if (number < 1) { viewHistory.clear(); updateControls(); return; }
-        pauseForEdit();
-        if (shownError != null) return;
+        if (number < 1) { viewHistory.clear(); editing = false; installViewport(); return; }
         clearSelection();
         zoomFit = target.fitMode();
         viewport=viewport.forPage(number);
@@ -2284,9 +2320,12 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
 
     private void pageOverview() {
         if (!canEdit()) return;
+        final NotebookViewHistory.State origin = currentView();
+        final boolean originNotAtPageStart = viewport != null && scrollY != viewport.pageScroll(viewport.centeredPage(scrollY));
         pauseForEdit();
         if (shownError != null) return;
         floatingTools.hide();
+        viewNavigation.hide();
         final int request = generation;
         // pauseForEdit flushes completed UP events synchronously. This writer barrier
         // includes their saved vectors before a preview can read them.
@@ -2305,8 +2344,16 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
                     pages.clear(); viewportBuffer.clear(); tiles.clear();
                     viewHistory.clear();
                     viewport = createViewport(viewport.width, viewport.height, viewport.pan);
+                    if (dialog.chosenPage() > 0 && origin != null && session.pageNumber(origin.pageId) > 0
+                            && (!origin.pageId.equals(session.pageId(dialog.chosenPage())) || originNotAtPageStart))
+                        viewHistory.record(origin, NotebookViewHistory.Navigation.PAGE_OVERVIEW);
                     jumpToPage(dialog.chosenPage() > 0 ? dialog.chosenPage() : session.pageNumber());
-                } else if (dialog.chosenPage() > 0) jumpToPage(dialog.chosenPage());
+                } else if (dialog.chosenPage() > 0) {
+                    int target = dialog.chosenPage();
+                    if (target != viewport.centeredPage(scrollY) || scrollY != viewport.pageScroll(target))
+                        rememberView(NotebookViewHistory.Navigation.PAGE_OVERVIEW);
+                    jumpToPage(target);
+                }
                 else {
                     // Browsing changed no document or viewport state. Reuse the paused
                     // native tracks rather than repainting all ink on Close/Back.
@@ -2325,11 +2372,44 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         pauseForEdit();
         if (shownError != null) return;
         floatingTools.hide();
+        viewNavigation.hide();
         final int request = generation;
         final NotebookOutline.Entry[] destination = {null};
         final boolean[] editMode = {false};
         List<NotebookOutline.Entry> entries = new ArrayList<>();
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1);
+        List<Integer> visible = new ArrayList<>();
+        HashSet<UUID> collapsed = outlineCollapsed.computeIfAbsent(session.notebookId(), id -> new HashSet<>());
+        final Runnable[] refresh = new Runnable[1];
+        BaseAdapter adapter = new BaseAdapter() {
+            @Override public int getCount() { return visible.size(); }
+            @Override public Object getItem(int position) { return entries.get(visible.get(position)); }
+            @Override public long getItemId(int position) { return visible.get(position); }
+            @Override public View getView(int position, View recycled, ViewGroup parent) {
+                int index = visible.get(position);
+                NotebookOutline.Entry entry = entries.get(index);
+                LinearLayout row = new LinearLayout(NotebookActivity.this);
+                row.setGravity(Gravity.CENTER_VERTICAL);
+                row.setPadding(dp(Math.min(8, entry.depth) * 16), 0, dp(8), 0);
+                TextView disclosure = new TextView(NotebookActivity.this);
+                boolean children = NotebookOutlineTree.hasChildren(entries, index);
+                disclosure.setText(children ? (collapsed.contains(entry.id) ? "▸" : "▾") : "");
+                disclosure.setTextSize(20); disclosure.setTextColor(Color.BLACK); disclosure.setGravity(Gravity.CENTER);
+                if (children) {
+                    disclosure.setContentDescription((collapsed.contains(entry.id) ? "Expand " : "Collapse ") + entry.title);
+                    disclosure.setOnClickListener(v -> {
+                        if (!collapsed.add(entry.id)) collapsed.remove(entry.id);
+                        refresh[0].run();
+                    });
+                }
+                row.addView(disclosure, new LinearLayout.LayoutParams(dp(40), dp(44)));
+                int number = session.pageNumber(entry.pageId);
+                TextView title = new TextView(NotebookActivity.this);
+                title.setText(entry.title + "  ·  " + (number > 0 ? "p. " + number : "Page removed"));
+                title.setTextColor(Color.BLACK); title.setTextSize(14); title.setGravity(Gravity.CENTER_VERTICAL);
+                row.addView(title, new LinearLayout.LayoutParams(0, dp(44), 1));
+                return row;
+            }
+        };
         ListView list = new ListView(this);
         list.setAdapter(adapter); list.setSelector(android.R.color.transparent);
         list.setContentDescription("Note outline; tap a heading to jump, hold to edit");
@@ -2338,34 +2418,28 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         hint.setTextColor(Color.BLACK); hint.setPadding(dp(16), dp(8), dp(16), dp(8));
         LinearLayout content = new LinearLayout(this); content.setOrientation(LinearLayout.VERTICAL);
         content.addView(hint); content.addView(list, new LinearLayout.LayoutParams(-1, dp(320)));
-        Runnable refresh = () -> {
-            entries.clear(); entries.addAll(session.outline()); adapter.clear();
-            for (NotebookOutline.Entry entry : entries) {
-                int number = session.pageNumber(entry.pageId);
-                StringBuilder label = new StringBuilder();
-                for (int level = 0; level < Math.min(8, entry.depth); level++) label.append("  ");
-                label.append(entry.title).append("  ·  ").append(number > 0 ? "p. " + number : "Page removed");
-                adapter.add(label.toString());
-            }
+        refresh[0] = () -> {
+            entries.clear(); entries.addAll(session.outline());
+            visible.clear(); visible.addAll(NotebookOutlineTree.visible(entries, collapsed));
             adapter.notifyDataSetChanged();
             hint.setText(entries.isEmpty() ? "Your outline is empty. Add a heading at the current view."
                 : editMode[0] ? "Tap a heading to edit, delete, or reorder it."
-                : "Tap a heading to jump. Hold to edit or reorder. Add heading marks the current view.");
+                : "Tap a heading to jump; use the arrows to collapse or expand. Hold to edit.");
         };
         outlineMenu = new AlertDialog.Builder(this).setTitle("Table of contents")
             .setView(content).setNegativeButton("Close", null)
             .setPositiveButton("Add heading", null).setNeutralButton("Edit headings", null).create();
         AlertDialog dialog = outlineMenu;
         list.setOnItemClickListener((parent, row, position, id) -> {
-            NotebookOutline.Entry entry = entries.get(position);
-            if (editMode[0]) { outlineEntryActions(entry, refresh); return; }
+            NotebookOutline.Entry entry = entries.get(visible.get(position));
+            if (editMode[0]) { outlineEntryActions(entry, refresh[0]); return; }
             if (session.pageNumber(entry.pageId) < 1) {
-                outlineEntryActions(entry, refresh); return;
+                outlineEntryActions(entry, refresh[0]); return;
             }
             destination[0] = entry; dialog.dismiss();
         });
         list.setOnItemLongClickListener((parent, row, position, id) -> {
-            outlineEntryActions(entries.get(position), refresh); return true;
+            outlineEntryActions(entries.get(visible.get(position)), refresh[0]); return true;
         });
         dialog.setOnDismissListener(closed -> {
             if (outlineMenu == dialog) outlineMenu = null;
@@ -2375,12 +2449,12 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
             if (number > 0) jumpToLocation(number, entry.fraction, NotebookViewHistory.Navigation.OUTLINE);
             else { editing = false; installViewport(); }
         });
-        refresh.run(); showStaticDialog(dialog);
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> showOutlineEditor(null, refresh));
+        refresh[0].run(); showStaticDialog(dialog);
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> showOutlineEditor(null, refresh[0]));
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
             editMode[0] = !editMode[0];
             dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setText(editMode[0] ? "Browse headings" : "Edit headings");
-            refresh.run();
+            refresh[0].run();
         });
     }
 
@@ -2643,6 +2717,10 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
             }
             public int writingRevision() { return writingRevision; }
             public void collapse() { collapsePane(pane, false); }
+            public void history(boolean forward) {
+                if (pane.notebookId == session.notebookId()) changeViewHistory(forward);
+                else activatePane(pane, () -> changeViewHistory(forward));
+            }
             public void raised() { frontNote=pane;++windowStackRevision;if(aiWindows!=null)aiWindows.noteRaised(); }
             public boolean shouldRaise(){return frontNote!=pane;}
             public long stackRevision(){return windowStackRevision;}
@@ -2683,7 +2761,8 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
             if (pane != editor) window.show(notebookName(pane.notebookId), null);
         }
         noteWindows.get(editor).show(session.notebookName(), canvas);
-        if (active) statusIslands.raise();
+        updateViewNavigation(active && page != null && page.isInitialized());
+        // Status uses a higher application sublayer than note and split-chat panels.
         updateOverlayBounds();
     }
 
@@ -2970,7 +3049,10 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         pauseForEdit();if(shownError!=null)return;clearSelection();
         NotebookPage current=pages.get(activePage);final int request=generation;
         if(session.readingError(session.notebookId())!=null)Toast.makeText(this,"View settings could not be read. Choosing a setting will save a new copy.",Toast.LENGTH_LONG).show();
-        readingMenu=new NotebookReadingMenu(this,workspaceRoot,session.readingSettings(session.notebookId()),current!=null&&current.pdfPage>0,(settings,area)->{
+        final int book=session.notebookId();
+        readingMenu=new NotebookReadingMenu(this,workspaceRoot,session.readingSettings(book),current!=null&&current.pdfPage>0,value->{
+            readingPreviewContrast=value;pdfBackgrounds.setContrast(value);
+        },value->savePreviewContrast(book,value),(settings,area)->{
             readingMenu=null;if(!active||request!=generation)return;
             if(area&&current!=null&&current.pdfPage>0)editCropArea(current,settings);
             else applyReadingSettings(settings);
@@ -2978,12 +3060,21 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         readingMenu.show(notebookStatusBounds);
     }
 
+    private void savePreviewContrast(int book, float value) {
+        NotebookReadingSettings saved = session.readingSettings(book).contrast(value);
+        session.saveReadingSettings(book, saved, error -> {
+            if (error != null && active && session.notebookId() == book)
+                Toast.makeText(this, error.getMessage(), Toast.LENGTH_LONG).show();
+        });
+    }
+
     private void applyReadingSettings(NotebookReadingSettings settings){
         final int request=generation,book=session.notebookId();NotebookReadingSettings old=session.readingSettings(book);
-        if(old.equals(settings)){editing=false;installViewport();return;}
+        if(old.equals(settings)){resumeAfterReadingPreview();return;}
         session.saveReadingSettings(book,settings,error->{
             if(!active||request!=generation||session.notebookId()!=book)return;
-            if(error!=null){Toast.makeText(this,error.getMessage(),Toast.LENGTH_LONG).show();editing=false;installViewport();return;}
+            readingPreviewContrast=null;
+            if(error!=null){Toast.makeText(this,error.getMessage(),Toast.LENGTH_LONG).show();resumeAfterReadingPreview();return;}
             for(NotebookPdfReading.Request pending:cropRequests.values())pending.cancel();cropRequests.clear();cropFailures.clear();
             if(old.singlePage!=settings.singlePage||old.crop!=settings.crop||!old.odd.equals(settings.odd)||!old.even.equals(settings.even)||!old.pages.equals(settings.pages))
                 zoomFit=settings.singlePage?NotebookViewport.Fit.PAGE:NotebookViewport.Fit.WIDTH;
@@ -2993,13 +3084,19 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         });
     }
 
+    private void resumeAfterReadingPreview() {
+        readingPreviewContrast = null; editing = false;
+        // A pending tile request must complete the normal viewport restoration.
+        scrolling = true; installViewport();
+    }
+
     private void editCropArea(NotebookPage current,NotebookReadingSettings settings){
         final int request=generation,number=activePage;final File source=session.pdfSource();
-        if(source==null){editing=false;installViewport();return;}
+        if(source==null){applyReadingSettings(session.readingSettings(session.notebookId()).contrast(settings.contrast));return;}
         cropPreviewRequest=NotebookPdfReading.preview(source,current.pdfPage,current.width,current.height,(bitmap,error)->{
             cropPreviewRequest=null;
             if(!active||request!=generation){if(bitmap!=null)bitmap.recycle();return;}
-            if(error!=null){Toast.makeText(this,error.getMessage(),Toast.LENGTH_LONG).show();editing=false;installViewport();return;}
+            if(error!=null){Toast.makeText(this,error.getMessage(),Toast.LENGTH_LONG).show();applyReadingSettings(session.readingSettings(session.notebookId()).contrast(settings.contrast));return;}
             NotebookCropBox box=settings.manual(number,current.id);
             if(box.equals(NotebookCropBox.FULL)){
                 NotebookCropBox detected=NotebookPdfReading.cached(source,current.pdfPage,NotebookCropBox.FULL);
@@ -3008,7 +3105,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
             View anchor=canvas.getWidth()<dp(260)||canvas.getHeight()<dp(300)?workspaceRoot:canvas;
             cropEditor=new NotebookCropEditor(this,anchor,bitmap,box,number,(result,scope)->{
                 cropEditor=null;if(!active||request!=generation)return;
-                if(result==null){editing=false;installViewport();}
+                if(result==null){applyReadingSettings(session.readingSettings(session.notebookId()).contrast(settings.contrast));}
                 else applyReadingSettings(settings.area(scope,current.id,result));
             });
             cropEditor.show();
@@ -3406,7 +3503,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
             + "\n\nNew writing or a successful edit clears Redo. Changing paper keeps your stroke history.";
         message += "\n\nTap the dotted grip to collapse or expand the floating tools; drag it to move them, even when collapsed. The direction icon beside it switches between one row and one column. The thicker circle marks the selected tool. The page counter in the top-left bar opens page management."
             + "\n\nReading view in the top-left action icons offers Continuous or Single page. Single page starts at Fit page; pinch and pan remain available. At whole-page size, swipe horizontally or use the page arrows to turn. PDF pages also offer Auto, Manual and Semi-auto cropping, separate odd/even areas and contrast. Crop and contrast affect display only. Hold a finger on a PDF word to select and open Eudic floating lookup; Copy and dictionary icons appear beside it. A PDF text layer and installed Eudic are required."
-            + "\n\nThe outline icon opens the table of contents. Add headings at the current view; hold a heading or tap Edit headings to rename, move, or delete it. Imported PDF outlines are ready to use. Tap PDF links with one finger; writing with the stylus keeps annotating. The previous-view and next-view arrows restore your page, scroll position, horizontal pan, and zoom after a link or outline jump, including after screen rotation."
+            + "\n\nThe outline icon opens the table of contents. Use the arrows to fold nested headings; hold a heading or tap Edit headings to change it. Tap PDF links with one finger; writing with the stylus keeps annotating. Previous-view and next-view arrows appear at the lower right when available, or beside a floating note's minimize control. They restore your page, position and zoom after a link, outline or page-overview jump, including after screen rotation."
             + "\n\nTap the selected Pen icon to open a small width slider. Slide the point and release to apply. The slider stays open for further adjustments; start writing, tap outside, or press Back to close. Current thickness: " + NotebookPenConfig.label(penWidth) + ". The small line below the pencil previews its width. Settings offers fixed width on the page (default) or fixed width on the screen while writing. Existing strokes keep their captured shape in either mode."
             + "\n\nExport PDF saves all pages in this notebook, including their paper backgrounds and handwriting.";
         final boolean[] exporting = {false};
@@ -3444,6 +3541,8 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
     }
 
     @Override protected void onPause() {
+        if (readingMenu != null && readingPreviewContrast != null)
+            savePreviewContrast(session.notebookId(), readingPreviewContrast);
         writingGate.suspend();
         if(aiNotebookPicker!=null)aiNotebookPicker.dismiss();
         writingHistory = false;
@@ -3477,6 +3576,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         if (outlineMenu != null) { outlineMenu.dismiss(); outlineMenu = null; }
         if (externalLinkMenu != null) { externalLinkMenu.dismiss(); externalLinkMenu = null; }
         if (floatingTools != null) floatingTools.hide();
+        if (viewNavigation != null) viewNavigation.hide();
         if (overview != null) { overview.dismiss(); overview = null; }
         if (widthPopup != null) { widthPopup.dismiss(); widthPopup = null; }
         main.removeCallbacks(updateSaveState);
@@ -3507,6 +3607,10 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         captureViewCenter(); rememberEditor(); saveWorkspace();
         state.putInt("viewNotebookId", viewNotebookId);
         state.putByteArray("viewHistory", viewHistory.save(viewNotebookId));
+        Bundle histories = new Bundle();
+        for (Map.Entry<Integer, byte[]> item : workspaceHistories.entrySet())
+            if (item.getValue() != null) histories.putByteArray(String.valueOf(item.getKey()), item.getValue());
+        state.putBundle("workspaceViewHistories", histories);
         state.putFloat("zoom", zoom);
         state.putString("zoomFit", zoomFit.name());
         state.putBoolean("viewCenter", restoreCenter);
@@ -3525,6 +3629,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         if(restingPaper!=null){restingPaper.close();restingPaper=null;}
         clearPdfText();
         if(readingMenu!=null){readingMenu.retire();readingMenu=null;}
+        readingPreviewContrast=null;
         if(cropEditor!=null){cropEditor.retire();cropEditor=null;}
         if(cropPreviewRequest!=null){cropPreviewRequest.cancel();cropPreviewRequest=null;}
         for(NotebookPdfReading.Request request:cropRequests.values())request.cancel();cropRequests.clear();cropFailures.clear();
@@ -3539,6 +3644,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         if (zoomBadge != null) zoomBadge.dismiss();
         penDown = false;
         if (floatingTools != null) floatingTools.hide();
+        if (viewNavigation != null) viewNavigation.hide();
         if (noteTray != null) noteTray.hide();
         if (ink != null) { ink.release(); ink = null; }
         writingGate.reset();
@@ -3555,6 +3661,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         for (NotebookCompanion window : noteWindows.values()) window.close();
         if (statusIslands != null) statusIslands.hide();
         if (floatingTools != null) floatingTools.dispose();
+        if (viewNavigation != null) viewNavigation.hide();
         if (selectionTools != null) selectionTools.hide();
         super.onDestroy();
     }
@@ -3564,7 +3671,9 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         if(cropEditor!=null||cropPreviewRequest!=null){
             if(cropEditor!=null){cropEditor.retire();cropEditor=null;}
             if(cropPreviewRequest!=null){cropPreviewRequest.cancel();cropPreviewRequest=null;}
-            editing=false;installViewport();return;
+            if(readingPreviewContrast!=null)applyReadingSettings(session.readingSettings(session.notebookId()).contrast(readingPreviewContrast));
+            else {editing=false;installViewport();}
+            return;
         }
         if (collapseNoteActions()) return;
         if (figureEditor != null) { figureEditor.cancel(); return; }

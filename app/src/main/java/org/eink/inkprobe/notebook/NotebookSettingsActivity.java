@@ -24,10 +24,11 @@ public final class NotebookSettingsActivity extends NotebookDisplayActivity {
         super.onCreate(saved);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
         getWindow().setWindowAnimations(0);
-        LinearLayout root = column(); root.setPadding(dp(12), dp(6), dp(12), dp(6));
+        LinearLayout root = column(); root.setPadding(dp(18), dp(10), dp(18), dp(10));
         LinearLayout header = row();
-        header.addView(label("Settings", 17), new LinearLayout.LayoutParams(0, dp(36), 1));
-        header.addView(button("Done", this::onBackPressed), new LinearLayout.LayoutParams(dp(56), dp(36)));
+        TextView title = label("Settings", 21); title.setTypeface(null, Typeface.BOLD);
+        header.addView(title, new LinearLayout.LayoutParams(0, dp(44), 1));
+        header.addView(button("Done", this::onBackPressed), new LinearLayout.LayoutParams(dp(76), dp(38)));
         header.addView(deviceSettingsButton(), new LinearLayout.LayoutParams(-2, dp(32)));
         root.addView(header);
         ScrollView scroll = new ScrollView(this); scroll.setBackgroundColor(Color.WHITE);
@@ -117,6 +118,7 @@ public final class NotebookSettingsActivity extends NotebookDisplayActivity {
         final int[] current={ai?NotebookSettings.aiTextSize(this):NotebookSettings.markdownTextSize(this)};
         TextView value=label("",13);value.setGravity(Gravity.CENTER);
         NotebookButton less=button("−",()->{}),more=button("+",()->{});
+        less.setBackground(null);more.setBackground(null);
         less.setTextSize(18);more.setTextSize(18);less.setGravity(Gravity.CENTER);more.setGravity(Gravity.CENTER);
         less.setContentDescription("Decrease "+name+" text size");more.setContentDescription("Increase "+name+" text size");
         Runnable update=()->{value.setText(String.valueOf(current[0]));value.setContentDescription(name+" text size: "+current[0]);
@@ -139,6 +141,7 @@ public final class NotebookSettingsActivity extends NotebookDisplayActivity {
         TextView number = label(String.valueOf(value), 13); number.setGravity(Gravity.CENTER);
         NotebookButton decrease = button("−", () -> { });
         NotebookButton increase = button("+", () -> { });
+        decrease.setBackground(null); increase.setBackground(null);
         decrease.setTextSize(18); increase.setTextSize(18);
         decrease.setGravity(Gravity.CENTER); increase.setGravity(Gravity.CENTER);
         decrease.setContentDescription("Decrease " + name); increase.setContentDescription("Increase " + name);
@@ -183,7 +186,10 @@ public final class NotebookSettingsActivity extends NotebookDisplayActivity {
     }
     private void section(LinearLayout body, String text) {
         TextView heading = label(text, 14); heading.setTypeface(null, Typeface.BOLD);
-        heading.setPadding(0, dp(12), 0, dp(3)); body.addView(heading);
+        heading.setPadding(dp(10), dp(3), dp(10), dp(3));
+        heading.setBackground(NotebookUi.rounded(getResources().getDisplayMetrics().density, 5));
+        LinearLayout.LayoutParams space = new LinearLayout.LayoutParams(-1, dp(34));
+        space.setMargins(0, dp(14), 0, dp(6)); body.addView(heading, space);
     }
     private void hint(LinearLayout body, String text) {
         TextView hint = label(text, 12); hint.setPadding(0, dp(2), 0, dp(5)); body.addView(hint);
@@ -197,7 +203,8 @@ public final class NotebookSettingsActivity extends NotebookDisplayActivity {
     }
     private NotebookButton button(String text, Runnable action) {
         NotebookButton button = new NotebookButton(this); button.setText(text); button.setTextSize(13);
-        button.setGravity(Gravity.START | Gravity.CENTER_VERTICAL); button.setOnClickListener(view -> action.run()); return button;
+        NotebookUi.action(button, null); button.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        button.setOnClickListener(view -> action.run()); return button;
     }
     private TextView label(String text, int size) {
         TextView view = new TextView(this); view.setText(text); view.setTextSize(size); view.setTextColor(Color.BLACK);

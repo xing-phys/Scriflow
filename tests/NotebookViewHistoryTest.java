@@ -2,25 +2,52 @@ package org.eink.inkprobe.notebook;
 
 import java.util.UUID;
 import java.util.Arrays;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 
-/** The return arrows follow PDF links and outline destinations; ordinary reading never grows or branches history. */
+/** Explicit jumps enter history; ordinary reading never grows or branches it. */
 public final class NotebookViewHistoryTest {
     private static int assertions;
-    public static void main(String[] args) {
-        ordinaryReadingActionsNeverRecord(); linkAndOutlineRoundTrips(); ordinaryReadingPreservesForward();
+    public static void main(String[] args) throws Exception {
+        ordinaryReadingActionsNeverRecord(); linkAndOutlineRoundTrips(); pageOverviewRoundTrip(); ordinaryReadingPreservesForward();
         rotationRetainsBothStacks(); repeatedRotationRetainsCoordinates(); restoredHistoryKeepsNavigationPolicy();
         notebookScopeAndInvalidSnapshots(); boundedHistorySurvivesRotation(); restoredFitAdaptsToOrientation();
+        workspaceControls();
         System.out.println("NotebookViewHistory: " + assertions + " assertions passed (link/outline policy and rotation state).");
+    }
+
+    private static void workspaceControls() throws Exception {
+        String source = new String(Files.readAllBytes(Paths.get("app/src/main/java/org/eink/inkprobe/notebook/NotebookActivity.java")), StandardCharsets.UTF_8);
+        String fixture = String.join("\n",
+            "package org.eink.inkprobe.notebook;import java.util.*;public class ViewControlsFixture {",
+            "static class Session{int id=1;int notebookId(){return id;}}static class Controls{boolean shown,back,forward;void show(Object anchor,boolean b,boolean f){shown=b||f;back=b;forward=f;}void hide(){shown=false;}}static class NotebookCompanion{boolean back,forward;void history(boolean b,boolean f){back=b;forward=f;}}",
+            "final Session session=new Session();final Controls viewNavigation=new Controls();final Object canvas=new Object();Object overview;boolean active=true;final NotebookWorkspace workspace=new NotebookWorkspace();final Map<NotebookWorkspace.Pane,NotebookCompanion> noteWindows=new LinkedHashMap<>();final Map<Integer,byte[]> workspaceHistories=new HashMap<>();final NotebookViewHistory viewHistory=new NotebookViewHistory();ViewControlsFixture(){NotebookWorkspace.Pane a=workspace.add(1,NotebookWorkspace.Position.FLOATING),b=workspace.add(2,NotebookWorkspace.Position.FLOATING);noteWindows.put(a,new NotebookCompanion());noteWindows.put(b,new NotebookCompanion());}",
+            NotebookWorkspaceActivationTest.method(source,"private void updateViewNavigation("),
+            "static NotebookViewHistory.State view(int n){return new NotebookViewHistory.State(new UUID(0,n),1,2,1,\"WIDTH\");}static int checks;static void check(boolean b,String s){checks++;if(!b)throw new AssertionError(s);}public static void run(){ViewControlsFixture f=new ViewControlsFixture();NotebookWorkspace.Pane base=f.workspace.find(1),floating=f.workspace.find(2);f.updateViewNavigation(true);check(!f.viewNavigation.shown&&!f.noteWindows.get(floating).back,\"empty histories produce no controls\");f.viewHistory.record(view(1),NotebookViewHistory.Navigation.OUTLINE);NotebookViewHistory other=new NotebookViewHistory();other.record(view(2),NotebookViewHistory.Navigation.PAGE_OVERVIEW);f.workspaceHistories.put(2,other.save(2));f.updateViewNavigation(true);check(f.viewNavigation.shown&&f.viewNavigation.back&&f.noteWindows.get(floating).back,\"base and inactive floating note show their own histories\");f.session.id=2;f.viewHistory.restore(2,f.workspaceHistories.get(2));f.updateViewNavigation(true);check(!f.viewNavigation.shown&&f.noteWindows.get(floating).back,\"active floating history stays inside its own frame\");floating.collapsed=true;f.updateViewNavigation(true);check(!f.noteWindows.get(floating).back,\"minimized note removes its controls\");floating.collapsed=false;f.active=false;f.updateViewNavigation(false);check(!f.viewNavigation.shown&&!f.noteWindows.get(floating).back,\"inactive workspace hides every control\");System.out.println(\"NotebookViewHistoryControls: \"+checks+\" assertions passed (per-pane visibility, active floating placement and lifecycle).\");}}"
+        );
+        NotebookWorkspaceActivationTest.runFixture("org.eink.inkprobe.notebook.ViewControlsFixture", fixture);
     }
 
     private static void ordinaryReadingActionsNeverRecord() {
         for (NotebookViewHistory.Navigation action : NotebookViewHistory.Navigation.values()) {
-            if (action == NotebookViewHistory.Navigation.PDF_LINK || action == NotebookViewHistory.Navigation.OUTLINE) continue;
+            if (action == NotebookViewHistory.Navigation.PDF_LINK || action == NotebookViewHistory.Navigation.OUTLINE || action == NotebookViewHistory.Navigation.PAGE_OVERVIEW) continue;
             NotebookViewHistory history = new NotebookViewHistory();
             history.record(view(1, 20, 1), action);
             history.record(view(10, 900, 4), action);
             check(!history.canBack() && !history.canForward(), action + " never creates a return destination");
         }
+    }
+
+    private static void pageOverviewRoundTrip() {
+        NotebookViewHistory history = new NotebookViewHistory();
+        NotebookViewHistory.State origin = view(2, 90, 1.5f), target = view(19, 0, 1.5f);
+        history.record(origin, NotebookViewHistory.Navigation.PAGE_OVERVIEW);
+        check(history.canBack() && history.back(target).equals(origin), "page overview preserves the outgoing view");
+        check(history.canForward() && history.forward(origin).equals(target), "forward restores the page selected in overview");
+        history.back(target);
+        history.record(origin, NotebookViewHistory.Navigation.PAGE_OVERVIEW);
+        check(!history.canForward(), "a new overview jump branches and clears forward history");
     }
 
     private static void linkAndOutlineRoundTrips() {
@@ -43,7 +70,7 @@ public final class NotebookViewHistoryTest {
         history.record(origin, NotebookViewHistory.Navigation.PDF_LINK);
         history.back(target);
         for (NotebookViewHistory.Navigation action : NotebookViewHistory.Navigation.values()) {
-            if (action == NotebookViewHistory.Navigation.PDF_LINK || action == NotebookViewHistory.Navigation.OUTLINE) continue;
+            if (action == NotebookViewHistory.Navigation.PDF_LINK || action == NotebookViewHistory.Navigation.OUTLINE || action == NotebookViewHistory.Navigation.PAGE_OVERVIEW) continue;
             history.record(view(3, 400, 4), action);
             check(history.canForward() && !history.canBack(), action + " preserves forward return destination");
         }
@@ -90,7 +117,7 @@ public final class NotebookViewHistoryTest {
         history.record(origin, NotebookViewHistory.Navigation.PDF_LINK); history.back(target);
         history = recreate(history, 3);
         for (NotebookViewHistory.Navigation action : NotebookViewHistory.Navigation.values()) {
-            if (action == NotebookViewHistory.Navigation.PDF_LINK || action == NotebookViewHistory.Navigation.OUTLINE) continue;
+            if (action == NotebookViewHistory.Navigation.PDF_LINK || action == NotebookViewHistory.Navigation.OUTLINE || action == NotebookViewHistory.Navigation.PAGE_OVERVIEW) continue;
             history.record(read, action);
             history = recreate(history, 3);
             check(!history.canBack() && history.canForward(), "rotation and " + action + " do not add history or clear Forward");

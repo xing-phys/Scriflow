@@ -1,6 +1,7 @@
 package org.eink.inkprobe.notebook;
 
 import android.app.AlertDialog;
+import android.content.Context;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
@@ -19,6 +20,27 @@ final class NotebookUi {
         border.setColor(Color.WHITE);
         border.setStroke(Math.max(1, Math.round(density)), Color.BLACK);
         return border;
+    }
+
+    /** Static monochrome controls share a fine outline and never animate on e-ink. */
+    static GradientDrawable rounded(float density, float radius) {
+        GradientDrawable shape = border(density);
+        shape.setCornerRadius(radius * density);
+        return shape;
+    }
+
+    static void action(NotebookButton button, NotebookIconDrawable.Icon icon) {
+        Context context = button.getContext();
+        float density = context.getResources().getDisplayMetrics().density;
+        button.setBackground(rounded(density, 7));
+        button.setPadding(Math.round(10*density), 0, Math.round(10*density), 0);
+        button.setGravity(android.view.Gravity.CENTER);
+        if (icon != null) {
+            NotebookIconDrawable symbol = new NotebookIconDrawable(icon);
+            int size = Math.round(17*density); symbol.setBounds(0, 0, size, size);
+            button.setCompoundDrawablesRelative(symbol, null, null, null);
+            button.setCompoundDrawablePadding(Math.round(6*density));
+        }
     }
 
     static void prepare(Window window) {

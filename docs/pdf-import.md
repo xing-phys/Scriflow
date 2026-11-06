@@ -27,9 +27,11 @@ Tap a PDF link with a finger. Internal links navigate within the notebook;
 web links show a confirmation with their target before opening an installed
 browser. Dragging continues to scroll and
 the stylus continues to write over links. Use **Previous view** and **Next
-view** to return after following a reference or jumping to an outline entry.
-Scrolling, panning, zooming, page arrows, overview page jumps, and adding pages
-do not create history entries or clear an existing forward path.
+view** to return after following a reference, jumping to an outline entry, or
+choosing a page in the page overview. These controls appear only when available
+at the lower right, or beside the minimize control of a floating note. Scrolling,
+panning, zooming, page arrows, and adding pages do not create history entries or
+clear an existing forward path.
 Internal GoTo and named destinations, web/URI links, and standard PDF page
 navigation actions are supported. Remote-file, embedded-file, and JavaScript
 actions remain in exported PDFs but are not activated inside the notebook.
@@ -37,7 +39,8 @@ View history lasts for the current editor instance; closing it or recreating
 the Activity clears history.
 
 The **Outline** icon opens the notebook's headings. Imported PDF bookmarks
-populate it automatically. Add your own heading at the current position, edit
+populate it automatically; the arrows beside parent headings collapse or expand
+their descendants. Add your own heading at the current position, edit
 its title or nesting, or remove it. Destinations use stable page identities, so
 reordering pages keeps headings attached to their pages. A heading whose page
 was deleted becomes available again if the page deletion is undone.

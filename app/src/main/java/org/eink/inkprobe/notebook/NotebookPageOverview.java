@@ -5,6 +5,7 @@ import android.app.Dialog;
 import android.app.AlertDialog;
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
 import android.text.InputType;
@@ -84,24 +85,28 @@ final class NotebookPageOverview extends Dialog {
         LinearLayout root = new LinearLayout(getContext());
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Color.WHITE);
-        root.setPadding(dp(16), dp(8), dp(16), dp(8));
+        root.setPadding(dp(20), dp(12), dp(20), dp(10));
         // Keep initial keyboard focus away from the number field.
         root.setFocusableInTouchMode(true);
         LinearLayout header = new LinearLayout(getContext());
         header.setGravity(Gravity.CENTER_VERTICAL);
         TextView title = text("Pages · " + notebookName, 19);
+        title.setTypeface(null, Typeface.BOLD);
         title.setSingleLine(true);
         title.setEllipsize(android.text.TextUtils.TruncateAt.END);
         header.addView(title, new LinearLayout.LayoutParams(0, dp(52), 1));
         manageButton = button("Manage");
+        NotebookUi.action(manageButton, NotebookIconDrawable.Icon.OVERVIEW);
         manageButton.setOnClickListener(v -> {
             if (busy || session.error() != null) return;
             managing = !managing; updateManagementControls();
         });
         header.addView(manageButton, new LinearLayout.LayoutParams(dp(100), dp(52)));
         closeButton = button("Close");
+        NotebookUi.action(closeButton, null);
         closeButton.setOnClickListener(v -> { if (!busy) dismiss(); });
-        header.addView(closeButton, new LinearLayout.LayoutParams(dp(84), dp(52)));
+        LinearLayout.LayoutParams closeSpace = new LinearLayout.LayoutParams(dp(84), dp(44)); closeSpace.leftMargin = dp(8);
+        header.addView(closeButton, closeSpace);
         deviceStatus = new NotebookDeviceStatus(getContext(), () -> true);
         deviceStatus.setOnClickListener(v -> {
             if (busy) return;
@@ -113,6 +118,8 @@ final class NotebookPageOverview extends Dialog {
 
         LinearLayout jump = new LinearLayout(getContext());
         jump.setGravity(Gravity.CENTER_VERTICAL);
+        jump.setPadding(dp(10), dp(4), dp(10), dp(4));
+        jump.setBackground(NotebookUi.rounded(getContext().getResources().getDisplayMetrics().density, 7));
         jump.addView(text("Go to page", 15), new LinearLayout.LayoutParams(-2, dp(48)));
         pageInput = new EditText(getContext(), null, 0);
         pageInput.setSingleLine(true);
@@ -123,7 +130,7 @@ final class NotebookPageOverview extends Dialog {
         pageInput.setContentDescription("Page number, from 1 to " + pageCount);
         pageInput.setInputType(InputType.TYPE_CLASS_NUMBER);
         pageInput.setImeOptions(EditorInfo.IME_ACTION_GO | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
-        pageInput.setBackgroundColor(0xffeeeeee);
+        pageInput.setBackground(NotebookUi.rounded(getContext().getResources().getDisplayMetrics().density, 5));
         pageInput.setForeground(null);
         pageInput.setStateListAnimator(null);
         pageInput.setDefaultFocusHighlightEnabled(false);
@@ -133,6 +140,7 @@ final class NotebookPageOverview extends Dialog {
         inputLayout.setMargins(dp(12), 0, dp(8), 0);
         jump.addView(pageInput, inputLayout);
         NotebookButton go = button("Go");
+        NotebookUi.action(go, NotebookIconDrawable.Icon.NEXT);
         go.setOnClickListener(v -> goToNumber());
         jump.addView(go, new LinearLayout.LayoutParams(dp(64), dp(48)));
         root.addView(jump, new LinearLayout.LayoutParams(-1, -2));
@@ -175,16 +183,19 @@ final class NotebookPageOverview extends Dialog {
         });
         root.addView(grid, new LinearLayout.LayoutParams(-1, 0, 1));
         undoPagesButton = button("Undo page change");
+        NotebookUi.action(undoPagesButton, NotebookIconDrawable.Icon.UNDO);
         undoPagesButton.setOnClickListener(v -> {
             if (!busy && session.canUndoPageChange() && session.error() == null) runPageChange(null, 0, 0);
         });
         redoPagesButton = button("Redo page change");
+        NotebookUi.action(redoPagesButton, NotebookIconDrawable.Icon.REDO);
         redoPagesButton.setOnClickListener(v -> {
             if (!busy && session.canRedoPageChange() && session.error() == null) runPageChange(null, 0, 1);
         });
         pageHistory = new LinearLayout(getContext());
         pageHistory.addView(undoPagesButton, new LinearLayout.LayoutParams(0, dp(48), 1));
-        pageHistory.addView(redoPagesButton, new LinearLayout.LayoutParams(0, dp(48), 1));
+        LinearLayout.LayoutParams redoSpace = new LinearLayout.LayoutParams(0, dp(48), 1); redoSpace.leftMargin = dp(8);
+        pageHistory.addView(redoPagesButton, redoSpace);
         root.addView(pageHistory, new LinearLayout.LayoutParams(-1, -2));
         setContentView(root);
         updateManagementControls();

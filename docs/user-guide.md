@@ -162,9 +162,12 @@ for behavior, storage and validation limits.
 For PDFs, choose **Import PDF** in the library. Each PDF becomes a separate
 notebook with editable handwriting and its own retained source file. Finger
 taps follow PDF links; the stylus writes over them. Open **Outline** to navigate
-imported bookmarks or add, edit, and remove your own headings. **Previous view**
-and **Next view** return after link or outline jumps while restoring zoom and
-position. Scrolling, zooming, and page controls do not enter that history.
+imported bookmarks or add, edit, and remove your own headings. Use the arrows
+beside parent headings to collapse or expand their descendants. **Previous view**
+and **Next view** appear only when available at the lower right of the note, or
+beside the minimize control inside a floating note. They restore zoom and
+position after link, outline, and page-overview jumps. Scrolling, zooming, and
+page arrows do not enter that history.
 Web links show their target and ask before opening the browser.
 See [PDF notebooks](pdf-import.md) for export preservation, backups, and limits.
 

@@ -224,9 +224,11 @@ Tap an already-selected Pen or Eraser icon to adjust its width. Drag the
 six-dot grip to move the tools, tap it to collapse/expand them, or use the
 direction icon to rotate them.
 Use **Import PDF** in the library to make a PDF notebook. The outline icon
-opens imported headings and lets you add your own; finger taps follow PDF links.
-Previous/next view icons return after link or outline jumps; ordinary scrolling,
-zoom, and page buttons do not create history. Both stacks survive screen rotation.
+opens imported headings and lets you add your own; the disclosure arrows fold
+nested headings. Finger taps follow PDF links. Previous/next view icons appear
+at the lower right only when available, or beside a floating note's minimize
+control. Links, outline jumps and page-overview jumps enter view history;
+ordinary scrolling, zoom, and page buttons do not. Both stacks survive rotation.
 Settings offers **Fixed width on page** (default), using native width fitting,
 and **Fixed width on screen**, keeping the nib's screen size while writing.
 Both use direct native AHW. Page mode's native pressure response can vary with

@@ -27,7 +27,9 @@ final class NotebookAiSettingsSection {
 
     NotebookAiSettingsSection(Activity activity,LinearLayout body) {
         this.activity=activity;
-        TextView title=label("AI chat",15);title.setTypeface(null,android.graphics.Typeface.BOLD);title.setPadding(0,dp(12),0,dp(4));body.addView(title);
+        TextView title=label("AI chat",14);title.setTypeface(null,android.graphics.Typeface.BOLD);title.setPadding(dp(10),dp(3),dp(10),dp(3));
+        title.setBackground(NotebookUi.rounded(activity.getResources().getDisplayMetrics().density,5));
+        LinearLayout.LayoutParams titleSpace=new LinearLayout.LayoutParams(-1,dp(34));titleSpace.setMargins(0,dp(14),0,dp(6));body.addView(title,titleSpace);
         body.addView(label("Enter your connection, fetch models, and check the ones you want. Use a model's settings icon to adjust its parameters.",12));
         provider=new Spinner(activity);provider.setContentDescription("AI provider");
         ArrayAdapter<NotebookAiConfig.Provider> providers=new ArrayAdapter<>(activity,android.R.layout.simple_spinner_item,NotebookAiConfig.Provider.values());
@@ -62,7 +64,7 @@ final class NotebookAiSettingsSection {
         };
         models.setAdapter(rows);body.addView(models,new LinearLayout.LayoutParams(-1,0));
         LinearLayout actions=new LinearLayout(activity);save=button("Save AI settings",this::save);remove=button("Remove saved key",this::remove);
-        actions.addView(save,new LinearLayout.LayoutParams(0,dp(38),1));actions.addView(remove,new LinearLayout.LayoutParams(0,dp(38),1));body.addView(actions);
+        actions.addView(save,new LinearLayout.LayoutParams(0,dp(38),1));LinearLayout.LayoutParams removeSpace=new LinearLayout.LayoutParams(0,dp(38),1);removeSpace.leftMargin=dp(6);actions.addView(remove,removeSpace);body.addView(actions);
         status=label("",12);status.setPadding(0,dp(4),0,dp(6));body.addView(status);
         body.addView(label("Send shares your chat and explicitly attached selections with the configured provider. API usage may incur charges. Keys are encrypted on this device. "
             +"Fetching models retrieves their available defaults. The official OpenAI endpoint also uses public OpenAI model documentation, without your key. "
@@ -178,9 +180,11 @@ final class NotebookAiSettingsSection {
     }
     private EditText field(LinearLayout body,String name,String hint,int type){
         body.addView(label(name,12));EditText field=new EditText(activity);field.setTextColor(Color.BLACK);field.setTextSize(14);field.setSingleLine(true);field.setInputType(type|InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
-        field.setImeOptions(EditorInfo.IME_FLAG_NO_EXTRACT_UI|EditorInfo.IME_FLAG_NO_FULLSCREEN);field.setHint(hint);field.setContentDescription(name);body.addView(field,new LinearLayout.LayoutParams(-1,dp(42)));return field;
+        field.setImeOptions(EditorInfo.IME_FLAG_NO_EXTRACT_UI|EditorInfo.IME_FLAG_NO_FULLSCREEN);field.setHint(hint);field.setContentDescription(name);
+        field.setBackground(NotebookUi.rounded(activity.getResources().getDisplayMetrics().density,5));field.setPadding(dp(10),0,dp(10),0);
+        body.addView(field,new LinearLayout.LayoutParams(-1,dp(42)));return field;
     }
-    private NotebookButton button(String text,Runnable action){NotebookButton view=new NotebookButton(activity);view.setText(text);view.setTextSize(13);view.setOnClickListener(v->action.run());return view;}
+    private NotebookButton button(String text,Runnable action){NotebookButton view=new NotebookButton(activity);view.setText(text);view.setTextSize(13);NotebookUi.action(view,null);view.setOnClickListener(v->action.run());return view;}
     private TextView label(String text,int size){TextView view=new TextView(activity);view.setText(text);view.setTextSize(size);view.setTextColor(Color.BLACK);view.setGravity(Gravity.CENTER_VERTICAL);return view;}
     private int dp(int n){return Math.round(n*activity.getResources().getDisplayMetrics().density);}
 }
