@@ -28,7 +28,25 @@ public final class NotebookOutlineTreeTest {
         check(NotebookOutlineTree.visible(entries, collapsed).equals(Arrays.asList(0, 1, 3, 4)), "reopening preserves nested collapse");
         collapsed.remove(entries.get(1).id);
         check(NotebookOutlineTree.visible(entries, collapsed).size() == entries.size(), "expanding restores every destination");
-        System.out.println("NotebookOutlineTree: 7 assertions passed (nested collapse, sibling boundaries and restored expansion).");
+        UUID next = UUID.randomUUID(), removed = UUID.randomUUID();
+        List<NotebookOutline.Entry> navigation = Arrays.asList(
+            new NotebookOutline.Entry("Chapter", page, 0, 0),
+            new NotebookOutline.Entry("Section", page, .2, 1),
+            new NotebookOutline.Entry("Part", page, .4, 2),
+            new NotebookOutline.Entry("Other section", page, .6, 1),
+            new NotebookOutline.Entry("Next chapter", next, 0, 0),
+            new NotebookOutline.Entry("Removed", removed, 0, 1));
+        java.util.function.ToIntFunction<UUID> numbers = id -> id.equals(page) ? 1 : id.equals(next) ? 2 : 0;
+        int current = NotebookOutlineTree.current(navigation, numbers, 1, .45);
+        check(current == 2, "latest heading at or before the visible position is current");
+        check(NotebookOutlineTree.current(navigation, numbers, 1, .1) == 0, "future headings are not current");
+        check(NotebookOutlineTree.current(navigation, numbers, 2, .1) == 4, "page order takes priority over outline depth");
+        Set<UUID> initial = NotebookOutlineTree.collapsedByDefault(navigation, current);
+        check(!initial.contains(navigation.get(0).id) && !initial.contains(navigation.get(1).id), "ancestors of current heading expand");
+        check(initial.contains(navigation.get(4).id), "unrelated branch remains collapsed");
+        check(NotebookOutlineTree.visible(navigation, initial).equals(Arrays.asList(0,1,2,3,4)), "current branch is visible without expanding other branches");
+        check(NotebookOutlineTree.current(navigation, numbers, 0, 0) == -1, "no earlier heading leaves all branches collapsed");
+        System.out.println("NotebookOutlineTree: 14 assertions passed (current destination, default expansion and nested collapse).");
     }
     private static void check(boolean condition, String message) { if (!condition) throw new AssertionError(message); }
 }

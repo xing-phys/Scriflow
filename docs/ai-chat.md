@@ -1,8 +1,9 @@
-# AI chat — 0.37.0-alpha.4
+# AI chat — 0.39.0-alpha.1
 
-Open **Settings → AI chat** from the time/battery/Wi-Fi pill. Choose OpenAI,
-Anthropic, Google Gemini, DeepSeek, or **Custom (OpenAI compatible)**. Enter
-your API key and API base URL, then tap **Fetch available models**.
+Open **Settings → AI chat** from the time/battery/Wi-Fi pill. Select a saved
+provider or tap **Add provider**, choose OpenAI, Anthropic, Google Gemini,
+DeepSeek, or **Custom (OpenAI compatible)**, and give it a name. Enter your
+API key and API base URL, then tap **Fetch available models**.
 
 Models appear directly below Fetch as compact rows: a checkbox, the model's
 name and a settings gear. Check the ones you want and **Save AI settings**.
@@ -16,8 +17,10 @@ save the connection before choosing any models, then fetch and select later.
 Custom endpoints need a model-list API for discovery; earlier saved profiles
 remain available offline. Known non-chat models are excluded.
 
-Each provider remembers its configuration. A blank key field keeps an existing
-saved key; **Remove saved key** removes it. Custom HTTPS endpoints may use an
+Each provider profile remembers its own name, endpoint, models, and encrypted
+key, including multiple profiles of the same type. A blank key field keeps an
+existing saved key for the same endpoint; enter the key again when changing a
+saved endpoint. **Remove saved key** removes it. Custom HTTPS endpoints may use an
 empty key. Provider API subscriptions, account access and charges are managed
 by the provider, independently of its chat website subscriptions.
 
@@ -90,9 +93,11 @@ Chats and notes share their actual corner controls, gestures and window geometry
   size, then refits on release. The top-left corner stays anchored and the
   right/bottom edges stay within the workspace. All four borders keep the
   separate clipped outer frame. Cancelling a drag restores its original size.
-- **Position:** Left, Right, Top, Bottom or Floating window. A dock reserves
+- **Position:** Left, Right, Top, Bottom, Floating window or Main window. A dock reserves
   the remaining area for notes. Docking another chat floats the previous chat
-  dock; minimizing or closing the dock returns that space to the notes.
+  dock. Main window makes the selected chat the background and presents notes
+  as floating windows; at least one note stays open. Minimizing or closing the
+  main chat returns the note workspace.
 - **Size:** Smaller pane, Equal split / Reset size, or Larger pane.
 
 Windows keep independent conversations, drafts, models and pending replies.
@@ -164,7 +169,7 @@ transcript and drafts. Deleting a session shown in another window closes that
 window, including the active window if it owns that session.
 Other sessions and provider-side records are unaffected.
 
-Reopened sessions use their original provider, endpoint and model. API keys are
+Reopened sessions use their original provider profile, endpoint and model. API keys are
 looked up separately and are not included in history. A saved chat remains
 readable if its key is missing or cannot be unlocked. If that provider now uses
 a different endpoint in Settings, the session remains readable; configure its
@@ -243,6 +248,11 @@ automatic backup remains disabled. Window preferences separately store geometry,
 minimized state, public destinations, session IDs and short titles, without
 credentials or full transcripts. Uninstalling or clearing app storage removes
 these local settings and histories.
+
+Chats saved with newly added provider profiles include their profile identity in
+the archive header. Earlier APKs cannot read those chat archives or restore the
+new window layout; existing legacy-provider chats and notebook files remain
+readable by the versions that already supported their formats.
 
 Each session is bounded to 80 messages, 128 KiB of UTF-8 per message, and 1 MiB
 total including the draft, with a separate 16 MiB attachment budget. There is no

@@ -37,6 +37,7 @@ final class NotebookCompanion {
     private final LinearLayout history;
     private final NotebookReader reader;
     private boolean visible, editor, editorPrepared;
+    private int popupLayer = -1;
     private final NotebookWindowControls controls;
 
     NotebookCompanion(Context context, FrameLayout root, NotebookWorkspace workspace, NotebookWorkspace.Pane pane,
@@ -82,11 +83,11 @@ final class NotebookCompanion {
         historyBack = new NotebookIconButton(context, NotebookIconDrawable.Icon.VIEW_BACK, "Previous view");
         historyForward = new NotebookIconButton(context, NotebookIconDrawable.Icon.VIEW_FORWARD, "Next view");
         historyBack.setOnClickListener(v -> listener.history(false)); historyForward.setOnClickListener(v -> listener.history(true));
-        history.addView(historyBack, new LinearLayout.LayoutParams(dp(32), dp(32)));
-        LinearLayout.LayoutParams next = new LinearLayout.LayoutParams(dp(32), dp(32)); next.leftMargin=dp(4);
+        history.addView(historyBack, new LinearLayout.LayoutParams(dp(22), dp(22)));
+        LinearLayout.LayoutParams next = new LinearLayout.LayoutParams(dp(22), dp(22)); next.leftMargin=dp(4);
         history.addView(historyForward, next);
-        FrameLayout.LayoutParams historyPosition = new FrameLayout.LayoutParams(-2, dp(32), Gravity.BOTTOM | Gravity.RIGHT);
-        historyPosition.setMargins(0, 0, dp(41), dp(5)); content.addView(history, historyPosition);
+        FrameLayout.LayoutParams historyPosition = new FrameLayout.LayoutParams(-2, dp(22), Gravity.BOTTOM | Gravity.RIGHT);
+        historyPosition.setMargins(0, 0, dp(31), dp(5)); content.addView(history, historyPosition);
         history.setVisibility(View.GONE);
         history.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob) -> listener.boundsChanged());
         popup = new PopupWindow(content, 1, 1, false);
@@ -111,7 +112,7 @@ final class NotebookCompanion {
         } else { reader.setVisibility(View.VISIBLE); reader.bringToFront(); reader.open(); }
         menu.setContentDescription(name + ": options; drag to move floating note");
         minimize.setContentDescription(name + ": minimize; drag to resize floating note");
-        boolean controls = workspace.panes().size() > 1;
+        boolean controls = workspace.panes().size() > 1 || workspace.floatingBase();
         menu.setVisibility(controls ? View.VISIBLE : View.GONE); minimize.setVisibility(controls ? View.VISIBLE : View.GONE);
         position();
     }
@@ -145,6 +146,9 @@ final class NotebookCompanion {
         int[] location = new int[2]; root.getLocationOnScreen(location);
         int x = location[0] + box.x, y = location[1] + box.y;
         if (workspace.floating(pane)) {
+            int layer = workspace.floatingBase() ? android.view.WindowManager.LayoutParams.TYPE_APPLICATION_SUB_PANEL
+                : android.view.WindowManager.LayoutParams.TYPE_APPLICATION_PANEL;
+            if (layer != popupLayer) { if (popup.isShowing()) popup.dismiss(); popupLayer = layer; popup.setWindowLayoutType(layer); }
             if (content.getParent() == root) root.removeView(content);
             popup.setWidth(Math.max(1, box.width)); popup.setHeight(Math.max(1, box.height));
             if (popup.isShowing()) popup.update(x, y, box.width, box.height);

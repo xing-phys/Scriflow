@@ -23,8 +23,29 @@ public final class NotebookAiHistoryTest {
     }
     private static File record(File directory,String id){return new File(new File(directory,"ai-chat-sessions"),id+".chat");}
     public static void main(String[] args)throws Exception{
-        files();legacy();sessions();concurrentWindows();
+        files();legacy();sessions();concurrentWindows();providerIdentity();
         System.out.println("NotebookAiHistory: "+assertions+" assertions passed (independent sessions, migration, metadata, atomic saves, reopen/delete and request isolation).");
+    }
+    private static void providerIdentity() throws Exception {
+        File directory=Files.createTempDirectory("ai-provider-identity-").toFile();
+        try {
+            String a="p-"+UUID.randomUUID(),b="p-"+UUID.randomUUID(),id=NotebookAiHistory.newId();
+            NotebookAiConfig first=new NotebookAiConfig(NotebookAiConfig.Provider.CUSTOM,a,"https://host.example/v1","model","key-a",null);
+            NotebookAiConfig second=new NotebookAiConfig(NotebookAiConfig.Provider.CUSTOM,b,"https://host.example/v1","model","key-b",null);
+            NotebookAiHistory.save(directory,id,first,1,new NotebookAiConversation().question("private question"));
+            NotebookAiHistory.Saved saved=NotebookAiHistory.read(directory,id);
+            check(saved.entry.config.providerId.equals(a)&&saved.entry.config.apiKey.isEmpty(),"saved chat retains its provider identity without retaining its key");
+            check(first.profile().equals(second.profile()),"legacy destination hash stays compatible when endpoints and models match");
+            NotebookAiHistory.Entry unresolved=new NotebookAiHistory.Entry(id,"Earlier chat",null,first.profile(),1,1,0,false,"");
+            check(unresolved.resolved(Arrays.asList(first,second)).config==null,"ambiguous older chats never guess between profiles at the same endpoint");
+            NotebookAiSession wrong=new NotebookAiSession(directory,second,id,Runnable::run,()->{},Runnable::run,Runnable::run,(config,chat,cancel)->null);
+            wrong.load();
+            check(wrong.loadFailed&&wrong.status.contains("different AI provider"),"another profile at the same endpoint cannot take over the saved chat");
+            NotebookAiSession right=new NotebookAiSession(directory,first,id,Runnable::run,()->{},Runnable::run,Runnable::run,(config,chat,cancel)->null);
+            right.load();
+            check(right.loaded&&!right.loadFailed&&right.chat.messages.size()==1,"the original profile can reopen its own chat");
+            wrong.close();right.close();
+        } finally { delete(directory.toPath()); }
     }
     private static void files()throws Exception{
         File directory=Files.createTempDirectory("ai-history-files-").toFile();

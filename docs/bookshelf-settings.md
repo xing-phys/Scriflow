@@ -9,9 +9,12 @@ buttons beside the current value; no keyboard or editable number field is needed
 
 ## Dense lists and thumbnail grids
 
-The default bookshelf list uses 14 sp notebook names and 40 dp rows, with one
-column in portrait and two in landscape. Tap a notebook to open it; **⋮** or
-long press opens its actions. Titles truncate within their column.
+The default bookshelf list uses 14 sp notebook names and 48 dp rows, with one
+column in portrait and two in landscape. Tap a notebook to open it; **⋮** opens
+its actions. Hold a notebook to start selection, then tap more notebooks or
+**Select all**. The selection menu can move notebooks to a folder or Trash;
+in Trash it can restore the selected notebooks. Folder actions remain in **⋮**.
+Titles truncate within their column.
 
 Settings → Bookshelf switches between **List** and **Thumbnails**. The thumbnail
 grid fits the selected number of rows in the available bookshelf height and

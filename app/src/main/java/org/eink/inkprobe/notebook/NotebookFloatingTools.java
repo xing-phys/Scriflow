@@ -228,6 +228,13 @@ public final class NotebookFloatingTools {
 
     public boolean isShowing() { return popup.isShowing(); }
 
+    /** Restore the app's tool layer after a note is presented above a main chat. */
+    void raise() {
+        if (!popup.isShowing() || anchor == null || contactActive || gripGesture) return;
+        View current = anchor; float x = horizontalFraction, y = verticalFraction;
+        hide(); show(current, x, y);
+    }
+
     public void dispose() {
         if (disposed) return;
         disposed = true;

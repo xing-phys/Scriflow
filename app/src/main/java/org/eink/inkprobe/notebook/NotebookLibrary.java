@@ -7,6 +7,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 
 /** Worker-owned notebook catalog and cached books. The legacy notebook always keeps its path. */
 public final class NotebookLibrary {
@@ -194,6 +196,28 @@ public final class NotebookLibrary {
 
     public void trashNotebook(int id) throws IOException { setTrash(id, true); }
     public void restoreNotebook(int id) throws IOException { setTrash(id, false); }
+
+    public enum BulkAction { MOVE, TRASH, RESTORE }
+
+    /** Validate every notebook before publishing a reversible batch as one catalog change. */
+    public void manageNotebooks(List<Integer> ids, BulkAction action, int folder) throws IOException {
+        execute(() -> {
+            requireCatalog(); requireWritable();
+            if (ids == null || ids.isEmpty() || action == null) throw new IOException("Select notebooks first");
+            if (action == BulkAction.MOVE && folder != 0) folderIndex(folder);
+            Set<Integer> unique = new HashSet<>(ids);
+            if (unique.size() != ids.size()) throw new IOException("Duplicate notebook selection");
+            List<NotebookCatalog.Entry> entries = new ArrayList<>(state.entries);
+            for (int id : ids) {
+                requireId(id); NotebookCatalog.Entry entry = entries.get(id - 1);
+                int expected = action == BulkAction.RESTORE ? NotebookCatalog.TRASH : NotebookCatalog.ACTIVE;
+                if (entry.status != expected) throw new IOException("A selected notebook is no longer available for that action");
+                entries.set(id - 1, action == BulkAction.MOVE ? entry.moved(folder)
+                    : entry.withStatus(action == BulkAction.TRASH ? NotebookCatalog.TRASH : NotebookCatalog.ACTIVE));
+            }
+            saveMetadata(entries, state.folders);
+        });
+    }
 
     private void setTrash(int id, boolean trash) throws IOException {
         execute(() -> {

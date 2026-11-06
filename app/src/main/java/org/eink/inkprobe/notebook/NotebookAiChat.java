@@ -148,13 +148,13 @@ final class NotebookAiChat {
         if(closed)return;hidden=false;ensureRenderer();anchor.removeOnLayoutChangeListener(layout);anchor.addOnLayoutChangeListener(layout);position();
         if(!NotebookPopupHost.show(popup,anchor,Gravity.TOP|Gravity.LEFT,bounds.left,bounds.top)){close();return;}
         if(session==null){
-            NotebookAiConfig config=new NotebookAiConfig(NotebookAiConfig.Provider.valueOf(window.provider),window.url,window.model,"");
+            NotebookAiConfig config=new NotebookAiConfig(NotebookAiConfig.Provider.valueOf(window.provider),window.providerId,window.url,window.model,"",null);
             openSession(config,window.sessionId,window.rebind);
         }else refresh();
     }
     String sessionId(){return session==null?window.sessionId:session.id;}
     String name(){return session==null||!session.loaded?window.title:NotebookAiHistory.title(session.chat);}
-    NotebookAiConfig configuration(){return session==null?new NotebookAiConfig(NotebookAiConfig.Provider.valueOf(window.provider),window.url,window.model,""):session.config;}
+    NotebookAiConfig configuration(){return session==null?new NotebookAiConfig(NotebookAiConfig.Provider.valueOf(window.provider),window.providerId,window.url,window.model,"",null):session.config;}
     void raise(){raise(false);}
     private void raise(boolean focusComposer){
         if(closed)return;if(hidden){show();return;}
@@ -187,14 +187,18 @@ final class NotebookAiChat {
                         if(entry.config!=null)destination=entry.config;else allowRebind=true;}
                 } catch(java.io.IOException error){problem="Cannot restore this saved chat. Use History to reopen or delete it.";}
             }
-            NotebookAiConfig configured=new NotebookAiConfig(destination.provider,NotebookAiSettings.baseUrl(activity,destination.provider),destination.model,"");
+            NotebookAiSettings.Profile profile=NotebookAiSettings.profile(activity,destination.providerId);
+            NotebookAiConfig configured=profile==null||profile.provider!=destination.provider?null
+                :new NotebookAiConfig(destination.provider,profile.id,NotebookAiSettings.baseUrl(activity,profile),destination.model,"",null);
             if(!destination.sameEndpoint(configured)) {
-                canSend=false;problem="Saved endpoint: "+destination.baseUrl+". Configure this endpoint and its key in Settings to send. History is readable.";
-            } else try {credential=NotebookAiSettings.apiKey(activity,destination.provider);}
+                canSend=false;problem="Saved endpoint: "+destination.baseUrl+". Restore this provider and endpoint in Settings to send. History is readable.";
+            } else try {credential=NotebookAiSettings.apiKey(activity,profile);}
             catch(java.security.GeneralSecurityException|java.io.IOException error){canSend=false;problem="Cannot unlock this provider's key. You can read history; enter the key again in Settings to send.";}
             if(credential.isEmpty()&&destination.provider!=NotebookAiConfig.Provider.CUSTOM&&problem.isEmpty())
                 problem="Set this provider's API key in Settings to send. Saved chats remain available.";
-            final NotebookAiConfig connection=NotebookAiSettings.configuration(activity,destination.provider,destination.baseUrl,destination.model,credential);
+            final NotebookAiConfig connection=profile==null||profile.provider!=destination.provider
+                ?new NotebookAiConfig(destination.provider,destination.providerId,destination.baseUrl,destination.model,credential,null)
+                :NotebookAiSettings.configuration(activity,profile,destination.baseUrl,destination.model,credential);
             final boolean acceptedRebind=allowRebind;
             final String blockedSend=canSend?"":problem;
             final String notice=problem;
@@ -242,8 +246,9 @@ final class NotebookAiChat {
     private void updateDestination(){
         NotebookAiConfig config=configuration();
         String name=config.specs==null?config.model:config.specs.name;model.setText(name+" ▾");
-        model.setContentDescription(name+"; "+config.provider.label+"; choose a model for a new chat");
-        model.setTooltipText(config.provider.label+" · "+config.model+"; choose a model for a new chat");
+        String providerName=NotebookAiSettings.name(activity,config.providerId,config.provider);
+        model.setContentDescription(name+"; "+providerName+"; choose a model for a new chat");
+        model.setTooltipText(providerName+" · "+config.model+"; choose a model for a new chat");
     }
     private void updateSend() {
         if (send==null) return;
@@ -307,7 +312,7 @@ final class NotebookAiChat {
         main.removeCallbacks(saveDraft);saveDraft();hideKeyboard();
         java.util.List<NotebookAiConfig> choices=NotebookAiSettings.savedModels(activity);
         if(choices.isEmpty()){Toast.makeText(activity,"Add models in Settings → AI chat → Fetch available models",Toast.LENGTH_LONG).show();finishContact();return;}
-        String[] labels=new String[choices.size()];for(int i=0;i<choices.size();i++){NotebookAiConfig config=choices.get(i);labels[i]=config.provider.label+" · "+config.specs.name;}
+        String[] labels=new String[choices.size()];for(int i=0;i<choices.size();i++){NotebookAiConfig config=choices.get(i);labels[i]=NotebookAiSettings.name(activity,config.providerId,config.provider)+" · "+config.specs.name;}
         modelDialog=new AlertDialog.Builder(activity).setTitle("Model for a new chat")
             .setItems(labels,(dialog,index)->selectModel(choices.get(index)))
             .setNegativeButton("Cancel",null).create();

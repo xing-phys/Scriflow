@@ -18,13 +18,16 @@ final class NotebookAiHistory {
         Entry(String id,String title,NotebookAiConfig config,String profile,long created,long updated,int messages,boolean draft,String error) {
             validateId(id); this.id=id; this.title=title; this.profile=profile; this.created=created; this.updated=updated;
             this.messages=messages; this.draft=draft; this.error=error;
-            this.config=config==null?null:new NotebookAiConfig(config.provider,config.baseUrl,config.model,"");
+            this.config=config==null?null:new NotebookAiConfig(config.provider,config.providerId,config.baseUrl,config.model,"",null);
         }
         Entry resolved(List<NotebookAiConfig> known) {
             if (config!=null) return this;
-            for (NotebookAiConfig candidate:known) if (candidate.profile().equals(profile))
-                return new Entry(id,title,candidate,profile,created,updated,messages,draft,error);
-            return this;
+            NotebookAiConfig match=null;
+            for (NotebookAiConfig candidate:known) if (candidate.profile().equals(profile)) {
+                if(match!=null&&!match.providerId.equals(candidate.providerId))return this;
+                match=candidate;
+            }
+            return match==null?this:new Entry(id,title,match,profile,created,updated,messages,draft,error);
         }
     }
     static final class Saved {
@@ -69,6 +72,7 @@ final class NotebookAiHistory {
             out.writeUTF(entry.config==null?"":entry.config.provider.name());
             out.writeUTF(entry.config==null?"":entry.config.baseUrl);out.writeUTF(entry.config==null?"":entry.config.model);
             out.writeLong(entry.created);out.writeLong(entry.updated);out.writeInt(entry.messages);out.writeBoolean(entry.draft);
+            if(entry.config!=null&&!entry.config.providerId.equals(entry.config.provider.name()))out.writeUTF(entry.config.providerId);
         }
         byte[] data=metadata.toByteArray(); if (data.length>MAX_META) throw new IOException("AI history metadata exceeds its size limit");
         CRC32 crc=new CRC32();crc.update(data);ByteArrayOutputStream record=new ByteArrayOutputStream();
@@ -86,11 +90,12 @@ final class NotebookAiHistory {
         try (DataInputStream meta=new DataInputStream(new ByteArrayInputStream(data))) {
             String storedId=meta.readUTF(),title=meta.readUTF(),profile=meta.readUTF(),provider=meta.readUTF(),url=meta.readUTF(),model=meta.readUTF();
             long created=meta.readLong(),updated=meta.readLong();int count=meta.readInt();boolean draft=meta.readBoolean();
+            String providerId=meta.available()>0?meta.readUTF():provider;
             if (!id.equals(storedId)||title.length()>300||!profile.matches("[a-f0-9]{64}")||created<1||updated<created
                     ||count<0||count>NotebookAiConversation.MAX_MESSAGES||meta.read()!=-1) throw new IOException("Invalid saved chat metadata");
             NotebookAiConfig config=null;
             if (!provider.isEmpty()) {
-                config=new NotebookAiConfig(NotebookAiConfig.Provider.valueOf(provider),url,model,"");
+                config=new NotebookAiConfig(NotebookAiConfig.Provider.valueOf(provider),providerId,url,model,"",null);
                 new NotebookAiConfig(config.provider,url,model,"local-validation").validate();
                 if (!config.profile().equals(profile)) throw new IOException("Saved chat destination does not match its metadata");
             }

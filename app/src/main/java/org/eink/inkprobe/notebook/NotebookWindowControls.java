@@ -29,8 +29,8 @@ final class NotebookWindowControls {
         minimize=new NotebookIconButton(context,NotebookIconDrawable.Icon.MINIMIZE,"Minimize "+noun+"; drag to resize floating window");
         menu.setOnClickListener(v->listener.menu());minimize.setOnClickListener(v->listener.minimize());
         if(!embedded){
-            FrameLayout.LayoutParams left=new FrameLayout.LayoutParams(dp(32),dp(32),Gravity.BOTTOM|Gravity.LEFT);left.setMargins(dp(5),0,0,dp(5));content.addView(menu,left);
-            FrameLayout.LayoutParams right=new FrameLayout.LayoutParams(dp(32),dp(32),Gravity.BOTTOM|Gravity.RIGHT);right.setMargins(0,0,dp(5),dp(5));content.addView(minimize,right);
+            FrameLayout.LayoutParams left=new FrameLayout.LayoutParams(dp(22),dp(22),Gravity.BOTTOM|Gravity.LEFT);left.setMargins(dp(5),0,0,dp(5));content.addView(menu,left);
+            FrameLayout.LayoutParams right=new FrameLayout.LayoutParams(dp(22),dp(22),Gravity.BOTTOM|Gravity.RIGHT);right.setMargins(0,0,dp(5),dp(5));content.addView(minimize,right);
         }
         moveGrip=new Grip(false);resizeGrip=new Grip(true);menu.setOnTouchListener(moveGrip);minimize.setOnTouchListener(resizeGrip);
     }

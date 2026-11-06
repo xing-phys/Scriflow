@@ -174,6 +174,10 @@ final class NotebookSession {
         submit(() -> { document.trashNotebook(id); windowIds = Collections.emptyList(); navigationBook = 0; }, callback);
     }
     void restoreNotebook(int id, Callback callback) { submit(() -> document.restoreNotebook(id), callback); }
+    void manageNotebooks(List<Integer> ids, NotebookLibrary.BulkAction action, int folder, Callback callback) {
+        final List<Integer> selected = new ArrayList<>(ids);
+        submit(() -> { document.manageNotebooks(selected, action, folder); windowIds = Collections.emptyList(); navigationBook = 0; }, callback);
+    }
     void permanentlyDeleteNotebook(int id, Callback callback) {
         submit(() -> { document.permanentlyDeleteNotebook(id); windowIds = Collections.emptyList(); navigationBook = 0; }, callback);
     }

@@ -11,8 +11,32 @@ public final class NotebookAiWorkspaceTest {
     private static boolean same(NotebookWorkspace.Box a,NotebookWorkspace.Box b){return a.x==b.x&&a.y==b.y&&a.width==b.width&&a.height==b.height;}
     private static void invalid(Runnable run){try{run.run();}catch(IllegalArgumentException expected){assertions++;return;}throw new AssertionError("Invalid window was accepted");}
     public static void main(String[] args)throws Exception{
-        windows();docking();restore();damaged();
+        windows();docking();mainChat();restore();damaged();
         System.out.println("NotebookAiWorkspace: "+assertions+" assertions passed (independent windows, note geometry, dock/minimize/restore, destinations and bounded recovery).");
+    }
+    private static void mainChat(){
+        NotebookAiWorkspace workspace=new NotebookAiWorkspace();NotebookAiWorkspace.Window main=add(workspace),other=add(workspace);
+        workspace.place(other,NotebookWorkspace.Position.LEFT);
+        workspace.makeMain(main);
+        check(workspace.mainChat()&&workspace.geometry.base()==main.pane,"selected chat becomes the main workspace");
+        check(workspace.geometry.floating(workspace.geometry.find(1))&&workspace.geometry.floating(other.pane),"note placeholder and other chats float above the main chat");
+        NotebookWorkspace.Box bounds=workspace.geometry.box(main.pane,1200,1000);
+        check(bounds.x==0&&bounds.y==0&&bounds.width==1200&&bounds.height==1000,"main chat uses the full available area");
+        NotebookAiWorkspace restored=new NotebookAiWorkspace();restored.restore(workspace.encode());
+        check(restored.mainChat()&&restored.geometry.base().notebookId==main.pane.notebookId,"main chat survives workspace restoration");
+        restored.minimize(restored.session(main.sessionId));
+        check(!restored.mainChat()&&restored.geometry.base().notebookId==1,"minimizing the main chat returns the note workspace");
+        workspace.makeMain(other);
+        check(workspace.mainChat()&&workspace.geometry.base()==other.pane&&workspace.geometry.floating(main.pane),"switching main chats floats the former main");
+        workspace.place(other,NotebookWorkspace.Position.FLOATING);
+        check(!workspace.mainChat()&&workspace.geometry.base().notebookId==1,"floating the new main returns to the note even after switching main chats");
+        workspace.makeMain(main);workspace.place(other,NotebookWorkspace.Position.RIGHT);
+        check(!workspace.mainChat()&&workspace.geometry.base().notebookId==1&&other.pane.position==NotebookWorkspace.Position.RIGHT,"docking another chat restores the note workspace and its complementary split");
+        workspace.makeMain(main);
+        workspace.close(main);check(!workspace.mainChat()&&workspace.geometry.base().notebookId==1,"closing main chat returns to the note workspace");
+        NotebookWorkspace notes=new NotebookWorkspace();NotebookWorkspace.Pane note=notes.add(42,NotebookWorkspace.Position.FLOATING);
+        check(!notes.floating(note),"ordinary base note stays full size");notes.setFloatingBase(true);
+        check(notes.floating(note)&&notes.box(note,1200,1000).width<1200,"main-chat mode presents the same base note as a floating pane");
     }
     private static void windows(){
         NotebookAiWorkspace w=new NotebookAiWorkspace();NotebookAiWorkspace.Window first=add(w),second=add(w);
@@ -62,6 +86,10 @@ public final class NotebookAiWorkspaceTest {
         check(rb.pane.collapsed&&rb.pane.position==NotebookWorkspace.Position.TOP&&rb.pane.split==.65f,"Minimized state and original dock restore together");
         check(same(w.geometry.box(a.pane,1404,1872),restored.geometry.box(ra.pane,1404,1872)),"Floating geometry survives restoration exactly");
         check(restored.encode().equals(encoded),"A restored workspace serializes consistently");
+        String providerId="p-"+UUID.randomUUID();
+        NotebookAiWorkspace named=new NotebookAiWorkspace();NotebookAiWorkspace.Window profile=named.add("CUSTOM",providerId,"https://local.example/v1","model",UUID.randomUUID().toString(),false);
+        NotebookAiWorkspace namedRestored=new NotebookAiWorkspace();namedRestored.restore(named.encode());
+        check(namedRestored.session(profile.sessionId).providerId.equals(providerId),"provider identity survives workspace recreation");
         restored.focus(rb);check(restored.geometry.box(restored.geometry.base(),1404,1872).height<1872,"Restoring a minimized dock reapplies its split");
         check(add(restored).pane.notebookId>b.pane.notebookId,"Next window identity does not reuse a live identity");
         restored.close(ra);restored.close(rb);check(restored.windows().size()==1,"Restored windows can be independently closed");

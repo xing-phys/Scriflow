@@ -21,16 +21,27 @@ final class NotebookAiConfig {
     }
 
     final Provider provider;
-    final String baseUrl, model, apiKey;
+    final String providerId, baseUrl, model, apiKey;
     final NotebookAiModel specs;
 
     NotebookAiConfig(Provider provider, String baseUrl, String model, String apiKey) {
         this(provider,baseUrl,model,apiKey,null);
     }
     NotebookAiConfig(Provider provider,String baseUrl,String model,String apiKey,NotebookAiModel specs) {
+        this(provider, provider == null ? "" : provider.name(), baseUrl, model, apiKey, specs);
+    }
+    NotebookAiConfig(Provider provider,String providerId,String baseUrl,String model,String apiKey,NotebookAiModel specs) {
         if (provider == null) throw new IllegalArgumentException("Choose an AI provider");
-        this.provider=provider; this.baseUrl=baseUrl.trim(); this.model=model.trim(); this.apiKey=apiKey.trim();
+        if (!validProviderId(provider, providerId)) throw new IllegalArgumentException("Invalid AI provider identity");
+        this.provider=provider; this.providerId=providerId; this.baseUrl=baseUrl.trim(); this.model=model.trim(); this.apiKey=apiKey.trim();
         this.specs=specs!=null&&specs.id.equals(this.model)?specs:this.model.isEmpty()?null:new NotebookAiModel(this.model);
+    }
+    static boolean validProviderId(Provider provider,String id) {
+        if (provider == null || id == null) return false;
+        if (id.equals(provider.name())) return true;
+        if (!id.startsWith("p-")) return false;
+        try { return java.util.UUID.fromString(id.substring(2)).toString().equals(id.substring(2)); }
+        catch (IllegalArgumentException error) { return false; }
     }
 
     String endpoint() {

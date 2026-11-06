@@ -6,6 +6,26 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.39.0-alpha.1 — Bookshelf selection and AI workspaces (2026-11-06)
+
+- Open the outline with other branches collapsed and the current heading in
+  bold. Share the note's top-right clock, Wi-Fi and battery control with the
+  bookshelf and Settings, and display folders and Trash as selected tabs.
+- Hold a notebook to select multiple notebooks or select all visible notebooks.
+  Move the selection to a folder or Trash, or restore it from Trash. Individual
+  permanent deletion and folder actions remain available from their menus.
+- Put Reading view above the toolbox, reduce and space chat composer controls,
+  and match floating note corners to the smaller chat controls.
+- Let a chat occupy the main workspace with notes floating above it. Keep at
+  least one note open and restore its workspace when the main chat is closed.
+- Add named, independent provider profiles with separate saved models and
+  encrypted keys, including multiple custom endpoints. Earlier APKs cannot read
+  chat archives created with new profiles or restore the new window layout;
+  existing legacy chats and notebook files retain their previous formats.
+- VersionCode 96. Host tests, browser/PDF checks, Android builds and lint, and
+  release signer verification cover this alpha. The tablet was unavailable;
+  physical layout, window layers and handwriting still require device checks.
+
 ## 0.38.0-alpha.1 — Reader navigation and monochrome interface (2026-11-06)
 
 - Refresh the bookshelf, page management and Settings screens with flat,

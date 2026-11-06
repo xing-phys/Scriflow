@@ -33,7 +33,7 @@ final class NotebookAiWindows {
         saved=restored==null?prefs.getString("aiWindows",null):restored;workspace.restore(saved);
         // Discard invalid destinations from damaged local preferences, never guessed credentials.
         for(NotebookAiWorkspace.Window window:workspace.windows())try{
-            new NotebookAiConfig(NotebookAiConfig.Provider.valueOf(window.provider),window.url,window.model,"local-validation").validate();
+            new NotebookAiConfig(NotebookAiConfig.Provider.valueOf(window.provider),window.providerId,window.url,window.model,"local-validation",null).validate();
             if(NotebookAiHistory.deleted(activity.getFilesDir(),window.sessionId))workspace.close(window);
         }
         catch(IllegalArgumentException error){workspace.close(window);}
@@ -49,7 +49,7 @@ final class NotebookAiWindows {
     void migrate(String id,String profile){
         if(!workspace.windows().isEmpty())return;NotebookAiConfig config=NotebookAiSettings.publicConfig(activity);
         if(config.model.isEmpty())return;String restored=NotebookAiHistory.restoreId(id,profile,config.profile());
-        workspace.add(config.provider.name(),config.baseUrl,config.model,restored==null?NotebookAiHistory.newId():restored,false);persist();
+        workspace.add(config.provider.name(),config.providerId,config.baseUrl,config.model,restored==null?NotebookAiHistory.newId():restored,false);persist();
     }
     void resume(){
         if(!suspended||!listener.allowed()||!root.isAttachedToWindow())return;suspended=false;
@@ -61,7 +61,9 @@ final class NotebookAiWindows {
     boolean visible(){for(NotebookAiWorkspace.Window window:workspace.windows())if(!window.pane.collapsed)return !suspended;return false;}
     boolean trayShowing(){return tray.showing();}
     void hideTray(){tray.hide();}
-    List<Rect> exclusions(){List<Rect> result=new ArrayList<>();for(Rect rect:bounds.values())if(!rect.isEmpty())result.add(new Rect(rect));Rect strip=tray.bounds();if(!strip.isEmpty())result.add(strip);return result;}
+    List<Rect> exclusions(){List<Rect> result=new ArrayList<>();for(Map.Entry<Integer,Rect> item:bounds.entrySet())
+        if(!(workspace.mainChat()&&item.getKey()==workspace.geometry.base().notebookId)&&!item.getValue().isEmpty())result.add(new Rect(item.getValue()));
+        Rect strip=tray.bounds();if(!strip.isEmpty())result.add(strip);return result;}
     void toggle(View button,Rect tools,boolean vertical){
         if(!listener.allowed())return;resume();
         if(!listener.contactStart())return;
@@ -72,7 +74,7 @@ final class NotebookAiWindows {
         if(history!=null||!listener.allowed()||!listener.contactStart())return;tray.hide();
         for(NotebookAiChat chat:windows.values())chat.saveDraft();
         List<NotebookAiConfig> configs=NotebookAiSettings.publicConfigs(activity);
-        for(NotebookAiWorkspace.Window state:workspace.windows())configs.add(new NotebookAiConfig(NotebookAiConfig.Provider.valueOf(state.provider),state.url,state.model,""));
+        for(NotebookAiWorkspace.Window state:workspace.windows())configs.add(new NotebookAiConfig(NotebookAiConfig.Provider.valueOf(state.provider),state.providerId,state.url,state.model,"",null));
         history=new NotebookAiHistoryDialog(activity,root,configs,new NotebookAiHistoryDialog.Listener(){
             public void open(NotebookAiConfig config,String id,boolean rebind){NotebookAiWindows.this.open(config,id,rebind);}
             public void deleted(String id){NotebookAiWindows.this.deleted(id);}
@@ -94,7 +96,7 @@ final class NotebookAiWindows {
             new NotebookAiConfig(config.provider,config.baseUrl,config.model,"local-validation").validate();
             NotebookAiWorkspace.Window existing=workspace.session(sessionId);
             if(existing!=null){restore(existing);return;}
-            NotebookAiWorkspace.Window window=workspace.add(config.provider.name(),config.baseUrl,config.model,sessionId==null?NotebookAiHistory.newId():sessionId,rebind);
+            NotebookAiWorkspace.Window window=workspace.add(config.provider.name(),config.providerId,config.baseUrl,config.model,sessionId==null?NotebookAiHistory.newId():sessionId,rebind);
             show(window,false);persist();listener.workspaceChanged();
         }catch(IllegalArgumentException error){Toast.makeText(activity,error.getMessage(),Toast.LENGTH_LONG).show();}
     }
@@ -123,7 +125,7 @@ final class NotebookAiWindows {
     }
     private void sync(NotebookAiWorkspace.Window state,NotebookAiChat chat){
         if(chat==null||workspace.find(state.pane.notebookId)==null)return;
-        state.sessionId=chat.sessionId();NotebookAiConfig config=chat.configuration();state.provider=config.provider.name();state.url=config.baseUrl;state.model=config.model;state.title=chat.name();
+        state.sessionId=chat.sessionId();NotebookAiConfig config=chat.configuration();state.provider=config.provider.name();state.providerId=config.providerId;state.url=config.baseUrl;state.model=config.model;state.title=chat.name();
     }
     private void show(NotebookAiWorkspace.Window state,boolean raise){
         if(state==null||suspended)return;NotebookAiChat chat=windows.get(state.pane.notebookId);
@@ -142,7 +144,9 @@ final class NotebookAiWindows {
     private void restore(NotebookAiWorkspace.Window state){if(state==null)return;workspace.focus(state);show(state,true);persist();positionAll();listener.workspaceChanged();}
     private String windowName(NotebookAiWorkspace.Window state){if(state==null)return "Chat";String name=state.title;if(name.equals("New chat"))name+=" "+(state.pane.notebookId-1);return name+" · "+state.model;}
     private void positionAll(){if(suspended)return;for(NotebookAiChat chat:new ArrayList<>(windows.values()))chat.position();listener.boundsChanged();}
-    NotebookWorkspace.Box background(){return workspace.geometry.box(workspace.geometry.base(),root.getWidth(),root.getHeight());}
+    boolean mainChat(){return !suspended&&workspace.mainChat();}
+    NotebookWorkspace.Box background(){return suspended||mainChat()?new NotebookWorkspace.Box(0,0,root.getWidth(),root.getHeight())
+        :workspace.geometry.box(workspace.geometry.find(1),root.getWidth(),root.getHeight());}
     void persist(){
         for(NotebookAiWorkspace.Window state:workspace.windows())sync(state,windows.get(state.pane.notebookId));
         String encoded=workspace.encode();if(!encoded.equals(saved)){saved=encoded;prefs.edit().putString("aiWindows",encoded).apply();}
@@ -176,9 +180,14 @@ final class NotebookAiWindows {
     }
     private void showPosition(NotebookAiWorkspace.Window state,NotebookAiChat chat){
         final int[] choice={-1};menuOwner=chat;
-        menu=new AlertDialog.Builder(activity).setTitle("Position chat").setItems(NotebookWindowControls.POSITIONS,(d,index)->choice[0]=index).setNegativeButton("Cancel",null).create();
+        String[] positions=Arrays.copyOf(NotebookWindowControls.POSITIONS,NotebookWindowControls.POSITIONS.length+1);
+        positions[positions.length-1]="Main window";
+        menu=new AlertDialog.Builder(activity).setTitle("Position chat").setItems(positions,(d,index)->choice[0]=index).setNegativeButton("Cancel",null).create();
         menu.setOnDismissListener(d->{menu=null;menuOwner=null;
-            if(!suspended&&choice[0]>=0&&workspace.find(state.pane.notebookId)!=null){workspace.geometry.place(state.pane,NotebookWorkspace.Position.values()[choice[0]]);persist();positionAll();listener.workspaceChanged();}chat.optionsFinished();
+            if(!suspended&&choice[0]>=0&&workspace.find(state.pane.notebookId)!=null){
+                if(choice[0]==NotebookWindowControls.POSITIONS.length)workspace.makeMain(state);
+                else workspace.place(state,NotebookWorkspace.Position.values()[choice[0]]);
+                persist();positionAll();listener.workspaceChanged();}chat.optionsFinished();
         });NotebookUi.show(menu);
     }
 }

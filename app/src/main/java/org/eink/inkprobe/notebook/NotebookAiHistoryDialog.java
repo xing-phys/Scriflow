@@ -42,7 +42,7 @@ final class NotebookAiHistoryDialog {
                 public int getCount(){return entries.size();}public Object getItem(int position){return entries.get(position);}public long getItemId(int position){return position;}
                 public View getView(int position,View convert,ViewGroup parent){
                     NotebookAiHistory.Entry entry=entries.get(position);LinearLayout row=new LinearLayout(activity);row.setGravity(Gravity.CENTER_VERTICAL);
-                    String destination=entry.config==null?"Earlier chat":entry.config.provider.label+" · "+entry.config.model;
+                    String destination=entry.config==null?"Earlier chat":NotebookAiSettings.name(activity,entry.config.providerId,entry.config.provider)+" · "+entry.config.model;
                     String date=java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT,java.text.DateFormat.SHORT).format(new java.util.Date(entry.updated));
                     LinearLayout open=new LinearLayout(activity);open.setOrientation(LinearLayout.VERTICAL);open.setGravity(Gravity.CENTER_VERTICAL);open.setPadding(dp(4),0,dp(4),0);
                     open.setOnClickListener(v->{if(entry.error.isEmpty())open(entry);});

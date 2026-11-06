@@ -97,6 +97,13 @@ public abstract class NotebookDisplayActivity extends Activity implements Notebo
         return headerStatus;
     }
 
+    protected final LinearLayout deviceSettingsIsland() {
+        LinearLayout island = NotebookUi.statusIsland(this);
+        int height = Math.round(24 * getResources().getDisplayMetrics().density);
+        island.addView(deviceSettingsButton(), new LinearLayout.LayoutParams(-2, height));
+        return island;
+    }
+
     protected final void addScreenHeader(LinearLayout root, TextView title) {
         LinearLayout header = new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL);
         int height = Math.round(36 * getResources().getDisplayMetrics().density);

@@ -13,7 +13,11 @@ if [[ ! -f "$JSON" ]] || ! printf '%s  %s\n' "$SHA" "$JSON" | sha256sum --check 
   mv "$JSON.tmp" "$JSON"
 fi
 javac -encoding UTF-8 -source 8 -target 8 -cp "$JSON" -d build/ai-tests \
+  tests/ai-support/android/content/Context.java tests/ai-support/android/content/SharedPreferences.java \
+  tests/ai-support/android/security/keystore/KeyProperties.java tests/ai-support/android/security/keystore/KeyGenParameterSpec.java \
+  tests/ai-support/android/util/Base64.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookAiConfig.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookAiSettings.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookAiModel.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookAiModelLibrary.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookAiAttachment.java \
@@ -21,7 +25,8 @@ javac -encoding UTF-8 -source 8 -target 8 -cp "$JSON" -d build/ai-tests \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookAiHistory.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookAiClient.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookAiSession.java \
-  tests/NotebookAiTest.java tests/NotebookAiHistoryTest.java tests/NotebookAiModelsTest.java
+  tests/NotebookAiTest.java tests/NotebookAiHistoryTest.java tests/NotebookAiModelsTest.java tests/NotebookAiSettingsTest.java
 java -ea -cp "build/ai-tests:$JSON" org.eink.inkprobe.notebook.NotebookAiTest
 java -ea -cp "build/ai-tests:$JSON" org.eink.inkprobe.notebook.NotebookAiHistoryTest
 java -ea -cp "build/ai-tests:$JSON" org.eink.inkprobe.notebook.NotebookAiModelsTest
+java -ea -cp "build/ai-tests:$JSON" org.eink.inkprobe.notebook.NotebookAiSettingsTest

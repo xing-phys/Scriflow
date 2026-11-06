@@ -26,6 +26,14 @@ pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
 stays in front, window operations retain the main editor, and PDF import opens
 the file picker directly before opening the imported note.
 
+The **[0.39.0-alpha.1 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.39.0-alpha.1)**
+adds named, independent AI provider profiles and a main-window chat layout with
+floating notes. The outline opens at the current heading, the bookshelf supports
+multiple selection, and the bookshelf and Settings share the note's status pill.
+This alpha awaits testing on the tablet; its signed APK and checksum are on the
+release page. Chats made with newly added profiles use a header that earlier
+APKs cannot read; see [AI chat](docs/ai-chat.md) for compatibility details.
+
 The **[0.35.0-alpha.8 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.35.0-alpha.8)**
 adds [PDF reading controls](docs/pdf-reading.md): auto/manual/semi-auto cropping,
 odd/even crop areas, optional single-page reading with zoom, adjustable PDF

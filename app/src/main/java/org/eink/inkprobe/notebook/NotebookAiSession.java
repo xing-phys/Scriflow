@@ -54,6 +54,8 @@ final class NotebookAiSession {
                 if (restoring) value=NotebookAiHistory.read(directory,requested);
                 if (value!=null&&!value.entry.profile.equals(config.profile())&&(value.entry.config!=null||!rebindAllowed))
                     throw new IOException("This chat belongs to a different AI configuration");
+                if (value!=null&&value.entry.config!=null&&!value.entry.config.providerId.equals(config.providerId))
+                    throw new IOException("This chat belongs to a different AI provider");
             } catch (IOException error) { problem=error.getMessage()==null?"Saved AI chat could not be read":error.getMessage(); }
             final NotebookAiHistory.Saved result=value; final String failure=problem;
             dispatch.accept(()->{

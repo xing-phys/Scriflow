@@ -22,6 +22,7 @@ public final class NotebookWorkspace {
         Box(int x, int y, int width, int height) { this.x = x; this.y = y; this.width = width; this.height = height; }
     }
     private final List<Pane> panes = new ArrayList<>();
+    private boolean floatingBase;
     public List<Pane> panes() { return Collections.unmodifiableList(panes); }
     public Pane find(int id) { for (Pane pane : panes) if (pane.notebookId == id) return pane; return null; }
     public Pane base() { return panes.isEmpty() ? null : panes.get(0); }
@@ -50,7 +51,15 @@ public final class NotebookWorkspace {
                 dock.split = reset ? .5f : clamp(dock.split + (pane == base() ? -delta : delta), .25f, .75f);
         }
     }
-    public boolean floating(Pane pane) { return pane != base() && pane.position == Position.FLOATING; }
+    public boolean floating(Pane pane) { return floatingBase || pane != base() && pane.position == Position.FLOATING; }
+    boolean floatingBase() { return floatingBase; }
+    void setFloatingBase(boolean value) { floatingBase = value; }
+    /** Promote a visible pane without discarding the former base's floating geometry. */
+    void makeBase(Pane pane) {
+        require(pane); if (pane == base()) return;
+        Pane previous = base(); panes.remove(pane); panes.add(0, pane);
+        previous.position = Position.FLOATING; pane.position = Position.FLOATING; pane.collapsed = false;
+    }
     public void minimize(Pane pane) {
         require(pane);
         if (pane == base()) { promoteOther(pane); pane.position = Position.FLOATING; }

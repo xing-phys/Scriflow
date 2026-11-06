@@ -39,9 +39,10 @@ View history lasts for the current editor instance; closing it or recreating
 the Activity clears history.
 
 The **Outline** icon opens the notebook's headings. Imported PDF bookmarks
-populate it automatically; the arrows beside parent headings collapse or expand
-their descendants. Add your own heading at the current position, edit
-its title or nesting, or remove it. Destinations use stable page identities, so
+populate it automatically. It opens with other branches collapsed, reveals the
+current heading and its ancestors, and shows the current heading in bold; arrows
+beside parent headings collapse or expand their descendants. Add your own heading
+at the current position, edit its title or nesting, or remove it. Destinations use stable page identities, so
 reordering pages keeps headings attached to their pages. A heading whose page
 was deleted becomes available again if the page deletion is undone.
 

@@ -20,10 +20,12 @@ public final class NotebookWorkspaceActivationTest {
             "static class NotebookScrollStore { static class State {State(int page,double fraction){}} }",
             "static class NotebookViewport {enum Fit {WIDTH}}",
             "static class Tray {void hide(){}}",
+            "static class AIWindows {boolean mainChat(){return true;}} static class Toast {static final int LENGTH_SHORT=0;static int shown;static Toast makeText(Object context,String text,int duration){return new Toast();}void show(){shown++;}}",
             "static class NotebookCompanion { static class ReadingView {float zoom,centerX,centerY; ReadingView(float z,float x,float y){zoom=z;centerX=x;centerY=y;} } int hides;final NotebookWorkspace.Pane pane; NotebookCompanion(NotebookWorkspace.Pane p){pane=p;} ReadingView readingView(){return pane.hasView?new ReadingView(pane.zoom,pane.centerX,pane.centerY):null;} void hide(){hides++;} }",
             "interface Callback {void complete(NotebookPage page,IOException error);}",
             "final ArrayDeque<Runnable> queue=new ArrayDeque<>(); final List<String> events=new ArrayList<>();",
             "final NotebookWorkspace workspace=new NotebookWorkspace(); final Session session=new Session();",
+            "AIWindows aiWindows;",
             "final Map<NotebookWorkspace.Pane,NotebookCompanion> noteWindows=new LinkedHashMap<>();",
             "final NotebookViewHistory viewHistory=new NotebookViewHistory(); final Map<Integer,byte[]> workspaceHistories=new HashMap<>();",
             "final Area workspaceArea=new Area(); final Tray noteTray=new Tray(),toolHint=new Tray();final org.eink.inkprobe.notebook.NotebookStylusShortcut stylusShortcut=new org.eink.inkprobe.notebook.NotebookStylusShortcut(); NotebookViewport viewport=new NotebookViewport();",
@@ -70,9 +72,10 @@ public final class NotebookWorkspaceActivationTest {
             "WorkspaceActivationFixture busy=new WorkspaceActivationFixture();busy.editing=true;busy.focus(2);check(busy.queue.isEmpty(),\"an active edit prevents a competing focus switch\");",
             "WorkspaceActivationFixture hidden=new WorkspaceActivationFixture();hidden.workspace.minimize(hidden.workspace.find(2));hidden.focus(2);check(hidden.queue.isEmpty(),\"hidden pane cannot capture editing focus\");",
             "WorkspaceActivationFixture inactive=new WorkspaceActivationFixture();inactive.collapsePane(inactive.workspace.find(3),false);check(inactive.editable==1&&inactive.workspace.find(3).collapsed,\"minimizing inactive note leaves writer ownership unchanged\");",
+            "WorkspaceActivationFixture sole=new WorkspaceActivationFixture();for(int id=2;id<=4;id++)sole.workspace.close(sole.workspace.find(id));sole.aiWindows=new AIWindows();sole.collapsePane(sole.workspace.find(1),false);check(sole.workspace.panes().size()==1&&!sole.workspace.find(1).collapsed&&Toast.shown==1,\"main chat explains why its last editable note stays open\");",
             "}", "}");
         runFixture("WorkspaceActivationFixture", fixture);
-        System.out.println("NotebookWorkspaceActivation: 17 assertions passed (production callbacks, queued writer and surface lifecycle; not device verification).");
+        System.out.println("NotebookWorkspaceActivation: 18 assertions passed (production callbacks, queued writer and surface lifecycle; not device verification).");
     }
     static void runFixture(String name, String fixture) throws Exception {
         File directory = Files.createTempDirectory("workspace-regression-").toFile();

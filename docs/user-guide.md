@@ -4,11 +4,10 @@ Scriflow is designed for Huawei MatePad Paper HMW-W09 on Android 10/API 29,
 firmware `HMW-W09 2.1.0.222(C00E170R1P8)`. Other devices and firmware have not
 been verified. See the [README](../README.md) for installation and current limits.
 
-This guide follows alpha prerelease **0.36.0-alpha.2**; the published stable release is
-**0.33.2**. This build reads older notes but writes page format 8 on
-edit and in new editable backups. Older APKs, including stable 0.33.2, cannot
-open those pages or new backups. Keep independent
-backups before updating. Physical checks of this exact APK remain pending.
+This guide follows alpha prerelease **0.39.0-alpha.1**; the published stable release is
+**0.33.2**. This build reads older notes; ordinary edits use page format 8 and
+individually sized Markdown uses format 9. Older APKs cannot read formats they
+do not support. Physical checks of this exact APK remain pending.
 
 ## Notebooks and pages
 
@@ -27,6 +26,11 @@ Permanent deletion frees a notebook slot. See [bookshelf settings](bookshelf-set
 for configurable list/thumbnail layouts and storage compatibility. Settings
 uses **− / +** buttons to change portrait/landscape row and column counts;
 there is no number field or keyboard to open.
+
+Hold a notebook on the bookshelf or in Trash to enter selection mode. Tap more
+notebooks or **Select all**, then use **Actions** to move selected notebooks,
+move them to Trash, or restore them from Trash. Individual permanent deletion
+remains available from the notebook's **⋮** menu.
 
 Tap **Quick A5 note** to create and open an A5 notebook immediately with an
 automatic name. **+ Notebook** opens the named creation form.
@@ -54,7 +58,8 @@ for syntax, recovery, size limits and compatibility.
 
 ## AI chat
 
-Open **Settings → AI chat**, select a provider, enter your API key, check the
+Open **Settings → AI chat**, select a saved provider or tap **Add provider** to
+create a named profile, enter its API key, check the
 API base URL, then tap **Fetch available models**. Models appear directly below
 the button as names with checkboxes and settings gears. Check the ones you
 want and tap **Save AI settings**. Uncheck a model to remove it from the chat
@@ -78,7 +83,8 @@ Use the same corner controls as notes: **tap bottom-left** for options or
 bottom-right** to resize. A thin outline follows the finger, with the top-left
 corner fixed; content refits on release. The menu offers Position, Minimize,
 Close chat and size presets. Position choices are Left, Right, Top, Bottom and
-Floating window. A docked chat reserves the remaining space for notes.
+Floating window, plus **Main window** for chats. A docked chat reserves the
+remaining space for notes; a main chat puts notes in floating windows.
 Restore minimized chats from the toolbox tray. Minimizing preserves an active
 reply; closing stops its request and keeps history. Other windows remain open.
 
@@ -86,7 +92,7 @@ Send a question, then ask follow-ups; replies render Markdown, math, code and
 tables using the existing local engine. The **send up-arrow** is beside the
 message field in the same row; **Ctrl+Enter** also sends. It changes to a stop
 square during generation, a retry arrow after interruption, or a save icon
-after a storage error. Copy remains beside the title. Chats and text/image
+after a storage error. Copy the last reply from the options menu. Chats and text/image
 drafts save automatically. Tap **History in the toolbox tray** to find saved
 sessions, newest first. Tap a row to reopen it with its
 original model and follow-up context; an already-open session is raised instead.

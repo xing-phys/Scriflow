@@ -29,7 +29,7 @@ public final class NotebookSettingsActivity extends NotebookDisplayActivity {
         TextView title = label("Settings", 21); title.setTypeface(null, Typeface.BOLD);
         header.addView(title, new LinearLayout.LayoutParams(0, dp(44), 1));
         header.addView(button("Done", this::onBackPressed), new LinearLayout.LayoutParams(dp(76), dp(38)));
-        header.addView(deviceSettingsButton(), new LinearLayout.LayoutParams(-2, dp(32)));
+        header.addView(deviceSettingsIsland(), new LinearLayout.LayoutParams(-2, dp(32)));
         root.addView(header);
         ScrollView scroll = new ScrollView(this); scroll.setBackgroundColor(Color.WHITE);
         scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);

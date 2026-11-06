@@ -88,7 +88,6 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
     private boolean changingWorkspace, workspaceLayoutPending;
     private int inkGeneration;
     private final Map<Integer, byte[]> workspaceHistories = new LinkedHashMap<>();
-    private final Map<Integer, HashSet<UUID>> outlineCollapsed = new LinkedHashMap<>();
     private TextView saveState;
     private NotebookButton noteNameButton, pageLabel, zoomValue;
     private int statusPageCount;
@@ -1289,10 +1288,11 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
     private boolean applyChatDock(boolean paused){
         if(aiWindows==null||!active||changingWorkspace||ink==null||shownError!=null||(!paused&&!canEdit())||workspaceRoot.getWidth()<1||workspaceRoot.getHeight()<1)return false;
         NotebookWorkspace.Box box=aiWindows.background();
+        boolean floatingBase=aiWindows.mainChat();
         FrameLayout.LayoutParams old=(FrameLayout.LayoutParams)workspaceArea.getLayoutParams();
         int width=old.width<0?workspaceArea.getWidth():old.width,height=old.height<0?workspaceArea.getHeight():old.height;
-        if(width==box.width&&height==box.height&&old.leftMargin==box.x&&old.topMargin==box.y)return false;
-        Runnable mutation=()->{FrameLayout.LayoutParams layout=new FrameLayout.LayoutParams(box.width,box.height);layout.leftMargin=box.x;layout.topMargin=box.y;workspaceArea.setLayoutParams(layout);};
+        if(width==box.width&&height==box.height&&old.leftMargin==box.x&&old.topMargin==box.y&&workspace.floatingBase()==floatingBase)return false;
+        Runnable mutation=()->{workspace.setFloatingBase(floatingBase);FrameLayout.LayoutParams layout=new FrameLayout.LayoutParams(box.width,box.height);layout.leftMargin=box.x;layout.topMargin=box.y;workspaceArea.setLayoutParams(layout);};
         if(paused){
             // The chat writer barrier already paused ink. canEdit() intentionally rejects
             // that state; relayout before enabling input in the newly reserved note area.
@@ -2378,7 +2378,11 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         final boolean[] editMode = {false};
         List<NotebookOutline.Entry> entries = new ArrayList<>();
         List<Integer> visible = new ArrayList<>();
-        HashSet<UUID> collapsed = outlineCollapsed.computeIfAbsent(session.notebookId(), id -> new HashSet<>());
+        int currentPage = viewport.nearestPage(0, scrollY);
+        double currentFraction = Math.max(0, Math.min(.999999,
+            -viewport.pageTop(currentPage, scrollY) / (viewport.scale(currentPage) * viewport.pageHeight(currentPage))));
+        final int[] currentHeading = {NotebookOutlineTree.current(session.outline(), session::pageNumber, currentPage, currentFraction)};
+        HashSet<UUID> collapsed = NotebookOutlineTree.collapsedByDefault(session.outline(), currentHeading[0]);
         final Runnable[] refresh = new Runnable[1];
         BaseAdapter adapter = new BaseAdapter() {
             @Override public int getCount() { return visible.size(); }
@@ -2406,6 +2410,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
                 TextView title = new TextView(NotebookActivity.this);
                 title.setText(entry.title + "  ·  " + (number > 0 ? "p. " + number : "Page removed"));
                 title.setTextColor(Color.BLACK); title.setTextSize(14); title.setGravity(Gravity.CENTER_VERTICAL);
+                if (index == currentHeading[0]) title.setTypeface(null, android.graphics.Typeface.BOLD);
                 row.addView(title, new LinearLayout.LayoutParams(0, dp(44), 1));
                 return row;
             }
@@ -2420,6 +2425,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         content.addView(hint); content.addView(list, new LinearLayout.LayoutParams(-1, dp(320)));
         refresh[0] = () -> {
             entries.clear(); entries.addAll(session.outline());
+            currentHeading[0] = NotebookOutlineTree.current(entries, session::pageNumber, currentPage, currentFraction);
             visible.clear(); visible.addAll(NotebookOutlineTree.visible(entries, collapsed));
             adapter.notifyDataSetChanged();
             hint.setText(entries.isEmpty() ? "Your outline is empty. Add a heading at the current view."
@@ -2450,6 +2456,8 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
             else { editing = false; installViewport(); }
         });
         refresh[0].run(); showStaticDialog(dialog);
+        int selectedRow = visible.indexOf(currentHeading[0]);
+        if (selectedRow >= 0) list.setSelection(selectedRow);
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> showOutlineEditor(null, refresh[0]));
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
             editMode[0] = !editMode[0];
@@ -2762,6 +2770,12 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         }
         noteWindows.get(editor).show(session.notebookName(), canvas);
         updateViewNavigation(active && page != null && page.isInitialized());
+        if (workspace.floatingBase() && active && !toolsContact && !aiContact && floatingTools != null
+                && floatingTools.isShowing() && ink != null && !ink.isPenDown()) {
+            boolean resume = canEdit(); if (resume) ink.pauseForEdit();
+            floatingTools.raise(); if (aiWindows != null) aiWindows.raiseFloatingAboveTools();
+            if (resume && shownError == null) { ink.redrawAfterOverlayChange(); ink.start(); }
+        }
         // Status uses a higher application sublayer than note and split-chat panels.
         updateOverlayBounds();
     }
@@ -2839,7 +2853,11 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         Runnable mutation = () -> changeWorkspace(() -> { if (close) workspace.close(pane); else workspace.minimize(pane); });
         if (pane.notebookId == session.notebookId()) {
             NotebookWorkspace.Pane replacement = workspace.replacement(pane);
-            if (replacement == null) return; // The workspace always retains an editable visible note.
+            if (replacement == null) {
+                if (aiWindows != null && aiWindows.mainChat())
+                    Toast.makeText(this, "Keep one note open while chat is the main window", Toast.LENGTH_SHORT).show();
+                return;
+            }
             activatePane(replacement, mutation);
         } else mutation.run();
     }
@@ -3503,7 +3521,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
             + "\n\nNew writing or a successful edit clears Redo. Changing paper keeps your stroke history.";
         message += "\n\nTap the dotted grip to collapse or expand the floating tools; drag it to move them, even when collapsed. The direction icon beside it switches between one row and one column. The thicker circle marks the selected tool. The page counter in the top-left bar opens page management."
             + "\n\nReading view in the top-left action icons offers Continuous or Single page. Single page starts at Fit page; pinch and pan remain available. At whole-page size, swipe horizontally or use the page arrows to turn. PDF pages also offer Auto, Manual and Semi-auto cropping, separate odd/even areas and contrast. Crop and contrast affect display only. Hold a finger on a PDF word to select and open Eudic floating lookup; Copy and dictionary icons appear beside it. A PDF text layer and installed Eudic are required."
-            + "\n\nThe outline icon opens the table of contents. Use the arrows to fold nested headings; hold a heading or tap Edit headings to change it. Tap PDF links with one finger; writing with the stylus keeps annotating. Previous-view and next-view arrows appear at the lower right when available, or beside a floating note's minimize control. They restore your page, position and zoom after a link, outline or page-overview jump, including after screen rotation."
+            + "\n\nThe outline icon opens the table of contents at the current heading, shown in bold, with other branches collapsed. Use the arrows to fold nested headings; hold a heading or tap Edit headings to change it. Tap PDF links with one finger; writing with the stylus keeps annotating. Previous-view and next-view arrows appear at the lower right when available, or beside a floating note's minimize control. They restore your page, position and zoom after a link, outline or page-overview jump, including after screen rotation."
             + "\n\nTap the selected Pen icon to open a small width slider. Slide the point and release to apply. The slider stays open for further adjustments; start writing, tap outside, or press Back to close. Current thickness: " + NotebookPenConfig.label(penWidth) + ". The small line below the pencil previews its width. Settings offers fixed width on the page (default) or fixed width on the screen while writing. Existing strokes keep their captured shape in either mode."
             + "\n\nExport PDF saves all pages in this notebook, including their paper backgrounds and handwriting.";
         final boolean[] exporting = {false};

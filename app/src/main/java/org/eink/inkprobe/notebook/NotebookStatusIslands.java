@@ -1,9 +1,7 @@
 package org.eink.inkprobe.notebook;
 
 import android.app.Activity;
-import android.graphics.Color;
 import android.graphics.Rect;
-import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
@@ -150,17 +148,7 @@ final class NotebookStatusIslands {
     }
 
     private LinearLayout island() {
-        LinearLayout result = new LinearLayout(activity);
-        result.setOrientation(LinearLayout.VERTICAL);
-        result.setPadding(dp(10), dp(4), dp(10), dp(4));
-        GradientDrawable background = new GradientDrawable();
-        background.setColor(Color.WHITE);
-        background.setStroke(dp(1), 0xff999999);
-        background.setCornerRadius(dp(1000));
-        result.setBackground(background);
-        result.setStateListAnimator(null);
-        result.setElevation(0f);
-        return result;
+        return NotebookUi.statusIsland(activity);
     }
 
     private PopupWindow window(View content) {

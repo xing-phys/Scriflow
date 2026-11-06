@@ -10,6 +10,7 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.TextView;
+import android.widget.LinearLayout;
 
 /** Shared flat e-ink window styling, including the window's Material shadow. */
 final class NotebookUi {
@@ -27,6 +28,16 @@ final class NotebookUi {
         GradientDrawable shape = border(density);
         shape.setCornerRadius(radius * density);
         return shape;
+    }
+
+    static LinearLayout statusIsland(Context context) {
+        float density = context.getResources().getDisplayMetrics().density;
+        LinearLayout result = new LinearLayout(context); result.setOrientation(LinearLayout.VERTICAL);
+        result.setPadding(Math.round(10*density), Math.round(4*density), Math.round(10*density), Math.round(4*density));
+        GradientDrawable background = new GradientDrawable(); background.setColor(Color.WHITE);
+        background.setStroke(Math.max(1, Math.round(density)), 0xff999999); background.setCornerRadius(1000*density);
+        result.setBackground(background); result.setStateListAnimator(null); result.setElevation(0f);
+        return result;
     }
 
     static void action(NotebookButton button, NotebookIconDrawable.Icon icon) {

@@ -43,6 +43,7 @@ final class NotebookReadingMenu {
             content.addView(label("Applies to PDF text and images. Ink is unchanged.",11));
         }
         popup=new PopupWindow(content,1,1,true);popup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+        popup.setWindowLayoutType(WindowManager.LayoutParams.TYPE_APPLICATION_SUB_PANEL);
         popup.setOutsideTouchable(true);popup.setClippingEnabled(false);popup.setIsLaidOutInScreen(true);popup.setAnimationStyle(0);popup.setElevation(0);
         popup.setEnterTransition(null);popup.setExitTransition(null);popup.setInputMethodMode(PopupWindow.INPUT_METHOD_NOT_NEEDED);
         popup.setOnDismissListener(()->{if(!retired){retired=true;listener.close(settings,cropArea);}});close.setOnClickListener(v->popup.dismiss());
