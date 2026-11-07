@@ -235,7 +235,7 @@ final class NotebookAiChat {
         } else {
             attachments.removeAllViews();attachmentStrip.setVisibility(View.GONE);
         }
-        if(markdown!=null)markdown.messages(session==null?java.util.Collections.emptyList():session.chat.messages);
+        if(markdown!=null)markdown.messages(session==null?java.util.Collections.emptyList():session.displayMessages());
         String text=session!=null&&session.loadFailed?session.status:!displayProblem.isEmpty()?displayProblem:session==null?"Loading AI settings…":session.status;
         status.setText(text); status.setVisibility(text.isEmpty()?View.GONE:View.VISIBLE);
         composer.setEnabled(session!=null&&session.loaded&&!session.loadFailed&&!session.busy&&!session.switching&&!session.chat.awaitingReply());
@@ -295,11 +295,11 @@ final class NotebookAiChat {
         chip.setContentDescription("Remove attached "+image.name);chip.setTooltipText(image.name);return chip;
     }
     void copyLastReply() {
-        if(session==null||session.chat.lastAnswer().isEmpty()) {
+        if(session==null||session.displayAnswer().isEmpty()) {
             Toast.makeText(activity,"No AI reply to copy",Toast.LENGTH_SHORT).show();return;
         }
         ((android.content.ClipboardManager)activity.getSystemService(Activity.CLIPBOARD_SERVICE))
-            .setPrimaryClip(ClipData.newPlainText("AI reply",session.chat.lastAnswer()));
+            .setPrimaryClip(ClipData.newPlainText("AI reply",session.displayAnswer()));
         Toast.makeText(activity,"AI reply copied as Markdown",Toast.LENGTH_SHORT).show();
     }
     private void chooseNotebook() {

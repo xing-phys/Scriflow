@@ -4,7 +4,7 @@ Scriflow is designed for Huawei MatePad Paper HMW-W09 on Android 10/API 29,
 firmware `HMW-W09 2.1.0.222(C00E170R1P8)`. Other devices and firmware have not
 been verified. See the [README](../README.md) for installation and current limits.
 
-This guide follows alpha prerelease **0.39.0-alpha.1**; the published stable release is
+This guide follows alpha prerelease **0.39.0-alpha.2**; the published stable release is
 **0.33.2**. This build reads older notes; ordinary edits use page format 8 and
 individually sized Markdown uses format 9. Older APKs cannot read formats they
 do not support. Physical checks of this exact APK remain pending.
@@ -29,8 +29,9 @@ there is no number field or keyboard to open.
 
 Hold a notebook on the bookshelf or in Trash to enter selection mode. Tap more
 notebooks or **Select all**, then use **Actions** to move selected notebooks,
-move them to Trash, or restore them from Trash. Individual permanent deletion
-remains available from the notebook's **⋮** menu.
+move them to Trash, restore them, or permanently delete selected Trash items
+after confirmation. Individual permanent deletion remains available from the
+notebook's **⋮** menu.
 
 Tap **Quick A5 note** to create and open an A5 notebook immediately with an
 automatic name. **+ Notebook** opens the named creation form.
@@ -73,7 +74,9 @@ defaults** resets the form to its latest fetched values. Fetching again keeps
 your overrides. Thinking defaults to Automatic; unavailable specifications use
 provider defaults. The connection can also be saved before choosing a model.
 
-Tap the chat-bubble sparkle in the toolbox to toggle its tray. **+** opens a
+Tap **AI chat** on the bookshelf to start a new chat or open saved chat history
+as the main window with notes minimized. From a note, tap the chat-bubble sparkle
+in the toolbox to toggle its tray. **+** opens a
 new floating chat, **History** opens saved sessions, and bubble icons restore
 minimized chats. The tray works even with no windows open. Every new window
 has a separate session and draft.
@@ -84,15 +87,18 @@ bottom-right** to resize. A thin outline follows the finger, with the top-left
 corner fixed; content refits on release. The menu offers Position, Minimize,
 Close chat and size presets. Position choices are Left, Right, Top, Bottom and
 Floating window, plus **Main window** for chats. A docked chat reserves the
-remaining space for notes; a main chat puts notes in floating windows.
+remaining space for notes; a main chat puts notes in floating windows. Minimize
+every note to use only chat; the note-specific top-left bar disappears. Use the
+notes tray to restore a note.
 Restore minimized chats from the toolbox tray. Minimizing preserves an active
 reply; closing stops its request and keeps history. Other windows remain open.
 
-Send a question, then ask follow-ups; replies render Markdown, math, code and
+Send a question, then ask follow-ups; streamed replies render Markdown, math, code and
 tables using the existing local engine. The **send up-arrow** is beside the
 message field in the same row; **Ctrl+Enter** also sends. It changes to a stop
 square during generation, a retry arrow after interruption, or a save icon
-after a storage error. Copy the last reply from the options menu. Chats and text/image
+after a storage error. Stopping or interrupting a stream saves its visible partial
+reply. Copy the last reply from the options menu. Chats and text/image
 drafts save automatically. Tap **History in the toolbox tray** to find saved
 sessions, newest first. Tap a row to reopen it with its
 original model and follow-up context; an already-open session is raised instead.

@@ -1,4 +1,4 @@
-# AI chat — 0.39.0-alpha.1
+# AI chat — 0.39.0-alpha.2
 
 Open **Settings → AI chat** from the time/battery/Wi-Fi pill. Select a saved
 provider or tap **Add provider**, choose OpenAI, Anthropic, Google Gemini,
@@ -74,7 +74,10 @@ remain provider-dependent. It can reject text that an exact tokenizer could
 fit. Rejected drafts remain editable. History is never silently truncated or
 summarized to fit a model.
 
-## Multiple floating chats
+## Chat windows
+
+From the bookshelf, tap **AI chat**, then **New chat** or **Open chat history**.
+The new or selected conversation opens as the main window with notes minimized.
 
 Tap the **sparkle in a chat bubble** in the toolbox to toggle a tray beside
 the button, just like the notes tray. It contains **+** for a new floating chat,
@@ -96,8 +99,9 @@ Chats and notes share their actual corner controls, gestures and window geometry
 - **Position:** Left, Right, Top, Bottom, Floating window or Main window. A dock reserves
   the remaining area for notes. Docking another chat floats the previous chat
   dock. Main window makes the selected chat the background and presents notes
-  as floating windows; at least one note stays open. Minimizing or closing the
-  main chat returns the note workspace.
+  as floating windows. You can minimize every note; the top-left note bar hides
+  and the device status remains. Use the toolbox notes tray to restore notes.
+  Minimizing or closing the main chat returns the note workspace.
 - **Size:** Smaller pane, Equal split / Reset size, or Larger pane.
 
 Windows keep independent conversations, drafts, models and pending replies.
@@ -108,7 +112,8 @@ Markdown WebView until restoration. Closing stops that window's request and
 keeps its saved history and draft. Other windows continue independently.
 Window identities, position/size, original destinations and minimized states
 restore after rotation, Settings, backgrounding and app reopen. Leaving the
-editor stops pending requests; interrupted questions wait for an explicit Retry.
+editor stops pending requests. A visible partial reply is saved; an unanswered
+question without a partial reply waits for an explicit Retry.
 At most 64 chat windows can be retained at once; close one to free a slot.
 
 The conversation has no title bar. New chat and History live in the toolbox
@@ -133,11 +138,14 @@ Short messages share their row; a long message or a line break expands the edito
 to the full bar width above those controls, up to six visible lines. The button shows a **stop square** during generation, a
 **retry arrow** for an unanswered question, or a **save icon** after a storage
 failure. Tooltips and accessibility labels describe the current action.
-Stop cancels the local request. Retry resends an unanswered question after interruption or failure;
+Stop cancels the local request and saves any visible partial reply. Retry resends an unanswered question after interruption or failure;
 the app never retries automatically. Cancellation may arrive after a provider
 has started processing, so provider billing can still apply.
 
-Replies appear as complete messages, avoiding token-by-token refresh on e-ink.
+Replies stream into the chat as text arrives. Display updates are coalesced for
+e-ink and wait for handwriting to settle. A provider that responds with ordinary
+JSON instead of a stream is displayed when its complete response arrives. A
+partial reply is saved if the stream stops or is interrupted.
 Adjust their text size under **Settings → Text size → AI chat replies**; open
 chats are restored with the new size after returning from Settings.
 The chat reuses the note-block Markdown engine for headings, lists, tables,

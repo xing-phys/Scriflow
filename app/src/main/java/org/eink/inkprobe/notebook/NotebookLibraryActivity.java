@@ -89,6 +89,7 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
             startActivity(new Intent(this, NotebookPdfImportActivity.class)); overridePendingTransition(0, 0);
         });
         addShortcut(shortcuts, "Restore backup", NotebookIconDrawable.Icon.RETRY, () -> transfer(true, 0));
+        addShortcut(shortcuts, "AI chat", NotebookIconDrawable.Icon.AI_CHAT, this::openAiChat);
         root.addView(shortcuts);
         LinearLayout navigation = new LinearLayout(this); navigation.setGravity(Gravity.CENTER_VERTICAL);
         NotebookButton home = button("Bookshelf", () -> navigate(0, false));
@@ -244,7 +245,9 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         if (!canAct() || selection.size() == 0) return;
         if (inTrash) {
             AlertDialog menu = new AlertDialog.Builder(this).setTitle("Selected notebooks")
-                .setItems(new String[]{"Restore selected notebooks"}, (dialog, which) -> performSelection(NotebookLibrary.BulkAction.RESTORE, 0))
+                .setItems(new String[]{"Restore selected notebooks", "Delete selected permanently"}, (dialog, which) -> {
+                    if (which == 0) performSelection(NotebookLibrary.BulkAction.RESTORE, 0); else confirmPermanentSelection();
+                })
                 .setNegativeButton("Cancel", null).create(); showStaticDialog(menu);
         } else {
             AlertDialog menu = new AlertDialog.Builder(this).setTitle("Selected notebooks")
@@ -252,6 +255,21 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
                     if (which == 0) moveSelection(); else performSelection(NotebookLibrary.BulkAction.TRASH, 0);
                 }).setNegativeButton("Cancel", null).create(); showStaticDialog(menu);
         }
+    }
+    private void confirmPermanentSelection() {
+        if (!canAct() || selection.size() == 0 || !inTrash) return;
+        final List<Integer> ids = selection.notebooks();
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Permanently delete " + ids.size() + " selected notebooks?")
+            .setMessage("All pages and imported PDFs in these notebooks will be removed from this tablet. This cannot be undone.")
+            .setNegativeButton("Cancel", null).setPositiveButton("Delete permanently", (choice, which) -> {
+                if (!canAct() || !inTrash) return;
+                busy = true; clearPreviews(); updateSelectionBar(); final int request = generation;
+                session.permanentlyDeleteNotebooks(ids, (page, error) -> {
+                    if (!active || request != generation) return;
+                    busy = false; if (error == null) selection.clear(); render();
+                    if (error != null) showProblem(error);
+                });
+            }).create(); showStaticDialog(dialog);
     }
     private void moveSelection() {
         if (!canAct() || selection.size() == 0) return;
@@ -527,6 +545,18 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         busy = true;
         startActivity(new Intent(this, NotebookActivity.class));
         overridePendingTransition(0, 0);
+    }
+
+    private void openAiChat() {
+        if (!canAct()) return;
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("AI chat")
+            .setItems(new String[]{"New chat", "Open chat history"}, (choice, which) -> {
+                if (!canAct()) return;
+                busy = true;
+                startActivity(new Intent(this, NotebookActivity.class).putExtra("aiLaunch", which == 0 ? "new" : "history"));
+                overridePendingTransition(0, 0);
+            }).setNegativeButton("Cancel", null).create();
+        showStaticDialog(dialog);
     }
 
     private void createNotebook() {

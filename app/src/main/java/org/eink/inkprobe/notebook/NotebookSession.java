@@ -181,6 +181,10 @@ final class NotebookSession {
     void permanentlyDeleteNotebook(int id, Callback callback) {
         submit(() -> { document.permanentlyDeleteNotebook(id); windowIds = Collections.emptyList(); navigationBook = 0; }, callback);
     }
+    void permanentlyDeleteNotebooks(List<Integer> ids, Callback callback) {
+        final List<Integer> selected = new ArrayList<>(ids);
+        submit(() -> { document.permanentlyDeleteNotebooks(selected); windowIds = Collections.emptyList(); navigationBook = 0; }, callback);
+    }
     void initializeSize(int width, int height, Callback callback) {
         submit(() -> { document.initializeSize(width, height); navigationBook = 0; }, callback);
     }

@@ -6,6 +6,25 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.39.0-alpha.2 — Chat-only workspace and streaming replies (2026-11-07)
+
+- Allow confirmed permanent deletion of selected notebooks in Trash. Record
+  deletion intent for the entire batch before removing files, and finish an
+  interrupted deletion on retry or restart.
+- Minimize all notes while a chat is the main window. Hide the note-specific
+  top-left bar, retain the device status, and restore notes through the toolbox.
+  Open a new main chat or select one from history directly from the bookshelf.
+- Put floating note and chat resize guides above the windows while dragging in
+  either direction. Reduce composer button gaps and center the icons vertically.
+- Stream visible provider text into the offline Markdown view with updates
+  coalesced for e-ink and writing. Stop or interruption saves the partial reply;
+  providers returning ordinary JSON can still return a complete response.
+- VersionCode 97. Notebook and chat archive formats are unchanged from alpha.1.
+  Host tests, browser/PDF checks, Android builds and lint, and release signer
+  verification cover this alpha. The tablet and live provider accounts were
+  unavailable; physical window layering, handwriting and live streaming remain
+  to be checked on device.
+
 ## 0.39.0-alpha.1 — Bookshelf selection and AI workspaces (2026-11-06)
 
 - Open the outline with other branches collapsed and the current heading in

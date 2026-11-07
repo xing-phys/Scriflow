@@ -20,8 +20,8 @@ public final class NotebookWorkspaceActivationTest {
             "static class NotebookScrollStore { static class State {State(int page,double fraction){}} }",
             "static class NotebookViewport {enum Fit {WIDTH}}",
             "static class Tray {void hide(){}}",
-            "static class AIWindows {boolean mainChat(){return true;}} static class Toast {static final int LENGTH_SHORT=0;static int shown;static Toast makeText(Object context,String text,int duration){return new Toast();}void show(){shown++;}}",
-            "static class NotebookCompanion { static class ReadingView {float zoom,centerX,centerY; ReadingView(float z,float x,float y){zoom=z;centerX=x;centerY=y;} } int hides;final NotebookWorkspace.Pane pane; NotebookCompanion(NotebookWorkspace.Pane p){pane=p;} ReadingView readingView(){return pane.hasView?new ReadingView(pane.zoom,pane.centerX,pane.centerY):null;} void hide(){hides++;} }",
+            "static class AIWindows {boolean mainChat(){return true;}boolean retainsMainChat(){return true;}} static class Toast {static final int LENGTH_SHORT=0;static int shown;static Toast makeText(Object context,String text,int duration){return new Toast();}void show(){shown++;}}",
+            "static class NotebookCompanion { static class ReadingView {float zoom,centerX,centerY; ReadingView(float z,float x,float y){zoom=z;centerX=x;centerY=y;} } int hides;final NotebookWorkspace.Pane pane; NotebookCompanion(NotebookWorkspace.Pane p){pane=p;} ReadingView readingView(){return pane.hasView?new ReadingView(pane.zoom,pane.centerX,pane.centerY):null;} void hide(){hides++;}void close(){hide();} }",
             "interface Callback {void complete(NotebookPage page,IOException error);}",
             "final ArrayDeque<Runnable> queue=new ArrayDeque<>(); final List<String> events=new ArrayList<>();",
             "final NotebookWorkspace workspace=new NotebookWorkspace(); final Session session=new Session();",
@@ -44,7 +44,7 @@ public final class NotebookWorkspaceActivationTest {
             "void openCanvas(NotebookPage page){openCount++;ink=true;editing=false;editable=session.id;viewport=new NotebookViewport();if(whenReady!=null){Runnable next=whenReady;whenReady=null;queue.add(next);}}",
             "void openWorkspaceCanvas(NotebookPage page){int request=generation;queue.add(()->{if(active&&request==generation)openCanvas(page);});}",
             "void changeWorkspace(Runnable mutation){if(canEdit())mutation.run();}",
-            method(activity, "private void activatePane("), method(activity, "private void collapsePane("),
+            method(activity, "private void activatePane("), method(activity, "private void collapsePane("), method(activity, "private void ensureWorkspace("), method(activity, "private void reopenNote("),
             "void focus(int id){activatePane(workspace.find(id),null);}",
             "void drain(){for(int i=0;!queue.isEmpty();i++){if(i>20)throw new AssertionError(\"callback loop\");queue.remove().run();}}",
             "static void check(boolean value,String message){if(!value)throw new AssertionError(message);}",
@@ -72,10 +72,12 @@ public final class NotebookWorkspaceActivationTest {
             "WorkspaceActivationFixture busy=new WorkspaceActivationFixture();busy.editing=true;busy.focus(2);check(busy.queue.isEmpty(),\"an active edit prevents a competing focus switch\");",
             "WorkspaceActivationFixture hidden=new WorkspaceActivationFixture();hidden.workspace.minimize(hidden.workspace.find(2));hidden.focus(2);check(hidden.queue.isEmpty(),\"hidden pane cannot capture editing focus\");",
             "WorkspaceActivationFixture inactive=new WorkspaceActivationFixture();inactive.collapsePane(inactive.workspace.find(3),false);check(inactive.editable==1&&inactive.workspace.find(3).collapsed,\"minimizing inactive note leaves writer ownership unchanged\");",
-            "WorkspaceActivationFixture sole=new WorkspaceActivationFixture();for(int id=2;id<=4;id++)sole.workspace.close(sole.workspace.find(id));sole.aiWindows=new AIWindows();sole.collapsePane(sole.workspace.find(1),false);check(sole.workspace.panes().size()==1&&!sole.workspace.find(1).collapsed&&Toast.shown==1,\"main chat explains why its last editable note stays open\");",
+            "WorkspaceActivationFixture sole=new WorkspaceActivationFixture();for(int id=2;id<=4;id++)sole.workspace.close(sole.workspace.find(id));sole.aiWindows=new AIWindows();sole.collapsePane(sole.workspace.find(1),false);check(sole.workspace.panes().size()==1&&sole.workspace.find(1).collapsed&&Toast.shown==0,\"main chat can minimize its last editable note without deleting it\");",
+            "sole.ensureWorkspace();check(sole.workspace.find(1).collapsed,\"minimized last note stays hidden through workspace recreation while main chat exists\");sole.aiWindows=null;sole.ensureWorkspace();check(!sole.workspace.find(1).collapsed,\"closing the main chat restores the note workspace\");",
+            "WorkspaceActivationFixture restore=new WorkspaceActivationFixture();for(NotebookWorkspace.Pane p:restore.workspace.panes())p.collapsed=true;restore.reopenNote(restore.workspace.find(2));restore.drain();check(restore.session.id==2&&!restore.workspace.find(2).collapsed&&restore.editable==2,\"restoring a different note makes it the active editor\");restore.workspace.find(2).collapsed=true;restore.reopenNote(restore.workspace.find(2));check(!restore.workspace.find(2).collapsed&&restore.session.id==2,\"restoring the hidden editor retains its identity\");",
             "}", "}");
         runFixture("WorkspaceActivationFixture", fixture);
-        System.out.println("NotebookWorkspaceActivation: 18 assertions passed (production callbacks, queued writer and surface lifecycle; not device verification).");
+        System.out.println("NotebookWorkspaceActivation: 22 assertions passed (production callbacks, queued writer and surface lifecycle; not device verification).");
     }
     static void runFixture(String name, String fixture) throws Exception {
         File directory = Files.createTempDirectory("workspace-regression-").toFile();

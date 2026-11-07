@@ -20,7 +20,9 @@ final class NotebookResizeOutline {
             View line = new View(context); line.setBackgroundColor(Color.BLACK);
             PopupWindow popup = new PopupWindow(line, 1, 1, false);
             popup.setBackgroundDrawable(new ColorDrawable(Color.BLACK));
-            popup.setWindowLayoutType(WindowManager.LayoutParams.TYPE_APPLICATION_PANEL);
+            // Shrinking puts the guide inside the old floating window, so its
+            // edges must be above both note and chat sub-panels until release.
+            popup.setWindowLayoutType(WindowManager.LayoutParams.TYPE_APPLICATION_SUB_PANEL);
             popup.setTouchable(false); popup.setOutsideTouchable(false); popup.setClippingEnabled(false);
             popup.setIsLaidOutInScreen(true); popup.setAnimationStyle(0); popup.setElevation(0);
             popup.setEnterTransition(null); popup.setExitTransition(null); edges[i] = popup;

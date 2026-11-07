@@ -17,7 +17,7 @@ final class NotebookAiComposer extends ViewGroup {
         super(context);
         this.editor=editor;this.menu=menu;this.add=add;this.model=model;this.send=send;this.minimize=minimize;
         float density=context.getResources().getDisplayMetrics().density;
-        actionSize=Math.round(22*density);actionGap=Math.round(4*density);modelLimit=Math.round(104*density);editorMinimum=Math.round(48*density);
+        actionSize=Math.round(22*density);actionGap=Math.round(2*density);modelLimit=Math.round(104*density);editorMinimum=Math.round(48*density);
         for(View child:new View[]{menu,add,editor,model,send,minimize})addView(child);
     }
 
@@ -42,16 +42,18 @@ final class NotebookAiComposer extends ViewGroup {
     }
 
     @Override protected void onLayout(boolean changed,int left,int top,int right,int bottom) {
-        int x=getPaddingLeft(), rowBottom=getHeight()-getPaddingBottom();
-        int icon=menu.getMeasuredWidth(), rowTop=rowBottom-icon;
+        int x=getPaddingLeft(), icon=menu.getMeasuredWidth();
+        int rowStart=getPaddingTop()+(expanded?editor.getMeasuredHeight():0);
+        int rowHeight=expanded?icon:Math.max(icon,editor.getMeasuredHeight());
+        int rowTop=rowStart+(rowHeight-icon)/2, rowBottom=rowTop+icon;
         int inner=Math.max(1,getWidth()-getPaddingLeft()-getPaddingRight());
         int gap=Math.min(actionGap,Math.max(0,(inner-4*icon)/2));
         if(expanded) editor.layout(x,getPaddingTop(),x+editor.getMeasuredWidth(),getPaddingTop()+editor.getMeasuredHeight());
         menu.layout(x,rowTop,x+icon,rowBottom);x+=icon+gap;
         add.layout(x,rowTop,x+icon,rowBottom);x+=icon;
         if(!expanded) {
-            int y=rowBottom-editor.getMeasuredHeight();
-            editor.layout(x,y,x+editor.getMeasuredWidth(),rowBottom);x+=editor.getMeasuredWidth();
+            int y=rowStart+(rowHeight-editor.getMeasuredHeight())/2;
+            editor.layout(x,y,x+editor.getMeasuredWidth(),y+editor.getMeasuredHeight());x+=editor.getMeasuredWidth();
         } else x=getWidth()-getPaddingRight()-2*icon-gap-model.getMeasuredWidth();
         model.layout(x,rowTop,x+model.getMeasuredWidth(),rowBottom);x+=model.getMeasuredWidth();
         send.layout(x,rowTop,x+icon,rowBottom);x+=icon+gap;

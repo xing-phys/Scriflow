@@ -21,7 +21,7 @@ final class NotebookAiWindows {
     private final Map<Integer,Rect> bounds=new LinkedHashMap<>();
     private final NotebookNoteTray tray;
     private final android.content.SharedPreferences prefs;
-    private boolean suspended=true;
+    private boolean suspended=true, historyAsMain, shelfMainOpened;
     private int frontId;
     private String saved;
     private AlertDialog menu;
@@ -76,11 +76,27 @@ final class NotebookAiWindows {
         List<NotebookAiConfig> configs=NotebookAiSettings.publicConfigs(activity);
         for(NotebookAiWorkspace.Window state:workspace.windows())configs.add(new NotebookAiConfig(NotebookAiConfig.Provider.valueOf(state.provider),state.providerId,state.url,state.model,"",null));
         history=new NotebookAiHistoryDialog(activity,root,configs,new NotebookAiHistoryDialog.Listener(){
-            public void open(NotebookAiConfig config,String id,boolean rebind){NotebookAiWindows.this.open(config,id,rebind);}
+            public void open(NotebookAiConfig config,String id,boolean rebind){NotebookAiWindows.this.openHistorySelection(config,id,rebind);}
             public void deleted(String id){NotebookAiWindows.this.deleted(id);}
-            public void closed(){history=null;listener.contactEnd();}
+            public void closed(){history=null;historyAsMain=false;listener.contactEnd();}
         });history.show();
     }
+    private void openHistorySelection(NotebookAiConfig config,String id,boolean rebind){
+        open(config,id,rebind);
+        if(historyAsMain){NotebookAiWorkspace.Window state=workspace.session(id);if(state!=null)makeShelfMain(state);}
+    }
+    void historyFromShelf(){if(suspended)resume();if(suspended)return;historyAsMain=true;history();if(history==null)historyAsMain=false;}
+    void newMainFromShelf(){
+        if(suspended)resume();if(suspended||!listener.allowed()||!listener.contactStart())return;
+        String id=NotebookAiHistory.newId();open(NotebookAiSettings.publicConfig(activity),id,false);
+        NotebookAiWorkspace.Window state=workspace.session(id);if(state!=null)makeShelfMain(state);
+        listener.contactEnd();
+    }
+    private void makeShelfMain(NotebookAiWorkspace.Window state){
+        workspace.makeMain(state);shelfMainOpened=true;persist();positionAll();listener.workspaceChanged();
+    }
+    boolean consumeShelfMain(){boolean value=shelfMainOpened;shelfMainOpened=false;return value;}
+    boolean retainsMainChat(){return workspace.mainChat();}
     private void deleted(String sessionId){
         if(activity.isFinishing()||activity.isDestroyed())return;
         NotebookAiWorkspace.Window deleted=workspace.session(sessionId);if(deleted==null)return;

@@ -27,7 +27,7 @@ final class NotebookStatusIslands {
     private final LinearLayout actions;
     private final EnumMap<Action, NotebookIconButton> actionButtons = new EnumMap<>(Action.class);
     private int actionColumns, actionMask = -1;
-    private boolean zenMode;
+    private boolean zenMode, noteVisible = true;
     private View anchor;
     private final View.OnLayoutChangeListener layoutListener =
             (view, l, t, r, b, oldL, oldT, oldR, oldB) -> position();
@@ -199,13 +199,25 @@ final class NotebookStatusIslands {
         position();
     }
 
+    /** Keep the device island while no notebook window is visible. */
+    void setNoteVisible(boolean value) {
+        if (noteVisible == value) return;
+        noteVisible = value;
+        if (!value) {
+            actions.setVisibility(View.GONE); more.setVisibility(View.VISIBLE);
+            undo.setVisibility(View.GONE); redo.setVisibility(View.GONE);
+        }
+        position();
+    }
+
     boolean historyMatches(boolean canUndo, boolean canRedo) {
+        if (zenMode || !noteVisible) canUndo = canRedo = false;
         return (undo.getVisibility() == View.VISIBLE) == canUndo && (redo.getVisibility() == View.VISIBLE) == canRedo;
     }
 
     /** Called between native strokes; hidden actions occupy no space or touch target. */
     void history(boolean canUndo, boolean canRedo) {
-        if (zenMode) canUndo = canRedo = false;
+        if (zenMode || !noteVisible) canUndo = canRedo = false;
         undo.setAvailable(canUndo); redo.setAvailable(canRedo);
         undo.setVisibility(canUndo ? View.VISIBLE : View.GONE);
         redo.setVisibility(canRedo ? View.VISIBLE : View.GONE);
@@ -228,9 +240,10 @@ final class NotebookStatusIslands {
         int rightWidth = rightContent.getMeasuredWidth();
         // On unusually narrow windows place the right island below the left, without overlap.
         int minimumLeftWidth = dp(224);
-        boolean stacked = !zenMode && available.width() < rightWidth + minimumLeftWidth + dp(8);
+        boolean hideLeft = zenMode || !noteVisible;
+        boolean stacked = !hideLeft && available.width() < rightWidth + minimumLeftWidth + dp(8);
         int maximumLeftWidth = Math.max(1, stacked ? available.width() : available.width() - rightWidth - dp(8));
-        if (zenMode) leftBounds.setEmpty();
+        if (hideLeft) leftBounds.setEmpty();
         else {
             layoutActions(maximumLeftWidth);
             leftContent.measure(View.MeasureSpec.makeMeasureSpec(maximumLeftWidth, View.MeasureSpec.AT_MOST), unspecified);
@@ -243,8 +256,8 @@ final class NotebookStatusIslands {
             rightTop + rightContent.getMeasuredHeight());
         // Install both holes before either window becomes visible.
         listener.onBoundsChanged(new Rect(leftBounds), new Rect(rightBounds));
-        if (zenMode) leftWindow.dismiss();
-        boolean leftShown = zenMode || place(leftWindow, leftBounds);
+        if (hideLeft) leftWindow.dismiss();
+        boolean leftShown = hideLeft || place(leftWindow, leftBounds);
         boolean rightShown = place(rightWindow, rightBounds);
         if (!leftShown || !rightShown) {
             if (!leftShown) leftBounds.setEmpty();

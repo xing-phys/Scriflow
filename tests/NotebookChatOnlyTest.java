@@ -1,0 +1,36 @@
+package org.eink.inkprobe.notebook;
+
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+
+/** Exercises the actual note-host layout while its only note is hidden by main chat. */
+public final class NotebookChatOnlyTest {
+    public static void main(String[] args)throws Exception{
+        String source=new String(Files.readAllBytes(Paths.get("app/src/main/java/org/eink/inkprobe/notebook/NotebookActivity.java")),StandardCharsets.UTF_8);
+        String fixture=String.join("\n",
+            "package org.eink.inkprobe.notebook;import java.util.*;public class ChatOnlyFixture {",
+            "static class View{ViewGroup parent;ViewGroup getParent(){return parent;}}static class ViewGroup extends View{void removeView(View v){if(v.parent==this)v.parent=null;}}",
+            "static class FrameLayout extends ViewGroup{int getWidth(){return 1000;}int getHeight(){return 1200;}void addView(View v,int index,LayoutParams p){v.parent=this;}static class LayoutParams{LayoutParams(int w,int h){}}}",
+            "static class NotebookCompanion{final NotebookWorkspace.Pane pane;final ViewGroup body=new ViewGroup();boolean shown;NotebookCompanion(NotebookWorkspace.Pane p){pane=p;}void setCacheBudget(NotebookCacheBudget b){}void close(){shown=false;}void show(String name,View canvas){shown=!pane.collapsed;if(shown&&canvas!=null){if(canvas.parent!=null)canvas.parent.removeView(canvas);canvas.parent=body;}}}",
+            "static class Session{int notebookId(){return 1;}String notebookName(){return \"Notebook\";}List<NotebookCatalog.Entry> entries(){return Collections.emptyList();}}",
+            "static class AIWindows{boolean main=true;boolean retainsMainChat(){return main;}void raiseFloatingAboveTools(){}}static class Tools{boolean isShowing(){return false;}void raise(){}}static class Ink{boolean isPenDown(){return false;}void pauseForEdit(){}void redrawAfterOverlayChange(){}void start(){}}static class StrokeCache{void setPointLimit(int n){}}static class PdfCache{void setCachePixelLimit(long n){}}static class Status{boolean visible=true;void setNoteVisible(boolean v){visible=v;}}",
+            "final NotebookWorkspace workspace=new NotebookWorkspace();final Session session=new Session();final FrameLayout workspaceRoot=new FrameLayout(),workspaceArea=new FrameLayout();final View canvas=new View();final Map<NotebookWorkspace.Pane,NotebookCompanion> noteWindows=new LinkedHashMap<>();final StrokeCache strokePaths=new StrokeCache();final PdfCache pdfBackgrounds=new PdfCache();final Status statusIslands=new Status();final AIWindows aiWindows=new AIWindows();Tools floatingTools;Ink ink;NotebookPage page;boolean active,toolsContact,aiContact;Object shownError;int updates;boolean canEdit(){return false;}String notebookName(int id){return \"Notebook\";}NotebookCompanion createNoteWindow(NotebookWorkspace.Pane p){return new NotebookCompanion(p);}void updateViewNavigation(boolean b){}void updateOverlayBounds(){updates++;}",
+            NotebookWorkspaceActivationTest.method(source,"private void ensureWorkspace("),NotebookWorkspaceActivationTest.method(source,"private void layoutWorkspace("),
+            "static void check(boolean b,String s){if(!b)throw new AssertionError(s);}public static void run(){ChatOnlyFixture f=new ChatOnlyFixture();NotebookWorkspace.Pane note=f.workspace.add(1,NotebookWorkspace.Position.FLOATING);f.layoutWorkspace();ViewGroup body=f.canvas.parent;check(body!=null&&body!=f.workspaceArea&&f.statusIslands.visible,\"visible note owns the writing surface and status\");note.collapsed=true;f.layoutWorkspace();check(note.collapsed&&f.canvas.parent==f.workspaceArea&&!f.statusIslands.visible,\"last minimized note parks the surface and hides its status\");f.layoutWorkspace();check(note.collapsed&&f.canvas.parent==f.workspaceArea,\"repeated layout does not reopen the note\");note.collapsed=false;f.layoutWorkspace();check(f.canvas.parent==body&&f.statusIslands.visible,\"restoring the note reattaches the same editor and its status\");note.collapsed=true;f.aiWindows.main=false;f.layoutWorkspace();check(!note.collapsed&&f.canvas.parent==body,\"leaving main chat restores a note workspace\");System.out.println(\"NotebookChatOnly: 5 assertions passed (park, hide, restore and leave main chat).\");}}"
+        );
+        NotebookWorkspaceActivationTest.runFixture("org.eink.inkprobe.notebook.ChatOnlyFixture",fixture);
+        exclusions(source);
+    }
+    private static void exclusions(String source)throws Exception{
+        String fixture=String.join("\n",
+            "package org.eink.inkprobe.notebook;import java.util.*;public class ChatOnlyClipFixture {",
+            "static class Rect{int left,top,right,bottom;Rect(){}Rect(int l,int t,int r,int b){left=l;top=t;right=r;bottom=b;}}static class View{void getLocationOnScreen(int[] p){p[0]=10;p[1]=20;}int getWidth(){return 1000;}int getHeight(){return 1200;}}",
+            "static class Ink{Rect[] bounds;View view(){return new View();}void setOverlayBounds(Rect[] b){bounds=b;}}static class Session{int notebookId(){return 1;}}static class Ai{boolean main=true;boolean mainChat(){return main;}List<Rect> exclusions(){return Collections.emptyList();}}static class NotebookCompanion{List<Rect> exclusions(){return Collections.emptyList();}}static class Tray{Rect bounds(){return new Rect();}}static class Paper{void refresh(){}}",
+            "static class Viewport{int width=100,height=100;double viewLeft(int n){return 0;}double viewRight(int n){return 100;}double viewTop(int n,float s){return 0;}double viewBottom(int n,float s){return 100;}List<Integer> visiblePages(float s){return Collections.emptyList();}}",
+            "final View workspaceRoot=new View();final NotebookWorkspace workspace=new NotebookWorkspace();final Session session=new Session();final Ai aiWindows=new Ai();final Ink ink=new Ink();final Map<Integer,NotebookCompanion> noteWindows=new HashMap<>();Tray noteTray,pdfTextTools;Paper restingPaper;Viewport viewport;float scrollY;final Rect aiKeyboardBounds=new Rect(),toolHintBounds=new Rect(),toolsBounds=new Rect(),notebookStatusBounds=new Rect(),deviceStatusBounds=new Rect(),widthPopupBounds=new Rect(),viewNavigationBounds=new Rect();void addPageExclusion(List<Rect> b,int[] o,int l,int t,int r,int h){}",
+            NotebookWorkspaceActivationTest.method(source,"private void updateOverlayBounds("),
+            "static boolean covers(Rect[] bounds){for(Rect r:bounds)if(r.left==10&&r.top==20&&r.right==1010&&r.bottom==1220)return true;return false;}public static void run(){ChatOnlyClipFixture f=new ChatOnlyClipFixture();NotebookWorkspace.Pane p=f.workspace.add(1,NotebookWorkspace.Position.FLOATING);f.updateOverlayBounds();if(covers(f.ink.bounds))throw new AssertionError(\"visible note is not fully clipped\");p.collapsed=true;f.updateOverlayBounds();if(!covers(f.ink.bounds))throw new AssertionError(\"hidden writing surface must be fully clipped behind the chat\");f.aiWindows.main=false;f.updateOverlayBounds();if(covers(f.ink.bounds))throw new AssertionError(\"leaving main chat clears the full-screen exclusion\");System.out.println(\"NotebookChatOnlyClip: 3 assertions passed (hidden native input, restore and main chat).\");}}"
+        );
+        NotebookWorkspaceActivationTest.runFixture("org.eink.inkprobe.notebook.ChatOnlyClipFixture",fixture);
+    }
+}

@@ -9,7 +9,12 @@ import java.util.function.Consumer;
 final class NotebookAiSession {
     // Serialize loads and writes across reopened windows; a late save cannot overwrite a newer chat.
     private static final ExecutorService STORAGE=Executors.newSingleThreadExecutor(r->new Thread(r,"ai-chat-storage"));
-    interface Transport { NotebookAiClient.Reply complete(NotebookAiConfig config,NotebookAiConversation chat,NotebookAiClient.Cancellation cancel) throws IOException; }
+    interface Transport {
+        NotebookAiClient.Reply complete(NotebookAiConfig config,NotebookAiConversation chat,NotebookAiClient.Cancellation cancel) throws IOException;
+        default NotebookAiClient.Reply stream(NotebookAiConfig config,NotebookAiConversation chat,NotebookAiClient.Cancellation cancel,Consumer<String> progress)throws IOException {
+            return complete(config,chat,cancel);
+        }
+    }
     private final File directory;
     final NotebookAiConfig config;
     private final Consumer<Runnable> dispatch;
@@ -26,6 +31,7 @@ final class NotebookAiSession {
     interface HistoryCallback { void complete(List<NotebookAiHistory.Entry> entries,String error); }
     interface DeleteCallback { void complete(String error); }
     String status="Loading chat…";
+    String streamText="";
     private int generation;
     private NotebookAiClient.Cancellation cancellation;
 
@@ -33,8 +39,14 @@ final class NotebookAiSession {
         this(directory,config,null,dispatch,changed);
     }
     NotebookAiSession(File directory,NotebookAiConfig config,String id,Consumer<Runnable> dispatch,Runnable changed) {
-        this(directory,config,id,dispatch,changed,STORAGE,r->new Thread(r,"ai-chat-request").start(),
-            (settings,chat,cancel)->new NotebookAiClient().complete(settings,chat.messages,cancel));
+        this(directory,config,id,dispatch,changed,STORAGE,r->new Thread(r,"ai-chat-request").start(),new Transport(){
+            public NotebookAiClient.Reply complete(NotebookAiConfig settings,NotebookAiConversation chat,NotebookAiClient.Cancellation cancel)throws IOException {
+                return new NotebookAiClient().complete(settings,chat.messages,cancel);
+            }
+            public NotebookAiClient.Reply stream(NotebookAiConfig settings,NotebookAiConversation chat,NotebookAiClient.Cancellation cancel,Consumer<String> progress)throws IOException {
+                return new NotebookAiClient().stream(settings,chat.messages,cancel,progress);
+            }
+        });
     }
     NotebookAiSession(File directory,NotebookAiConfig config,Consumer<Runnable> dispatch,Runnable changed,Executor storage,Executor network,Transport transport) {
         this(directory,config,null,dispatch,changed,storage,network,transport);
@@ -112,13 +124,19 @@ final class NotebookAiSession {
         if(index<0||index>=chat.draftImages.size())return;
         chat=chat.removeImage(index); save(chat,null); changed.run();
     }
+    List<NotebookAiConversation.Message> displayMessages() {
+        if(streamText.trim().isEmpty())return chat.messages;
+        List<NotebookAiConversation.Message> visible=new ArrayList<>(chat.messages);
+        visible.add(new NotebookAiConversation.Message("assistant",streamText));return visible;
+    }
+    String displayAnswer(){return streamText.trim().isEmpty()?chat.lastAnswer():streamText;}
     void send(String text) {
         if (closed||!loaded||loadFailed||busy||switching) return;
         if(!sendProblem.isEmpty()){status=sendProblem;changed.run();return;}
         try { config.validate();NotebookAiConversation candidate=chat.awaitingReply()?chat:chat.question(text);
             config.specs.validateRequest(candidate.messages,config.specs.replyBudget(config.provider));NotebookAiClient.validateAttachments(config,candidate.messages);chat=candidate; }
         catch (IllegalArgumentException|IOException error) { status=error.getMessage(); changed.run(); return; }
-        busy=true; status="Generating…"; final int request=++generation;
+        busy=true; streamText=""; status="Generating…"; final int request=++generation;
         cancellation=new NotebookAiClient.Cancellation(); final NotebookAiClient.Cancellation cancel=cancellation;
         final NotebookAiConversation history=chat;
         changed.run();
@@ -127,7 +145,10 @@ final class NotebookAiSession {
             if (closed||request!=generation) return;
             network.execute(()->{
                 NotebookAiClient.Reply reply=null; String problem=null;
-                try { cancel.check(); reply=transport.complete(config,history,cancel); }
+                try { cancel.check(); reply=transport.stream(config,history,cancel,partial->dispatch.accept(()->{
+                    if(closed||!busy||request!=generation)return;
+                    streamText=partial;status="";changed.run();
+                })); }
                 catch (IOException|RuntimeException error) { problem=error instanceof java.net.SocketTimeoutException?"AI request timed out. Tap Retry.":error instanceof IOException?error.getMessage():"Could not complete the AI request. Check Settings and Retry."; }
                 final NotebookAiClient.Reply answer=reply; final String failure=problem;
                 dispatch.accept(()->{
@@ -135,9 +156,13 @@ final class NotebookAiSession {
                     busy=false; cancellation=null;
                     if (answer!=null) {
                         try {
-                            chat=chat.answer(answer.text); status=answer.truncated?"Reply reached the provider's output limit. Ask it to continue.":""; save(chat,null);
-                        } catch (IllegalArgumentException error) { status=error.getMessage(); }
-                    } else status=failure==null?"Provider returned no reply. Tap Retry.":failure;
+                            chat=chat.answer(answer.text);streamText="";status=answer.truncated?"Reply reached the provider's output limit. Ask it to continue.":""; save(chat,null);
+                        } catch (IllegalArgumentException error) { status=error.getMessage()+" Copy the visible reply from the window options."; }
+                    } else {
+                        boolean partial=retainPartial();
+                        status=(failure==null?"Provider returned no reply. Tap Retry.":failure)
+                            +(partial?" Partial reply saved.":streamText.trim().isEmpty()?"":" Copy the visible reply from the window options.");
+                    }
                     changed.run();
                 });
             });
@@ -147,7 +172,13 @@ final class NotebookAiSession {
         if (!busy) return;
         ++generation; busy=false;
         if (cancellation!=null) cancellation.cancel(); cancellation=null;
-        status="Stopped. Tap Retry to send the last message again."; changed.run();
+        boolean partial=retainPartial();
+        status=partial?"Stopped. Partial reply saved.":streamText.trim().isEmpty()?"Stopped. Tap Retry to send the last message again.":"Stopped. Copy the visible reply from the window options."; changed.run();
+    }
+    private boolean retainPartial(){
+        String partial=streamText;
+        if(partial.trim().isEmpty()||!chat.awaitingReply())return false;
+        try{chat=chat.answer(partial);streamText="";save(chat,null);return true;}catch(IllegalArgumentException error){status=error.getMessage();return false;}
     }
     /** New chat archives the current conversation; it never overwrites a saved session. */
     void clear() {
@@ -162,7 +193,7 @@ final class NotebookAiSession {
     }
     private void fresh() {
         id=NotebookAiHistory.newId();created=Math.max(1,System.currentTimeMillis());
-        chat=new NotebookAiConversation();loaded=true;busy=false;loadFailed=false;saveFailed=false;switching=false;status="";
+        chat=new NotebookAiConversation();streamText="";loaded=true;busy=false;loadFailed=false;saveFailed=false;switching=false;status="";
     }
     void retrySave() {
         if (closed||busy||switching||!saveFailed) return;
@@ -188,7 +219,7 @@ final class NotebookAiSession {
         });
     }
     void close() {
-        if (closed) return; closed=true; ++generation;
+        if (closed) return; stop();closed=true; ++generation;
         if (cancellation!=null) cancellation.cancel(); cancellation=null;
     }
 }

@@ -83,7 +83,7 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookPenSliderClose.java \
   tests/CallbackTimingTest.java tests/NotebookStoreTest.java tests/NotebookWritingGateTest.java tests/NotebookWritingPresentationTest.java \
   tests/NotebookReadingTest.java tests/NotebookPdfReadingInteractionTest.java tests/NotebookFiguresTest.java tests/NotebookMarkdownTest.java tests/NotebookMarkdownInteractionTest.java tests/NotebookMarkdownPreviewTest.java tests/NotebookMarkdownRasterizerTest.java tests/NotebookRestingPaperTest.java tests/NotebookViewPaperTest.java tests/NotebookFigurePaperTest.java tests/NotebookFigureFixture.java tests/NotebookFigureHitTest.java tests/NotebookFigureTapTest.java tests/NotebookFigureTransformTest.java tests/NotebookInlineFigureTest.java \
-  tests/NotebookWorkspaceActivationTest.java tests/NotebookWorkspaceTest.java tests/NotebookAiWorkspaceTest.java tests/NotebookCacheBudgetTest.java tests/NotebookWorkspaceDisplayTest.java \
+  tests/NotebookWorkspaceActivationTest.java tests/NotebookWorkspaceTest.java tests/NotebookAiWorkspaceTest.java tests/NotebookCacheBudgetTest.java tests/NotebookWorkspaceDisplayTest.java tests/NotebookChatOnlyTest.java tests/NotebookAiShelfLaunchTest.java \
   tests/NotebookReaderInteractionTest.java tests/NotebookWindowGripTest.java tests/NotebookResizeOutlineTest.java \
   tests/NotebookPopupHostTest.java tests/NotebookAiWindowTest.java tests/NotebookAiChatUiTest.java tests/NotebookAiNotebookTest.java tests/NotebookStatusControlsTest.java tests/NotebookNoteActionsTest.java tests/NotebookWritingHistoryTest.java tests/NotebookZenModeTest.java tests/NotebookPdfImportFlowTest.java tests/NotebookFigureImportFlowTest.java tests/NotebookStylusShortcutTest.java \
   tests/NotebookEditsTest.java tests/NotebookDocumentTest.java tests/NotebookLassoTest.java \
@@ -123,6 +123,8 @@ java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookFigureTapTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookFigureTransformTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookInlineFigureTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookWorkspaceActivationTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookChatOnlyTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookAiShelfLaunchTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookWorkspaceTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookAiWorkspaceTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookCacheBudgetTest

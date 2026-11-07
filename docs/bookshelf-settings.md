@@ -13,7 +13,8 @@ The default bookshelf list uses 14 sp notebook names and 48 dp rows, with one
 column in portrait and two in landscape. Tap a notebook to open it; **⋮** opens
 its actions. Hold a notebook to start selection, then tap more notebooks or
 **Select all**. The selection menu can move notebooks to a folder or Trash;
-in Trash it can restore the selected notebooks. Folder actions remain in **⋮**.
+in Trash it can restore or, after confirmation, permanently delete the selected
+notebooks. Folder actions remain in **⋮**.
 Titles truncate within their column.
 
 Settings → Bookshelf switches between **List** and **Thumbnails**. The thumbnail

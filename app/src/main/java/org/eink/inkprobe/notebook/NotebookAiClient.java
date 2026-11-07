@@ -5,6 +5,7 @@ import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.*;
+import java.util.function.Consumer;
 import org.json.*;
 
 /** Direct HTTPS requests; only explicitly appended selections are included with chat text. */
@@ -100,24 +101,34 @@ final class NotebookAiClient {
     }
 
     Reply complete(NotebookAiConfig config,List<NotebookAiConversation.Message> history,Cancellation cancellation) throws IOException {
+        return complete(config,history,cancellation,null);
+    }
+    Reply stream(NotebookAiConfig config,List<NotebookAiConversation.Message> history,Cancellation cancellation,Consumer<String> progress) throws IOException {
+        if(progress==null)throw new IllegalArgumentException("Missing stream listener");
+        return complete(config,history,cancellation,progress);
+    }
+    private Reply complete(NotebookAiConfig config,List<NotebookAiConversation.Message> history,Cancellation cancellation,Consumer<String> progress) throws IOException {
         config.validate(); cancellation.check();
         if (history.isEmpty() || !history.get(history.size()-1).role.equals("user")) throw new IOException("No message to send");
         config.specs.validateRequest(history,config.specs.replyBudget(config.provider));validateAttachments(config,history);
         boolean gemini=usesNativeGemini(config,history);
-        String endpoint=gemini?"https://generativelanguage.googleapis.com/v1beta/models/"+config.model+":generateContent":config.endpoint();
+        boolean streaming=progress!=null;
+        String endpoint=gemini?"https://generativelanguage.googleapis.com/v1beta/models/"+config.model+(streaming?":streamGenerateContent?alt=sse":":generateContent"):config.endpoint();
         HttpURLConnection connection=connections.open(new URL(endpoint));
         try {
             cancellation.attach(connection);
             connection.setInstanceFollowRedirects(false); connection.setConnectTimeout(20000); connection.setReadTimeout(180000);
             connection.setUseCaches(false); connection.setRequestMethod("POST"); connection.setDoOutput(true);
             connection.setRequestProperty("Content-Type","application/json; charset=utf-8");
-            connection.setRequestProperty("Accept","application/json");
+            connection.setRequestProperty("Accept",streaming?"text/event-stream, application/json":"application/json");
             if (config.provider==NotebookAiConfig.Provider.ANTHROPIC) {
                 connection.setRequestProperty("Authorization","Bearer "+config.apiKey);
                 connection.setRequestProperty("anthropic-version","2026-10-21");
             } else if(gemini)connection.setRequestProperty("x-goog-api-key",config.apiKey);
             else if (!config.apiKey.isEmpty()) connection.setRequestProperty("Authorization","Bearer "+config.apiKey);
-            byte[] body=NotebookAiConversation.bytes((gemini?geminiRequest(config,history):request(config,history)).toString());
+            JSONObject payload=gemini?geminiRequest(config,history):request(config,history);
+            if(streaming&&!gemini)payload.put("stream",true);
+            byte[] body=NotebookAiConversation.bytes(payload.toString());
             connection.setFixedLengthStreamingMode(body.length);
             try (OutputStream out=connection.getOutputStream()) { cancellation.check(); out.write(body); }
             cancellation.check(); int status=connection.getResponseCode();
@@ -133,9 +144,84 @@ final class NotebookAiClient {
                     :"Check the API base URL, model ID, and provider configuration in Settings.";
                 throw new IOException("AI provider returned HTTP "+status+". "+message);
             }
-            try (InputStream in=connection.getInputStream()) { String data=read(in,cancellation);return gemini?geminiResponse(data):response(config,data); }
+            try (BufferedInputStream in=new BufferedInputStream(connection.getInputStream())) {
+                String contentType=connection.getContentType();
+                boolean json=contentType!=null&&contentType.toLowerCase(Locale.ROOT).startsWith("application/json");
+                if(streaming&&!json){
+                    // Some compatible servers omit the response type when they ignore stream=true.
+                    in.mark(512);int first,seen=0;
+                    do{cancellation.check();first=in.read();seen++;}while(first>=0&&first<=32&&seen<256);
+                    in.reset();json=first=='{'||first=='[';
+                }
+                if(streaming&&!json)return streamResponse(config,gemini,in,cancellation,progress);
+                String data=read(in,cancellation);Reply answer=gemini?geminiResponse(data):response(config,data);
+                if(streaming)progress.accept(answer.text);return answer;
+            }
         } catch (JSONException error) { throw new IOException("Provider returned an invalid chat response",error); }
         finally { cancellation.release(); connection.disconnect(); }
+    }
+    /** Read bounded SSE lines without buffering the entire response or provider error bodies. */
+    private static final class EventReader {
+        final Reader in;int total;
+        EventReader(InputStream input){in=new BufferedReader(new InputStreamReader(input,StandardCharsets.UTF_8));}
+        String line(Cancellation cancel)throws IOException{
+            StringBuilder line=new StringBuilder();int c;
+            while((c=in.read())!=-1){
+                cancel.check();if(++total>2*1024*1024||line.length()>256*1024)throw new IOException("AI stream exceeds its size limit");
+                if(c=='\n')break;if(c!='\r')line.append((char)c);
+            }
+            return c==-1&&line.length()==0?null:line.toString();
+        }
+    }
+    static Reply streamResponse(NotebookAiConfig config,boolean gemini,InputStream input,Cancellation cancel,Consumer<String> progress)throws IOException {
+        EventReader reader=new EventReader(input);StringBuilder data=new StringBuilder(),answer=new StringBuilder();
+        String event="",reason="";boolean finished=false,done=false;long lastUpdate=0;int size=0;
+        try {
+            while(true){
+                String line=reader.line(cancel);
+                if(line!=null&&!line.isEmpty()){
+                    if(line.startsWith("data:")){if(data.length()>0)data.append('\n');data.append(line.substring(5).replaceFirst("^ ",""));}
+                    else if(line.startsWith("event:"))event=line.substring(6).trim();
+                    continue;
+                }
+                if(data.length()>0){
+                    String payload=data.toString();data.setLength(0);
+                    if(payload.equals("[DONE]")){done=true;break;}
+                    JSONObject item=new JSONObject(payload);String fragment="";
+                    if(event.equals("error")||item.has("error"))throw new IOException("AI provider interrupted the response. Try again later.");
+                    if(gemini){
+                        JSONArray candidates=item.optJSONArray("candidates");
+                        if(candidates!=null&&candidates.length()>0){JSONObject candidate=candidates.getJSONObject(0);
+                            JSONObject content=candidate.optJSONObject("content");JSONArray parts=content==null?null:content.optJSONArray("parts");
+                            StringBuilder text=new StringBuilder();if(parts!=null)for(int i=0;i<parts.length();i++){
+                                JSONObject part=parts.getJSONObject(i);if(!part.optBoolean("thought",false))text.append(part.optString("text",""));}
+                            fragment=text.toString();reason=candidate.optString("finishReason",reason);finished|=!reason.isEmpty();}
+                    }else if(config.provider==NotebookAiConfig.Provider.ANTHROPIC){
+                        String type=item.optString("type",event);JSONObject delta=item.optJSONObject("delta");
+                        if(type.equals("content_block_delta")&&delta!=null&&delta.optString("type").equals("text_delta"))fragment=delta.optString("text","");
+                        if(type.equals("message_delta")&&delta!=null)reason=delta.optString("stop_reason",reason);
+                        if(type.equals("message_stop"))finished=true;
+                    }else{
+                        JSONArray choices=item.optJSONArray("choices");
+                        if(choices!=null&&choices.length()>0){JSONObject choice=choices.getJSONObject(0),delta=choice.optJSONObject("delta");
+                            if(delta!=null){Object content=delta.opt("content");fragment=content instanceof String?(String)content:content instanceof JSONArray?textParts((JSONArray)content):"";
+                                if(fragment.isEmpty())fragment=delta.optString("refusal","");}
+                            if(!choice.isNull("finish_reason")){reason=choice.optString("finish_reason","");finished|=!reason.isEmpty();}}
+                    }
+                    if(!fragment.isEmpty()){
+                        size+=NotebookAiConversation.bytes(fragment).length;if(size>NotebookAiConversation.MAX_MESSAGE_BYTES)throw new IOException("AI reply exceeds 128 KiB. Start a new chat with a shorter request.");
+                        answer.append(fragment);long now=System.nanoTime();
+                        if(lastUpdate==0||now-lastUpdate>=250_000_000L){progress.accept(answer.toString());lastUpdate=now;}
+                    }
+                }
+                event="";if(finished||line==null)break;
+            }
+            cancel.check();
+            if(!done&&!finished)throw new IOException("AI response was interrupted. You can retry or continue the partial reply.");
+            if(answer.toString().trim().isEmpty())throw new IOException("Provider returned no answer. Retry or choose another model.");
+            return new Reply(answer.toString(),reason.equals("length")||reason.equals("max_tokens")||reason.equals("MAX_TOKENS"));
+        }catch(JSONException error){throw new IOException("Provider returned an invalid streamed response",error);}
+        finally{if(answer.length()>0)progress.accept(answer.toString());}
     }
     static JSONObject request(NotebookAiConfig config,List<NotebookAiConversation.Message> history) throws JSONException {
         boolean anthropic=config.provider==NotebookAiConfig.Provider.ANTHROPIC;

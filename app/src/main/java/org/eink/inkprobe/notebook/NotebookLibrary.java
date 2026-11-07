@@ -246,6 +246,24 @@ public final class NotebookLibrary {
         });
     }
 
+    /** Record the whole confirmed batch before removing files, so recovery can finish it. */
+    public void permanentlyDeleteNotebooks(List<Integer> ids) throws IOException {
+        execute(() -> {
+            requireCatalog(); requireWritable();
+            if (ids == null || ids.isEmpty()) throw new IOException("Select notebooks first");
+            Set<Integer> unique = new HashSet<>(ids);
+            if (unique.size() != ids.size()) throw new IOException("Duplicate notebook selection");
+            List<NotebookCatalog.Entry> entries = new ArrayList<>(state.entries);
+            for (int id : ids) {
+                requireId(id); NotebookCatalog.Entry entry = entries.get(id - 1);
+                if (entry.status != NotebookCatalog.TRASH) throw new IOException("A selected notebook is no longer in Trash");
+                entries.set(id - 1, entry.withStatus(NotebookCatalog.PURGING));
+            }
+            saveMetadata(entries, state.folders);
+            finishPurges();
+        });
+    }
+
     /** A read-only first-page preview must never change the selected notebook. */
     public NotebookPage previewNotebook(int id) throws IOException {
         requireCatalog(); requireId(id); requireActive(id);
