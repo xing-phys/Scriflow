@@ -1,4 +1,4 @@
-# AI chat — 0.39.0-alpha.2
+# AI chat — 0.39.0-alpha.3
 
 Open **Settings → AI chat** from the time/battery/Wi-Fi pill. Select a saved
 provider or tap **Add provider**, choose OpenAI, Anthropic, Google Gemini,
@@ -77,7 +77,11 @@ summarized to fit a model.
 ## Chat windows
 
 From the bookshelf, tap **AI chat**, then **New chat** or **Open chat history**.
-The new or selected conversation opens as the main window with notes minimized.
+The conversation opens as the main window in an independent workspace, with no
+notes open or minimized. To open a note, tap the toolbox notes button and choose
+one; it appears as a floating window with both corner controls. Only notes you
+explicitly minimize appear in the notes tray. Closing or minimizing the main
+chat returns to the bookshelf.
 
 Tap the **sparkle in a chat bubble** in the toolbox to toggle a tray beside
 the button, just like the notes tray. It contains **+** for a new floating chat,
@@ -101,7 +105,9 @@ Chats and notes share their actual corner controls, gestures and window geometry
   dock. Main window makes the selected chat the background and presents notes
   as floating windows. You can minimize every note; the top-left note bar hides
   and the device status remains. Use the toolbox notes tray to restore notes.
-  Minimizing or closing the main chat returns the note workspace.
+  In a workspace opened from a note, minimizing or closing the main chat returns
+  the note workspace. In the independent bookshelf workspace it returns to the
+  bookshelf.
 - **Size:** Smaller pane, Equal split / Reset size, or Larger pane.
 
 Windows keep independent conversations, drafts, models and pending replies.

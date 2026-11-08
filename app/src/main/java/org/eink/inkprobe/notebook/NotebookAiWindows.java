@@ -12,6 +12,7 @@ final class NotebookAiWindows {
     interface Listener {
         boolean allowed();boolean contactStart();void contactEnd();void boundsChanged();void workspaceChanged();
         void attachNotebook(NotebookAiChat chat);void chatRaised();
+        default boolean mainDismissed(){return false;}
     }
     private final Activity activity;
     private final FrameLayout root;
@@ -21,6 +22,7 @@ final class NotebookAiWindows {
     private final Map<Integer,Rect> bounds=new LinkedHashMap<>();
     private final NotebookNoteTray tray;
     private final android.content.SharedPreferences prefs;
+    private final boolean independent;
     private boolean suspended=true, historyAsMain, shelfMainOpened;
     private int frontId;
     private String saved;
@@ -29,8 +31,12 @@ final class NotebookAiWindows {
     private NotebookAiHistoryDialog history;
 
     NotebookAiWindows(Activity activity,FrameLayout root,Listener listener,String restored){
+        this(activity,root,listener,restored,false);
+    }
+    NotebookAiWindows(Activity activity,FrameLayout root,Listener listener,String restored,boolean independent){
         this.activity=activity;this.root=root;this.listener=listener;prefs=activity.getPreferences(Activity.MODE_PRIVATE);
-        saved=restored==null?prefs.getString("aiWindows",null):restored;workspace.restore(saved);
+        this.independent=independent;
+        saved=restored==null?(independent?null:prefs.getString("aiWindows",null)):restored;workspace.restore(saved);
         // Discard invalid destinations from damaged local preferences, never guessed credentials.
         for(NotebookAiWorkspace.Window window:workspace.windows())try{
             new NotebookAiConfig(NotebookAiConfig.Provider.valueOf(window.provider),window.providerId,window.url,window.model,"local-validation",null).validate();
@@ -78,8 +84,12 @@ final class NotebookAiWindows {
         history=new NotebookAiHistoryDialog(activity,root,configs,new NotebookAiHistoryDialog.Listener(){
             public void open(NotebookAiConfig config,String id,boolean rebind){NotebookAiWindows.this.openHistorySelection(config,id,rebind);}
             public void deleted(String id){NotebookAiWindows.this.deleted(id);}
-            public void closed(){history=null;historyAsMain=false;listener.contactEnd();}
+            public void closed(){historyClosed();}
         });history.show();
+    }
+    private void historyClosed(){
+        boolean empty=historyAsMain&&!workspace.mainChat();history=null;historyAsMain=false;listener.contactEnd();
+        if(empty&&!suspended)listener.mainDismissed();
     }
     private void openHistorySelection(NotebookAiConfig config,String id,boolean rebind){
         open(config,id,rebind);
@@ -91,6 +101,9 @@ final class NotebookAiWindows {
         String id=NotebookAiHistory.newId();open(NotebookAiSettings.publicConfig(activity),id,false);
         NotebookAiWorkspace.Window state=workspace.session(id);if(state!=null)makeShelfMain(state);
         listener.contactEnd();
+        // A missing/invalid model may have opened Settings instead of a chat.
+        // Do not leave an empty AI activity behind when the user returns.
+        if(state==null&&independent)listener.mainDismissed();
     }
     private void makeShelfMain(NotebookAiWorkspace.Window state){
         workspace.makeMain(state);shelfMainOpened=true;persist();positionAll();listener.workspaceChanged();
@@ -128,16 +141,27 @@ final class NotebookAiWindows {
             }
             public boolean mayRaise(){return frontId==id;}
             public void attachNotebook(NotebookAiChat chat){listener.attachNotebook(chat);}
-            public void minimized(){if(workspace.find(id)!=null){workspace.minimize(state);persist();positionAll();listener.workspaceChanged();}}
+            public void minimized(){minimizeWindow(state);}
             public void options(){showMenu(state,owner[0]);}
             public void open(NotebookAiConfig config,String sessionId,boolean rebind){NotebookAiWindows.this.open(config,sessionId,rebind);}
             public void changed(){sync(state,owner[0]);persist();}
-            public void closed(){
-                bounds.remove(id);windows.remove(id);if(menuOwner==owner[0]&&menu!=null)menu.dismiss();
-                if(!suspended&&workspace.find(id)!=null){workspace.close(state);persist();positionAll();listener.workspaceChanged();}
-                listener.boundsChanged();
-            }
+            public void closed(){closeWindow(state,owner[0]);}
         });owner[0]=chat;windows.put(id,chat);return chat;
+    }
+    private void minimizeWindow(NotebookAiWorkspace.Window state){
+        if(workspace.find(state.pane.notebookId)==null)return;
+        boolean exiting=dismissesMain(state);workspace.minimize(state);persist();
+        if(!exiting){positionAll();listener.workspaceChanged();}
+    }
+    private void closeWindow(NotebookAiWorkspace.Window state,NotebookAiChat chat){
+        int id=state.pane.notebookId;bounds.remove(id);windows.remove(id);if(menuOwner==chat&&menu!=null)menu.dismiss();
+        if(!suspended&&workspace.find(id)!=null){boolean exiting=dismissesMain(state);workspace.close(state);persist();
+            if(!exiting){positionAll();listener.workspaceChanged();}}
+        listener.boundsChanged();
+    }
+    private boolean dismissesMain(NotebookAiWorkspace.Window state){
+        return !suspended&&((workspace.mainChat()&&workspace.geometry.base()==state.pane)
+            ||(independent&&workspace.windows().size()==1))&&listener.mainDismissed();
     }
     private void sync(NotebookAiWorkspace.Window state,NotebookAiChat chat){
         if(chat==null||workspace.find(state.pane.notebookId)==null)return;
@@ -165,7 +189,7 @@ final class NotebookAiWindows {
         :workspace.geometry.box(workspace.geometry.find(1),root.getWidth(),root.getHeight());}
     void persist(){
         for(NotebookAiWorkspace.Window state:workspace.windows())sync(state,windows.get(state.pane.notebookId));
-        String encoded=workspace.encode();if(!encoded.equals(saved)){saved=encoded;prefs.edit().putString("aiWindows",encoded).apply();}
+        String encoded=workspace.encode();if(!encoded.equals(saved)){saved=encoded;if(!independent)prefs.edit().putString("aiWindows",encoded).apply();}
     }
     String snapshot(){persist();return workspace.encode();}
     void suspend(){

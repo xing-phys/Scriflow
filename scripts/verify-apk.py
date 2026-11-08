@@ -25,7 +25,7 @@ ROOT = Path(__file__).resolve().parent.parent
 PACKAGE = 'org.eink.inkprobe'
 LAUNCHER = PACKAGE + '.notebook.NotebookLibraryActivity'
 NOTEBOOK_SCREENS = {PACKAGE + '.notebook.' + name for name in (
-    'NotebookLibraryActivity', 'NotebookActivity', 'NotebookSettingsActivity',
+    'NotebookLibraryActivity', 'NotebookActivity', 'NotebookAiActivity', 'NotebookSettingsActivity',
     'NotebookTransferActivity', 'NotebookPdfExportActivity', 'NotebookPdfImportActivity')}
 DIAGNOSTICS = {PACKAGE + '.MainActivity', PACKAGE + '.notebook.NotebookSelfTestActivity'}
 PERMISSIONS = {'android.permission.ACCESS_NETWORK_STATE', 'android.permission.INTERNET'}

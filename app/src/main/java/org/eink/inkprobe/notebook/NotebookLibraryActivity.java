@@ -553,7 +553,7 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
             .setItems(new String[]{"New chat", "Open chat history"}, (choice, which) -> {
                 if (!canAct()) return;
                 busy = true;
-                startActivity(new Intent(this, NotebookActivity.class).putExtra("aiLaunch", which == 0 ? "new" : "history"));
+                startActivity(new Intent(this, NotebookAiActivity.class).putExtra("aiLaunch", which == 0 ? "new" : "history"));
                 overridePendingTransition(0, 0);
             }).setNegativeButton("Cancel", null).create();
         showStaticDialog(dialog);

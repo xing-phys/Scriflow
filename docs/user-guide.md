@@ -4,7 +4,7 @@ Scriflow is designed for Huawei MatePad Paper HMW-W09 on Android 10/API 29,
 firmware `HMW-W09 2.1.0.222(C00E170R1P8)`. Other devices and firmware have not
 been verified. See the [README](../README.md) for installation and current limits.
 
-This guide follows alpha prerelease **0.39.0-alpha.2**; the published stable release is
+This guide follows alpha prerelease **0.39.0-alpha.3**; the published stable release is
 **0.33.2**. This build reads older notes; ordinary edits use page format 8 and
 individually sized Markdown uses format 9. Older APKs cannot read formats they
 do not support. Physical checks of this exact APK remain pending.
@@ -75,7 +75,10 @@ your overrides. Thinking defaults to Automatic; unavailable specifications use
 provider defaults. The connection can also be saved before choosing a model.
 
 Tap **AI chat** on the bookshelf to start a new chat or open saved chat history
-as the main window with notes minimized. From a note, tap the chat-bubble sparkle
+as an independent main window with no notes open. Tap the toolbox notes button
+and choose a note when you want a floating note; only notes you explicitly
+minimize appear in the notes tray. Closing or minimizing the main chat returns
+to the bookshelf. From a note, tap the chat-bubble sparkle
 in the toolbox to toggle its tray. **+** opens a
 new floating chat, **History** opens saved sessions, and bubble icons restore
 minimized chats. The tray works even with no windows open. Every new window

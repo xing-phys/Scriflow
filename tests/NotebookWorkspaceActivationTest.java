@@ -32,7 +32,7 @@ public final class NotebookWorkspaceActivationTest {
             "NotebookViewport.Fit zoomFit=NotebookViewport.Fit.WIDTH; float zoom=1; boolean restoreCenter;",
             "NotebookCompanion.ReadingView pendingReadingView; NotebookScrollStore.State reopenPosition; Runnable whenReady;",
             "int activePage=3,generation=1,viewNotebookId=1,pendingReadingPage,editable=1,statusNote=1,openCount;",
-            "boolean active=true,editing,changingWorkspace,ink=true,readingFlowKnown; IOException shownError,failure;",
+            "boolean active=true,editing,changingWorkspace,ink=true,readingFlowKnown,independentAi; int independentEditorId=1; IOException shownError,failure;",
             "WorkspaceActivationFixture(){workspace.add(1,NotebookWorkspace.Position.FLOATING); NotebookWorkspace.Pane p=workspace.add(2,NotebookWorkspace.Position.RIGHT);p.page=7;p.hasView=true;p.zoom=2;p.centerX=.3f;p.centerY=.4f;workspace.add(3,NotebookWorkspace.Position.FLOATING);workspace.add(4,NotebookWorkspace.Position.FLOATING);for(NotebookWorkspace.Pane pane:workspace.panes())noteWindows.put(pane,new NotebookCompanion(pane));}",
             "class Session {int id=1; int notebookId(){return id;} int pageCount(){return 10;} void openNotebook(int target,Callback callback){events.add(\"open\");queue.add(()->{if(failure==null)id=target;callback.complete(new NotebookPage(),failure);});}}",
             "class Area {void post(Runnable r){queue.add(r);}}",
@@ -44,6 +44,7 @@ public final class NotebookWorkspaceActivationTest {
             "void openCanvas(NotebookPage page){openCount++;ink=true;editing=false;editable=session.id;viewport=new NotebookViewport();if(whenReady!=null){Runnable next=whenReady;whenReady=null;queue.add(next);}}",
             "void openWorkspaceCanvas(NotebookPage page){int request=generation;queue.add(()->{if(active&&request==generation)openCanvas(page);});}",
             "void changeWorkspace(Runnable mutation){if(canEdit())mutation.run();}",
+            "boolean independentWithoutEditor(){return independentAi&&independentEditorId==0;}void openIndependentNote(int id){events.add(\"open-independent\");}void closeIndependentNote(NotebookWorkspace.Pane p){workspace.close(p);independentEditorId=0;events.add(\"close-independent\");}",
             method(activity, "private void activatePane("), method(activity, "private void collapsePane("), method(activity, "private void ensureWorkspace("), method(activity, "private void reopenNote("),
             "void focus(int id){activatePane(workspace.find(id),null);}",
             "void drain(){for(int i=0;!queue.isEmpty();i++){if(i>20)throw new AssertionError(\"callback loop\");queue.remove().run();}}",
@@ -74,10 +75,11 @@ public final class NotebookWorkspaceActivationTest {
             "WorkspaceActivationFixture inactive=new WorkspaceActivationFixture();inactive.collapsePane(inactive.workspace.find(3),false);check(inactive.editable==1&&inactive.workspace.find(3).collapsed,\"minimizing inactive note leaves writer ownership unchanged\");",
             "WorkspaceActivationFixture sole=new WorkspaceActivationFixture();for(int id=2;id<=4;id++)sole.workspace.close(sole.workspace.find(id));sole.aiWindows=new AIWindows();sole.collapsePane(sole.workspace.find(1),false);check(sole.workspace.panes().size()==1&&sole.workspace.find(1).collapsed&&Toast.shown==0,\"main chat can minimize its last editable note without deleting it\");",
             "sole.ensureWorkspace();check(sole.workspace.find(1).collapsed,\"minimized last note stays hidden through workspace recreation while main chat exists\");sole.aiWindows=null;sole.ensureWorkspace();check(!sole.workspace.find(1).collapsed,\"closing the main chat restores the note workspace\");",
+            "WorkspaceActivationFixture independent=new WorkspaceActivationFixture();for(int id=2;id<=4;id++)independent.workspace.close(independent.workspace.find(id));independent.independentAi=true;independent.aiWindows=new AIWindows();independent.collapsePane(independent.workspace.find(1),true);check(independent.workspace.panes().isEmpty()&&independent.independentEditorId==0,\"closing the explicitly opened final note leaves no minimized placeholder\");independent.ensureWorkspace();check(independent.workspace.panes().isEmpty(),\"an independent workspace never recreates a previous note\");",
             "WorkspaceActivationFixture restore=new WorkspaceActivationFixture();for(NotebookWorkspace.Pane p:restore.workspace.panes())p.collapsed=true;restore.reopenNote(restore.workspace.find(2));restore.drain();check(restore.session.id==2&&!restore.workspace.find(2).collapsed&&restore.editable==2,\"restoring a different note makes it the active editor\");restore.workspace.find(2).collapsed=true;restore.reopenNote(restore.workspace.find(2));check(!restore.workspace.find(2).collapsed&&restore.session.id==2,\"restoring the hidden editor retains its identity\");",
             "}", "}");
         runFixture("WorkspaceActivationFixture", fixture);
-        System.out.println("NotebookWorkspaceActivation: 22 assertions passed (production callbacks, queued writer and surface lifecycle; not device verification).");
+        System.out.println("NotebookWorkspaceActivation: 24 assertions passed (production callbacks, queued writer and surface lifecycle; not device verification).");
     }
     static void runFixture(String name, String fixture) throws Exception {
         File directory = Files.createTempDirectory("workspace-regression-").toFile();

@@ -6,6 +6,20 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.39.0-alpha.3 — Independent AI workspace (2026-11-08)
+
+- Open a new or saved AI chat directly from the bookshelf in a separate
+  workspace, without opening the previous notebook or creating a minimized
+  note. Closing or minimizing its main chat returns to the bookshelf.
+- Choose notes explicitly from the toolbox; the first note opens as a floating
+  window with its corner controls. Notes and their view state stay independent,
+  including during activity recreation. Existing note-owned chat behavior is
+  unchanged.
+- VersionCode 98; notebook and chat archive formats are unchanged from alpha.2.
+  Host and Android checks and release signing verification cover this alpha.
+  No tablet was connected, so the physical window controls and lifecycle still
+  require device testing.
+
 ## 0.39.0-alpha.2 — Chat-only workspace and streaming replies (2026-11-07)
 
 - Allow confirmed permanent deletion of selected notebooks in Trash. Record

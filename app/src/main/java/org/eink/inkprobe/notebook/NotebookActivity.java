@@ -46,9 +46,12 @@ import java.util.UUID;
 import java.util.Collections;
 
 /** Durable notebook pages, native pen ink, and document-level editing. */
-public final class NotebookActivity extends NotebookDisplayActivity implements NotebookWritingGate.Owner {
+public class NotebookActivity extends NotebookDisplayActivity implements NotebookWritingGate.Owner {
     private final Handler main = new Handler(Looper.getMainLooper());
     private NotebookSession session;
+    private boolean independentAi, openingIndependentNote;
+    private int independentEditorId, pendingIndependentNoteId;
+    private String restoredIndependentNotes;
     private NotebookInkBackend ink;
     private final NotebookWritingGate writingGate = new NotebookWritingGate(SystemClock::uptimeMillis,
         new NotebookWritingGate.Scheduler() {
@@ -192,6 +195,10 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
+        independentAi = isIndependentAiWorkspace();
+        independentEditorId = independentAi && saved != null ? saved.getInt("independentEditorId", 0) : 0;
+        pendingIndependentNoteId = independentAi && saved != null ? saved.getInt("pendingIndependentNoteId", 0) : 0;
+        restoredIndependentNotes = independentAi && saved != null ? saved.getString("independentNotes") : null;
         session = NotebookSession.get(this);
         // Cold-start word extraction also needs the bundled PDF fonts/CMaps, even
         // when only an inactive PDF is visible and no PDF link reader has run.
@@ -206,7 +213,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
             @Override public void changed() { backgroundsChanged(); }
             @Override public void failed(IOException error) { if (active) showError(error); }
         });
-        viewNotebookId = session.notebookId();
+        viewNotebookId = independentAi ? independentEditorId : session.notebookId();
         if (saved != null && viewNotebookId == saved.getInt("viewNotebookId", -1)) {
             viewHistory.restore(viewNotebookId, saved.getByteArray("viewHistory"));
             zoom = saved.getFloat("zoom", 1);
@@ -295,7 +302,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         saveState.setEllipsize(TextUtils.TruncateAt.END);
         saveState.setVisibility(View.GONE);
         deviceStatus = new NotebookDeviceStatus(this,
-            () -> canEdit() && writingGate.isQuiet());
+            () -> workspaceInteractive() && writingGate.isQuiet());
         NotebookButton more = new NotebookButton(this); more.setText("⋮"); more.setTextSize(20);
         more.setContentDescription("Expand note action icons: background, figures and export");
         more.setOnClickListener(v -> noteActions());
@@ -314,10 +321,10 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
                 else performToolAction(action); // Accessibility actions have no touch stream.
             }
             @Override public boolean onContactStart() {
-                if (!canEdit()) return false;
+                if (!workspaceInteractive()) return false;
                 lastInputAt = SystemClock.uptimeMillis();
                 toolsContact = true; toolsMoved = false; pendingToolAction = null;
-                pauseForEdit(figureEditor == null || floatingTools.isZenContact());
+                if (!independentWithoutEditor()) pauseForEdit(figureEditor == null || floatingTools.isZenContact());
                 if (shownError != null) toolsContact = false;
                 return shownError == null;
             }
@@ -358,6 +365,9 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         updateControls();
     }
 
+    /** The bookshelf AI activity has its own lifecycle and starts with no notes. */
+    protected boolean isIndependentAiWorkspace() { return false; }
+
     private NotebookButton statusButton(String text, String description, Runnable action) {
         NotebookButton button = new NotebookButton(this);
         button.setBackground(null); button.setText(text); button.setTextSize(12);
@@ -371,7 +381,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
     @Override protected void onResume() {
         super.onResume();
         penWidthMode = NotebookSettings.penWidthMode(this);
-        if (session.notebookId() != viewNotebookId) {
+        if (!independentAi && session.notebookId() != viewNotebookId) {
             viewNotebookId = session.notebookId();
             zoom = 1; zoomFit = NotebookViewport.Fit.WIDTH; restoreCenter = false; viewport = null;
             viewHistory.clear();
@@ -385,8 +395,21 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         if(resumeDictionaryEditor())return;
         workspaceRoot.post(() -> {
             if (!active) return;
-            layoutWorkspace(); statusIslands.show(workspaceRoot); loadPage();
+            if (independentAi) {
+                statusIslands.setNoteVisible(false); statusIslands.show(workspaceRoot);
+                if (independentEditorId == 0) startIndependentAi(); else restoreIndependentEditor();
+            } else { layoutWorkspace(); statusIslands.show(workspaceRoot); loadPage(); }
         });
+    }
+
+    private void startIndependentAi() {
+        if (!active || !independentAi || independentEditorId != 0) return;
+        layoutWorkspace(); updateControls(); showFloatingTools(); aiWindows.resume();
+        if (pendingAiLaunch != null) {
+            String launch=pendingAiLaunch;pendingAiLaunch=null;
+            if (launch.equals("history")) aiWindows.historyFromShelf(); else aiWindows.newMainFromShelf();
+        }
+        if (pendingIndependentNoteId > 0 && workspaceInteractive()) openIndependentNote(pendingIndependentNoteId);
     }
 
     private boolean resumeDictionaryEditor(){
@@ -431,7 +454,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         if (ink != null && viewport != null && !retainEditorFrame()) return;
         ++generation;
         if (!restoreCenter) captureViewCenter();
-        disposeCanvas();
+        disposeCanvas(independentAi);
         shownError = null;
         saveState.setOnClickListener(null);
         saveState.setVisibility(View.GONE);
@@ -1164,7 +1187,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
     }
 
     private void showFloatingTools() {
-        if (floatingTools != null && !floatingTools.isShowing() && canEdit() && overview == null) {
+        if (floatingTools != null && !floatingTools.isShowing() && workspaceInteractive() && overview == null) {
             floatingTools.show(workspaceRoot, toolsX, toolsY);
             if (placeToolsBelowStatus && floatingTools.isShowing()) {
                 floatingTools.avoidStatusIslands(notebookStatusBounds, deviceStatusBounds);
@@ -1218,6 +1241,11 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         if (!toolsContact) return;
         lastInputAt = SystemClock.uptimeMillis();
         toolsContact = false;
+        if (independentWithoutEditor()) {
+            NotebookFloatingTools.Action action=pendingToolAction;pendingToolAction=null;
+            if (active && action != null) performToolAction(action);
+            return;
+        }
         if (pendingToolAction == NotebookFloatingTools.Action.PEN || pendingToolAction == NotebookFloatingTools.Action.ERASER
                 || pendingToolAction == NotebookFloatingTools.Action.LASSO) writingHistory = true;
         else if (pendingToolAction != null && pendingToolAction != NotebookFloatingTools.Action.ZEN) writingHistory = false;
@@ -1237,7 +1265,21 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
 
     private void performToolAction(NotebookFloatingTools.Action action) {
         if(action!=NotebookFloatingTools.Action.AI_CHAT&&aiWindows!=null)aiWindows.hideTray();
-        if (!canEdit()) return;
+        if (!workspaceInteractive()) return;
+        if (independentWithoutEditor()) {
+            if (action == NotebookFloatingTools.Action.AI_CHAT) toggleAiChat();
+            else if (action == NotebookFloatingTools.Action.NOTES) toggleNotes();
+            else if (action == NotebookFloatingTools.Action.ORIENTATION) {
+                if(noteTray!=null)noteTray.hide();floatingTools.setVertical(!floatingTools.isVertical());
+                getPreferences(MODE_PRIVATE).edit().putBoolean("toolsVertical",floatingTools.isVertical()).apply();
+            } else if (action == NotebookFloatingTools.Action.COLLAPSE) {
+                if(noteTray!=null)noteTray.hide();floatingTools.setCollapsed(!floatingTools.isCollapsed());
+                getPreferences(MODE_PRIVATE).edit().putBoolean("toolsCollapsed",floatingTools.isCollapsed()).apply();
+            } else if (action == NotebookFloatingTools.Action.ZEN) {
+                zenMode=!zenMode;deviceStatus.setZenMode(zenMode);statusIslands.setZenMode(zenMode);updateZenButton();
+            }
+            return;
+        }
         switch (action) {
             case AI_CHAT: toggleAiChat(); break;
             case NOTES: toggleNotes(); break;
@@ -1255,10 +1297,10 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
 
     private void initializeAiWindows(){
         aiWindows=new NotebookAiWindows(this,workspaceRoot,new NotebookAiWindows.Listener(){
-            public boolean allowed(){return canEdit();}
+            public boolean allowed(){return workspaceInteractive();}
             public boolean contactStart(){
-                if(!canEdit())return false;aiContact=true;aiMoved=false;lastInputAt=SystemClock.uptimeMillis();
-                pauseForEdit();if(shownError!=null)aiContact=false;return aiContact;
+                if(!workspaceInteractive())return false;aiContact=true;aiMoved=false;lastInputAt=SystemClock.uptimeMillis();
+                if(!independentWithoutEditor())pauseForEdit();if(shownError!=null)aiContact=false;return aiContact;
             }
             public void contactEnd(){finishAiContact();}
             public void attachNotebook(NotebookAiChat chat){chooseAiNotebook(chat);}
@@ -1269,12 +1311,13 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
                 boolean resume=canEdit();if(resume)ink.pauseForEdit();if(aiContact)aiMoved=true;
                 updateOverlayBounds();if(resume){ink.redrawAfterOverlayChange();ink.start();}
             }
-            public void workspaceChanged(){if(aiWindows!=null&&aiWindows.consumeShelfMain())pendingHideNotes=true;main.removeCallbacks(refreshAiDock);main.post(refreshAiDock);}
-        },restoredAiWindows);
+            public void workspaceChanged(){if(aiWindows!=null&&aiWindows.consumeShelfMain()&&!independentAi)pendingHideNotes=true;main.removeCallbacks(refreshAiDock);main.post(refreshAiDock);}
+            public boolean mainDismissed(){if(!independentAi)return false;finish();overridePendingTransition(0,0);return true;}
+        },restoredAiWindows,independentAi);
         if(legacyAiOpen)aiWindows.migrate(legacyAiId,legacyAiProfile);
     }
     private void toggleAiChat(){
-        if(!canEdit()||aiWindows==null)return;if(noteTray!=null)noteTray.hide();
+        if(!workspaceInteractive()||aiWindows==null)return;if(noteTray!=null)noteTray.hide();
         aiWindows.toggle(floatingTools.button(NotebookFloatingTools.Action.AI_CHAT),floatingTools.bounds(),floatingTools.isVertical());
     }
     private void chooseAiNotebook(NotebookAiChat chat){
@@ -1303,7 +1346,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
     private boolean applyChatDock(boolean paused){
         if(aiWindows==null||!active||changingWorkspace||ink==null||shownError!=null||(!paused&&!canEdit())||workspaceRoot.getWidth()<1||workspaceRoot.getHeight()<1)return false;
         NotebookWorkspace.Box box=aiWindows.background();
-        boolean floatingBase=aiWindows.mainChat();
+        boolean floatingBase=independentAi||aiWindows.mainChat();
         FrameLayout.LayoutParams old=(FrameLayout.LayoutParams)workspaceArea.getLayoutParams();
         int width=old.width<0?workspaceArea.getWidth():old.width,height=old.height<0?workspaceArea.getHeight():old.height;
         if(width==box.width&&height==box.height&&old.leftMargin==box.x&&old.topMargin==box.y&&workspace.floatingBase()==floatingBase)return false;
@@ -1395,6 +1438,9 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         session.load((loaded, error) -> finishEdit(request, loaded, error));
     }
 
+    private boolean independentWithoutEditor(){return independentAi&&independentEditorId==0;}
+    private boolean workspaceInteractive(){return independentWithoutEditor()
+        ?active&&!openingIndependentNote&&!aiContact&&!toolsContact&&shownError==null:canEdit();}
     private boolean canEdit() {return canEdit(false);}
     private boolean canEdit(boolean stationaryFinger) {
         return active && !changingWorkspace && !editing && !scrolling && (!dragging||stationaryFinger&&!gestureEngaged&&!moved&&!pinching) && !selectionDrag.isActive() && !fetching && shownError == null && session.error() == null
@@ -1416,7 +1462,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         nextButton.setAvailable(ready && activePage < session.pageCount());
         addButton.setAvailable(ready && session.pageCount() < NotebookIndex.MAX_PAGES);
         floatingTools.button(NotebookFloatingTools.Action.OUTLINE).setAvailable(ready);
-        floatingTools.button(NotebookFloatingTools.Action.AI_CHAT).setAvailable(ready);
+        floatingTools.button(NotebookFloatingTools.Action.AI_CHAT).setAvailable(ready || independentWithoutEditor() && active);
         updateViewNavigation(ready);
         penButton.setToolSelected(tool == NotebookInk.Tool.PEN);
         eraserButton.setToolSelected(tool == NotebookInk.Tool.ERASER);
@@ -2166,6 +2212,10 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
     }
 
     @Override protected void openAppSettings() {
+        if (independentWithoutEditor()) {
+            if (workspaceInteractive()) { startActivity(new Intent(this, NotebookSettingsActivity.class)); overridePendingTransition(0, 0); }
+            return;
+        }
         if (!canEdit()) return;
         pauseForEdit();
         if (shownError != null) return;
@@ -2667,27 +2717,31 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
 
     private void initializeWorkspace() {
         android.content.SharedPreferences preferences = getPreferences(MODE_PRIVATE);
-        String saved = preferences.getString("noteWindows", null);
-        workspace.restore(saved);
-        if (saved == null) {
-            // Migrate the original two-note layout without changing either note's placement.
-            int owner = preferences.getInt("workspaceActiveId", session.notebookId());
-            int other = preferences.getInt("companionId", 0);
-            boolean secondary = preferences.getBoolean("secondaryActive", false);
-            workspace.add(secondary && other > 0 ? other : owner, NotebookWorkspace.Position.FLOATING);
-            if (other > 0 && other != owner) {
-                NotebookWorkspace.Pane pane = workspace.add(secondary ? owner : other, NotebookWorkspace.Position.FLOATING);
-                try { workspace.place(pane, NotebookWorkspace.Position.valueOf(preferences.getString("companionPosition", "RIGHT"))); }
-                catch (IllegalArgumentException ignored) { workspace.place(pane, NotebookWorkspace.Position.RIGHT); }
-                pane.page = secondary ? session.pageNumber() : Math.max(1, preferences.getInt("companionPage", 1));
-                pane.collapsed = preferences.getBoolean("companionCollapsed", false);
-                pane.split = preferences.getFloat("companionSplit", .5f);
-                pane.x = preferences.getFloat("companionX", .42f); pane.y = preferences.getFloat("companionY", .18f);
-                pane.width = preferences.getFloat("companionWidth", .55f); pane.height = preferences.getFloat("companionHeight", .58f);
-                if (secondary) workspace.base().page = Math.max(1, preferences.getInt("companionPage", 1));
+        if (independentAi) {
+            initializeIndependentWorkspace();
+        } else {
+            String saved = preferences.getString("noteWindows", null);
+            workspace.restore(saved);
+            if (saved == null) {
+                // Migrate the original two-note layout without changing either note's placement.
+                int owner = preferences.getInt("workspaceActiveId", session.notebookId());
+                int other = preferences.getInt("companionId", 0);
+                boolean secondary = preferences.getBoolean("secondaryActive", false);
+                workspace.add(secondary && other > 0 ? other : owner, NotebookWorkspace.Position.FLOATING);
+                if (other > 0 && other != owner) {
+                    NotebookWorkspace.Pane pane = workspace.add(secondary ? owner : other, NotebookWorkspace.Position.FLOATING);
+                    try { workspace.place(pane, NotebookWorkspace.Position.valueOf(preferences.getString("companionPosition", "RIGHT"))); }
+                    catch (IllegalArgumentException ignored) { workspace.place(pane, NotebookWorkspace.Position.RIGHT); }
+                    pane.page = secondary ? session.pageNumber() : Math.max(1, preferences.getInt("companionPage", 1));
+                    pane.collapsed = preferences.getBoolean("companionCollapsed", false);
+                    pane.split = preferences.getFloat("companionSplit", .5f);
+                    pane.x = preferences.getFloat("companionX", .42f); pane.y = preferences.getFloat("companionY", .18f);
+                    pane.width = preferences.getFloat("companionWidth", .55f); pane.height = preferences.getFloat("companionHeight", .58f);
+                    if (secondary) workspace.base().page = Math.max(1, preferences.getInt("companionPage", 1));
+                }
             }
         }
-        ensureWorkspace(); restoreWorkspaceView();
+        if (!independentAi) { ensureWorkspace(); restoreWorkspaceView(); }
         noteTray = new NotebookNoteTray(this, new NotebookNoteTray.Listener() {
             public void add() { trayAction(() -> openCompanion(true)); }
             public void reopen(NotebookWorkspace.Pane pane) { trayAction(() -> reopenNote(pane)); }
@@ -2699,7 +2753,14 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         });
     }
 
+    private void initializeIndependentWorkspace() {
+        workspace.restore(restoredIndependentNotes);
+        workspace.setFloatingBase(true);
+        if (workspace.find(independentEditorId) == null) independentEditorId = 0;
+    }
+
     private void ensureWorkspace() {
+        if (independentAi && independentEditorId == 0) return;
         if (workspace.find(session.notebookId()) == null) {
             for (NotebookCompanion window : noteWindows.values()) window.close();
             noteWindows.clear(); workspace.restore(null);
@@ -2718,7 +2779,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
     }
 
     private void saveWorkspace() {
-        getPreferences(MODE_PRIVATE).edit().putString("noteWindows", workspace.encode()).apply();
+        if (!independentAi) getPreferences(MODE_PRIVATE).edit().putString("noteWindows", workspace.encode()).apply();
     }
 
     private String notebookName(int id) {
@@ -2767,6 +2828,15 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
 
     private void layoutWorkspace() {
         if (workspaceRoot.getWidth() < 1 || workspaceRoot.getHeight() < 1) return;
+        if (independentAi && independentEditorId == 0) {
+            for (NotebookWorkspace.Pane pane : new ArrayList<>(noteWindows.keySet())) if (!workspace.panes().contains(pane))
+                noteWindows.remove(pane).close();
+            if (canvas.getParent() != workspaceArea) {
+                if (canvas.getParent() instanceof ViewGroup) ((ViewGroup) canvas.getParent()).removeView(canvas);
+                workspaceArea.addView(canvas, 0, new FrameLayout.LayoutParams(-1, -1));
+            }
+            statusIslands.setNoteVisible(false); updateViewNavigation(false); updateOverlayBounds(); return;
+        }
         ensureWorkspace();
         if (!session.entries().isEmpty()) for (NotebookWorkspace.Pane pane : new ArrayList<>(workspace.panes())) {
             if (pane.notebookId != session.notebookId() && notebookName(pane.notebookId) == null) workspace.close(pane);
@@ -2877,6 +2947,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         if (pane.notebookId == session.notebookId()) {
             NotebookWorkspace.Pane replacement = workspace.replacement(pane);
             if (replacement == null) {
+                if (independentAi && close) { closeIndependentNote(pane); return; }
                 if (aiWindows != null && aiWindows.mainChat()) changeWorkspace(() -> workspace.minimize(pane));
                 return;
             }
@@ -2885,7 +2956,14 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
     }
 
     private void toggleNotes() {
-        if (!canEdit()) return;if(aiWindows!=null)aiWindows.hideTray();
+        if (!workspaceInteractive()) return;if(aiWindows!=null)aiWindows.hideTray();
+        if (independentWithoutEditor()) {
+            if (workspace.panes().isEmpty()) { openCompanion(true); return; }
+            if (noteTray.showing()) noteTray.hide();
+            else noteTray.show(workspaceRoot, floatingTools.button(NotebookFloatingTools.Action.NOTES),
+                floatingTools.bounds(), floatingTools.isVertical(), workspace.panes());
+            return;
+        }
         if (workspace.panes().size() == 1 && !workspace.panes().get(0).collapsed) { openCompanion(false); return; }
         pauseForEdit();
         if (noteTray.showing()) noteTray.hide();
@@ -2895,11 +2973,13 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
     }
 
     private void trayAction(Runnable action) {
-        if (!canEdit()) return;
+        if (!workspaceInteractive()) return;
+        if (independentWithoutEditor()) { noteTray.hide(); action.run(); return; }
         pauseForEdit(); noteTray.hide(); resumeThen(action);
     }
 
     private void reopenNote(NotebookWorkspace.Pane pane) {
+        if (independentWithoutEditor()) { openIndependentNote(pane.notebookId); return; }
         NotebookWorkspace.Pane editor=workspace.find(session.notebookId());
         if (editor != null && editor.collapsed && pane != editor) {
             // A different restored note must become the editor before the note
@@ -2908,8 +2988,82 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         } else changeWorkspace(() -> pane.collapsed=false);
     }
 
+    private void showIndependentNotePicker() {
+        if (!workspaceInteractive() || !independentWithoutEditor()) return;
+        List<NotebookCatalog.Entry> choices=new ArrayList<>();
+        for (NotebookCatalog.Entry entry:session.entries())
+            if (entry.status==NotebookCatalog.ACTIVE && workspace.find(entry.id)==null) choices.add(entry);
+        if (choices.isEmpty()) { Toast.makeText(this,"No other notebooks available",Toast.LENGTH_SHORT).show(); return; }
+        String[] labels=new String[choices.size()];for(int i=0;i<labels.length;i++)labels[i]=choices.get(i).name;
+        final int[] choice={-1};
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Open floating note")
+            .setItems(labels,(menu,index)->choice[0]=index).setNegativeButton("Cancel",null).create();
+        viewMenu=dialog;dialog.setOnDismissListener(closed->{viewMenu=null;
+            if(active&&choice[0]>=0)openIndependentNote(choices.get(choice[0]).id);});
+        showStaticDialog(dialog);
+    }
+
+    /** Only an explicit selection is allowed to open the first notebook in an AI workspace. */
+    private void openIndependentNote(int id) {
+        if (!independentWithoutEditor() || !workspaceInteractive()) return;
+        openingIndependentNote=true;pendingIndependentNoteId=id;final int request=++generation;
+        session.list((ignored,error)->{
+            if(!active||request!=generation)return;
+            if(error!=null){finishIndependentNoteOpen(id,null,error,request,true);return;}
+            session.openNotebook(id,(loaded,failure)->finishIndependentNoteOpen(id,loaded,failure,request,true));
+        });
+    }
+
+    private void restoreIndependentEditor() {
+        if (!active || !independentAi || independentEditorId==0) return;
+        int id=independentEditorId;openingIndependentNote=true;final int request=++generation;
+        session.list((ignored,error)->{
+            if(!active||request!=generation)return;
+            if(error!=null){finishIndependentNoteOpen(id,null,error,request,false);return;}
+            session.openNotebook(id,(loaded,failure)->finishIndependentNoteOpen(id,loaded,failure,request,false));
+        });
+    }
+
+    private void finishIndependentNoteOpen(int id,NotebookPage loaded,IOException error,int request,boolean reveal) {
+        if(!active||request!=generation)return;openingIndependentNote=false;pendingIndependentNoteId=0;
+        if(error!=null||loaded==null){
+            NotebookWorkspace.Pane pane=workspace.find(id);if(pane!=null)workspace.close(pane);
+            independentEditorId=0;viewNotebookId=0;page=null;viewport=null;
+            resetIndependentView();
+            Toast.makeText(this,"Could not open that notebook",Toast.LENGTH_LONG).show();startIndependentAi();return;
+        }
+        NotebookWorkspace.Pane pane=workspace.find(id);
+        if(pane==null)pane=workspace.add(id,NotebookWorkspace.Position.FLOATING);
+        if(reveal)pane.collapsed=false;
+        workspace.setFloatingBase(true);independentEditorId=id;viewNotebookId=id;
+        if(reveal){resetIndependentView();viewHistory.restore(id,workspaceHistories.get(id));}
+        restoreWorkspaceView();openCanvas(loaded);
+    }
+
+    private void resetIndependentView() {
+        zoom=1;zoomFit=NotebookViewport.Fit.WIDTH;restoreCenter=false;
+        pendingReadingView=null;pendingReadingPage=0;reopenPosition=null;
+        viewHistory.clear();readingFlowKnown=false;
+    }
+
+    private void closeIndependentNote(NotebookWorkspace.Pane pane) {
+        pauseForEdit();if(shownError!=null)return;
+        captureViewCenter();persistPosition();rememberEditor();++generation;
+        workspace.close(pane);NotebookCompanion window=noteWindows.remove(pane);if(window!=null)window.close();
+        independentEditorId=0;viewNotebookId=0;page=null;viewport=null;pages.clear();viewportBuffer.clear();
+        resetIndependentView();
+        disposeCanvas(true);layoutWorkspace();statusIslands.setNoteVisible(false);updateControls();showFloatingTools();
+    }
+
     private void openCompanion(boolean floating) {
-        if (!canEdit()) return;
+        if (!workspaceInteractive()) return;
+        if (independentWithoutEditor() && session.entries().isEmpty()) {
+            openingIndependentNote=true;final int request=generation;
+            session.list((page,error)->{openingIndependentNote=false;if(!active||request!=generation)return;
+                if(error!=null){Toast.makeText(this,"Could not open the bookshelf",Toast.LENGTH_LONG).show();return;}
+                showIndependentNotePicker();});return;
+        }
+        if (independentWithoutEditor()) { showIndependentNotePicker(); return; }
         List<NotebookCatalog.Entry> choices = new ArrayList<>();
         for (NotebookCatalog.Entry entry : session.entries())
             if (entry.status == NotebookCatalog.ACTIVE && workspace.find(entry.id) == null) choices.add(entry);
@@ -2997,7 +3151,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
             if (error != null) { if (active && request == generation) showError(error); return; }
             saveWorkspace();
             if (!active || request != generation) return;
-            viewNotebookId = target; viewHistory.clear();
+            viewNotebookId = target; if (independentAi) independentEditorId = target; viewHistory.clear();
             readingFlowKnown=false;
             viewHistory.restore(target, workspaceHistories.get(target));
             viewport = null; restoreCenter = false; zoom = 1; zoomFit = NotebookViewport.Fit.WIDTH;
@@ -3602,7 +3756,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         // Flush completed pen-UP events against the current layout before retiring its callbacks.
         if (ink != null) ink.pauseForEdit();
         captureViewCenter();
-        active = false; ++generation; whenReady = null;
+        active = false; ++generation; whenReady = null; openingIndependentNote=false;
         pauseAiChat();
         pauseMarkdown();
         if (stylusGesture != null) stylusGesture.stop();
@@ -3669,14 +3823,17 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         state.putBoolean("lasso", tool == NotebookInk.Tool.LASSO);
         state.putBoolean("zenMode", zenMode);
         if(aiWindows!=null)state.putString("aiWindows",aiWindows.snapshot());
+        if(independentAi){state.putString("independentNotes",workspace.encode());state.putInt("independentEditorId",independentEditorId);
+            state.putInt("pendingIndependentNoteId",pendingIndependentNoteId);}
         if(pendingAiLaunch!=null)state.putString("pendingAiLaunch",pendingAiLaunch);
         state.putBoolean("pendingHideNotes",pendingHideNotes);
         NotebookMarkdownDraft draft=markdownEditor!=null?markdownEditor.draft():pendingMarkdownDraft;
         if(draft!=null)try{state.putByteArray("markdownDraft",draft.snapshot());}catch(IOException ignored){}
         super.onSaveInstanceState(state);
     }
-    private void disposeCanvas() {
-        pauseAiChat();
+    private void disposeCanvas() { disposeCanvas(false); }
+    private void disposeCanvas(boolean preserveAi) {
+        if (!preserveAi) pauseAiChat();
         if(restingPaper!=null){restingPaper.close();restingPaper=null;}
         clearPdfText();
         if(readingMenu!=null){readingMenu.retire();readingMenu=null;}
@@ -3698,7 +3855,7 @@ public final class NotebookActivity extends NotebookDisplayActivity implements N
         if (viewNavigation != null) viewNavigation.hide();
         if (noteTray != null) noteTray.hide();
         if (ink != null) { ink.release(); ink = null; }
-        writingGate.reset();
+        if (preserveAi) writingGate.contact(false); else writingGate.reset();
         if (deviceStatus != null) deviceStatus.setWriting(false);
         if (canvas != null) canvas.removeAllViews();
     }
