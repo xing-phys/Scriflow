@@ -6,6 +6,18 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.39.0-alpha.4 — Active floating-note controls (2026-11-08)
+
+- Place the active floating note's options, minimize and view-history controls
+  in small windows above the native pen surface. They follow the note when it
+  moves or resizes; inactive notes retain their own embedded controls.
+- Show lasso actions above an AI-main floating note and include their screen
+  bounds in native ink exclusions, so the buttons remain accessible to the pen.
+- VersionCode 99; notebook and chat archive formats are unchanged from alpha.3.
+  Host and Android checks and release signing verification cover this alpha.
+  The tablet was unavailable; actual rendering, controls and handwriting on the
+  device still require verification.
+
 ## 0.39.0-alpha.3 — Independent AI workspace (2026-11-08)
 
 - Open a new or saved AI chat directly from the bookshelf in a separate

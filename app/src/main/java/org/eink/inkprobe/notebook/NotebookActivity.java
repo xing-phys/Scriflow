@@ -355,7 +355,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         penButton = floatingTools.button(NotebookFloatingTools.Action.PEN);
         eraserButton = floatingTools.button(NotebookFloatingTools.Action.ERASER);
         lassoButton = floatingTools.button(NotebookFloatingTools.Action.LASSO);
-        selectionTools = new NotebookSelectionTools(this, this::performSelectionAction);
+        selectionTools = new NotebookSelectionTools(this, this::performSelectionAction, this::updateOverlayBounds);
         pendingAiLaunch=saved==null?getIntent().getStringExtra("aiLaunch"):saved.getString("pendingAiLaunch");
         pendingHideNotes=saved!=null&&saved.getBoolean("pendingHideNotes",false);getIntent().removeExtra("aiLaunch");
         initializeAiWindows();initializeWorkspace();
@@ -1204,6 +1204,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         List<Rect> bounds = new ArrayList<>();
         for (NotebookCompanion window : noteWindows.values()) bounds.addAll(window.exclusions());
         if (noteTray != null) bounds.add(noteTray.bounds());
+        if (selectionTools != null) bounds.add(selectionTools.bounds());
         if(pdfTextTools!=null)bounds.add(pdfTextTools.bounds());
         if(aiWindows!=null)bounds.addAll(aiWindows.exclusions());
         NotebookWorkspace.Pane editor=workspace.find(session.notebookId());
@@ -1753,8 +1754,10 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     }
 
     private void showSelectionTools() {
-        if (selectionOutline != null && selectionTools != null && canEdit() && overview == null && lassoMenu == null)
+        if (selectionOutline != null && selectionTools != null && canEdit() && overview == null && lassoMenu == null) {
+            selectionTools.floatingBase(workspace.floatingBase());
             selectionTools.show(canvas, selectionScreenBounds(), toolsBounds, selection == null ? 0 : selection.strokes.size());
+        }
     }
 
     private void performSelectionAction(NotebookSelectionTools.Action action) {

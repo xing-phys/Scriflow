@@ -5,6 +5,7 @@ import android.graphics.Rect;
 import android.graphics.RectF;
 import android.view.Gravity;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.GridLayout;
 import android.widget.PopupWindow;
 import android.widget.Toast;
@@ -17,10 +18,13 @@ final class NotebookSelectionTools {
     private final Context context;
     private final GridLayout content;
     private final PopupWindow popup;
+    private final Runnable boundsChanged;
+    private final Rect bounds = new Rect();
+    private int layer = WindowManager.LayoutParams.TYPE_APPLICATION_PANEL;
     private final EnumMap<Action, NotebookIconButton> buttons = new EnumMap<>(Action.class);
 
-    NotebookSelectionTools(Context context, Listener listener) {
-        this.context = context;
+    NotebookSelectionTools(Context context, Listener listener, Runnable boundsChanged) {
+        this.context = context; this.boundsChanged = boundsChanged;
         content = new GridLayout(context); content.setColumnCount(Action.values().length);
         // Match the independent 28 dp circular figure/Markdown actions and 2 dp gaps.
         content.setPadding(0, 0, 0, 0);
@@ -39,13 +43,20 @@ final class NotebookSelectionTools {
 
         popup = new PopupWindow(content, 0, 0, false);
         popup.setTouchable(true); popup.setOutsideTouchable(false); popup.setFocusable(false);
-        popup.setInputMethodMode(PopupWindow.INPUT_METHOD_NOT_NEEDED); popup.setClippingEnabled(false);
+        popup.setInputMethodMode(PopupWindow.INPUT_METHOD_NEEDED); popup.setClippingEnabled(false);
         popup.setIsLaidOutInScreen(true); popup.setAnimationStyle(0); popup.setElevation(0);
         popup.setEnterTransition(null); popup.setExitTransition(null);
     }
 
+    void floatingBase(boolean floating) {
+        int desired = floating ? WindowManager.LayoutParams.TYPE_APPLICATION_SUB_PANEL
+            : WindowManager.LayoutParams.TYPE_APPLICATION_PANEL;
+        if (desired == layer) return;
+        hide(); layer = desired; popup.setWindowLayoutType(layer);
+    }
+
     void show(View anchor, RectF selection, Rect tools, int count) {
-        if (!anchor.isAttachedToWindow() || anchor.getWidth() < 1 || anchor.getHeight() < 1) return;
+        if (!anchor.isAttachedToWindow() || anchor.getWidth() < 1 || anchor.getHeight() < 1) { hide(); return; }
         if (count == 0) { hide(); return; }
         int columns = Math.max(1, Math.min(Action.values().length, Math.max(1, anchor.getWidth() / Math.max(1, dp(30)))));
         int width = Math.min(anchor.getWidth(), dp(columns * 30));
@@ -55,9 +66,12 @@ final class NotebookSelectionTools {
         int[] position = NotebookSelectionPlacement.place(anchor.getWidth(), anchor.getHeight(), width, height, dp(8),
             selection.left, selection.top, selection.right, selection.bottom,
             tools.left - location[0], tools.top - location[1], tools.right - location[0], tools.bottom - location[1]);
+        Rect next = new Rect(location[0] + position[0], location[1] + position[1],
+            location[0] + position[0] + width, location[1] + position[1] + height);
+        if (!bounds.equals(next)) { bounds.set(next); boundsChanged.run(); }
         popup.setWidth(width); popup.setHeight(height);
         if (popup.isShowing()) popup.update(location[0] + position[0], location[1] + position[1], width, height);
-        else NotebookPopupHost.show(popup, anchor, Gravity.TOP | Gravity.LEFT, location[0] + position[0], location[1] + position[1]);
+        else if (!NotebookPopupHost.show(popup, anchor, Gravity.TOP | Gravity.LEFT, next.left, next.top)) clearBounds();
     }
     private void layoutActions(int columns) {
         if (content.getColumnCount() == columns) return;
@@ -73,7 +87,9 @@ final class NotebookSelectionTools {
         item.width = dp(28); item.height = dp(28); item.rightMargin = dp(2); item.bottomMargin = dp(2);
         return item;
     }
-    void hide() { if (popup.isShowing()) popup.dismiss(); }
+    Rect bounds() { return new Rect(bounds); }
+    void hide() { if (popup.isShowing()) popup.dismiss(); clearBounds(); }
+    private void clearBounds() { if (!bounds.isEmpty()) { bounds.setEmpty(); boundsChanged.run(); } }
     void copied() { Toast.makeText(context, "Ink copied", Toast.LENGTH_SHORT).show(); }
     private int dp(int value) { return Math.round(value * context.getResources().getDisplayMetrics().density); }
 }

@@ -36,9 +36,10 @@ final class NotebookCompanion {
     private final NotebookIconButton historyBack, historyForward;
     private final LinearLayout history;
     private final NotebookReader reader;
-    private boolean visible, editor, editorPrepared;
+    private boolean visible, editor, editorPrepared, editorCornersVisible, historyBackAvailable, historyForwardAvailable;
     private int popupLayer = -1;
     private final NotebookWindowControls controls;
+    private final NotebookEditorCorners editorCorners;
 
     NotebookCompanion(Context context, FrameLayout root, NotebookWorkspace workspace, NotebookWorkspace.Pane pane,
             NotebookSession session, Listener listener) {
@@ -73,12 +74,15 @@ final class NotebookCompanion {
             public boolean allowInput() { return listener.allowInput(); }
         });
         body.addView(reader, new FrameLayout.LayoutParams(-1, -1));
-        controls=new NotebookWindowControls(context,root,content,workspace,pane,new NotebookWindowControls.Listener(){
+        NotebookWindowControls.Listener cornerListener=new NotebookWindowControls.Listener(){
             public void menu(){listener.menu();}public void minimize(){listener.collapse();}
             public boolean beginMove(boolean resize){boolean allowed=listener.beginMove();if(allowed&&resize&&editor)editorPrepared=false;return allowed;}
             public void endMove(){listener.endMove();}public void save(){listener.save();}
             public void position(){NotebookCompanion.this.position();}public boolean ready(){return visible&&(!editor||editorPrepared);}
-        },"note");menu=controls.menu;minimize=controls.minimize;
+        };
+        controls=new NotebookWindowControls(context,root,content,workspace,pane,cornerListener,"note");
+        editorCorners=new NotebookEditorCorners(context,root,content,workspace,pane,cornerListener,listener::boundsChanged,listener::history);
+        menu=controls.menu;minimize=controls.minimize;
         history = new LinearLayout(context); history.setOrientation(LinearLayout.HORIZONTAL);
         historyBack = new NotebookIconButton(context, NotebookIconDrawable.Icon.VIEW_BACK, "Previous view");
         historyForward = new NotebookIconButton(context, NotebookIconDrawable.Icon.VIEW_FORWARD, "Next view");
@@ -113,7 +117,13 @@ final class NotebookCompanion {
         menu.setContentDescription(name + ": options; drag to move floating note");
         minimize.setContentDescription(name + ": minimize; drag to resize floating note");
         boolean controls = workspace.panes().size() > 1 || workspace.floatingBase();
-        menu.setVisibility(controls ? View.VISIBLE : View.GONE); minimize.setVisibility(controls ? View.VISIBLE : View.GONE);
+        editorCornersVisible = controls && editor && workspace.floating(pane);
+        editorCorners.name(name);
+        menu.setVisibility(controls && !editorCornersVisible ? View.VISIBLE : View.GONE);
+        minimize.setVisibility(controls && !editorCornersVisible ? View.VISIBLE : View.GONE);
+        history.setVisibility(workspace.floating(pane) && !editorCornersVisible
+            && (historyBackAvailable || historyForwardAvailable) ? View.VISIBLE : View.GONE);
+        editorCorners.history(historyBackAvailable, historyForwardAvailable);
         position();
     }
     void retainEditorFrame(Bitmap frame) {
@@ -122,17 +132,20 @@ final class NotebookCompanion {
     }
     void refreshReadingSettings(){reader.refreshReadingSettings();}
     void history(boolean back, boolean forward) {
+        historyBackAvailable=back;historyForwardAvailable=forward;
         boolean show = workspace.floating(pane) && (back || forward);
         historyBack.setVisibility(back ? View.VISIBLE : View.GONE);
         historyForward.setVisibility(forward ? View.VISIBLE : View.GONE);
         LinearLayout.LayoutParams next = (LinearLayout.LayoutParams) historyForward.getLayoutParams();
         int margin = back && forward ? dp(4) : 0;
         if (next.leftMargin != margin) { next.leftMargin = margin; historyForward.setLayoutParams(next); }
-        history.setVisibility(show ? View.VISIBLE : View.GONE);
+        history.setVisibility(show && !editorCornersVisible ? View.VISIBLE : View.GONE);
+        editorCorners.history(show && back, show && forward);
+        if (editorCornersVisible && visible) positionEditorCorners(false);
     }
 
     void editorReady() {
-        if (!editor || editorPrepared || controls.resizing()) return;
+        if (!editor || editorPrepared || controls.resizing() || editorCorners.controls.resizing()) return;
         editorPrepared = true;
         content.postOnAnimation(() -> {
             if (!editor || !editorPrepared) return;
@@ -145,6 +158,7 @@ final class NotebookCompanion {
         NotebookWorkspace.Box box = workspace.box(pane, root.getWidth(), root.getHeight());
         int[] location = new int[2]; root.getLocationOnScreen(location);
         int x = location[0] + box.x, y = location[1] + box.y;
+        boolean raised = false;
         if (workspace.floating(pane)) {
             int layer = workspace.floatingBase() ? android.view.WindowManager.LayoutParams.TYPE_APPLICATION_SUB_PANEL
                 : android.view.WindowManager.LayoutParams.TYPE_APPLICATION_PANEL;
@@ -152,8 +166,10 @@ final class NotebookCompanion {
             if (content.getParent() == root) root.removeView(content);
             popup.setWidth(Math.max(1, box.width)); popup.setHeight(Math.max(1, box.height));
             if (popup.isShowing()) popup.update(x, y, box.width, box.height);
-            else if (!NotebookPopupHost.show(popup, root, Gravity.TOP | Gravity.LEFT, x, y)) { visible = false; listener.boundsChanged(); return; }
-            else listener.raised();
+            else if (!NotebookPopupHost.show(popup, root, Gravity.TOP | Gravity.LEFT, x, y)) {
+                visible = false; editorCorners.hide(); listener.boundsChanged(); return;
+            }
+            else { raised = true; listener.raised(); }
         } else {
             if (popup.isShowing()) popup.dismiss();
             if (content.getParent() != root) {
@@ -166,7 +182,13 @@ final class NotebookCompanion {
             if (old == null || old.width != layout.width || old.height != layout.height
                     || old.leftMargin != layout.leftMargin || old.topMargin != layout.topMargin) content.setLayoutParams(layout);
         }
-        visible = true; listener.boundsChanged(); finishResizeOutline();
+        visible = true; positionEditorCorners(raised); listener.boundsChanged(); finishResizeOutline();
+    }
+    private void positionEditorCorners(boolean raise) {
+        if (!editorCornersVisible || !visible) { editorCorners.hide(); return; }
+        NotebookWorkspace.Box box = workspace.box(pane, root.getWidth(), root.getHeight());
+        int[] location = new int[2]; root.getLocationOnScreen(location);
+        editorCorners.position(location[0]+box.x, location[1]+box.y, box.width, box.height, workspace.floatingBase(), raise);
     }
     private void raiseFloating() {
         if(!visible||!workspace.floating(pane)||!popup.isShowing()||!listener.allowInput()||!listener.shouldRaise())return;
@@ -174,13 +196,14 @@ final class NotebookCompanion {
     }
     /** The active editor is reparented only after its owner pauses native ink. */
     void raisePopup(){if(visible&&workspace.floating(pane)&&popup.isShowing()){popup.dismiss();position();}}
-    private void finishResizeOutline() { controls.presented(); }
+    private void finishResizeOutline() { controls.presented(); editorCorners.controls.presented(); }
     List<Rect> exclusions() {
         List<Rect> bounds = new ArrayList<>();
         if (!visible) return bounds;
         bounds.add(reader.textBounds());
         if (!editor && workspace.floating(pane)) bounds.add(screenBounds(content));
         else if (editor) {
+            if (editorCornersVisible) bounds.addAll(editorCorners.bounds());
             if (menu.getVisibility() == View.VISIBLE) bounds.add(screenBounds(menu));
             if (minimize.getVisibility() == View.VISIBLE) bounds.add(screenBounds(minimize));
             if (history.getVisibility() == View.VISIBLE) bounds.add(screenBounds(history));
@@ -197,7 +220,8 @@ final class NotebookCompanion {
     void setCacheBudget(NotebookCacheBudget budget) { reader.setCacheBudget(budget); }
     void trimCaches() { reader.trimCaches(); }
     void hide() {
-        controls.cancel(); reader.hide(); visible = editorPrepared = false;
+        controls.cancel(); editorCorners.controls.cancel(); reader.hide(); visible = editorPrepared = editorCornersVisible = false;
+        editorCorners.hide();
         popup.dismiss(); if (content.getParent() == root) root.removeView(content);
         listener.boundsChanged();
     }
