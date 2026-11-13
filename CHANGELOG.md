@@ -6,6 +6,19 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.39.0-alpha.5 — Status bars above floating notes (2026-11-13)
+
+- Keep the shared top status bars above a floating note in the AI main
+  workspace. Opening or raising a note re-presents the status bars, then
+  restores the toolbox and floating chats above them, matching the layering in
+  ordinary notebooks.
+- Refresh native ink exclusions after the status bars, toolbox and chats are
+  re-presented, and resume writing only when no contact or save error is in
+  progress.
+- VersionCode 100; notebook and chat archive formats are unchanged from alpha.4.
+  Host tests cover the raise order and guarded paths. The tablet was unavailable,
+  so the physical window stack still requires device verification.
+
 ## 0.39.0-alpha.4 — Active floating-note controls (2026-11-08)
 
 - Place the active floating note's options, minimize and view-history controls

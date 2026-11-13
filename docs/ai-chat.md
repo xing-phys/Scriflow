@@ -1,4 +1,4 @@
-# AI chat — 0.39.0-alpha.4
+# AI chat — 0.39.0-alpha.5
 
 Open **Settings → AI chat** from the time/battery/Wi-Fi pill. Select a saved
 provider or tap **Add provider**, choose OpenAI, Anthropic, Google Gemini,

@@ -88,7 +88,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     private Float readingPreviewContrast;
     private NotebookCropEditor cropEditor;
     private NotebookPdfReading.Request cropPreviewRequest;
-    private boolean changingWorkspace, workspaceLayoutPending;
+    private boolean changingWorkspace, workspaceLayoutPending, layingOutWorkspace, noteStackRaised;
     private int inkGeneration;
     private final Map<Integer, byte[]> workspaceHistories = new LinkedHashMap<>();
     private TextView saveState;
@@ -2809,7 +2809,11 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
                 if (pane.notebookId == session.notebookId()) changeViewHistory(forward);
                 else activatePane(pane, () -> changeViewHistory(forward));
             }
-            public void raised() { frontNote=pane;++windowStackRevision;if(aiWindows!=null)aiWindows.noteRaised(); }
+            public void raised() {
+                frontNote=pane;++windowStackRevision;noteStackRaised=true;
+                if(!layingOutWorkspace&&!changingWorkspace&&!editing){raiseNoteStack();noteStackRaised=false;}
+                if(aiWindows!=null)aiWindows.noteRaised();
+            }
             public boolean shouldRaise(){return frontNote!=pane;}
             public long stackRevision(){return windowStackRevision;}
             public void raiseEditor(){
@@ -2831,6 +2835,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
 
     private void layoutWorkspace() {
         if (workspaceRoot.getWidth() < 1 || workspaceRoot.getHeight() < 1) return;
+        layingOutWorkspace = true;
         if (independentAi && independentEditorId == 0) {
             for (NotebookWorkspace.Pane pane : new ArrayList<>(noteWindows.keySet())) if (!workspace.panes().contains(pane))
                 noteWindows.remove(pane).close();
@@ -2838,7 +2843,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
                 if (canvas.getParent() instanceof ViewGroup) ((ViewGroup) canvas.getParent()).removeView(canvas);
                 workspaceArea.addView(canvas, 0, new FrameLayout.LayoutParams(-1, -1));
             }
-            statusIslands.setNoteVisible(false); updateViewNavigation(false); updateOverlayBounds(); return;
+            statusIslands.setNoteVisible(false); updateViewNavigation(false); updateOverlayBounds(); layingOutWorkspace = false; noteStackRaised = false; return;
         }
         ensureWorkspace();
         if (!session.entries().isEmpty()) for (NotebookWorkspace.Pane pane : new ArrayList<>(workspace.panes())) {
@@ -2866,14 +2871,25 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         }
         statusIslands.setNoteVisible(!editor.collapsed);
         updateViewNavigation(active && page != null && page.isInitialized());
-        if (workspace.floatingBase() && active && !toolsContact && !aiContact && floatingTools != null
-                && floatingTools.isShowing() && ink != null && !ink.isPenDown()) {
-            boolean resume = canEdit(); if (resume) ink.pauseForEdit();
-            floatingTools.raise(); if (aiWindows != null) aiWindows.raiseFloatingAboveTools();
-            if (resume && shownError == null) { ink.redrawAfterOverlayChange(); ink.start(); }
-        }
-        // Status uses a higher application sublayer than note and split-chat panels.
+        // Notes are presented above the base chat; put the status islands back on top,
+        // then restore the tool and floating-chat layers above them.
+        boolean raisedNotes = noteStackRaised;
+        noteStackRaised = false;
+        if (raisedNotes) raiseNoteStack();
         updateOverlayBounds();
+        layingOutWorkspace = false;
+    }
+
+    /** Re-present the shared status bars above every note, keeping tools and chats on top. */
+    private void raiseNoteStack() {
+        if (!active || statusIslands == null || !workspace.floatingBase()
+                || toolsContact || aiContact || ink != null && ink.isPenDown()) return;
+        boolean resume = canEdit();
+        if (resume) ink.pauseForEdit();
+        statusIslands.raise();
+        if (floatingTools != null && floatingTools.isShowing()) floatingTools.raise();
+        if (aiWindows != null) aiWindows.raiseFloatingAboveTools();
+        if (resume && shownError == null) { ink.redrawAfterOverlayChange(); ink.start(); }
     }
 
     /** Reuse the editor and every unrelated reader; a floating window never clears the main note. */

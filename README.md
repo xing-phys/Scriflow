@@ -26,11 +26,13 @@ pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
 stays in front, window operations retain the main editor, and PDF import opens
 the file picker directly before opening the imported note.
 
-The **[0.39.0-alpha.4 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.39.0-alpha.4)**
+The **[0.39.0-alpha.5 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.39.0-alpha.5)**
 opens a new or saved AI chat from the bookshelf in its own workspace, with no
 notes open. Choose a floating note from the toolbox when needed; closing or
 minimizing the main chat returns to the bookshelf. Active floating-note corner
 controls and the lasso action bar use separate layers above the writing surface.
+The shared top status bars now stay above floating notes in this workspace,
+with the toolbox and floating chats still above them.
 This alpha also includes
 streamed AI replies and named provider profiles. Multi-selection in Trash
 supports permanent deletion after confirmation. The outline opens at the current

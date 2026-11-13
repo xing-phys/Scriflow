@@ -98,7 +98,9 @@ All notes share **one floating toolbox** whose actions apply to the editable
 note. From **0.33.0-dev.5**, its application sublayer keeps it above note windows,
 status islands and selection actions regardless of which panel was opened last. The **top-left status island** shows its title, page and zoom without an
 “Active” prefix, including when a floating note is editable. Both status islands
-float over full-screen note content in every layout. Each notebook retains its
+float over full-screen note content in every layout. In the AI main workspace,
+opening or raising a floating note re-presents them above it, then restores the
+toolbox and floating chats above the status. Each notebook retains its
 saved pages and session undo history. Page, logical view center and width-relative
 zoom transfer between reading and editing; note windows, minimized states,
 placement, size and reading positions persist across recreation and app reopen.
