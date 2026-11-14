@@ -3,6 +3,7 @@ plugins { id 'com.android.application' }
 dependencies {
     implementation 'com.caverock:androidsvg:1.4'
     implementation 'com.tom-roush:pdfbox-android:2.0.27.0'
+    implementation 'org.mozilla.geckoview:geckoview:160.0.20261104181552'
 }
 
 def appVersion = new Properties()
@@ -42,6 +43,15 @@ tasks.register('prepareLocalDebugKey', Exec) {
 }
 def licenseAssets = layout.buildDirectory.dir('generated/license-assets')
 def markdownAssets = layout.buildDirectory.dir('generated/markdown-assets')
+def browserAssets = layout.buildDirectory.dir('generated/browser-assets')
+tasks.register('prepareBrowserAssets', Exec) {
+    workingDir rootDir
+    commandLine 'bash', rootProject.file('scripts/build-browser-assets.sh').absolutePath
+    inputs.dir rootProject.file('renderer/browser')
+    inputs.files rootProject.file('scripts/build-browser-assets.sh'), rootProject.file('scripts/build-browser-assets.cjs')
+    inputs.file file('version.properties')
+    outputs.dir browserAssets
+}
 tasks.register('prepareMarkdownAssets', Exec) {
     workingDir rootDir
     commandLine 'bash', rootProject.file('scripts/build-markdown-assets.sh').absolutePath
@@ -52,14 +62,17 @@ tasks.register('prepareMarkdownAssets', Exec) {
 tasks.register('prepareLicenseAssets', Copy) {
     from rootProject.file('LICENSE')
     from(rootProject.file('licenses')) {
-        include 'pdfbox-android-*', 'bouncycastle-*', 'androidsvg-*'
+        include 'pdfbox-android-*', 'bouncycastle-*', 'androidsvg-*', 'geckoview-*'
     }
     into licenseAssets
 }
 android {
     namespace 'org.eink.inkprobe'
-    compileSdk 29
-    buildToolsVersion '35.0.0'
+    // The bundled engine needs a modern build SDK; device behavior still targets API 29.
+    compileSdk {
+        version = release(37) { minorApiLevel = 2 }
+    }
+    buildToolsVersion '36.0.0'
     defaultConfig {
         applicationId 'org.eink.inkprobe'
         minSdk 29
@@ -89,6 +102,8 @@ android {
             // Firmware reflection must remain intact. No credentials produces an unsigned APK.
             debuggable false
             minifyEnabled false
+            // Owner APK targets ARM tablets; emulator libraries remain in debug builds.
+            ndk { abiFilters 'arm64-v8a', 'armeabi-v7a' }
             if (signingRequested) signingConfig signingConfigs.publicRelease
         }
     }
@@ -101,11 +116,13 @@ android {
         disable 'ExpiredTargetSdkVersion'
     }
     buildFeatures { buildConfig false }
-    sourceSets.main.assets.srcDir(licenseAssets)
-    sourceSets.main.assets.srcDir(markdownAssets)
+    packaging { jniLibs { useLegacyPackaging = true } }
+    sourceSets.main.assets.srcDir(licenseAssets.get().asFile)
+    sourceSets.main.assets.srcDir(markdownAssets.get().asFile)
+    sourceSets.main.assets.srcDir(browserAssets.get().asFile)
 }
 tasks.matching { it.name == 'preBuild' }.configureEach {
-    dependsOn tasks.named('prepareLicenseAssets'), tasks.named('prepareMarkdownAssets')
+    dependsOn tasks.named('prepareLicenseAssets'), tasks.named('prepareMarkdownAssets'), tasks.named('prepareBrowserAssets')
 }
 tasks.matching { it.name == 'validateSigningDebug' }.configureEach {
     dependsOn tasks.named('prepareLocalDebugKey')

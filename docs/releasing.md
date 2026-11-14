@@ -312,14 +312,22 @@ build unsigned release APKs without possessing the permanent key.
 
 ## Version numbers
 
-The current prerelease is **0.40.0-alpha.1**, Android `versionCode` **101**,
-adding the bookshelf browser and offline website snapshots. It retains the
+The current prerelease is **0.40.0-alpha.2**, Android `versionCode` **102**,
+bundling GeckoView 160, floating browser controls, clock-only Zen and offline history. It retains the
 existing notebook/backup formats (8, or 9 for individually sized Markdown) and
-chat archive compatibility from 0.39. Website snapshots use separate MHTML
-files and version-1 metadata, outside notebook backups. Versions 1–7 remain readable
+chat archive compatibility from 0.39. New website snapshots use self-contained HTML and NWS2 metadata, outside
+notebook backups; NWS1/MHTML archives remain readable. Versions 1–7 remain readable
 unchanged; APKs before 0.34 cannot read format-8 pages or backups. Alpha status
 reflects pending physical acceptance of writing, e-ink composition and recent UI
 features; scheduling regressions do not measure physical pen-to-ink latency.
+
+Choose a release series for the agreed scope, not for each chat or task. New
+features use MINOR; a separate bug-fix release uses PATCH. Fixes and refinements
+within the ongoing browser alpha advance its suffix, such as
+`0.40.0-alpha.1` → `0.40.0-alpha.2`. After `0.40.0` is stable, separate fixes
+would use `0.40.1`, `0.40.2`, and so on. Every published APK still receives a
+higher Android versionCode, independently of the semantic version. Never
+rewrite published tags.
 
 The latest stable release is **0.33.2**, Android `versionCode` **71**,
 including all changes through **0.33.2-dev.6** (`versionCode` **70**). The previous
@@ -381,16 +389,16 @@ and [Android versioning](https://developer.android.com/studio/publish/versioning
    The helper runs release lint and assembly, copies the candidate privately,
    verifies those exact bytes and the configured signing certificate, then
    stages a versioned APK and SHA-256 checksum under
-   `build/releases/`. For this release these are `scriflow-0.40.0-alpha.1.apk` and
-   `scriflow-0.40.0-alpha.1.apk.sha256`. Debugging is disabled, diagnostic screens are
+   `build/releases/`. For this release these are `scriflow-0.40.0-alpha.2.apk` and
+   `scriflow-0.40.0-alpha.2.apk.sha256`. Debugging is disabled, diagnostic screens are
    absent from the manifest, and the library is the only exported component.
 
 4. Compare the printed signer certificate SHA-256 with the intended permanent
    certificate. For later builds, pin that known digest during verification:
 
    ```bash
-   python3 scripts/verify-apk.py build/releases/scriflow-0.40.0-alpha.1.apk --certificate-sha256 YOUR_KNOWN_CERTIFICATE_SHA256
-   (cd build/releases && sha256sum -c scriflow-0.40.0-alpha.1.apk.sha256)
+   python3 scripts/verify-apk.py build/releases/scriflow-0.40.0-alpha.2.apk --certificate-sha256 YOUR_KNOWN_CERTIFICATE_SHA256
+   (cd build/releases && sha256sum -c scriflow-0.40.0-alpha.2.apk.sha256)
    ```
 
    Substitute the current version and the actual known digest. The APK file's
@@ -398,8 +406,8 @@ and [Android versioning](https://developer.android.com/studio/publish/versioning
    things; publish both clearly in the release notes.
 
 The verifier checks version, application ID, API 29, Scriflow label/icon,
-the exact `ACCESS_NETWORK_STATE` and `INTERNET` permission set, disabled cleartext
-traffic and automatic backup,
+the exact networking/Gecko/AndroidX permission set, disabled cleartext traffic
+and automatic backup, bundled engine and capture assets,
 component exposure, debugging state, and cryptographic signature validity.
 Those checks do not establish the tablet behaviors below.
 
@@ -459,6 +467,11 @@ Do not use raw private version-1 files as a portable migration format, downgrade
 an APK over version-2 pages, or assume a signature change preserves app data.
 
 ## Publish only after acceptance
+
+For **0.40.0-alpha.2**, follow the required alpha workflow: validate, commit/push,
+build with the permanent signing key, and publish a new immutable tag with the
+signed APK/checksum before owner testing. Verify downloaded assets and retain
+0.33.2 as Latest stable. Physical browser and e-ink acceptance remain pending.
 
 For **0.40.0-alpha.1**, the repository workflow requires publishing implemented
 features as an alpha with the permanently signed APK and checksum before the

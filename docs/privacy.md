@@ -33,23 +33,38 @@ backups through the library and keep them outside the app's private storage.
 
 ## Browser and saved websites
 
-The Browser uses the device's Android WebView for HTTPS websites. Live pages
-can run JavaScript and use WebView cookies and website storage; third-party
-cookies, location access, permission requests and automatic popup windows are
-disabled. Web pages receive no JavaScript bridge to app code, notebook files,
-AI conversations or credentials. The app's cleartext HTTP restriction remains
+The Browser bundles GeckoView, the Firefox engine, for HTTPS websites. Live
+pages can run JavaScript and use the engine's private cookies and website
+storage. Third-party cookies and website permission requests are denied;
+new-window links require a user gesture and open in the same browser screen.
+Engine telemetry uploads, studies and predictive page loads are disabled.
+Browser website data uses a separate engine profile from earlier WebView builds,
+so a website may ask you to sign in again after this update. Web pages receive
+no JavaScript bridge to app code, notebook files, AI conversations or credentials. The app's cleartext HTTP restriction remains
 in force, and certificate errors are never bypassed.
 
 Save writes a page snapshot and its title, original address, time and size
-under the private `websites/` directory, independently of browser cache. Saved
-copies can contain information visible in a logged-in page. Offline reading
-disables JavaScript, website storage and network loads. The reader permits
+under the private `websites/` directory, independently of browser cache. An
+app-owned isolated extension freezes the rendered document and fetches its
+HTTPS resources, including styles, images and fonts, to embed them in HTML.
+It can access the page for this capture, but does not expose an API to the page.
+Saved copies can contain information visible in a logged-in page; password
+input values are removed. Offline reading disables page JavaScript and blocks
+network loads before opening the file, including loads from frames and styles.
+A restrictive content security policy supplies an additional layer. Existing
+MHTML copies use a separate WebView reader with scripts and network disabled.
+The reader permits
 only its selected local archive; following an external link offers an explicit
 online opening. There is no automatic refresh or sync of saved copies.
 
+Browser UI preferences remember the controls' position and collapse state.
+Activity state retains Zen, scroll position and the current history across
+recreation. Offline history is confined to the selected archive. These view
+preferences do not modify snapshots or enter notebook backups.
+
 Use the delete icon in Saved websites to remove a snapshot after confirmation.
 Snapshots are excluded from editable notebook backups and Android automatic
-backup. Clearing app storage or uninstalling removes them along with WebView
+backup. Clearing app storage or uninstalling removes them along with browser
 website data. Scriflow adds no encryption to saved page files.
 
 ## Optional AI chat
@@ -139,8 +154,12 @@ the transfer and its own privacy terms apply.
 ## Permission and diagnostics
 
 `ACCESS_NETWORK_STATE` reads connection state for the Wi-Fi indicator.
-`INTERNET` permits optional AI chat requests. These are the only declared
-permissions; cleartext traffic is disabled. The status bar also shows the
+`INTERNET` permits optional AI requests and browsing. The bundled browser also
+declares `WAKE_LOCK` and `MODIFY_AUDIO_SETTINGS` for its standard runtime/media
+support. AndroidX declares an app-private signature permission for internal
+receivers. No camera, microphone, location or shared-storage permission is
+requested. Browser sessions and clocks pause in the background; cleartext
+traffic is disabled. The status bar also shows the
 tablet's time and battery level.
 Following an external PDF link opens another installed app, such as a browser;
 that app handles its network access. Long-pressing a PDF word sends that selected

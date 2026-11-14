@@ -1,12 +1,9 @@
 package org.eink.inkprobe.notebook;
 
-import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.Intent;
-import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.net.Uri;
-import android.net.http.SslError;
 import android.os.Bundle;
 import android.text.InputType;
 import android.text.TextUtils;
@@ -15,41 +12,31 @@ import android.view.View;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
-import android.webkit.PermissionRequest;
-import android.webkit.RenderProcessGoneDetail;
-import android.webkit.SslErrorHandler;
-import android.webkit.WebChromeClient;
-import android.webkit.WebResourceError;
-import android.webkit.WebResourceRequest;
-import android.webkit.WebResourceResponse;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.HorizontalScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.text.DateFormat;
-import java.util.Collections;
 import java.util.Date;
 
-/** Single-page Chromium WebView browser, with a separate, network-blocked archive reader. */
-public final class NotebookBrowserActivity extends NotebookDisplayActivity {
+/** A maintained browser engine, floating controls and a separate offline reading policy. */
+public class NotebookBrowserActivity extends NotebookDisplayActivity {
     static final String SAVED_ID = "savedWebsiteId", INITIAL_URL = "websiteUrl";
     private FrameLayout content;
     private TextView title, status, hint;
     private View saveShield;
     private EditText address;
     private NotebookButton go, previous, next, reload, save;
-    private WebView web;
+    private NotebookBrowserTools browserTools;
+    private NotebookBrowserEngine web;
     private NotebookWebsites.Saved savedPage;
     private NotebookWebsites.Pending pendingSave;
     private String archiveUrl, currentUrl;
-    private boolean offline, loading, failed, pageReady, saving, resumed;
+    private boolean offline, loading, failed, pageReady, saving, resumed, clearHistoryOnFinish;
     private long navigation, saveSequence;
     private Runnable archiveTimeout;
     private int restoreX, restoreY;
@@ -62,14 +49,15 @@ public final class NotebookBrowserActivity extends NotebookDisplayActivity {
         getWindow().setWindowAnimations(0);
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
             | WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
-        LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.WHITE); root.setPadding(dp(12), dp(8), dp(12), dp(8));
+        FrameLayout root = new FrameLayout(this); root.setBackgroundColor(Color.WHITE);
+        LinearLayout controls = new LinearLayout(this); controls.setOrientation(LinearLayout.VERTICAL);
+        controls.setPadding(dp(12), dp(8), dp(12), dp(8));
         LinearLayout header = new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL);
         header.addView(button("Bookshelf", NotebookIconDrawable.Icon.LIBRARY, this::bookshelf), new LinearLayout.LayoutParams(dp(112), dp(38)));
         title = label(offline ? "Saved website" : "Browser", 18); title.setSingleLine(true);
         title.setEllipsize(TextUtils.TruncateAt.END); title.setPadding(dp(12), 0, dp(8), 0);
         header.addView(title, new LinearLayout.LayoutParams(0, dp(42), 1));
-        header.addView(deviceSettingsIsland(), new LinearLayout.LayoutParams(-2, dp(32))); root.addView(header);
+        header.addView(deviceSettingsIsland(), new LinearLayout.LayoutParams(-2, dp(32))); controls.addView(header);
 
         LinearLayout addressRow = new LinearLayout(this); addressRow.setPadding(0, dp(6), 0, dp(6));
         address = new EditText(this); address.setTextColor(Color.BLACK); address.setTextSize(14);
@@ -82,7 +70,7 @@ public final class NotebookBrowserActivity extends NotebookDisplayActivity {
         });
         addressRow.addView(address, new LinearLayout.LayoutParams(0, dp(44), 1));
         go = button("Go", null, this::browse); go.setVisibility(offline ? View.GONE : View.VISIBLE);
-        addressRow.addView(go, new LinearLayout.LayoutParams(dp(56), dp(44))); root.addView(addressRow);
+        addressRow.addView(go, new LinearLayout.LayoutParams(dp(56), dp(44))); controls.addView(addressRow);
 
         LinearLayout tools = new LinearLayout(this); tools.setGravity(Gravity.CENTER_VERTICAL);
         previous = button("", NotebookIconDrawable.Icon.PREVIOUS, () -> history(false)); previous.setContentDescription("Back");
@@ -90,27 +78,34 @@ public final class NotebookBrowserActivity extends NotebookDisplayActivity {
         reload = button("", NotebookIconDrawable.Icon.RETRY, this::reload); reload.setContentDescription("Reload page");
         tools.addView(previous, new LinearLayout.LayoutParams(dp(42), dp(38)));
         addTool(tools, next, 42); addTool(tools, reload, 42);
-        previous.setVisibility(offline ? View.GONE : View.VISIBLE); next.setVisibility(offline ? View.GONE : View.VISIBLE);
         save = button("Save", NotebookIconDrawable.Icon.SAVE, this::savePage);
         save.setContentDescription("Save page for offline reading"); save.setVisibility(offline ? View.GONE : View.VISIBLE);
         addTool(tools, save, 88);
         if (offline) addTool(tools, button("Open online", NotebookIconDrawable.Icon.BROWSER,
             () -> { if (savedPage != null) openOnline(savedPage.url); }), 136);
         addTool(tools, button("Saved websites", NotebookIconDrawable.Icon.FOLDER, this::savedWebsites), 158);
-        root.addView(tools);
+        NotebookButton zen = button("", NotebookIconDrawable.Icon.FULLSCREEN, () -> browserTools.zen(true));
+        zen.setContentDescription("Enter Zen mode"); addTool(tools, zen, 42);
+        HorizontalScrollView strip = new HorizontalScrollView(this); strip.setHorizontalScrollBarEnabled(false);
+        strip.setOverScrollMode(View.OVER_SCROLL_NEVER); strip.setSmoothScrollingEnabled(false);
+        strip.addView(tools, new HorizontalScrollView.LayoutParams(-2, -2));
+        controls.addView(strip, new LinearLayout.LayoutParams(-1, -2));
         status = label(offline ? "Opening offline copy…" : "Enter an address to browse. Save keeps this page for offline reading.", 12);
-        status.setMaxLines(2); root.addView(status, new LinearLayout.LayoutParams(-1, dp(38)));
+        status.setMaxLines(2); controls.addView(status, new LinearLayout.LayoutParams(-1, dp(38)));
         content = new FrameLayout(this); content.setBackgroundColor(Color.WHITE);
-        hint = label("Enter a website address above.\n\nTap Save after the page loads, then find it in Saved websites on the bookshelf.", 17);
+        hint = label("Tap the dotted button for browser controls.\n\nEnter a website address, then tap Save after the page loads. Find your offline copy in Saved websites on the bookshelf.", 17);
         hint.setGravity(Gravity.CENTER); hint.setPadding(dp(22), dp(22), dp(22), dp(22));
         if (offline) hint.setText("Opening offline copy…");
         content.addView(hint, new FrameLayout.LayoutParams(-1, -1));
         saveShield = new View(this); saveShield.setClickable(true); saveShield.setVisibility(View.GONE);
         saveShield.setContentDescription("Saving page"); content.addView(saveShield, new FrameLayout.LayoutParams(-1, -1));
-        root.addView(content, new LinearLayout.LayoutParams(-1, 0, 1)); setContentView(root);
+        root.addView(content, new FrameLayout.LayoutParams(-1, -1));
+        browserTools = new NotebookBrowserTools(this, controls, deviceSettingsButton(), offline,
+            state == null ? null : state.getBundle("browserTools"));
+        root.addView(browserTools, new FrameLayout.LayoutParams(-1, -1)); setContentView(root);
         if (state != null) { restoreX = state.getInt("scrollX"); restoreY = state.getInt("scrollY"); }
-        createWebView();
-        if (offline) loadSavedPage(getIntent().getStringExtra(SAVED_ID));
+        if (!offline) createWebView();
+        if (offline) loadSavedPage(getIntent().getStringExtra(SAVED_ID), state == null ? null : state.getBundle("browserHistory"));
         else if (web != null) {
             Bundle history = state == null ? null : state.getBundle("browserHistory");
             if (history != null && web.restoreState(history) != null) {
@@ -123,36 +118,19 @@ public final class NotebookBrowserActivity extends NotebookDisplayActivity {
         updateControls();
     }
 
-    @SuppressLint("SetJavaScriptEnabled") // Live websites need JavaScript; archives never execute it and have no bridge.
     private void createWebView() {
         try {
-            web = new WebView(this); web.setBackgroundColor(Color.WHITE); web.setOverScrollMode(View.OVER_SCROLL_NEVER);
-            WebSettings settings = web.getSettings();
-            settings.setJavaScriptEnabled(!offline); settings.setDomStorageEnabled(!offline);
-            settings.setBlockNetworkLoads(offline); settings.setAllowFileAccess(offline);
-            settings.setAllowContentAccess(false); settings.setAllowFileAccessFromFileURLs(false);
-            settings.setAllowUniversalAccessFromFileURLs(false); settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-            settings.setSafeBrowsingEnabled(true); settings.setGeolocationEnabled(false);
-            settings.setJavaScriptCanOpenWindowsAutomatically(false); settings.setSupportMultipleWindows(false);
-            settings.setMediaPlaybackRequiresUserGesture(true); settings.setBuiltInZoomControls(true);
-            settings.setDisplayZoomControls(false); settings.setUseWideViewPort(true); settings.setLoadWithOverviewMode(true);
-            android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(web, false);
-            web.setWebChromeClient(new WebChromeClient() {
-                @Override public void onPermissionRequest(PermissionRequest request) { request.deny(); }
-                @Override public void onReceivedTitle(WebView view, String value) {
-                    if (!offline && pageReady && !saving && !loading) status.setText(value);
-                }
-            });
-            web.setWebViewClient(new BrowserClient());
-            web.setDownloadListener((url, agent, disposition, type, length) -> message("File download",
-                "Use another browser to download this file. Save keeps the currently displayed web page for offline reading."));
+            BrowserClient client = new BrowserClient();
+            web = offline && savedPage != null && savedPage.format == NotebookWebsites.Format.MHTML
+                ? new NotebookLegacyWebPage(this, archiveUrl, client) : new NotebookGeckoPage(this, offline, archiveUrl, client);
             content.addView(web, 0, new FrameLayout.LayoutParams(-1, -1));
+            if (resumed) web.onResume();
         } catch (RuntimeException error) {
-            web = null; fail("The Android WebView browser is unavailable on this device.");
+            web = null; fail("Could not start the browser engine. Please reopen Browser or restart the app.");
         }
     }
 
-    private void loadSavedPage(String id) {
+    private void loadSavedPage(String id, Bundle history) {
         NotebookWebsiteTasks.run(() -> {
             NotebookWebsites store = new NotebookWebsites(getFilesDir());
             NotebookWebsites.Saved entry = store.get(id);
@@ -163,9 +141,23 @@ public final class NotebookBrowserActivity extends NotebookDisplayActivity {
             savedPage = (NotebookWebsites.Saved) result[0];
             archiveUrl = Uri.fromFile((File) result[1]).toString();
             address.setText(savedPage.url); title.setText(savedPage.title);
-            if (web != null) web.loadUrl(archiveUrl);
+            if (web == null) createWebView();
+            if (web != null && !restoreOfflineHistory(history)) web.loadUrl(archiveUrl);
             updateControls();
         });
+    }
+
+    private boolean restoreOfflineHistory(Bundle history) {
+        if (web == null || history == null) return false;
+        NotebookBrowserEngine.History restored = web.restoreState(history);
+        if (restored == null || restored.getSize() == 0 || restored.getCurrentIndex() < 0
+                || restored.getCurrentIndex() >= restored.getSize()) return false;
+        for (int i = 0; i < restored.getSize(); i++) {
+            if (!isArchiveUrl(restored.getItemAtIndex(i).getUrl())) {
+                web.stopLoading(); clearHistoryOnFinish = true; return false;
+            }
+        }
+        hint.setVisibility(View.GONE); return true;
     }
 
     private void browse() {
@@ -186,12 +178,19 @@ public final class NotebookBrowserActivity extends NotebookDisplayActivity {
     }
 
     private void history(boolean forward) {
-        if (web == null || saving || offline) return;
-        if (forward ? web.canGoForward() : web.canGoBack()) {
-            pageReady = false; loading = true; failed = false;
-            status.setText("Loading…");
-            if (forward) web.goForward(); else web.goBack(); updateControls();
-        }
+        if (saving || !canHistory(forward)) return;
+        // Hash jumps do not start a new document load. Keep readiness/status intact;
+        // onPageStarted owns those changes when a full navigation actually occurs.
+        if (forward) web.goForward(); else web.goBack(); updateControls();
+    }
+
+    private boolean canHistory(boolean forward) {
+        if (web == null) return false;
+        if (!(forward ? web.canGoForward() : web.canGoBack())) return false;
+        if (!offline) return forward ? web.canGoForward() : web.canGoBack();
+        NotebookBrowserEngine.History history = web.copyBackForwardList();
+        int target = history.getCurrentIndex() + (forward ? 1 : -1);
+        return target >= 0 && target < history.getSize() && isArchiveUrl(history.getItemAtIndex(target).getUrl());
     }
 
     private void reload() {
@@ -216,11 +215,12 @@ public final class NotebookBrowserActivity extends NotebookDisplayActivity {
             if (attempt != saveSequence || !saving) return;
             NotebookWebsites.Pending pending = pendingSave;
             ++saveSequence;
+            if (web != null) web.cancelCapture();
             saveFinished(null, new IOException("The website took too long to save. Please retry after the page finishes loading."));
             if (pending != null) abandonQuietly(pending);
         };
         content.postDelayed(archiveTimeout, 90000);
-        NotebookWebsiteTasks.run(() -> new NotebookWebsites(getFilesDir()).begin(), (pending, error) -> {
+        NotebookWebsiteTasks.run(() -> new NotebookWebsites(getFilesDir()).begin(NotebookWebsites.Format.HTML), (pending, error) -> {
             if (attempt != saveSequence || isDestroyed()) { if (pending != null) abandonQuietly(pending); return; }
             if (error != null) { saveFinished(null, error); return; }
             pendingSave = pending;
@@ -235,9 +235,10 @@ public final class NotebookBrowserActivity extends NotebookDisplayActivity {
                         discard(pending, "The page could not be saved. Wait for it to finish loading and retry.", attempt); return;
                     }
                     cancelArchiveTimeout();
+                    final int missing = web.captureWarnings();
                     NotebookWebsiteTasks.run(() -> {
                         NotebookWebsites store = new NotebookWebsites(getFilesDir());
-                        try { return store.finish(pending, pageTitle, url); }
+                        try { return store.finish(pending, pageTitle, url, missing); }
                         catch (IOException failure) { try { store.abandon(pending); } catch (IOException ignored) { } throw failure; }
                     }, (entry, failure) -> { if (attempt == saveSequence) saveFinished(entry, failure); });
                 });
@@ -263,24 +264,26 @@ public final class NotebookBrowserActivity extends NotebookDisplayActivity {
         if (isDestroyed()) return;
         updateControls();
         if (error != null) { status.setText("Page was not saved · tap Save to retry"); if (resumed) message("Couldn’t save website", error.getMessage()); }
-        else { status.setText("Saved to Saved websites · available offline"); Toast.makeText(this, "Website saved for offline reading", Toast.LENGTH_SHORT).show(); }
+        else {
+            status.setText("Saved to Saved websites · available offline" + (entry.missing > 0 ? " · " + entry.missing + " resources unavailable" : ""));
+            Toast.makeText(this, "Website saved for offline reading", Toast.LENGTH_SHORT).show();
+        }
     }
 
-    private final class BrowserClient extends WebViewClient {
-        @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-            String url = request.getUrl().toString();
-            String scheme = request.getUrl().getScheme();
+    private final class BrowserClient implements NotebookBrowserEngine.Listener {
+        @Override public boolean overrideNavigation(NotebookBrowserEngine view, String url, boolean mainFrame, boolean gesture) {
+            String scheme = Uri.parse(url).getScheme();
             // MHTML frame/content IDs and inline images are local resources. Network
             // fallback from an archived frame is still blocked by settings/interception.
-            if (!request.isForMainFrame() && (NotebookBrowserAddress.isEmbeddedScheme(scheme)
+            if (!mainFrame && (NotebookBrowserAddress.isEmbeddedScheme(scheme)
                     || offline && ("https".equals(scheme) || "http".equals(scheme)))) return false;
             if (offline) {
                 if (isArchiveUrl(url)) return false;
-                if (savedPage != null && request.isForMainFrame() && request.getUrl().getFragment() != null
-                        && NotebookBrowserAddress.withoutFragment(url).equals(NotebookBrowserAddress.withoutFragment(savedPage.url))) {
-                    view.loadUrl(archiveUrl + "#" + request.getUrl().getEncodedFragment()); return true;
+                String target = savedPage == null ? null : NotebookBrowserAddress.offlineTarget(archiveUrl, savedPage.url, url);
+                if (mainFrame && target != null) {
+                    view.loadUrl(target); return true;
                 }
-                if (request.isForMainFrame() && request.hasGesture() && NotebookBrowserAddress.isWebUrl(url)) {
+                if (mainFrame && gesture && NotebookBrowserAddress.isWebUrl(url)) {
                     shownDialog = new AlertDialog.Builder(NotebookBrowserActivity.this).setTitle("Open link online?")
                         .setMessage("This link is outside the saved page and needs an internet connection.")
                         .setNegativeButton("Stay offline", null).setPositiveButton("Open online", (dialog, which) -> openOnline(url)).create();
@@ -288,64 +291,74 @@ public final class NotebookBrowserActivity extends NotebookDisplayActivity {
                 }
                 return true;
             }
-            if (saving && request.isForMainFrame()) return true;
-            if (NotebookBrowserAddress.isWebUrl(url)) return false;
-            if (request.isForMainFrame() && request.hasGesture()) Toast.makeText(NotebookBrowserActivity.this,
+            if (saving && mainFrame) return true;
+            if ("https".equals(scheme)) return false;
+            if (mainFrame && gesture) Toast.makeText(NotebookBrowserActivity.this,
                 "Only HTTPS websites can open here", Toast.LENGTH_SHORT).show();
             return true;
         }
 
-        @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-            String url = request.getUrl().toString(), scheme = request.getUrl().getScheme();
-            if (NotebookBrowserAddress.isEmbeddedScheme(scheme)
-                    || (offline ? isArchiveUrl(url) : NotebookBrowserAddress.isWebUrl(url))) return null;
-            return new WebResourceResponse("text/plain", "UTF-8", 403, "Blocked", Collections.emptyMap(), new ByteArrayInputStream(new byte[0]));
-        }
-
-        @Override public void onPageStarted(WebView view, String url, Bitmap favicon) {
+        @Override public void onPageStarted(NotebookBrowserEngine view, String url) {
             ++navigation; loading = true; failed = false; pageReady = false;
             hint.setVisibility(View.GONE);
             if (!offline && NotebookBrowserAddress.isWebUrl(url)) { currentUrl = url; address.setText(url); }
             status.setText(offline ? "Opening offline copy…" : "Loading…"); updateControls();
         }
 
-        @Override public void doUpdateVisitedHistory(WebView view, String url, boolean reload) {
+        @Override public void onHistoryChanged(NotebookBrowserEngine view, String url) {
             if (!offline && NotebookBrowserAddress.isWebUrl(url)) { currentUrl = url; address.setText(url); }
             updateControls();
         }
 
-        @Override public void onPageFinished(WebView view, String url) {
+        @Override public void onPageFinished(NotebookBrowserEngine view, String url) {
             if (!NotebookBrowserAddress.withoutFragment(url).equals(NotebookBrowserAddress.withoutFragment(view.getUrl()))) return;
+            if (clearHistoryOnFinish && isArchiveUrl(url)) { clearHistoryOnFinish = false; view.clearHistory(); }
             loading = false; pageReady = !failed && (offline || NotebookBrowserAddress.isWebUrl(url));
             if (!failed && !saving) status.setText(offline && savedPage != null
                 ? "Offline copy · " + DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(new Date(savedPage.savedAt))
+                    + (savedPage.missing > 0 ? " · " + savedPage.missing + " resources unavailable" : "")
                 : view.getTitle());
             if (restoreX != 0 || restoreY != 0) {
                 final int x = restoreX, y = restoreY; restoreX = restoreY = 0;
-                view.post(() -> { if (web == view && !isDestroyed()) view.scrollTo(x, y); });
+                view.post(() -> { if (web == view && !isDestroyed()) view.scrollPageTo(x, y); });
             }
             updateControls();
+            if (pageReady) onBrowserDocumentReady();
         }
 
-        @Override public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
-            if (request.isForMainFrame()) fail(offline ? "Couldn’t read this offline copy. Open the original online to save it again."
-                : "Couldn’t load this website. Check the address and connection, then tap Reload.");
+        @Override public void onTitle(NotebookBrowserEngine view, String value) {
+            if (!offline && pageReady && !saving && !loading) status.setText(value);
         }
-
-        @Override public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse response) {
-            if (request.isForMainFrame()) { failed = true; pageReady = false; status.setText("Website returned HTTP " + response.getStatusCode() + " · tap Reload to retry"); updateControls(); }
+        @Override public void onError(NotebookBrowserEngine view, String message) { fail(message); }
+        @Override public void onDownload(NotebookBrowserEngine view) {
+            message("File download", "Use another browser to download this file. Save keeps the currently displayed web page for offline reading.");
         }
-
-        @Override public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
-            handler.cancel();
-            if (error.getUrl().equals(view.getUrl())) fail("The website’s secure connection could not be verified. Try another address.");
-        }
-
-        @Override public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+        @Override public void onRendererGone(NotebookBrowserEngine view) {
             content.removeView(view); view.destroy();
             if (web == view) web = null;
-            fail("The page renderer stopped. Tap Reload to reopen the page."); return true;
+            fail("The page renderer stopped. Tap Reload to reopen the page.");
         }
+    }
+
+    protected void onBrowserDocumentReady() { }
+    protected final void probeBrowser(java.util.function.Consumer<org.json.JSONObject> callback) {
+        if ((getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) == 0) { callback.accept(null); return; }
+        java.util.function.Consumer<org.json.JSONObject> result = stats -> {
+            try {
+                org.json.JSONObject value = stats == null ? new org.json.JSONObject() : stats;
+                value.put("nativeUrl", web == null ? "" : web.getUrl()).put("offline", offline).put("pageReady", pageReady)
+                    .put("canGoBack", canHistory(false)).put("canGoForward", canHistory(true));
+                if (web != null) value.put("nativeScrollY", web.pageScrollY()).put("pageWidth", web.getWidth()).put("pageHeight", web.getHeight());
+                org.json.JSONArray urls = new org.json.JSONArray();
+                if (web != null) {
+                    NotebookBrowserEngine.History history = web.copyBackForwardList();
+                    for (int i = 0; i < history.getSize(); i++) urls.put(history.getItemAtIndex(i).getUrl());
+                    value.put("historyIndex", history.getCurrentIndex());
+                }
+                callback.accept(value.put("history", urls));
+            } catch (org.json.JSONException error) { callback.accept(null); }
+        };
+        if (web instanceof NotebookGeckoPage) ((NotebookGeckoPage) web).probe(result); else result.accept(null);
     }
 
     private boolean isArchiveUrl(String url) {
@@ -354,13 +367,14 @@ public final class NotebookBrowserActivity extends NotebookDisplayActivity {
 
     private void fail(String message) {
         failed = true; loading = false; pageReady = false;
-        status.setText(message); hint.setText(message); hint.setVisibility(View.VISIBLE); updateControls();
+        status.setText(message); hint.setText(message); hint.setVisibility(View.VISIBLE);
+        if (browserTools != null) browserTools.reveal(); updateControls();
     }
 
     private void updateControls() {
         if (go == null) return;
         go.setAvailable(!offline && !saving);
-        previous.setAvailable(!saving && web != null && web.canGoBack()); next.setAvailable(!saving && web != null && web.canGoForward());
+        previous.setAvailable(!saving && canHistory(false)); next.setAvailable(!saving && canHistory(true));
         reload.setAvailable(!saving && (offline ? archiveUrl != null : NotebookBrowserAddress.isWebUrl(currentUrl)));
         save.setAvailable(!offline && !saving && !loading && pageReady && web != null && NotebookBrowserAddress.isWebUrl(web.getUrl()));
         save.setText(saving ? "Saving…" : "Save"); address.setEnabled(!offline && !saving);
@@ -397,9 +411,12 @@ public final class NotebookBrowserActivity extends NotebookDisplayActivity {
         NotebookUi.show(shownDialog);
     }
 
-    @Override protected void onResume() { super.onResume(); resumed = true; if (web != null) web.onResume(); }
+    @Override protected void onResume() {
+        super.onResume(); resumed = true; browserTools.resumed(true); if (web != null) web.onResume();
+    }
     @Override protected void onPause() {
         resumed = false;
+        browserTools.resumed(false);
         if (web != null) web.onPause();
         if (shownDialog != null) { shownDialog.dismiss(); shownDialog = null; }
         super.onPause();
@@ -407,15 +424,17 @@ public final class NotebookBrowserActivity extends NotebookDisplayActivity {
 
     @Override protected void onSaveInstanceState(Bundle state) {
         state.putString("currentUrl", currentUrl);
+        state.putBundle("browserTools", browserTools.save());
         if (web != null) {
-            state.putInt("scrollX", web.getScrollX()); state.putInt("scrollY", web.getScrollY());
-            if (!offline) { Bundle history = new Bundle(); web.saveState(history); state.putBundle("browserHistory", history); }
+            state.putInt("scrollX", web.pageScrollX()); state.putInt("scrollY", web.pageScrollY());
+            Bundle history = new Bundle(); web.saveState(history); state.putBundle("browserHistory", history);
         }
         super.onSaveInstanceState(state);
     }
 
     @Override protected void onDestroy() {
         ++saveSequence; cancelArchiveTimeout();
+        if (browserTools != null) browserTools.dispose();
         if (pendingSave != null) { abandonQuietly(pendingSave); pendingSave = null; }
         if (web != null) { content.removeView(web); web.stopLoading(); web.destroy(); web = null; }
         // The writer's callback owns pending files. Incomplete directories are never listed
@@ -424,8 +443,10 @@ public final class NotebookBrowserActivity extends NotebookDisplayActivity {
     }
 
     @Override public void onBackPressed() {
+        if (browserTools.isZen()) { browserTools.zen(false); return; }
+        if (!browserTools.isCollapsed()) { browserTools.collapse(true); return; }
         if (waitForSave()) return;
-        if (!offline && web != null && web.canGoBack()) { history(false); return; }
+        if (canHistory(false)) { history(false); return; }
         super.onBackPressed(); overridePendingTransition(0, 0);
     }
 

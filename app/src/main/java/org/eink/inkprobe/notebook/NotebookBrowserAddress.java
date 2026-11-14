@@ -56,4 +56,14 @@ final class NotebookBrowserAddress {
     static boolean isEmbeddedScheme(String scheme) {
         return "data".equals(scheme) || "blob".equals(scheme) || "cid".equals(scheme) || "about".equals(scheme);
     }
+
+    /** Only same-page anchors may be rewritten from the original URL into an offline copy. */
+    static String offlineTarget(String archive, String source, String target) {
+        if (archive == null || !archive.startsWith("file:///") || target == null) return null;
+        String base = withoutFragment(archive);
+        if (base.equals(withoutFragment(target))) return target;
+        int fragment = target.indexOf('#');
+        return fragment >= 0 && isWebUrl(source) && withoutFragment(source).equals(withoutFragment(target))
+            ? base + target.substring(fragment) : null;
+    }
 }

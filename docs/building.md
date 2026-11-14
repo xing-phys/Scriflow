@@ -1,6 +1,6 @@
 # Building Scriflow
 
-Both build routes compile the same Java sources and resources. They read
+The Gradle build and development wrapper compile the same Java sources and resources. They read
 `app/version.properties`, retain application ID `org.eink.inkprobe`, and target
 Android API 29 with Java 8 bytecode. Building successfully does not establish
 support for another device: native writing and pressure rendering require the
@@ -43,9 +43,10 @@ PDF pages for display uses Android's native PDF renderer.
 JAVA_HOME="$PWD/.tools/jdk-17.0.21+9" ./gradlew hostTest :app:lint :app:assembleDebug :app:assembleRelease
 ```
 
-The bootstrap installs the local JDK 17, SDK platform 29, and Build Tools 35.0.0,
-and writes ignored `local.properties` if it does not exist. Gradle is pinned to
-8.11.1 and the Android plugin to 8.9.2. Set the IDE's Gradle JDK to the same
+The bootstrap installs local JDK 17, SDK platform 37.2 and Build Tools 36.0.0,
+plus platform 29 for host PDF fixtures. It writes ignored `local.properties` if
+absent. Gradle is pinned to 9.6.0 and the Android plugin to 9.5.1. The modern
+compile SDK satisfies GeckoView; minSdk and targetSdk remain 29. Set the IDE's Gradle JDK to the same
 local JDK when importing the project. Nothing changes the system Java install.
 
 `hostTest` runs the core tests, offline browser Markdown checks and PDF
@@ -77,22 +78,27 @@ After dependencies are cached, add `--offline`:
 JAVA_HOME="$PWD/.tools/jdk-17.0.21+9" ./gradlew --offline hostTest :app:lint :app:assembleDebug :app:assembleRelease
 ```
 
-## Standalone development build
+## Development wrapper
 
 ```bash
-./scripts/bootstrap.sh
-./scripts/bootstrap-pdfbox.sh
+./scripts/bootstrap-gradle.sh
 ./scripts/test.sh
 ./scripts/build.sh
 ```
 
-This route uses SDK platform 29 and Build Tools 30.0.3 without Gradle. The PDF
-bootstrap downloads the runtime AAR/JARs from Maven Central, verifies their
-pinned SHA-256 checksums, and extracts the bundled font resources. Both the
-tests and alternate builder verify this cache again and download only missing
-or invalid archives. After bootstrap it builds offline and writes
-**`build/scriflow-debug.apk`**. It is
-always a development APK with debugging enabled, not the public release route.
+The wrapper now calls Gradle so GeckoView's AAR resources, native libraries,
+AndroidX dependencies and process services are merged correctly. It writes
+**`build/scriflow-debug.apk`** and verifies it. The former manual Java/D8 packager
+cannot package the bundled browser engine. After caching all dependencies,
+Gradle also supports offline builds. This is always a development APK with
+debugging enabled, not the public release route.
+
+The browser engine is pinned to GeckoView **160.0.20261104181552** from Mozilla's
+Maven repository. New offline capture assets use the lockfile in
+`renderer/browser`; their licenses and SHA-256 inventory ship in every APK.
+The browser engine makes APKs larger. Owner releases package compressed ARM64
+and ARMv7 libraries; development APKs also include x86_64 for emulator checks. See
+[third-party notices](../THIRD_PARTY_NOTICES.md) for source and license details.
 
 Both debug build routes call `scripts/prepare-debug-key.sh`. It preserves an
 existing `.tools/debug.keystore`; on a clean checkout it creates a new ignored
@@ -104,8 +110,8 @@ installation signed by another key. Never commit private keys.
 ## Inspect and install
 
 The verification helper checks the packaged name, icon, version, application
-ID, API level, exact permission set, component exposure, debugging flag, and
-signature state:
+ID, API level, exact permission set, component exposure, debugging flag, bundled
+browser engine/capture assets and signature state:
 
 ```bash
 python3 scripts/verify-apk.py build/scriflow-debug.apk --variant debug
@@ -134,6 +140,22 @@ declare those diagnostic screens. For example, with a debug APK installed:
 adb -d shell am start -S -W -n org.eink.inkprobe/.notebook.NotebookSelfTestActivity --es template lined --ez inPlaceEdits true --ez scrollRefresh true
 adb -d exec-out run-as org.eink.inkprobe cat files/notebook-selftest/result.json
 ```
+
+The debug-only browser fixture runs the production browser and writes native
+history/scroll and online rendered-DOM observations to `files/browser-test.json`:
+
+```bash
+adb -s emulator-5580 shell am start -n org.eink.inkprobe/.notebook.NotebookBrowserSelfTestActivity --es websiteUrl https://github.com/torvalds/linux
+adb -s emulator-5580 exec-out run-as org.eink.inkprobe cat files/browser-test.json
+```
+
+For a saved page, replace the URL extra with `--es savedWebsiteId SAVE_UUID`.
+Follow-up single-top intents can exercise `--es fragment SECTION_ID`,
+`--es click Back`, `--es click Forward`, and `--ez recreate true`. This fixture
+is absent from release APKs; online DOM observations use only the app-owned
+isolated extension, without exposing an API to pages. Offline checks keep page
+JavaScript disabled and report native history/scroll state instead. Always
+choose the intended test device explicitly.
 
 Repeat with `--es template blank`. These checks use synthetic drawings under
 `files/notebook-selftest/`, separate from actual notebooks. Further diagnostics

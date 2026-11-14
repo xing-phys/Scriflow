@@ -28,8 +28,13 @@ NOTEBOOK_SCREENS = {PACKAGE + '.notebook.' + name for name in (
     'NotebookLibraryActivity', 'NotebookActivity', 'NotebookAiActivity', 'NotebookSettingsActivity',
     'NotebookBrowserActivity', 'NotebookWebsitesActivity',
     'NotebookTransferActivity', 'NotebookPdfExportActivity', 'NotebookPdfImportActivity')}
-DIAGNOSTICS = {PACKAGE + '.MainActivity', PACKAGE + '.notebook.NotebookSelfTestActivity'}
-PERMISSIONS = {'android.permission.ACCESS_NETWORK_STATE', 'android.permission.INTERNET'}
+DIAGNOSTICS = {PACKAGE + '.MainActivity', PACKAGE + '.notebook.NotebookSelfTestActivity',
+               PACKAGE + '.notebook.NotebookBrowserSelfTestActivity'}
+# Gecko's standard runtime permissions support media/audio and its process services.
+# No camera, microphone, location or external-storage permission is granted.
+PERMISSIONS = {'android.permission.ACCESS_NETWORK_STATE', 'android.permission.INTERNET',
+               'android.permission.WAKE_LOCK', 'android.permission.MODIFY_AUDIO_SETTINGS',
+               PACKAGE + '.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION'}
 COMPONENTS = {'activity', 'activity-alias', 'service', 'receiver', 'provider'}
 
 
@@ -101,11 +106,12 @@ def find_tool(name, explicit):
     candidates = []
     configured_sdk = sdk_from_local_properties()
     if configured_sdk:
-        candidates.append(configured_sdk / 'build-tools/35.0.0' / name)
+        candidates.append(configured_sdk / 'build-tools/36.0.0' / name)
     for variable in ('ANDROID_HOME', 'ANDROID_SDK_ROOT'):
         if os.environ.get(variable):
-            candidates.append(Path(os.environ[variable]) / 'build-tools/35.0.0' / name)
-    candidates += [ROOT / '.tools/android-sdk/build-tools/35.0.0' / name,
+            candidates.append(Path(os.environ[variable]) / 'build-tools/36.0.0' / name)
+    candidates += [ROOT / '.tools/android-sdk/build-tools/36.0.0' / name,
+                   ROOT / '.tools/android-sdk/build-tools/35.0.0' / name,
                    ROOT / '.tools/sdk-build35/android-15' / name,
                    ROOT / '.tools/build-tools-30.0.3' / name]
     for candidate in candidates:
@@ -314,6 +320,25 @@ def main():
                 asset = 'assets/' + name
                 require(asset in package.namelist(), 'Missing packaged Markdown asset: ' + name)
                 require(hashlib.sha256(package.read(asset)).hexdigest() == digest, 'Packaged Markdown checksum differs: ' + name)
+            require('assets/browser-assets.sha256.json' in package.namelist(), 'APK is missing its browser capture inventory.')
+            browser_assets = json.loads(package.read('assets/browser-assets.sha256.json'))
+            for name in ('browser-extension/manifest.json', 'browser-extension/background.js',
+                         'browser-extension/content.js', 'browser-extension/bootstrap.html', 'browser-extension/bootstrap.js',
+                         'browser-NOTICES.txt'):
+                require(name in browser_assets, 'Browser capture inventory is incomplete: ' + name)
+            for name, digest in browser_assets.items():
+                require('..' not in name and not name.startswith('/'), 'Invalid browser asset path.')
+                require('assets/' + name in package.namelist(), 'Missing browser capture asset: ' + name)
+                require(hashlib.sha256(package.read('assets/' + name)).hexdigest() == digest, 'Browser asset checksum differs: ' + name)
+            extension = json.loads(package.read('assets/browser-extension/manifest.json'))
+            require(extension['browser_specific_settings']['gecko']['id'] == 'browser@scriflow.local', 'Unexpected browser extension identity.')
+            require(extension['version'] == '1.' + str(version[1]), 'Browser extension must update with every APK versionCode.')
+            require('assets/geckoview-MPL-2.0.txt' in package.namelist(), 'Missing browser engine license.')
+            require(any(name.startswith('lib/arm64-v8a/') and name.endswith('/libxul.so') for name in package.namelist()),
+                    'APK is missing the bundled ARM64 browser engine.')
+            if args.variant == 'release':
+                require({name.split('/')[1] for name in package.namelist() if name.startswith('lib/')} == {'arm64-v8a', 'armeabi-v7a'},
+                        'Owner release must contain only the supported ARM engine libraries.')
         certificate = verify_signature(args.apk, apksigner, args.signature, args.certificate_sha256)
         print(f'Verified {args.apk}: Scriflow {version[0]} ({version[1]}), {args.variant}, {args.signature}.')
         print('Package, API level, permissions, launcher, and component exposure are correct.')

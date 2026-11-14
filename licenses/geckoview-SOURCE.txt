@@ -1,0 +1,13 @@
+Scriflow bundles the unmodified Mozilla GeckoView browser engine.
+Artifact: org.mozilla.geckoview:geckoview:160.0.20261104181552
+AAR: https://maven.mozilla.org/maven2/org/mozilla/geckoview/geckoview/160.0.20261104181552/geckoview-160.0.20261104181552.aar
+AAR SHA-256: edb6b8ec37c329c070a4827d4910d2022a332a334a9421f6a87e3903eb5a8a12
+Source revision: d84e7a6936554efe26097d9d9b24a0e11330e630
+Complete engine source: https://hg.mozilla.org/releases/mozilla-release/rev/d84e7a6936554efe26097d9d9b24a0e11330e630
+Source archive: https://hg.mozilla.org/releases/mozilla-release/archive/d84e7a6936554efe26097d9d9b24a0e11330e630.zip
+Java sources: https://maven.mozilla.org/maven2/org/mozilla/geckoview/geckoview/160.0.20261104181552/geckoview-160.0.20261104181552-sources.jar
+
+Mozilla Public License 2.0: geckoview-MPL-2.0.txt
+Upstream engine/component license inventory: geckoview-third-party.html
+The engine's source files and included components retain their upstream licenses.
+Scriflow's application and capture code remain MIT-licensed.

@@ -6,6 +6,28 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.40.0-alpha.2 — Current browser engine, floating tools and offline history (2026-11-14)
+
+- Put all browser bars in a floating panel. Tap the dotted grip to collapse or
+  expand; drag it in either state. Remember position/collapse state and keep it
+  reachable across rotation and keyboard changes, without resizing the page.
+- Add browser Zen mode that leaves only the top-right seconds clock. Tap the
+  clock or press Back to restore the previous control state. Stop hidden and
+  background clocks; expose recovery controls on a page failure.
+- Enable offline Back/Forward for section jumps and retain native history
+  across Activity recreation. Map original-page anchors to the selected archive
+  and reject history outside it. Same-document history keeps page readiness.
+- Bundle GeckoView 160.0.20261104181552, independent of an outdated firmware
+  WebView, for current JavaScript/CSS and MathJax compatibility. Verify a real
+  GitHub repository and all 168 formulas on the reported Quarto page in Android.
+- Save new pages as self-contained HTML with rendered math, embedded fonts,
+  styles and images; report unavailable resources. Keep existing MHTML saves
+  readable. Offline sessions disable page scripts and network requests before
+  loading the archive, with an additional restrictive content security policy.
+- VersionCode 102. Notebook and chat formats stay compatible. New website saves
+  use NWS2 metadata; earlier NWS1/MHTML saves remain supported. Physical tablet
+  appearance, dragging, clock refresh and touch/zoom await testing.
+
 ## 0.40.0-alpha.1 — Browser and offline websites (2026-11-14)
 
 - Add a Browser shortcut on the bookshelf, using the device's Chromium-based

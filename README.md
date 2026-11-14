@@ -26,9 +26,15 @@ pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
 stays in front, window operations retain the main editor, and PDF import opens
 the file picker directly before opening the imported note.
 
-The **[0.40.0-alpha.1 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.40.0-alpha.1)**
-adds a **Browser** shortcut and a permanent **Saved websites** folder to the
-bookshelf. Browse HTTPS websites with Android's Chromium-based WebView, then
+The **[0.40.0-alpha.2 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.40.0-alpha.2)**
+bundles a current Firefox engine for modern websites and math, and puts browser controls in a floating panel. Tap its dotted button to collapse or
+expand it; drag the button to move it. **Zen mode** leaves only a small top-right
+clock; tap the clock or press Back to leave Zen. Saved pages have Back/Forward
+for section links, with history restored across rotation. The web page keeps
+its full screen area when controls change.
+
+The **Browser** shortcut and permanent **Saved websites** folder are on the
+bookshelf. Browse HTTPS websites with bundled GeckoView, then
 tap **Save** to keep the current page, including captured images and styling.
 Open saved pages from the folder without Wi-Fi; the offline reader blocks
 network loads and scripts. Each save captures one page, rather than crawling

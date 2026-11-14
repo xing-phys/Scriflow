@@ -23,7 +23,7 @@ public final class NotebookWebsitesTest {
 
     public static void main(String[] args) throws Exception {
         try {
-            addresses(); publicationAndRestart(); failedSaves(); corruptionIsIsolated(); deletionAndPaths(); abandonedSaves();
+            addresses(); publicationAndRestart(); htmlSnapshots(); failedSaves(); corruptionIsIsolated(); deletionAndPaths(); abandonedSaves();
             System.out.println("NotebookWebsites: " + assertions + " assertions passed (real files, atomic snapshots, restart, path isolation and HTTPS addresses).");
         } finally { for (File root : roots) remove(root); }
     }
@@ -72,6 +72,43 @@ public final class NotebookWebsitesTest {
         metadata(new File(root, "websites/" + first.id + "/website.nws"), "Earlier", first.url, 10, ARCHIVE.length);
         equal(second.id, store.list().get(0).id, "newest snapshot listed first");
         check(Arrays.equals(new byte[]{4, 7, 2}, Files.readAllBytes(new File(root, "page.nbk").toPath())), "website operations preserve notebook bytes");
+    }
+
+    private static void htmlSnapshots() throws Exception {
+        File root = root(); NotebookWebsites store = new NotebookWebsites(root);
+        NotebookWebsites.Saved legacy = save(store, "Legacy archive", "https://example.org/old");
+        NotebookWebsites.Pending pending = store.begin(NotebookWebsites.Format.HTML);
+        check(pending.archive.getName().equals("page.html"), "HTML captures have their own archive filename");
+        byte[] html = "<!DOCTYPE html>\n<!-- Saved by Scriflow -->\n<html><head><meta charset=\"utf-8\"></head><body>物理 · 𝛹</body></html>".getBytes(StandardCharsets.UTF_8);
+        Files.write(pending.archive.toPath(), html);
+        check(store.list().size() == 1, "an HTML save remains private until publication");
+        expectIo(() -> store.finish(pending, "Bad warnings", "https://example.org/math", -1));
+        expectIo(() -> store.finish(pending, "Bad warnings", "https://example.org/math", 65536));
+        NotebookWebsites.Saved saved = store.finish(pending, "Rendered math", "https://example.org/math", 3);
+        check(saved.format == NotebookWebsites.Format.HTML && saved.missing == 3, "HTML publication retains capture warnings");
+        NotebookWebsites cold = new NotebookWebsites(root);
+        NotebookWebsites.Saved restored = cold.get(saved.id);
+        check(restored.format == NotebookWebsites.Format.HTML && restored.missing == 3, "HTML metadata survives a restart");
+        check(Arrays.equals(html, Files.readAllBytes(cold.archive(restored).toPath())), "UTF-8 HTML bytes survive unchanged");
+        check(cold.get(legacy.id).format == NotebookWebsites.Format.MHTML && cold.get(legacy.id).missing == 0,
+            "legacy NWS1 metadata remains readable beside new HTML saves");
+        check(cold.list().size() == 2, "both generations share Saved websites");
+        File metadata = new File(root, "websites/" + saved.id + "/website.nws");
+        byte[] complete = Files.readAllBytes(metadata.toPath());
+        Files.write(metadata.toPath(), Arrays.copyOf(complete, complete.length - 1));
+        expectIo(() -> cold.get(saved.id));
+        check(cold.list().size() == 1 && cold.get(legacy.id).format == NotebookWebsites.Format.MHTML,
+            "truncated new metadata cannot hide a legacy archive");
+        Files.write(metadata.toPath(), complete);
+        File archive = cold.archive(saved); Files.write(archive.toPath(), ARCHIVE);
+        expectIo(() -> cold.get(saved.id));
+        NotebookWebsites.Pending invalid = cold.begin(NotebookWebsites.Format.HTML);
+        Files.write(invalid.archive.toPath(), "<!DOCTYPE html><html>Unmarked file</html>".getBytes(StandardCharsets.UTF_8));
+        expectIo(() -> cold.finish(invalid, "Invalid capture", "https://example.org/math"));
+        cold.abandon(invalid);
+        cold.delete(saved.id);
+        check(cold.list().size() == 1 && cold.get(legacy.id).format == NotebookWebsites.Format.MHTML,
+            "removing an HTML snapshot preserves legacy data");
     }
 
     private static void failedSaves() throws Exception {

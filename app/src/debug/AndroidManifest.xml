@@ -5,6 +5,7 @@
         <!-- Explicit adb entry points are available only in development builds. -->
         <activity android:name=".MainActivity" android:exported="true" />
         <activity android:name=".notebook.NotebookSelfTestActivity" android:exported="true" android:screenOrientation="portrait" />
+        <activity android:name=".notebook.NotebookBrowserSelfTestActivity" android:exported="true" />
         <activity android:name=".notebook.NotebookActivity" android:exported="true" tools:replace="android:exported" />
     </application>
 </manifest>

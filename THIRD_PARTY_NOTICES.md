@@ -22,8 +22,9 @@ See [Gradle's license information](https://docs.gradle.org/current/userguide/lic
 
 The checked-in JAR's SHA-256 is
 `2db75c40782f5e8ba1fc278a5574bab070adccb2d21ca5a6e5ed840888448046`,
-matching the wrapper checksum published for the configured Gradle **8.11.1**
-version. See [Gradle's checksum reference](https://gradle.org/release-checksums/).
+matching the checksum for the Gradle **8.11.1** bootstrap wrapper. This wrapper
+downloads the configured Gradle **9.6.0** distribution, verified separately by
+`distributionSha256Sum`. See [Gradle's checksum reference](https://gradle.org/release-checksums/).
 
 Inspection of this JAR found Gradle wrapper, command-line parsing, and supporting
 `org.gradle` classes, plus `META-INF/MANIFEST.MF` and `META-INF/LICENSE`. It has
@@ -55,12 +56,11 @@ PDFBox's runtime dependencies, Bouncy Castle **1.72** (`bcprov-jdk15to18`,
 The exact upstream license is retained and included in APK assets. See the
 [upstream source license](https://github.com/bcgit/bc-java/blob/r1rv72/LICENSE.html).
 
-Gradle resolves these app dependencies from Maven Central. The alternate
-builder uses [scripts/bootstrap-pdfbox.sh](scripts/bootstrap-pdfbox.sh), which
+Gradle resolves these app dependencies from Maven Central. Host PDF tests use [scripts/bootstrap-pdfbox.sh](scripts/bootstrap-pdfbox.sh), which
 pins every runtime archive by SHA-256 before compilation and packaging. The
 archives are downloaded to ignored `.tools/pdfbox/`; they are packaged in the
 APK but are not checked into this repository. Gradle's dependency versions and
-the alternate builder's versions must remain synchronized.
+the host fixture's versions must remain synchronized.
 
 ## SVG image import runtime
 
@@ -93,6 +93,28 @@ packages are fetched into ignored build caches, rather than checked into the
 source repository. esbuild and Puppeteer are development tools and are not
 packaged in the APK. See [Markdown blocks](docs/markdown-blocks.md) for the
 offline compilation/display architecture.
+
+## Bundled browser engine and capture
+
+Scriflow bundles the unmodified [Mozilla GeckoView](https://mozilla.github.io/geckoview/)
+**160.0.20261104181552**, from Mozilla's Maven repository, under the
+[Mozilla Public License 2.0](licenses/geckoview-MPL-2.0.txt). The native engine's
+upstream [component license inventory](licenses/geckoview-third-party.html)
+is copied unchanged from its `omni.ja`. Both files and the pinned
+[source/artifact details](licenses/geckoview-SOURCE.txt) are included in APK
+assets. The exact complete engine source is available at
+[revision d84e7a6936554efe26097d9d9b24a0e11330e630](https://hg.mozilla.org/releases/mozilla-release/rev/d84e7a6936554efe26097d9d9b24a0e11330e630).
+No Mozilla engine source files are modified by Scriflow. The application's MIT
+license does not replace the engine or its components' upstream licenses.
+
+The browser's isolated capture extension is original MIT-licensed application
+code in `renderer/browser`. It uses PostCSS **8.5.33**, postcss-value-parser
+**4.2.0** and their MIT-licensed runtime dependencies. Versions are locked in
+`renderer/browser/package-lock.json`; the builder collects each runtime
+license into `assets/browser-NOTICES.txt` and inventories every generated
+asset in `assets/browser-assets.sha256.json`. esbuild is a development tool.
+The application also uses the engine's Kotlin and AndroidX dependencies under
+their upstream Apache-2.0 licenses.
 
 ## Downloaded development tools
 

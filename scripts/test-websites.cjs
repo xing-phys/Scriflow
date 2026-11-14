@@ -27,6 +27,9 @@ const puppeteer = require(path.join(root, '.tools/markdown-renderer/node_modules
           + '<img id="saved-image" alt="Saved illustration" src="/image.svg"><p id="scripted"></p><iframe src="/frame"></iframe>'
           + '<img id="inline-image" alt="Inline illustration" src="data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><circle cx="12" cy="12" r="10" fill="black"/></svg>') + '">'
           + '<p><a href="/next">Another page needs its own save</a></p>'
+          + '<p><a href="#section-one">First section</a> · <a href="#section-two">Second section</a></p>'
+          + '<div style="height:1200px"></div><h2 id="section-one">First saved section</h2>'
+          + '<div style="height:1200px"></div><h2 id="section-two">Second saved section</h2><div style="height:1000px"></div>'
           + '<script>window.liveRuns=1;document.getElementById("scripted").textContent="Loaded while online";</script></body></html>');
       }
     });
@@ -59,7 +62,8 @@ const puppeteer = require(path.join(root, '.tools/markdown-renderer/node_modules
       if (/^https?:/.test(request.url())) { blocked.push(request.url()); request.abort(); }
       else request.continue();
     });
-    await offline.goto(pathToFileURL(archive).href, { waitUntil: 'load' });
+    const archiveUrl = pathToFileURL(archive).href;
+    await offline.goto(archiveUrl, { waitUntil: 'load' });
     assert.equal(await offline.title(), 'Offline quantum notes', 'title survives offline reopening');
     assert.equal(await offline.$eval('#physics', node => node.textContent), 'The state evolves under the Hamiltonian.');
     assert.equal(await offline.$eval('#scripted', node => node.textContent), 'Loaded while online', 'rendered DOM survives without running scripts');
@@ -73,8 +77,28 @@ const puppeteer = require(path.join(root, '.tools/markdown-renderer/node_modules
     // Abort those routes and disable the network as well; successful rendering must
     // therefore come from the archive, with no live server or previous browser cache.
     assert.equal(await offline.evaluate(() => navigator.onLine), false, 'network remains disabled throughout offline reading');
-    await offline.screenshot({ path: path.join(output, 'offline-page.png'), fullPage: true });
-    console.log('Website archive: 10 checks passed (real Chromium capture, production storage, fresh browser, offline text/CSS/images/frame, disabled scripts; ' + blocked.length + ' network routes blocked).');
+    await offline.screenshot({ path: path.join(output, 'offline-page.png') });
+    // These are the local fragment URLs loaded by the native app after mapping an
+    // original-page anchor. Browser history must retain real scroll positions offline.
+    await offline.goto(archiveUrl + '#section-one', { waitUntil: 'load' });
+    await offline.waitForFunction(() => scrollY > 1000);
+    const first = await offline.evaluate(() => scrollY);
+    await offline.goto(archiveUrl + '#section-two', { waitUntil: 'load' });
+    await offline.waitForFunction(first => scrollY > first + 1000, {}, first);
+    const second = await offline.evaluate(() => scrollY);
+    await offline.goBack({ waitUntil: 'load' });
+    await offline.waitForFunction(first => Math.abs(scrollY - first) < 3, {}, first);
+    assert.equal(new URL(offline.url()).hash, '#section-one', 'Back returns to the first saved section');
+    await offline.goBack({ waitUntil: 'load' });
+    await offline.waitForFunction(() => scrollY < 3);
+    assert.equal(new URL(offline.url()).hash, '', 'Back returns to the initial reading position');
+    await offline.goForward({ waitUntil: 'load' });
+    await offline.waitForFunction(first => Math.abs(scrollY - first) < 3, {}, first);
+    await offline.goForward({ waitUntil: 'load' });
+    await offline.waitForFunction(second => Math.abs(scrollY - second) < 3, {}, second);
+    assert.equal(new URL(offline.url()).hash, '#section-two', 'Forward restores the second saved section');
+    assert.equal(await offline.evaluate(() => navigator.onLine), false, 'section history never enables the network');
+    console.log('Website archive: 14 checks passed (real Chromium capture, production storage, fresh browser, offline text/CSS/images/frame, section Back/Forward and disabled scripts; ' + blocked.length + ' network routes blocked).');
   } finally {
     if (browser) await browser.close();
     if (server) await new Promise(resolve => server.close(resolve));

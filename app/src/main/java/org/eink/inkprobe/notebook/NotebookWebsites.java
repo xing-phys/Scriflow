@@ -17,22 +17,36 @@ import java.util.UUID;
 /** Private, independent page snapshots. Only complete archive/metadata pairs are published. */
 final class NotebookWebsites {
     private static final int MAGIC = 0x4e575331; // NWS1
-    private static final String ARCHIVE = "page.mht", METADATA = "website.nws";
+    private static final int HTML_MAGIC = 0x4e575332; // NWS2: self-contained HTML and capture warnings
+    private static final String METADATA = "website.nws";
     private final File root;
+
+    enum Format {
+        MHTML("page.mht"), HTML("page.html");
+        final String filename;
+        Format(String filename) { this.filename = filename; }
+    }
 
     static final class Saved {
         final String id, title, url;
         final long savedAt, bytes;
+        final Format format;
+        final int missing;
         Saved(String id, String title, String url, long savedAt, long bytes) {
+            this(id, title, url, savedAt, bytes, Format.MHTML, 0);
+        }
+        Saved(String id, String title, String url, long savedAt, long bytes, Format format, int missing) {
             this.id = id; this.title = title; this.url = url; this.savedAt = savedAt; this.bytes = bytes;
+            this.format = format; this.missing = missing;
         }
     }
 
     static final class Pending {
         final String id;
         final File directory, archive;
-        private Pending(String id, File directory) {
-            this.id = id; this.directory = directory; this.archive = new File(directory, ARCHIVE);
+        final Format format;
+        private Pending(String id, File directory, Format format) {
+            this.id = id; this.directory = directory; this.format = format; this.archive = new File(directory, format.filename);
         }
     }
 
@@ -58,39 +72,54 @@ final class NotebookWebsites {
 
     Saved get(String id) throws IOException {
         File directory = directory(id);
-        File metadata = child(directory, METADATA), archive = child(directory, ARCHIVE);
+        File metadata = child(directory, METADATA);
         if (!metadata.isFile() || metadata.length() > 65536) throw new IOException("This saved page is missing or damaged.");
         try (DataInputStream input = new DataInputStream(new FileInputStream(metadata))) {
-            if (input.readInt() != MAGIC) throw new IOException("Unknown saved website format.");
+            int magic = input.readInt();
+            if (magic != MAGIC && magic != HTML_MAGIC) throw new IOException("Unknown saved website format.");
+            Format format = magic == MAGIC ? Format.MHTML : Format.HTML;
+            File archive = child(directory, format.filename);
             String title = input.readUTF(), url = input.readUTF();
             long savedAt = input.readLong(), bytes = input.readLong();
+            int missing = format == Format.HTML ? input.readInt() : 0;
             if (title.isEmpty() || title.length() > 1024 || !NotebookBrowserAddress.isWebUrl(url)
-                    || savedAt <= 0 || bytes <= 0 || input.read() != -1 || !archive.isFile() || archive.length() != bytes)
+                    || savedAt <= 0 || bytes <= 0 || missing < 0 || missing > 65535
+                    || input.read() != -1 || !archive.isFile() || archive.length() != bytes)
                 throw new IOException("This saved page is incomplete or damaged.");
-            verifyArchive(archive);
-            return new Saved(id, title, url, savedAt, bytes);
+            verifyArchive(archive, format);
+            return new Saved(id, title, url, savedAt, bytes, format, missing);
         }
     }
 
     File archive(Saved entry) throws IOException {
-        get(entry.id);
-        return child(directory(entry.id), ARCHIVE);
+        Saved current = get(entry.id);
+        return child(directory(entry.id), current.format.filename);
     }
 
     Pending begin() throws IOException {
+        return begin(Format.MHTML);
+    }
+
+    Pending begin(Format format) throws IOException {
+        if (format == null) throw new IOException("Unknown website capture format.");
         checkRoot();
         if (!root.isDirectory() && !root.mkdirs()) throw new IOException("Could not create Saved websites. Check available storage.");
         cleanAbandoned();
         String id = UUID.randomUUID().toString();
         File staging = new File(root, ".saving-" + id);
         if (!staging.mkdir()) throw new IOException("Could not prepare the saved page. Check available storage.");
-        return new Pending(id, staging);
+        return new Pending(id, staging, format);
     }
 
     Saved finish(Pending pending, String title, String url) throws IOException {
+        return finish(pending, title, url, 0);
+    }
+
+    Saved finish(Pending pending, String title, String url, int missing) throws IOException {
         checkPending(pending);
         if (!NotebookBrowserAddress.isWebUrl(url)) throw new IOException("Only website pages can be saved.");
-        verifyArchive(pending.archive);
+        if (missing < 0 || missing > 65535) throw new IOException("Invalid capture result.");
+        verifyArchive(pending.archive, pending.format);
         title = title == null ? "" : title.trim();
         if (title.isEmpty()) title = url;
         if (title.length() > 1024) title = title.substring(0, 1024);
@@ -98,13 +127,15 @@ final class NotebookWebsites {
         try (FileOutputStream output = new FileOutputStream(pending.archive, true)) { output.getFD().sync(); }
         File metadata = child(pending.directory, METADATA);
         try (FileOutputStream file = new FileOutputStream(metadata); DataOutputStream output = new DataOutputStream(file)) {
-            output.writeInt(MAGIC); output.writeUTF(title); output.writeUTF(url);
-            output.writeLong(savedAt); output.writeLong(bytes); output.flush(); file.getFD().sync();
+            output.writeInt(pending.format == Format.MHTML ? MAGIC : HTML_MAGIC); output.writeUTF(title); output.writeUTF(url);
+            output.writeLong(savedAt); output.writeLong(bytes);
+            if (pending.format == Format.HTML) output.writeInt(missing);
+            output.flush(); file.getFD().sync();
         }
         File destination = directory(pending.id);
         if (destination.exists() || !pending.directory.renameTo(destination))
             throw new IOException("Could not publish the saved page. Check available storage.");
-        return new Saved(pending.id, title, url, savedAt, bytes);
+        return new Saved(pending.id, title, url, savedAt, bytes, pending.format, pending.format == Format.HTML ? missing : 0);
     }
 
     void abandon(Pending pending) throws IOException {
@@ -143,19 +174,24 @@ final class NotebookWebsites {
         if (pending == null || !validId(pending.id)
                 || !child(root, ".saving-" + pending.id).equals(pending.directory))
             throw new IOException("Invalid pending website save.");
-        child(pending.directory, ARCHIVE);
+        child(pending.directory, pending.format.filename);
     }
 
     private static boolean validId(String id) {
         return id != null && id.matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
     }
 
-    private static void verifyArchive(File archive) throws IOException {
+    private static void verifyArchive(File archive, Format format) throws IOException {
         if (!archive.isFile() || archive.length() == 0) throw new IOException("The website did not produce an offline copy. Please retry after the page loads.");
         byte[] bytes = new byte[8192];
         int length;
         try (FileInputStream input = new FileInputStream(archive)) { length = input.read(bytes); }
         String header = new String(bytes, 0, Math.max(0, length), StandardCharsets.US_ASCII).toLowerCase(Locale.ROOT);
+        if (format == Format.HTML) {
+            if (!header.startsWith("<!doctype html>") || !header.contains("<!-- saved by scriflow -->"))
+                throw new IOException("The website did not produce a complete HTML snapshot.");
+            return;
+        }
         int end = header.indexOf("\r\n\r\n");
         if (end < 0) end = header.indexOf("\n\n");
         if (end < 0 || !header.substring(0, end).contains("multipart/related"))
