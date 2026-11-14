@@ -4,7 +4,8 @@ Notebooks work locally on the tablet. Scriflow has no app account, analytics,
 advertising, crash-reporting service, or cloud sync. Optional [AI chat](ai-chat.md)
 uses Android's `INTERNET` permission to contact the provider you configure when
 you explicitly send/retry a chat message or fetch/add models. Ordinary notebook editing and
-Markdown rendering do not make network requests.
+Markdown rendering do not make network requests. The optional
+[Browser](browser.md) contacts the websites and resources you visit.
 
 ## Notes and settings
 
@@ -29,6 +30,27 @@ not included in notebook backups until the block is committed.
 Uninstalling the app or clearing its storage removes its private notes and
 settings. Android automatic app backup is disabled. Make editable `.inkbook`
 backups through the library and keep them outside the app's private storage.
+
+## Browser and saved websites
+
+The Browser uses the device's Android WebView for HTTPS websites. Live pages
+can run JavaScript and use WebView cookies and website storage; third-party
+cookies, location access, permission requests and automatic popup windows are
+disabled. Web pages receive no JavaScript bridge to app code, notebook files,
+AI conversations or credentials. The app's cleartext HTTP restriction remains
+in force, and certificate errors are never bypassed.
+
+Save writes a page snapshot and its title, original address, time and size
+under the private `websites/` directory, independently of browser cache. Saved
+copies can contain information visible in a logged-in page. Offline reading
+disables JavaScript, website storage and network loads. The reader permits
+only its selected local archive; following an external link offers an explicit
+online opening. There is no automatic refresh or sync of saved copies.
+
+Use the delete icon in Saved websites to remove a snapshot after confirmation.
+Snapshots are excluded from editable notebook backups and Android automatic
+backup. Clearing app storage or uninstalling removes them along with WebView
+website data. Scriflow adds no encryption to saved page files.
 
 ## Optional AI chat
 

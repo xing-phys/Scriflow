@@ -66,6 +66,12 @@ upgrades them. **Earlier APKs cannot open the upgraded catalog.** Preserve
 editable backups before updating. Page and `.inkbook` backup formats are unchanged;
 individual backups do not contain library folders or Trash.
 
+The bookshelf also has a permanent **Saved websites** folder and a **Browser**
+shortcut. The folder opens locally saved page snapshots in a network-blocked
+reader. It appears in list and thumbnail views, stays separate from notebook
+selection and Trash, and does not count toward the notebook/folder limits.
+See [Browser and offline websites](browser.md).
+
 ## Editor and screen behavior
 
 The vertical **⋮** menu follows the zoom percentage at the top left. It contains

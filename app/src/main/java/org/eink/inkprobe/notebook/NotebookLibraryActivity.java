@@ -38,6 +38,7 @@ import org.eink.inkprobe.R;
 
 /** Notebook home. All file/catalog work goes through the process-wide serialized writer. */
 public final class NotebookLibraryActivity extends NotebookDisplayActivity {
+    private enum ShelfFolder { SAVED_WEBSITES }
     private NotebookSession session;
     private GridView rows;
     private TextView path;
@@ -90,6 +91,7 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         });
         addShortcut(shortcuts, "Restore backup", NotebookIconDrawable.Icon.RETRY, () -> transfer(true, 0));
         addShortcut(shortcuts, "AI chat", NotebookIconDrawable.Icon.AI_CHAT, this::openAiChat);
+        addShortcut(shortcuts, "Browser", NotebookIconDrawable.Icon.BROWSER, this::openBrowser);
         root.addView(shortcuts);
         LinearLayout navigation = new LinearLayout(this); navigation.setGravity(Gravity.CENTER_VERTICAL);
         NotebookButton home = button("Bookshelf", () -> navigate(0, false));
@@ -194,7 +196,10 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         int columns = thumbnails ? NotebookSettings.bookshelfColumns(this, NotebookSettings.landscape(this))
             : NotebookSettings.landscape(this) ? 2 : 1;
         rows.setNumColumns(columns); rows.setVerticalSpacing(dp(thumbnails ? 4 : 6));
-        if (!inTrash && currentFolder == 0) items.addAll(session.folders());
+        if (!inTrash && currentFolder == 0) {
+            items.add(ShelfFolder.SAVED_WEBSITES);
+            items.addAll(session.folders());
+        }
         int trashed = 0, count = 0;
         for (NotebookCatalog.Entry entry : session.entries()) {
             if (entry.status == NotebookCatalog.TRASH || entry.status == NotebookCatalog.PURGING) trashed++;
@@ -228,6 +233,7 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
 
     private void beginSelection(Object item) {
         if (!canAct()) return;
+        if (item == ShelfFolder.SAVED_WEBSITES) return;
         selection.start();
         if (NotebookShelfSelection.selectable(item)) selection.toggle(item);
         else Toast.makeText(this, "Select notebooks; use ⋮ for folder options", Toast.LENGTH_SHORT).show();
@@ -400,7 +406,9 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
             else Toast.makeText(this, "Select notebooks; use ⋮ for folder options", Toast.LENGTH_SHORT).show();
             return;
         }
-        if (item instanceof NotebookCatalog.Folder) navigate(((NotebookCatalog.Folder) item).id, false);
+        if (item == ShelfFolder.SAVED_WEBSITES) {
+            startActivity(new Intent(this, NotebookWebsitesActivity.class)); overridePendingTransition(0, 0);
+        } else if (item instanceof NotebookCatalog.Folder) navigate(((NotebookCatalog.Folder) item).id, false);
         else if (item instanceof NotebookCatalog.Entry) {
             NotebookCatalog.Entry entry = (NotebookCatalog.Entry) item;
             if (entry.status == NotebookCatalog.ACTIVE) openNotebook(entry.id); else notebookActions(entry);
@@ -467,10 +475,11 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
             setTag(item); boundRevision = shelfRevision;
             if (parameters == null) setLayoutParams(new AbsListView.LayoutParams(-1, height));
             else if (parameters.height != height) { parameters.height = height; setLayoutParams(parameters); }
-            boolean folder = item instanceof NotebookCatalog.Folder;
+            boolean websites = item == ShelfFolder.SAVED_WEBSITES;
+            boolean folder = websites || item instanceof NotebookCatalog.Folder;
             selected.setVisibility(selection.active() && NotebookShelfSelection.selectable(item) ? View.VISIBLE : View.GONE);
-            selected.setChecked(selection.contains(item)); menu.setVisibility(selection.active() ? View.GONE : View.VISIBLE);
-            String name = folder ? ((NotebookCatalog.Folder) item).name : ((NotebookCatalog.Entry) item).name;
+            selected.setChecked(selection.contains(item)); menu.setVisibility(selection.active() || websites ? View.GONE : View.VISIBLE);
+            String name = websites ? "Saved websites" : folder ? ((NotebookCatalog.Folder) item).name : ((NotebookCatalog.Entry) item).name;
             String shown = name;
             if (!shown.contentEquals(nameButton.getText())) nameButton.setText(shown);
             if (type == 0) {
@@ -488,10 +497,10 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
                 if (titleLayout.height != titleHeight) { titleLayout.height = titleHeight; title.setLayoutParams(titleLayout); }
                 if (folder) {
                     int count = 0;
-                    for (NotebookCatalog.Entry entry : session.entries())
+                    if (!websites) for (NotebookCatalog.Entry entry : session.entries())
                         if (entry.folderId == ((NotebookCatalog.Folder) item).id && entry.status == NotebookCatalog.ACTIVE) count++;
                     TextView image = (TextView) preview;
-                    String summary = "Folder\n" + count + " notebooks";
+                    String summary = websites ? "Websites\nRead offline" : "Folder\n" + count + " notebooks";
                     if (!summary.contentEquals(image.getText())) image.setText(summary);
                     image.setContentDescription("Open folder " + name);
                 } else bindPreview((NotebookPageThumbnail) preview, (NotebookCatalog.Entry) item);
@@ -505,12 +514,14 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         @Override public boolean hasStableIds() { return true; }
         @Override public long getItemId(int position) {
             Object item = items.get(position);
+            if (item == ShelfFolder.SAVED_WEBSITES) return 1L; // Catalog item IDs start at 2; avoid AdapterView's invalid-ID sentinel.
             return item instanceof NotebookCatalog.Folder ? 2L * ((NotebookCatalog.Folder) item).id + 1
                 : 2L * ((NotebookCatalog.Entry) item).id;
         }
         @Override public int getViewTypeCount() { return 3; }
         @Override public int getItemViewType(int position) {
-            return !thumbnails ? 0 : items.get(position) instanceof NotebookCatalog.Folder ? 1 : 2;
+            return !thumbnails ? 0 : items.get(position) instanceof NotebookCatalog.Folder
+                || items.get(position) == ShelfFolder.SAVED_WEBSITES ? 1 : 2;
         }
         @Override public View getView(int position, View recycled, ViewGroup parent) {
             int type = getItemViewType(position);
@@ -557,6 +568,11 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
                 overridePendingTransition(0, 0);
             }).setNegativeButton("Cancel", null).create();
         showStaticDialog(dialog);
+    }
+
+    private void openBrowser() {
+        if (!canAct()) return;
+        startActivity(new Intent(this, NotebookBrowserActivity.class)); overridePendingTransition(0, 0);
     }
 
     private void createNotebook() {

@@ -312,9 +312,11 @@ build unsigned release APKs without possessing the permanent key.
 
 ## Version numbers
 
-The current prerelease is **0.37.0-alpha.3**, Android `versionCode` **91**,
-protecting handwriting bursts from optional presentation work. It retains
-notebook/backup format 8 and chat archive format 1. Versions 1–7 remain readable
+The current prerelease is **0.40.0-alpha.1**, Android `versionCode` **101**,
+adding the bookshelf browser and offline website snapshots. It retains the
+existing notebook/backup formats (8, or 9 for individually sized Markdown) and
+chat archive compatibility from 0.39. Website snapshots use separate MHTML
+files and version-1 metadata, outside notebook backups. Versions 1–7 remain readable
 unchanged; APKs before 0.34 cannot read format-8 pages or backups. Alpha status
 reflects pending physical acceptance of writing, e-ink composition and recent UI
 features; scheduling regressions do not measure physical pen-to-ink latency.
@@ -379,16 +381,16 @@ and [Android versioning](https://developer.android.com/studio/publish/versioning
    The helper runs release lint and assembly, copies the candidate privately,
    verifies those exact bytes and the configured signing certificate, then
    stages a versioned APK and SHA-256 checksum under
-   `build/releases/`. For this release these are `scriflow-0.34.0-alpha.1.apk` and
-   `scriflow-0.34.0-alpha.1.apk.sha256`. Debugging is disabled, diagnostic screens are
+   `build/releases/`. For this release these are `scriflow-0.40.0-alpha.1.apk` and
+   `scriflow-0.40.0-alpha.1.apk.sha256`. Debugging is disabled, diagnostic screens are
    absent from the manifest, and the library is the only exported component.
 
 4. Compare the printed signer certificate SHA-256 with the intended permanent
    certificate. For later builds, pin that known digest during verification:
 
    ```bash
-   python3 scripts/verify-apk.py build/releases/scriflow-0.34.0-alpha.1.apk --certificate-sha256 YOUR_KNOWN_CERTIFICATE_SHA256
-   (cd build/releases && sha256sum -c scriflow-0.34.0-alpha.1.apk.sha256)
+   python3 scripts/verify-apk.py build/releases/scriflow-0.40.0-alpha.1.apk --certificate-sha256 YOUR_KNOWN_CERTIFICATE_SHA256
+   (cd build/releases && sha256sum -c scriflow-0.40.0-alpha.1.apk.sha256)
    ```
 
    Substitute the current version and the actual known digest. The APK file's
@@ -457,6 +459,12 @@ Do not use raw private version-1 files as a portable migration format, downgrade
 an APK over version-2 pages, or assume a signature change preserves app data.
 
 ## Publish only after acceptance
+
+For **0.40.0-alpha.1**, the repository workflow requires publishing implemented
+features as an alpha with the permanently signed APK and checksum before the
+owner's tablet testing. Commit and push the validated source, publish a new
+immutable tag, verify downloaded assets, keep 0.33.2 as Latest stable, and disclose
+that browser/WebView, touch, layout and e-ink acceptance remain pending.
 
 For **0.34.0-alpha.1**, the owner's explicit request authorizes choosing the
 prerelease label, committing, pushing, tagging and publishing. Publish as an

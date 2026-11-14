@@ -4,7 +4,7 @@ Scriflow is designed for Huawei MatePad Paper HMW-W09 on Android 10/API 29,
 firmware `HMW-W09 2.1.0.222(C00E170R1P8)`. Other devices and firmware have not
 been verified. See the [README](../README.md) for installation and current limits.
 
-This guide follows alpha prerelease **0.39.0-alpha.5**; the published stable release is
+This guide follows alpha prerelease **0.40.0-alpha.1**; the published stable release is
 **0.33.2**. This build reads older notes; ordinary edits use page format 8 and
 individually sized Markdown uses format 9. Older APKs cannot read formats they
 do not support. Physical checks of this exact APK remain pending.
@@ -41,6 +41,20 @@ with width and height in millimetres. Newly added or inserted blank pages
 inherit the source page's dimensions. PDF export uses the chosen physical size;
 changing screen orientation or zoom does not change the paper. Existing notes
 keep their original coordinates and PDF printing scale.
+
+## Browser and saved websites
+
+Tap **Browser** on the bookshelf, enter an HTTPS website address, and tap **Go**.
+Use Back, Forward, Reload and pinch zoom while browsing. After the page loads,
+tap **Save** and wait for **Saved to Saved websites · available offline**.
+
+Return to the bookshelf and open the permanent **Saved websites** folder.
+Tap a saved page to read it without Wi-Fi. **Open online** opens its original
+address in the live browser. Each save keeps the current page and captured
+resources; linked pages need their own saves. Scroll to load wanted images
+before saving. Forms, live video and other interactive services need the online
+page. Use the trash icon beside a saved page to remove its local copy after
+confirmation. See [Browser and offline websites](browser.md) for details.
 
 ## Markdown blocks
 

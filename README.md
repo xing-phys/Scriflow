@@ -26,8 +26,18 @@ pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
 stays in front, window operations retain the main editor, and PDF import opens
 the file picker directly before opening the imported note.
 
-The **[0.39.0-alpha.5 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.39.0-alpha.5)**
-opens a new or saved AI chat from the bookshelf in its own workspace, with no
+The **[0.40.0-alpha.1 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.40.0-alpha.1)**
+adds a **Browser** shortcut and a permanent **Saved websites** folder to the
+bookshelf. Browse HTTPS websites with Android's Chromium-based WebView, then
+tap **Save** to keep the current page, including captured images and styling.
+Open saved pages from the folder without Wi-Fi; the offline reader blocks
+network loads and scripts. Each save captures one page, rather than crawling
+linked pages. See [Browser and offline websites](docs/browser.md) for controls
+and capture limits. This alpha awaits tablet testing; its signed APK and
+checksum are on the release page.
+
+It also retains the independent AI workspace from 0.39:
+open a new or saved AI chat from the bookshelf in its own workspace, with no
 notes open. Choose a floating note from the toolbox when needed; closing or
 minimizing the main chat returns to the bookshelf. Active floating-note corner
 controls and the lasso action bar use separate layers above the writing surface.

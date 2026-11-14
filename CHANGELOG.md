@@ -6,6 +6,24 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.40.0-alpha.1 — Browser and offline websites (2026-11-14)
+
+- Add a Browser shortcut on the bookshelf, using the device's Chromium-based
+  Android WebView with an HTTPS address bar, Back/Forward, Reload and pinch zoom.
+- Add a permanent Saved websites folder in both bookshelf layouts. Save captures
+  the current page as a private MHTML archive with its title, original URL,
+  timestamp and size. Complete archive/metadata pairs publish together; failed
+  or interrupted saves never appear as completed pages.
+- Read saved pages with scripts and network loads blocked, independently of
+  browser cache or an internet connection. External links offer an explicit
+  online opening. Saved copies can be deleted after confirmation.
+- Retain the existing HTTPS-only app policy and notebook/chat formats. Website
+  snapshots have separate storage and are excluded from notebook backups.
+- VersionCode 101. Host storage/address regressions, a real Chromium archive
+  round trip, Android builds/lint and permanent-signer verification validate
+  this alpha. Tablet appearance, WebView compatibility and e-ink behavior remain
+  pending physical testing.
+
 ## 0.39.0-alpha.5 — Status bars above floating notes (2026-11-13)
 
 - Keep the shared top status bars above a floating note in the AI main

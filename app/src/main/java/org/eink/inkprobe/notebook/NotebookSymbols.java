@@ -21,6 +21,11 @@ public final class NotebookSymbols {
     public static void draw(String icon, Sink out) {
         if (icon == null || out == null) throw new IllegalArgumentException("Missing icon or sink");
         switch (icon) {
+            case "BROWSER":
+                circle(out, 12, 12, 10);
+                line(out, 2, 12, 22, 12);
+                out.begin();out.moveTo(12,2);out.cubicTo(5,7,5,17,12,22);out.cubicTo(19,17,19,7,12,2);out.end(false);
+                break;
             case "SEND":
                 line(out,12,20,12,4);line(out,5,11,12,4,19,11);break;
             case "STOP":
