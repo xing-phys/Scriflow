@@ -14,6 +14,9 @@
         <activity android:name=".notebook.NotebookActivity" android:exported="false" android:screenOrientation="behind" />
         <activity android:name=".notebook.NotebookAiActivity" android:exported="false" android:screenOrientation="behind" />
         <activity android:name=".notebook.NotebookBrowserActivity" android:exported="false" android:screenOrientation="behind" />
+        <activity android:name=".notebook.NotebookBrowserBookmarksActivity" android:exported="false" android:screenOrientation="behind" />
+        <activity android:name=".notebook.NotebookBrowserHistoryActivity" android:exported="false" android:screenOrientation="behind" />
+        <activity android:name=".notebook.NotebookBrowserDataActivity" android:exported="false" android:screenOrientation="behind" />
         <activity android:name=".notebook.NotebookWebsitesActivity" android:exported="false" android:screenOrientation="behind" />
         <!-- File pickers can temporarily force a different orientation. Keep the
              transfer owner and its outstanding result intact across that change. -->

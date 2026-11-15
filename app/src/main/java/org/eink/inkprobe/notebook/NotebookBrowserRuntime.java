@@ -19,6 +19,7 @@ import org.mozilla.geckoview.WebExtension;
 final class NotebookBrowserRuntime {
     static final String EXTENSION_ID = "browser@scriflow.local";
     private static GeckoRuntime runtime;
+    private static GeckoSession servicesSession;
     private static GeckoResult<WebExtension> extension;
     private static final Map<GeckoSession, Consumer<WebExtension.Port>> owners = new IdentityHashMap<>();
     private NotebookBrowserRuntime() { }
@@ -43,13 +44,21 @@ final class NotebookBrowserRuntime {
             settings.configFilePath(config.getAbsolutePath());
         } catch (java.io.IOException error) { throw new IllegalStateException("Could not prepare the browser profile.", error); }
         runtime = GeckoRuntime.create(app, settings.build());
-        runtime.getSettings().getContentBlocking().setCookieBehavior(ContentBlocking.CookieBehavior.ACCEPT_FIRST_PARTY);
+        NotebookBrowserData.applyCookies(context, runtime);
+        // Gecko starts background extension services after its first window opens.
+        // Data settings also work before any website has been visited.
+        servicesSession = new GeckoSession(new org.mozilla.geckoview.GeckoSessionSettings.Builder().allowJavascript(false).build());
+        servicesSession.setContentDelegate(new GeckoSession.ContentDelegate() { });
+        servicesSession.setProgressDelegate(new GeckoSession.ProgressDelegate() { });
+        servicesSession.setNavigationDelegate(new GeckoSession.NavigationDelegate() { });
+        servicesSession.open(runtime); servicesSession.loadUri("about:blank"); servicesSession.setActive(false);
         return runtime;
     }
 
     static GeckoResult<WebExtension> extension(Context context) {
         if (extension == null) extension = get(context).getWebExtensionController()
-            .ensureBuiltIn("resource://android/assets/browser-extension/", EXTENSION_ID);
+            .ensureBuiltIn("resource://android/assets/browser-extension/", EXTENSION_ID)
+            .map(value -> { NotebookBrowserData.attach(value); return value; });
         return extension;
     }
 

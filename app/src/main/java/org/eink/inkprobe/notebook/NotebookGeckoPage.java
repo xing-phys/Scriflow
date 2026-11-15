@@ -116,7 +116,7 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
                 return GeckoResult.fromValue(ContentPermission.VALUE_DENY);
             }
         });
-        session.open(runtime); surface.setSession(session);
+        session.open(runtime); surface.setSession(session); NotebookBrowserData.register(this);
         NotebookBrowserRuntime.extension(context).accept(value -> {
             if (closed) return;
             extension = value; bootstrap = value.metaData.optionsPageUrl;
@@ -144,7 +144,7 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
         }
         if (listener.overrideNavigation(this, request.uri, main, request.hasUserGesture)) return GeckoResult.deny();
         if (request.target == GeckoSession.NavigationDelegate.TARGET_WINDOW_NEW) {
-            if (request.hasUserGesture) post(() -> { if (!closed) loadUrl(request.uri); });
+            if (request.hasUserGesture) post(() -> { if (!closed) listener.onNewTab(this, request.uri); });
             return GeckoResult.deny();
         }
         return GeckoResult.allow();
@@ -275,8 +275,9 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
     @Override void destroy() {
         if (closed) return; prompts.close(); cancelCapture(); closed = true;
         for (Consumer<JSONObject> callback : probes.values()) callback.accept(null); probes.clear();
-        NotebookBrowserRuntime.unbind(session); surface.releaseSession(); session.close(); removeView(surface);
+        NotebookBrowserData.unregister(this); NotebookBrowserRuntime.unbind(session); surface.releaseSession(); session.close(); removeView(surface);
     }
+    void retireForDataClear() { if (closed) return; destroy(); listener.onDataCleared(this); }
     @Override int captureWarnings() { return warnings; }
     @Override int pageScrollX() { return scrollX; }
     @Override int pageScrollY() { return scrollY; }

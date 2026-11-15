@@ -1,3 +1,4 @@
+import './data.js';
 import { allowedRequest } from './policy.js';
 const modes = new Map(), captures = new Map();
 const ownOrigin = browser.runtime.getURL('');

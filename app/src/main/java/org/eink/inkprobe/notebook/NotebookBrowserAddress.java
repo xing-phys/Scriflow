@@ -41,6 +41,16 @@ final class NotebookBrowserAddress {
         }
     }
 
+    static String destination(String input, int provider) {
+        String value = input == null ? "" : input.trim();
+        if (value.isEmpty()) throw new IllegalArgumentException("Enter a search or website address.");
+        if (value.contains("://") || value.startsWith("//") || value.startsWith("[") || !value.matches(".*\\s.*") && (value.contains(".") || value.contains(":") || value.equalsIgnoreCase("localhost"))) return normalize(value);
+        if (value.length() > 2048) throw new IllegalArgumentException("This search is too long.");
+        for (int i = 0; i < value.length(); i++) if (Character.isISOControl(value.charAt(i))) throw new IllegalArgumentException("Enter a single-line search.");
+        try { return (provider == 1 ? "https://www.google.com/search?q=" : provider == 2 ? "https://www.bing.com/search?q=" : "https://duckduckgo.com/?q=") + java.net.URLEncoder.encode(value, "UTF-8"); }
+        catch (java.io.UnsupportedEncodingException error) { throw new IllegalStateException(error); }
+    }
+
     static boolean isWebUrl(String url) {
         if (url == null || !url.regionMatches(true, 0, "https://", 0, 8)) return false;
         try { normalize(url); return true; }

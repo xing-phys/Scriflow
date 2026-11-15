@@ -3,7 +3,7 @@ const fs = require('fs'), path = require('path'), crypto = require('crypto'), cp
 const root = path.resolve(__dirname, '..'), source = path.join(root, 'renderer/browser');
 const install = path.join(root, '.tools/browser-capture'), output = path.join(root, 'app/build/generated/browser-assets');
 const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
-const inputs = ['package.json', 'package-lock.json', 'manifest.json', 'background.js', 'bootstrap.js', 'bootstrap.html', 'content.js', 'capture.js', 'policy.js'];
+const inputs = ['package.json', 'package-lock.json', 'manifest.json', 'background.js', 'data.js', 'bootstrap.js', 'bootstrap.html', 'content.js', 'capture.js', 'policy.js'];
 const version = fs.readFileSync(path.join(root, 'app/version.properties'));
 const fingerprint = sha(Buffer.concat(inputs.map(name => fs.readFileSync(path.join(source, name))).concat([fs.readFileSync(__filename), version])));
 const stamp = path.join(output, '.stamp');

@@ -26,12 +26,14 @@ pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
 stays in front, window operations retain the main editor, and PDF import opens
 the file picker directly before opening the imported note.
 
-The **[0.40.0-alpha.2 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.40.0-alpha.2)**
-bundles a current Firefox engine for modern websites and math, and puts browser controls in a floating panel. Tap its dotted button to collapse or
-expand it; drag the button to move it. **Zen mode** leaves only a small top-right
-clock; tap the clock or press Back to leave Zen. Saved pages have Back/Forward
-for section links, with history restored across rotation. The web page keeps
-its full screen area when controls change.
+The **[0.40.0-alpha.3 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.40.0-alpha.3)**
+adds a browser start page with pinned shortcuts, bookmark collections, searchable
+history, independent tabs and browser-data settings. Manage cookies and clear
+cache/site data without deleting bookmarks, offline copies or notebooks. The
+address field also accepts searches with a selectable search provider.
+
+It retains the current Firefox engine, movable collapsible browser controls,
+clock-only Zen and offline section Back/Forward introduced in alpha.2.
 
 The **Browser** shortcut and permanent **Saved websites** folder are on the
 bookshelf. Browse HTTPS websites with bundled GeckoView, then

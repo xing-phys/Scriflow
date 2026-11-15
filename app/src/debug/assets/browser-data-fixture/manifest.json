@@ -1,0 +1,1 @@
+{"manifest_version":2,"name":"Scriflow browser data fixture","version":"1.0","browser_specific_settings":{"gecko":{"id":"browser-data-test@scriflow.local"}},"permissions":["geckoViewAddons","nativeMessaging","cookies","https://*.scriflow-test.example/*"],"background":{"scripts":["background.js"]}}

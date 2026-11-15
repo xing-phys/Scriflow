@@ -26,10 +26,11 @@ PACKAGE = 'org.eink.inkprobe'
 LAUNCHER = PACKAGE + '.notebook.NotebookLibraryActivity'
 NOTEBOOK_SCREENS = {PACKAGE + '.notebook.' + name for name in (
     'NotebookLibraryActivity', 'NotebookActivity', 'NotebookAiActivity', 'NotebookSettingsActivity',
-    'NotebookBrowserActivity', 'NotebookWebsitesActivity',
+    'NotebookBrowserActivity', 'NotebookWebsitesActivity', 'NotebookBrowserBookmarksActivity',
+    'NotebookBrowserHistoryActivity', 'NotebookBrowserDataActivity',
     'NotebookTransferActivity', 'NotebookPdfExportActivity', 'NotebookPdfImportActivity')}
 DIAGNOSTICS = {PACKAGE + '.MainActivity', PACKAGE + '.notebook.NotebookSelfTestActivity',
-               PACKAGE + '.notebook.NotebookBrowserSelfTestActivity'}
+               PACKAGE + '.notebook.NotebookBrowserSelfTestActivity', PACKAGE + '.notebook.NotebookBrowserDataSelfTestActivity'}
 # Gecko's standard runtime permissions support media/audio and its process services.
 # No camera, microphone, location or external-storage permission is granted.
 PERMISSIONS = {'android.permission.ACCESS_NETWORK_STATE', 'android.permission.INTERNET',
@@ -337,6 +338,7 @@ def main():
             require(any(name.startswith('lib/arm64-v8a/') and name.endswith('/libxul.so') for name in package.namelist()),
                     'APK is missing the bundled ARM64 browser engine.')
             if args.variant == 'release':
+                require(not any(name.startswith('assets/browser-data-fixture/') for name in package.namelist()), 'Release APK contains the browser data test extension.')
                 require({name.split('/')[1] for name in package.namelist() if name.startswith('lib/')} == {'arm64-v8a', 'armeabi-v7a'},
                         'Owner release must contain only the supported ARM engine libraries.')
         certificate = verify_signature(args.apk, apksigner, args.signature, args.certificate_sha256)

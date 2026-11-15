@@ -18,6 +18,8 @@ abstract class NotebookBrowserEngine extends FrameLayout {
         void onError(NotebookBrowserEngine view, String message);
         void onRendererGone(NotebookBrowserEngine view);
         void onDownload(NotebookBrowserEngine view);
+        default void onNewTab(NotebookBrowserEngine view, String url) { view.loadUrl(url); }
+        default void onDataCleared(NotebookBrowserEngine view) { }
     }
     final Listener listener;
     NotebookBrowserEngine(Context context, Listener listener) { super(context); this.listener = listener; }

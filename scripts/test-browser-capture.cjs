@@ -4,6 +4,7 @@ const fs = require('fs'), path = require('path'), os = require('os'), http = req
 const assert = require('assert/strict'), { spawnSync } = require('child_process'), { pathToFileURL } = require('url');
 const root = path.resolve(__dirname, '..');
 const puppeteer = require(path.join(root, '.tools/markdown-renderer/node_modules/puppeteer-core'));
+const vm = require('vm');
 const { allowedRequest } = require(path.join(root, 'build/browser-test-assets/policy.cjs'));
 const katex = path.join(root, '.tools/markdown-renderer/node_modules/katex/dist');
 
@@ -13,6 +14,14 @@ const katex = path.join(root, '.tools/markdown-renderer/node_modules/katex/dist'
   const equal = (a, b, message) => { assert.deepEqual(a, b, message); checks++; };
   const ok = (a, message) => { assert.ok(a, message); checks++; };
   try {
+    let dataListener; const dataReplies = [];
+    vm.runInNewContext(fs.readFileSync(path.join(root, 'renderer/browser/data.js'), 'utf8'), {
+      browser: { runtime: { connectNative(name) { ok(/^\w+(\.\w+)*$/.test(name), 'data bridge uses a legal native application identifier'); return { onMessage: { addListener(listener) { dataListener = listener; } }, postMessage(value) { dataReplies.push(value); } }; } },
+        cookies: { async getAll() { return [{ domain: '.example.org', value: 'private-cookie-value' }, { domain: 'example.org', value: 'another-secret' }, { domain: 'other.example', value: 'secret' }]; } } }
+    });
+    await dataListener({ type: 'sites', id: 'fixture' });
+    equal(JSON.parse(JSON.stringify(dataReplies[0])), { type: 'sites', id: 'fixture', sites: [{ host: 'example.org', count: 2 }, { host: 'other.example', count: 1 }] }, 'cookie domains are aggregated without exposing cookie values');
+    await dataListener({ type: 'not-a-command', id: 'unknown' }); equal(dataReplies.length, 1, 'unknown data commands are ignored');
     const own = 'moz-extension://owned/', archive = 'file:///private/websites/selected/page.html';
     for (const url of ['https://example.org/', 'wss://example.org/socket', 'data:image/png;base64,AA==', 'blob:https://example.org/id'])
       equal(allowedRequest(url, { offline: false }, own), true, 'online standard secure and embedded resources');

@@ -6,6 +6,21 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.40.0-alpha.3 — Browser start page, bookmarks, tabs and data settings (2026-11-15)
+
+- Add a native start page with editable/reorderable pinned websites, an address
+  or search field and quick access to bookmarks, history, tabs and browser data.
+- Add named bookmark collections, search, editing/moving, pin/unpin and deletion.
+  Keep this catalog independent of engine data and saved offline pages.
+- Add up to 12 tabs with independent live navigation, persistent destinations and
+  active-tab restoration. Add searchable recent history and individual deletion.
+- Add cookie policy and search-provider choices, cookie-domain counts, per-host
+  data deletion and independent cache/cookie/history clearing. Close website
+  sessions before clearing and remove restorable tab addresses. Preserve notebooks,
+  bookmarks and offline copies; scrub deleted history from its recovery file.
+- Keep floating controls, clock-only Zen, current GeckoView, math rendering and
+  offline archives. VersionCode 103; owner tablet acceptance remains pending.
+
 ## 0.40.0-alpha.2 — Current browser engine, floating tools and offline history (2026-11-14)
 
 - Put all browser bars in a floating panel. Tap the dotted grip to collapse or

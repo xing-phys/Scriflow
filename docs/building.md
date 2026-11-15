@@ -149,6 +149,14 @@ adb -s emulator-5580 shell am start -n org.eink.inkprobe/.notebook.NotebookBrows
 adb -s emulator-5580 exec-out run-as org.eink.inkprobe cat files/browser-test.json
 ```
 
+The debug-only browser-data fixture installs a test extension from debug assets,
+seeds synthetic cookies under `scriflow-test.example` without network requests,
+and exercises real Gecko cache/host/global clearing. Its report is
+`files/browser-data-selftest.json`. `--ez seedOnly true`, then a process restart
+with `--ez inspectOnly true`, checks cookie persistence. The normal run verifies
+bookmark bytes and an offline snapshot remain intact. The fixture and its
+extension are both excluded from owner release APKs.
+
 For a saved page, replace the URL extra with `--es savedWebsiteId SAVE_UUID`.
 Follow-up single-top intents can exercise `--es fragment SECTION_ID`,
 `--es click Back`, `--es click Forward`, and `--ez recreate true`. This fixture

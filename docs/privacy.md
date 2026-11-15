@@ -35,7 +35,8 @@ backups through the library and keep them outside the app's private storage.
 
 The Browser bundles GeckoView, the Firefox engine, for HTTPS websites. Live
 pages can run JavaScript and use the engine's private cookies and website
-storage. Third-party cookies and website permission requests are denied;
+storage. Third-party cookies are blocked by default; Browser data settings can
+allow all cookies or block them entirely. Website permission requests are denied;
 new-window links require a user gesture and open in the same browser screen.
 Engine telemetry uploads, studies and predictive page loads are disabled.
 Browser website data uses a separate engine profile from earlier WebView builds,
@@ -58,6 +59,22 @@ only its selected local archive; following an external link offers an explicit
 online opening. There is no automatic refresh or sync of saved copies.
 
 Browser UI preferences remember the controls' position and collapse state.
+Bookmarks, named collections, pinned shortcuts and up to 1,000 recent addresses
+are stored in a separate private catalog. Tab destinations and selection persist
+locally; this metadata contains no copied form values or password vault. Search
+queries go to your selected provider only when submitted; there are no automatic
+suggestion requests. The native start page does not fetch pinned websites or
+favicons. Restoring a selected website tab can contact that website.
+
+Browser data settings can clear cookies/storage, caches and history independently,
+or target a host. Clearing cookies can sign you out; clearing caches keeps login
+cookies. Open website sessions close first, and restorable tab addresses are
+removed. Android state snapshots from before the clear are rejected. Cookie-domain counts are read by the app-owned background extension;
+cookie values are not displayed or exposed to page scripts. Bookmarks, pins,
+collections, offline archives and notebooks are preserved. Clearing history also
+clears its recovery generation. These controls affect Gecko's website profile;
+they do not erase the older WebView profile used before the engine update.
+
 Activity state retains Zen, scroll position and the current history across
 recreation. Offline history is confined to the selected archive. These view
 preferences do not modify snapshots or enter notebook backups.

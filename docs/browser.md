@@ -1,6 +1,6 @@
 # Browser and offline websites
 
-**0.40.0-alpha.2** (versionCode **102**) bundles GeckoView
+**0.40.0-alpha.3** (versionCode **103**) bundles GeckoView
 **160.0.20261104181552**, the Firefox browser engine. Website JavaScript, CSS,
 fonts and math rendering no longer depend on the tablet's installed WebView.
 This alpha is awaiting physical testing on the Huawei MatePad Paper.
@@ -18,13 +18,81 @@ This alpha is awaiting physical testing on the Huawei MatePad Paper.
 5. Tap **Bookshelf**, then the **Saved websites** folder, and choose a page.
    The browser's **Saved websites** button opens the same folder directly.
 
-The browser starts without a home-page request. Live pages use the engine's
+The browser opens a native start page with pinned websites when there is no
+restored page. The start page never fetches websites or favicons. Existing tabs
+restore their selected address when the app restarts. Live pages use the engine's
 normal mobile layout, JavaScript and fonts, including MathJax and KaTeX.
 Ordinary website dialogs and HTML selection controls use native dialogs.
-User-initiated new-window links open in the same screen; automatic popups are
-blocked. File downloads, uploads and additional tabs are outside this version.
+User-initiated new-window links open another tab; automatic popups are
+blocked. Use Tabs to open an independent tab explicitly. File downloads,
+uploads and password-manager integration are outside this version.
 The bundled engine increases APK size. Its separate cookie profile may require
 signing into websites again after updating from the earlier WebView browser.
+
+## Start page, bookmarks and collections
+
+The start page has a **Search or enter a website** field, pinned shortcuts,
+**Add shortcut**, **Bookmarks**, **History**, **Browser data** and **Tabs**.
+Wikipedia and GitHub are initial shortcuts; removing them is remembered.
+Hold a shortcut to edit, unpin or move it earlier/later. Up to 32 shortcuts can
+be pinned. **Home** returns to this page without discarding the current website.
+Back can return from Home to that website.
+
+The floating panel's **Bookmark** button saves the current address. Its **⋯**
+menu also offers bookmarking, pinning, collections, history, data settings,
+copying/sharing the address and opening another installed browser. Bookmarks
+are live links; **Save** still creates a separate offline copy.
+
+In Bookmarks, add or edit a name/address, choose a collection and optionally pin
+the link. Search names/addresses, create or rename collections, move bookmarks,
+and remove links. Removing a collection moves its bookmarks to Unsorted and
+preserves pins. Removing a bookmark also removes its pin, while offline copies
+stay available. Collections, pins and history use a private, atomic catalog
+with a recovery generation, separate from Gecko's profile and website archives.
+
+## Tabs, history and search
+
+**Tabs** opens the tab picker; **+ New tab** starts with pinned websites, and
+**×** closes a tab. Up to 12 tabs may be open. Each loaded tab keeps its own
+Back/Forward history during the browser session; inactive sessions are paused.
+Closing the last tab creates a new start page. Tab destinations and selection
+persist across app restarts. The active tab's native history also restores
+across screen recreation; other tabs reopen their addresses after recreation.
+Form values are not copied into the persisted tab list.
+
+**History** lists the latest visit to each of up to 1,000 recent addresses.
+Search, reopen a page or remove an individual entry. Clearing all history closes
+open pages and removes restorable tab addresses, preserving cookies, bookmarks
+and offline copies. The recovery generation is cleared too, so it cannot later
+restore successfully deleted history.
+
+The start page and floating address field both accept searches. **Browser data**
+lets you choose DuckDuckGo (default), Google or Bing. A query is sent to that
+provider only when submitted; there are no live search suggestions. HTTPS
+addresses open directly, and unsupported URL schemes remain blocked.
+
+## Browser data settings
+
+Open **Browser data** from the start page or **⋯ → Browser data settings**.
+Choose first-party-only cookies (default), all cookies or no cookies. Blocking
+cookies may affect sign-ins. Changing the policy does not delete existing
+cookies; use Clear data to remove them.
+
+**Clear browsing data** lets you select cookies/website storage, cached
+images/files, and history independently, then confirm. Cookie/storage clearing
+can sign you out; cache-only clearing keeps login cookies. Every operation
+closes open website sessions before deletion so inactive scripts cannot recreate
+data. Restorable tab addresses are removed as well. Bookmarks, pins, collections,
+offline archives and notebook files remain separate and are preserved.
+
+The host list combines recent destinations and cookie domains with cookie
+counts (up to 2,000 cookie domains). Cookie values are not displayed or sent to website scripts. Filter the
+list or use **Choose a website** to target a host; the list renders up to 100
+matching hosts at a time. A host action clears that host's cookies, storage and
+cache. Cookies shared by subdomains can affect their sign-ins. Embedded
+third-party hosts have their own data entries; clearing every site requires the
+global action. These controls manage the bundled Gecko profile; legacy WebView
+website data from alpha.1 is separate.
 
 ## Floating controls and Zen
 
@@ -95,7 +163,8 @@ Snapshots live in the app's private `websites/` directory. They do not change
 notebook, catalog or chat formats and are excluded from `.inkbook` backups.
 Uninstalling or clearing app storage removes them. See [Privacy](privacy.md).
 
-Host tests cover publication, restart, mixed archive generations, failures,
+Host tests cover bookmark/collection/pin persistence, history recovery/deletion,
+tab metadata, search parsing, publication, restart, mixed archive generations, failures,
 corruption, deletion, path boundaries, URL policy, toolbar geometry, clock
 lifecycle and history callbacks. Real browser fixtures reopen captures in fresh
 processes with the server stopped and network/scripts disabled, checking math

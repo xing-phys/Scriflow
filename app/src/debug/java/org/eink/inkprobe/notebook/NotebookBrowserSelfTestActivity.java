@@ -13,7 +13,9 @@ import org.json.JSONObject;
 
 /** Debug APK only: exercises the production browser and reports its rendered DOM. */
 public final class NotebookBrowserSelfTestActivity extends NotebookBrowserActivity {
+    private static Bundle captured, forced;
     @Override public void onCreate(Bundle state) {
+        if (forced != null) { state = forced; forced = null; }
         super.onCreate(state);
         getWindow().getDecorView().postDelayed(this::report, 5000);
         getWindow().getDecorView().postDelayed(this::report, 20000);
@@ -25,14 +27,27 @@ public final class NotebookBrowserSelfTestActivity extends NotebookBrowserActivi
 
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        if (intent.getBooleanExtra("captureState", false)) { captured = new Bundle(); onSaveInstanceState(captured); }
+        if (intent.getBooleanExtra("restoreStale", false) && captured != null) { forced = captured; recreate(); return; }
         String click = intent.getStringExtra("click");
-        if (click != null) click(getWindow().getDecorView(), click);
+        if (click != null) click(browserDebugRoot(), click);
+        String tabText = intent.getStringExtra("tabText"); if (tabText != null) { click(getWindow().getDecorView(), "Browser tabs"); textClick(browserDebugRoot(), tabText); }
+        String text = intent.getStringExtra("textClick"); if (text != null) textClick(browserDebugRoot(), text);
+        String url = intent.getStringExtra("navigate"); if (url != null) { fill(getWindow().getDecorView(), "Website address", url); click(getWindow().getDecorView(), "Browse website address"); }
         String fragment = intent.getStringExtra("fragment");
         if (fragment != null && fragment.matches("[A-Za-z0-9_-]+")) jump(getWindow().getDecorView(), fragment);
         if (intent.getBooleanExtra("recreate", false)) { recreate(); return; }
         getWindow().getDecorView().postDelayed(this::report, 1500);
     }
 
+    private boolean textClick(View view, String text) {
+        if (view instanceof TextView && text.contentEquals(((TextView) view).getText()) && view.isClickable()) return view.performClick();
+        if (view instanceof ViewGroup) { ViewGroup group=(ViewGroup)view; for(int i=0;i<group.getChildCount();i++)if(textClick(group.getChildAt(i),text))return true; } return false;
+    }
+    private void fill(View view, String description, String text) {
+        if (view instanceof android.widget.EditText && description.contentEquals(view.getContentDescription()==null?"":view.getContentDescription())) ((android.widget.EditText)view).setText(text);
+        if(view instanceof ViewGroup){ViewGroup group=(ViewGroup)view;for(int i=0;i<group.getChildCount();i++)fill(group.getChildAt(i),description,text);}
+    }
     private void jump(View view, String fragment) {
         if (view instanceof NotebookBrowserEngine) {
             NotebookBrowserEngine engine = (NotebookBrowserEngine) view;
@@ -58,7 +73,7 @@ public final class NotebookBrowserSelfTestActivity extends NotebookBrowserActivi
         probeBrowser(stats -> {
             try {
                 JSONObject result = stats == null ? new JSONObject().put("probe", "unavailable") : stats;
-                JSONArray labels = new JSONArray(); labels(getWindow().getDecorView(), labels);
+                JSONArray labels = new JSONArray(); labels(browserDebugRoot(), labels);
                 result.put("nativeLabels", labels);
                 result.put("time", System.currentTimeMillis());
                 try (FileOutputStream output = new FileOutputStream(new File(getFilesDir(), "browser-test.json"))) {
