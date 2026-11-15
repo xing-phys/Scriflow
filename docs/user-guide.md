@@ -4,7 +4,7 @@ Scriflow is designed for Huawei MatePad Paper HMW-W09 on Android 10/API 29,
 firmware `HMW-W09 2.1.0.222(C00E170R1P8)`. Other devices and firmware have not
 been verified. See the [README](../README.md) for installation and current limits.
 
-This guide follows alpha prerelease **0.40.0-alpha.3**; the published stable release is
+This guide follows alpha prerelease **0.40.0-alpha.4**; the published stable release is
 **0.33.2**. This build reads older notes; ordinary edits use page format 8 and
 individually sized Markdown uses format 9. Older APKs cannot read formats they
 do not support. Physical checks of this exact APK remain pending.
@@ -46,7 +46,7 @@ keep their original coordinates and PDF printing scale.
 
 Tap **Browser** on the bookshelf. A new tab shows pinned websites and a search
 field. Hold a shortcut to edit, reorder or unpin it; **Add shortcut** creates one.
-Use **Home** to return here, **Tabs** to create/switch/close tabs, and **Bookmarks**
+Use the **house** icon to return here, **stacked squares** to create/switch/close tabs, and the **star**
 to manage saved links in named collections. Bookmarks open online; Save creates
 a separate offline copy. **History** can find and reopen recent websites.
 
@@ -57,8 +57,10 @@ bookmarks, pins, offline copies and notebooks are preserved.
 
 Tap **Browser** on the bookshelf. Tap the **dotted button** to expand or collapse
 all browser controls, and drag it to move them. Enter an HTTPS website address
-and tap **Go**. Use Back, Forward, Reload and pinch zoom while browsing. After
-loading, tap **Save** and wait for **Saved to Saved websites · available offline**.
+and tap the **right arrow**. Use Back, Forward, Reload and pinch zoom while browsing. After
+loading, tap the **floppy disk** (Save) and wait for **Saved to Saved websites · available offline**.
+Controls have consistent gaps and wrap on narrower screens. Hold an icon for its
+name. The tab picker marks the current tab and separates titles from close buttons.
 The fullscreen-corners icon enters **Zen mode**, leaving only the top-right
 clock. Tap the clock or press Android Back to exit. Outside Zen, Android Back
 closes an expanded panel before following page history.

@@ -15,7 +15,6 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
-import android.widget.HorizontalScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.io.File;
@@ -45,7 +44,7 @@ public class NotebookBrowserActivity extends NotebookDisplayActivity {
     private boolean home;
     private final NotebookBrowserTabs tabs = new NotebookBrowserTabs();
     private final java.util.Map<String, NotebookBrowserEngine> engines = new java.util.HashMap<>();
-    private NotebookButton tabButton;
+    private NotebookBrowserIconButton tabButton;
     private static final class PageState { boolean loading, ready, failed; }
     private final java.util.Map<NotebookBrowserEngine, PageState> pageStates = new java.util.IdentityHashMap<>();
     private PageState pageState(NotebookBrowserEngine page) { PageState state = pageStates.get(page); if (state == null) { state = new PageState(); pageStates.put(page, state); } return state; }
@@ -65,16 +64,18 @@ public class NotebookBrowserActivity extends NotebookDisplayActivity {
             | WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
         FrameLayout root = new FrameLayout(this); root.setBackgroundColor(Color.WHITE);
         LinearLayout controls = new LinearLayout(this); controls.setOrientation(LinearLayout.VERTICAL);
-        controls.setPadding(dp(12), dp(8), dp(12), dp(8));
+        controls.setPadding(dp(16), dp(12), dp(16), dp(12));
         LinearLayout header = new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL);
-        header.addView(button("Bookshelf", NotebookIconDrawable.Icon.LIBRARY, this::bookshelf), new LinearLayout.LayoutParams(dp(112), dp(38)));
+        header.addView(icon(NotebookIconDrawable.Icon.LIBRARY, "Bookshelf", this::bookshelf), new LinearLayout.LayoutParams(dp(48), dp(48)));
         title = label(offline ? "Saved website" : "Browser", 18); title.setSingleLine(true);
-        title.setEllipsize(TextUtils.TruncateAt.END); title.setPadding(dp(12), 0, dp(8), 0);
-        header.addView(title, new LinearLayout.LayoutParams(0, dp(42), 1));
-        header.addView(button("", NotebookIconDrawable.Icon.MORE, this::browserMenu), new LinearLayout.LayoutParams(dp(38), dp(38)));
-        header.addView(deviceSettingsIsland(), new LinearLayout.LayoutParams(-2, dp(32))); controls.addView(header);
+        title.setEllipsize(TextUtils.TruncateAt.END); title.setPadding(dp(12), 0, dp(12), 0);
+        header.addView(title, new LinearLayout.LayoutParams(0, dp(48), 1));
+        header.addView(icon(NotebookIconDrawable.Icon.FULLSCREEN, "Enter Zen mode", () -> browserTools.zen(true)), new LinearLayout.LayoutParams(dp(48), dp(48)));
+        header.addView(icon(NotebookIconDrawable.Icon.MORE, "Browser menu", this::browserMenu), NotebookBrowserUi.beside(this, 48, 48));
+        controls.addView(header);
 
-        LinearLayout addressRow = new LinearLayout(this); addressRow.setPadding(0, dp(6), 0, dp(6));
+        LinearLayout addressRow = new LinearLayout(this); addressRow.setGravity(Gravity.CENTER_VERTICAL);
+        addressRow.setPadding(0, dp(12), 0, dp(12));
         address = new EditText(this); address.setTextColor(Color.BLACK); address.setTextSize(14);
         address.setSingleLine(true); address.setHint("Search or enter a website");
         address.setContentDescription("Website address"); address.setSelectAllOnFocus(true);
@@ -83,35 +84,35 @@ public class NotebookBrowserActivity extends NotebookDisplayActivity {
         address.setOnEditorActionListener((view, action, event) -> {
             if (action == EditorInfo.IME_ACTION_GO) { browse(); return true; } return false;
         });
-        addressRow.addView(address, new LinearLayout.LayoutParams(0, dp(44), 1));
-        go = button("Go", null, this::browse); go.setContentDescription("Browse website address"); go.setVisibility(offline ? View.GONE : View.VISIBLE);
-        addressRow.addView(go, new LinearLayout.LayoutParams(dp(56), dp(44))); controls.addView(addressRow);
+        NotebookBrowserUi.field(address);
+        addressRow.addView(address, new LinearLayout.LayoutParams(0, dp(48), 1));
+        go = icon(NotebookIconDrawable.Icon.NEXT, "Browse website address", this::browse); go.setVisibility(offline ? View.GONE : View.VISIBLE);
+        addressRow.addView(go, NotebookBrowserUi.beside(this, 48, 48)); controls.addView(addressRow);
 
-        LinearLayout tools = new LinearLayout(this); tools.setGravity(Gravity.CENTER_VERTICAL);
-        previous = button("", NotebookIconDrawable.Icon.PREVIOUS, () -> history(false)); previous.setContentDescription("Back");
-        next = button("", NotebookIconDrawable.Icon.NEXT, () -> history(true)); next.setContentDescription("Forward");
-        reload = button("", NotebookIconDrawable.Icon.RETRY, this::reload); reload.setContentDescription("Reload page");
-        tools.addView(previous, new LinearLayout.LayoutParams(dp(42), dp(38)));
-        addTool(tools, next, 42); addTool(tools, reload, 42);
+        NotebookBrowserActions tools = new NotebookBrowserActions(this);
+        previous = icon(NotebookIconDrawable.Icon.PREVIOUS, "Back", () -> history(false));
+        next = icon(NotebookIconDrawable.Icon.NEXT, "Forward", () -> history(true));
+        reload = icon(NotebookIconDrawable.Icon.RETRY, "Reload page", this::reload);
+        tools.addView(previous); tools.addView(next); tools.addView(reload);
         if (!offline) {
-            addTool(tools, button("Home", null, () -> { if (!waitForSave()) showHome(true); }), 64);
-            tabButton = button("Tabs", null, this::showTabs); tabButton.setContentDescription("Browser tabs"); addTool(tools, tabButton, 64);
+            tools.addView(icon(NotebookIconDrawable.Icon.HOME, "Home", () -> { if (!waitForSave()) showHome(true); }));
+            tabButton = icon(NotebookIconDrawable.Icon.TABS, "Browser tabs", this::showTabs); tools.addView(tabButton);
+            tools.addView(icon(NotebookIconDrawable.Icon.BOOKMARK, "Bookmark this page", () -> bookmarks(true, false)));
         }
-        save = button("Save", NotebookIconDrawable.Icon.SAVE, this::savePage);
-        save.setContentDescription("Save page for offline reading"); save.setVisibility(offline ? View.GONE : View.VISIBLE);
-        addTool(tools, save, 88);
-        if (!offline) addTool(tools, button("Bookmark", null, () -> bookmarks(true, false)), 100);
-        if (offline) addTool(tools, button("Open online", NotebookIconDrawable.Icon.BROWSER,
-            () -> { if (savedPage != null) openOnline(savedPage.url); }), 136);
-        addTool(tools, button("Saved websites", NotebookIconDrawable.Icon.FOLDER, this::savedWebsites), 158);
-        NotebookButton zen = button("", NotebookIconDrawable.Icon.FULLSCREEN, () -> browserTools.zen(true));
-        zen.setContentDescription("Enter Zen mode"); header.addView(zen, new LinearLayout.LayoutParams(dp(38), dp(38)));
-        HorizontalScrollView strip = new HorizontalScrollView(this); strip.setHorizontalScrollBarEnabled(false);
-        strip.setOverScrollMode(View.OVER_SCROLL_NEVER); strip.setSmoothScrollingEnabled(false);
-        strip.addView(tools, new HorizontalScrollView.LayoutParams(-2, -2));
-        controls.addView(strip, new LinearLayout.LayoutParams(-1, -2));
+        save = icon(NotebookIconDrawable.Icon.SAVE, "Save page for offline reading", this::savePage);
+        save.setVisibility(offline ? View.GONE : View.VISIBLE); tools.addView(save);
+        if (offline) tools.addView(icon(NotebookIconDrawable.Icon.BROWSER, "Open online",
+            () -> { if (savedPage != null) openOnline(savedPage.url); }));
+        tools.addView(icon(NotebookIconDrawable.Icon.FOLDER, "Saved websites", this::savedWebsites));
+        controls.addView(tools, new LinearLayout.LayoutParams(-1, -2));
+        View divider = new View(this); divider.setBackgroundColor(0xffbbbbbb);
+        LinearLayout.LayoutParams dividerSize = new LinearLayout.LayoutParams(-1, dp(1));
+        dividerSize.setMargins(0, dp(12), 0, dp(8)); controls.addView(divider, dividerSize);
+        LinearLayout details = new LinearLayout(this); details.setGravity(Gravity.CENTER_VERTICAL);
         status = label(offline ? "Opening offline copy…" : "Enter an address to browse. Save keeps this page for offline reading.", 12);
-        status.setMaxLines(2); controls.addView(status, new LinearLayout.LayoutParams(-1, dp(38)));
+        status.setMaxLines(2); status.setEllipsize(TextUtils.TruncateAt.END);
+        details.addView(status, new LinearLayout.LayoutParams(0, dp(40), 1));
+        details.addView(deviceSettingsIsland(), NotebookBrowserUi.beside(this, -2, -2)); controls.addView(details);
         content = new FrameLayout(this); content.setBackgroundColor(Color.WHITE);
         hint = label("Tap the dotted button for browser controls.\n\nEnter a website address, then tap Save after the page loads. Find your offline copy in Saved websites on the bookshelf.", 17);
         hint.setGravity(Gravity.CENTER); hint.setPadding(dp(22), dp(22), dp(22), dp(22));
@@ -148,7 +149,7 @@ public class NotebookBrowserActivity extends NotebookDisplayActivity {
                 } else navigate(url);
             } else showHome(state == null);
         }
-        updateControls();
+        updateTabButton(); updateControls();
     }
 
     private void createWebView() {
@@ -441,7 +442,7 @@ public class NotebookBrowserActivity extends NotebookDisplayActivity {
         previous.setAvailable(!saving && canHistory(false)); next.setAvailable(!saving && canHistory(true));
         reload.setAvailable(!saving && !home && (offline ? archiveUrl != null : NotebookBrowserAddress.isWebUrl(currentUrl)));
         save.setAvailable(!offline && !home && !saving && !loading && pageReady && web != null && NotebookBrowserAddress.isWebUrl(web.getUrl()));
-        save.setText(saving ? "Saving…" : "Save"); address.setEnabled(!offline && !saving);
+        address.setEnabled(!offline && !saving);
         saveShield.setVisibility(saving ? View.VISIBLE : View.GONE);
     }
 
@@ -548,7 +549,7 @@ public class NotebookBrowserActivity extends NotebookDisplayActivity {
         home = false; tabs.current().home = false; startPage.setVisibility(View.GONE); hint.setVisibility(View.GONE); web.setVisibility(View.VISIBLE);
         currentUrl = web.getUrl(); address.setText(currentUrl); PageState state = pageState(web); pageReady = state.ready; loading = state.loading; failed = state.failed; status.setText(loading ? "Loading…" : failed ? "Couldn’t load this page. Tap Reload to retry." : web.getTitle()); if (resumed) web.onResume(); updateControls(); updateTabButton();
     }
-    private void updateTabButton() { if (tabButton != null) tabButton.setText(tabs.items.size() + (tabs.items.size() == 1 ? " tab" : " tabs")); if (!offline) rememberTabs(); }
+    private void updateTabButton() { if (tabButton != null) tabButton.setCount(tabs.items.size()); if (!offline) rememberTabs(); }
     private void activateTab(String id) {
         if (waitForSave()) return;
         if (web != null) { web.onPause(); web.setVisibility(View.GONE); }
@@ -559,13 +560,35 @@ public class NotebookBrowserActivity extends NotebookDisplayActivity {
     private void showTabs() {
         if (offline || waitForSave()) return;
         LinearLayout rows = NotebookBrowserUi.column(this);
-        rows.addView(NotebookBrowserUi.button(this, "+ New tab", () -> { if (shownDialog != null) shownDialog.dismiss(); try { NotebookBrowserTabs.Tab tab = tabs.add(); activateTab(tab.id); } catch (IllegalStateException error) { message("Tabs", error.getMessage()); } }));
+        rows.setPadding(dp(16), dp(8), dp(16), dp(8));
+        LinearLayout heading = new LinearLayout(this); heading.setGravity(Gravity.CENTER_VERTICAL);
+        TextView count = label(tabs.items.size() + " of " + NotebookBrowserTabs.MAX + " open", 14);
+        heading.addView(count, new LinearLayout.LayoutParams(0, dp(48), 1));
+        NotebookBrowserIconButton add = icon(NotebookIconDrawable.Icon.PLUS, "New tab", () -> { if (shownDialog != null) shownDialog.dismiss(); try { NotebookBrowserTabs.Tab tab = tabs.add(); activateTab(tab.id); } catch (IllegalStateException error) { message("Tabs", error.getMessage()); } });
+        add.setAvailable(tabs.items.size() < NotebookBrowserTabs.MAX);
+        heading.addView(add, NotebookBrowserUi.beside(this, 48, 48)); rows.addView(heading);
         for (NotebookBrowserTabs.Tab tab : tabs.items) {
             LinearLayout row = new LinearLayout(this); row.setGravity(Gravity.CENTER_VERTICAL);
-            NotebookButton open = button((tab == tabs.current() ? "✓ " : "") + (tab.home ? "Start page" : tab.title) + "\n" + tab.url, null, () -> { shownDialog.dismiss(); activateTab(tab.id); }); open.setMaxLines(3); row.addView(open, new LinearLayout.LayoutParams(0, dp(74), 1));
-            NotebookButton close = button("×", null, () -> { shownDialog.dismiss(); NotebookBrowserEngine page = engines.remove(tab.id); if (page != null) { content.removeView(page); page.destroy(); pageStates.remove(page); if (web == page) web = null; } tabs.close(tab.id); activateTab(tabs.current().id); }); close.setContentDescription("Close tab " + tab.title); row.addView(close, new LinearLayout.LayoutParams(dp(46), dp(44))); rows.addView(row);
+            boolean selected = tab == tabs.current();
+            android.graphics.drawable.GradientDrawable outline = NotebookUi.rounded(getResources().getDisplayMetrics().density, 7);
+            if (selected) outline.setStroke(dp(2), Color.BLACK);
+            row.setBackground(outline); row.setPadding(dp(12), dp(8), dp(8), dp(8));
+            String name = tab.home ? "Start page" : tab.title;
+            LinearLayout open = NotebookBrowserUi.column(this); open.setGravity(Gravity.CENTER_VERTICAL); open.setMinimumHeight(dp(56));
+            TextView nameView = label(name, 16); nameView.setSingleLine(true); nameView.setEllipsize(TextUtils.TruncateAt.END);
+            if (selected) nameView.setTypeface(null, android.graphics.Typeface.BOLD);
+            NotebookIconDrawable marker = new NotebookIconDrawable(selected ? NotebookIconDrawable.Icon.CHECK : tab.home ? NotebookIconDrawable.Icon.HOME : NotebookIconDrawable.Icon.BROWSER);
+            marker.setBounds(0, 0, dp(20), dp(20)); nameView.setCompoundDrawablesRelative(marker, null, null, null); nameView.setCompoundDrawablePadding(dp(8));
+            open.addView(nameView, new LinearLayout.LayoutParams(-1, -2));
+            TextView url = label(tab.home ? "Pinned websites and search" : tab.url, 12); url.setSingleLine(true); url.setEllipsize(TextUtils.TruncateAt.END); url.setPadding(0, dp(4), 0, 0); open.addView(url, new LinearLayout.LayoutParams(-1, -2));
+            open.setContentDescription("Open tab " + name + (selected ? ", current" : "")); open.setFocusable(true);
+            open.setOnClickListener(view -> { shownDialog.dismiss(); activateTab(tab.id); });
+            row.addView(open, new LinearLayout.LayoutParams(0, -2, 1));
+            NotebookBrowserIconButton close = icon(NotebookIconDrawable.Icon.CLOSE, "Close tab " + name, () -> { shownDialog.dismiss(); NotebookBrowserEngine page = engines.remove(tab.id); if (page != null) { content.removeView(page); page.destroy(); pageStates.remove(page); if (web == page) web = null; } tabs.close(tab.id); activateTab(tabs.current().id); });
+            row.addView(close, NotebookBrowserUi.beside(this, 48, 48));
+            LinearLayout.LayoutParams rowSize = new LinearLayout.LayoutParams(-1, -2); rowSize.topMargin = dp(10); rows.addView(row, rowSize);
         }
-        android.widget.ScrollView scroll = new android.widget.ScrollView(this); scroll.addView(rows); shownDialog = new AlertDialog.Builder(this).setTitle("Tabs · " + tabs.items.size() + " of " + NotebookBrowserTabs.MAX).setView(scroll).setNegativeButton("Done", null).create(); NotebookUi.show(shownDialog);
+        android.widget.ScrollView scroll = new android.widget.ScrollView(this); scroll.setOverScrollMode(View.OVER_SCROLL_NEVER); scroll.addView(rows); shownDialog = new AlertDialog.Builder(this).setTitle("Tabs").setView(scroll).setNegativeButton("Done", null).create(); NotebookUi.show(shownDialog);
     }
     private Bundle saveTabs() {
         Bundle value = new Bundle(); java.util.ArrayList<String> ids = new java.util.ArrayList<>(), urls = new java.util.ArrayList<>(), titles = new java.util.ArrayList<>(); boolean[] starts = new boolean[tabs.items.size()];
@@ -612,12 +635,8 @@ public class NotebookBrowserActivity extends NotebookDisplayActivity {
         super.onActivityResult(request, result, data); if (request == LINKS_RESULT && result == RESULT_OK && data != null) { String url = data.getStringExtra(INITIAL_URL); if (NotebookBrowserAddress.isWebUrl(url)) { if (offline) openOnline(url); else navigate(url); } }
     }
 
-    private void addTool(LinearLayout row, NotebookButton button, int width) {
-        LinearLayout.LayoutParams space = new LinearLayout.LayoutParams(dp(width), dp(38)); space.leftMargin = dp(6); row.addView(button, space);
-    }
-    private NotebookButton button(String text, NotebookIconDrawable.Icon icon, Runnable action) {
-        NotebookButton button = new NotebookButton(this); button.setText(text); button.setTextSize(12);
-        NotebookUi.action(button, icon); button.setOnClickListener(view -> action.run()); return button;
+    private NotebookBrowserIconButton icon(NotebookIconDrawable.Icon symbol, String name, Runnable action) {
+        return NotebookBrowserUi.icon(this, symbol, name, action);
     }
     private TextView label(String text, int size) {
         TextView view = new TextView(this); view.setText(text); view.setTextSize(size); view.setTextColor(Color.BLACK);

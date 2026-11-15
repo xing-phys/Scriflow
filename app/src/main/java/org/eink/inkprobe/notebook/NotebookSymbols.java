@@ -21,8 +21,38 @@ public final class NotebookSymbols {
     public static void draw(String icon, Sink out) {
         if (icon == null || out == null) throw new IllegalArgumentException("Missing icon or sink");
         switch (icon) {
+            case "HOME":
+                line(out, 2, 11, 12, 3, 22, 11);
+                line(out, 5, 9, 5, 21, 10, 21, 10, 14, 14, 14, 14, 21, 19, 21, 19, 9);
+                break;
+            case "BOOKMARK":
+                out.begin();
+                for (int i = 0; i < 10; i++) {
+                    double angle = Math.PI * i / 5 - Math.PI / 2;
+                    float radius = i % 2 == 0 ? 10 : 4.5f;
+                    float x = 12 + (float) Math.cos(angle) * radius, y = 12 + (float) Math.sin(angle) * radius;
+                    if (i == 0) out.moveTo(x, y); else out.lineTo(x, y);
+                }
+                out.close(); out.end(false);
+                break;
+            case "TABS":
+                line(out, 3, 17, 3, 2, 18, 2);
+                polygon(out, false, 6, 6, 21, 6, 21, 22, 6, 22);
+                break;
+            case "HISTORY":
+                out.begin(); out.moveTo(3, 8); out.cubicTo(7, 0, 20, 2, 22, 11);
+                out.cubicTo(24, 22, 8, 26, 3, 17); out.end(false);
+                line(out, 2, 3, 2, 9, 8, 9); line(out, 12, 7, 12, 13, 16, 15);
+                break;
+            case "SEARCH":
+                circle(out, 10, 10, 7, false); line(out, 15, 15, 22, 22);
+                break;
+            case "NEW_FOLDER":
+                line(out, 3, 19, 3, 5, 10, 5, 12, 8, 21, 8, 21, 19, 3, 19);
+                line(out, 9, 13, 15, 13); line(out, 12, 10, 12, 16);
+                break;
             case "BROWSER":
-                circle(out, 12, 12, 10);
+                circle(out, 12, 12, 10, false);
                 line(out, 2, 12, 22, 12);
                 out.begin();out.moveTo(12,2);out.cubicTo(5,7,5,17,12,22);out.cubicTo(19,17,19,7,12,2);out.end(false);
                 break;
@@ -330,6 +360,10 @@ public final class NotebookSymbols {
     }
 
     private static void circle(Sink out, float x, float y, float radius) {
+        circle(out, x, y, radius, true);
+    }
+
+    private static void circle(Sink out, float x, float y, float radius, boolean filled) {
         float c = radius * 0.55228475f;
         out.begin();
         out.moveTo(x + radius, y);
@@ -338,6 +372,6 @@ public final class NotebookSymbols {
         out.cubicTo(x - radius, y - c, x - c, y - radius, x, y - radius);
         out.cubicTo(x + c, y - radius, x + radius, y - c, x + radius, y);
         out.close();
-        out.end(true);
+        out.end(filled);
     }
 }

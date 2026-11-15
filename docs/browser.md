@@ -1,6 +1,6 @@
 # Browser and offline websites
 
-**0.40.0-alpha.3** (versionCode **103**) bundles GeckoView
+**0.40.0-alpha.4** (versionCode **104**) bundles GeckoView
 **160.0.20261104181552**, the Firefox browser engine. Website JavaScript, CSS,
 fonts and math rendering no longer depend on the tablet's installed WebView.
 This alpha is awaiting physical testing on the Huawei MatePad Paper.
@@ -9,14 +9,14 @@ This alpha is awaiting physical testing on the Huawei MatePad Paper.
 
 1. Tap **Browser** in the bookshelf's shortcut row.
 2. Tap the **dotted button** to expand the floating panel if hidden. Enter a
-   website address and tap **Go**, or the keyboard's Go key. Addresses without
+   website address and tap the **right arrow**, or the keyboard's Go key. Addresses without
    a scheme use HTTPS. The app's existing restriction on cleartext HTTP remains.
 3. Use the arrows for Back/Forward, the circular arrow to Reload, and pinch to
    zoom. The arrows also work offline after section links.
 4. Let the page load, and scroll to load any lazy images you want to keep. Tap
-   **Save** and wait for **Saved to Saved websites · available offline**.
-5. Tap **Bookshelf**, then the **Saved websites** folder, and choose a page.
-   The browser's **Saved websites** button opens the same folder directly.
+   the **floppy-disk icon** (Save) and wait for **Saved to Saved websites · available offline**.
+5. Tap the **books icon** (Bookshelf), then the **Saved websites** folder, and choose a page.
+   The browser's **folder icon** opens the same folder directly.
 
 The browser opens a native start page with pinned websites when there is no
 restored page. The start page never fetches websites or favicons. Existing tabs
@@ -32,18 +32,20 @@ signing into websites again after updating from the earlier WebView browser.
 ## Start page, bookmarks and collections
 
 The start page has a **Search or enter a website** field, pinned shortcuts,
-**Add shortcut**, **Bookmarks**, **History**, **Browser data** and **Tabs**.
+an **Add shortcut** tile and a row of icons for Bookmarks, History, Tabs and Browser data.
 Wikipedia and GitHub are initial shortcuts; removing them is remembered.
 Hold a shortcut to edit, unpin or move it earlier/later. Up to 32 shortcuts can
 be pinned. **Home** returns to this page without discarding the current website.
 Back can return from Home to that website.
 
-The floating panel's **Bookmark** button saves the current address. Its **⋯**
+The floating panel's **star icon** (Bookmark) saves the current address. Its **⋯**
 menu also offers bookmarking, pinning, collections, history, data settings,
 copying/sharing the address and opening another installed browser. Bookmarks
 are live links; **Save** still creates a separate offline copy.
 
-In Bookmarks, add or edit a name/address, choose a collection and optionally pin
+In Bookmarks, use the star to add a link, the folder-plus to create a collection,
+and the three dots beside the collection selector to rename or remove it.
+Add or edit a name/address, choose a collection and optionally pin
 the link. Search names/addresses, create or rename collections, move bookmarks,
 and remove links. Removing a collection moves its bookmarks to Unsorted and
 preserves pins. Removing a bookmark also removes its pin, while offline copies
@@ -52,8 +54,11 @@ with a recovery generation, separate from Gecko's profile and website archives.
 
 ## Tabs, history and search
 
-**Tabs** opens the tab picker; **+ New tab** starts with pinned websites, and
-**×** closes a tab. Up to 12 tabs may be open. Each loaded tab keeps its own
+The **stacked-squares icon** (Tabs) opens the tab picker and shows the current
+tab count. The **+** icon starts a new tab with pinned websites, and **×** closes
+a tab. The current tab has a checkmark and a stronger outline. Titles and addresses
+are separate, with long text shortened to leave room for the close control.
+Up to 12 tabs may be open. Each loaded tab keeps its own
 Back/Forward history during the browser session; inactive sessions are paused.
 Closing the last tab creates a new start page. Tab destinations and selection
 persist across app restarts. The active tab's native history also restores
@@ -73,7 +78,7 @@ addresses open directly, and unsupported URL schemes remain blocked.
 
 ## Browser data settings
 
-Open **Browser data** from the start page or **⋯ → Browser data settings**.
+Open the **gear icon** (Browser data) from the start page or **⋯ → Browser data settings**.
 Choose first-party-only cookies (default), all cookies or no cookies. Blocking
 cookies may affect sign-ins. Changing the policy does not delete existing
 cookies; use Clear data to remove them.
@@ -97,7 +102,25 @@ website data from alpha.1 is separate.
 ## Floating controls and Zen
 
 All app bars live in one floating panel: address, Back/Forward, Reload, Save,
-Bookshelf and status. Tap the dotted grip to fold the panel into a small button.
+Bookshelf and status. Controls use centered monochrome icons, 48 dp touch targets
+and consistent gaps. Actions wrap into balanced rows on narrow screens; none
+need sideways scrolling. The time/battery/Wi-Fi island has its own separated
+status row. Hold an action icon to see its name; accessibility labels identify
+each action as well.
+
+| Icon | Action |
+| --- | --- |
+| Books | Bookshelf |
+| House | Browser start page |
+| Stacked squares with number | Tabs |
+| Star | Bookmark this page |
+| Floppy disk | Save an offline copy |
+| Folder | Saved websites |
+| Circular arrow | Reload |
+| Fullscreen corners | Zen mode |
+| Three dots | Browser menu |
+
+Tap the dotted grip to fold the panel into a small button.
 Drag it whether expanded or collapsed. It stays on screen after rotation and
 keyboard changes, with scrolling if space is short. Position and collapse state
 are remembered. The page always fills the screen; folding controls does not

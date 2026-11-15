@@ -26,11 +26,12 @@ pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
 stays in front, window operations retain the main editor, and PDF import opens
 the file picker directly before opening the imported note.
 
-The **[0.40.0-alpha.3 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.40.0-alpha.3)**
-adds a browser start page with pinned shortcuts, bookmark collections, searchable
-history, independent tabs and browser-data settings. Manage cookies and clear
-cache/site data without deleting bookmarks, offline copies or notebooks. The
-address field also accepts searches with a selectable search provider.
+The **[0.40.0-alpha.4 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.40.0-alpha.4)**
+tidies the browser with evenly spaced icon controls, a responsive action layout
+and a clearer tab picker. It retains pinned shortcuts, bookmark collections,
+searchable history, independent tabs and browser-data settings. Manage cookies
+and clear cache/site data without deleting bookmarks, offline copies or notebooks.
+The address field also accepts searches with a selectable search provider.
 
 It retains the current Firefox engine, movable collapsible browser controls,
 clock-only Zen and offline section Back/Forward introduced in alpha.2.

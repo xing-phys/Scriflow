@@ -1,7 +1,11 @@
 package org.eink.inkprobe.notebook;
 
 import android.content.Context;
-import android.view.*;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.text.TextUtils;
+import android.view.Gravity;
+import android.view.View;
 import android.widget.*;
 import static org.eink.inkprobe.notebook.NotebookBrowserUi.*;
 
@@ -13,30 +17,43 @@ final class NotebookBrowserHome extends ScrollView {
     private NotebookBrowserLibrary.Snapshot snapshot;
     NotebookBrowserHome(Context context,Actions actions) {
         super(context);this.actions=actions;setBackgroundColor(android.graphics.Color.WHITE);setOverScrollMode(OVER_SCROLL_NEVER);
-        body=column(context);body.setPadding(dp(context,24),dp(context,52),dp(context,24),dp(context,24));addView(body,new LayoutParams(-1,-2));
+        FrameLayout center=new FrameLayout(context);addView(center,new LayoutParams(-1,-2));
+        body=column(context);body.setPadding(dp(context,24),dp(context,52),dp(context,24),dp(context,28));center.addView(body,new FrameLayout.LayoutParams(-1,-2,Gravity.TOP|Gravity.CENTER_HORIZONTAL));
         TextView title=label(context,"Browser",28);title.setTypeface(null,android.graphics.Typeface.BOLD);body.addView(title);
-        space(body,dp(context,18));
-        LinearLayout search=row(context);EditText query=input(context,"Search or enter a website","");query.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_URI);query.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_GO);
+        space(body,dp(context,24));
+        LinearLayout search=row(context);EditText query=input(context,"Search or enter a website","");field(query);query.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_URI);query.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_GO);
         Runnable go=()->{if(!query.getText().toString().trim().isEmpty())actions.open(query.getText().toString());};
         query.setOnEditorActionListener((v,action,event)->{if(action==android.view.inputmethod.EditorInfo.IME_ACTION_GO){go.run();return true;}return false;});
-        search.addView(query,new LinearLayout.LayoutParams(0,dp(context,48),1));search.addView(button(context,"Go",go),new LinearLayout.LayoutParams(dp(context,64),dp(context,42)));body.addView(search);
-        space(body,dp(context,22));body.addView(label(context,"Pinned websites",19));
-        body.addView(label(context,"Hold a shortcut to edit, unpin or reorder it.",12));grid=column(context);body.addView(grid);
-        String[][] labels={{"Bookmarks","History"},{"Browser data","Tabs"}};Runnable[][] clicks={{actions::bookmarks,actions::history},{actions::settings,actions::tabs}};
-        for(int r=0;r<labels.length;r++){LinearLayout row=row(context);for(int c=0;c<2;c++){LinearLayout.LayoutParams size=new LinearLayout.LayoutParams(0,dp(context,44),1);size.setMargins(dp(context,3),dp(context,6),dp(context,3),0);row.addView(button(context,labels[r][c],clicks[r][c]),size);}body.addView(row);}
-        space(body,dp(context,18));TextView hint=label(context,"Save keeps a page for offline reading. Bookmarks open the live website.",13);body.addView(hint);
+        search.addView(query,new LinearLayout.LayoutParams(0,dp(context,48),1));search.addView(icon(context,NotebookIconDrawable.Icon.SEARCH,"Search or open website",go),beside(context,48,48));body.addView(search);
+        LinearLayout shortcuts=row(context);shortcuts.setGravity(Gravity.CENTER);
+        NotebookIconDrawable.Icon[] symbols={NotebookIconDrawable.Icon.BOOKMARK,NotebookIconDrawable.Icon.HISTORY,NotebookIconDrawable.Icon.TABS,NotebookIconDrawable.Icon.SETTINGS};
+        String[] names={"Bookmarks","History","Tabs","Browser data"};Runnable[] clicks={actions::bookmarks,actions::history,actions::tabs,actions::settings};
+        for(int i=0;i<symbols.length;i++){FrameLayout slot=new FrameLayout(context);slot.addView(icon(context,symbols[i],names[i],clicks[i]),new FrameLayout.LayoutParams(dp(context,48),dp(context,48),Gravity.CENTER));shortcuts.addView(slot,new LinearLayout.LayoutParams(0,dp(context,48),1));}
+        LinearLayout.LayoutParams shortcutSize=new LinearLayout.LayoutParams(-1,-2);shortcutSize.setMargins(0,dp(context,20),0,dp(context,28));body.addView(shortcuts,shortcutSize);
+        TextView pins=label(context,"Pinned websites",19);pins.setTypeface(null,Typeface.BOLD);body.addView(pins);
+        TextView help=label(context,"Hold a shortcut to edit, unpin or reorder it.",12);help.setPadding(0,dp(context,6),0,dp(context,4));body.addView(help);grid=column(context);body.addView(grid);
+        space(body,dp(context,24));body.addView(label(context,"Save keeps a page for offline reading. Bookmarks open the live website.",13));
     }
     void show(NotebookBrowserLibrary.Snapshot value){snapshot=value;render();}
-    @Override protected void onSizeChanged(int w,int h,int oldw,int oldh){super.onSizeChanged(w,h,oldw,oldh);if(w!=oldw)post(this::render);}
+    @Override protected void onSizeChanged(int w,int h,int oldw,int oldh){super.onSizeChanged(w,h,oldw,oldh);if(w!=oldw){FrameLayout.LayoutParams size=(FrameLayout.LayoutParams)body.getLayoutParams();size.width=Math.min(w,dp(getContext(),760));body.setLayoutParams(size);post(this::render);}}
     private void render(){
         grid.removeAllViews();if(snapshot==null)return;
-        int columns=getWidth()>=dp(getContext(),760)?4:2,count=0;LinearLayout row=null;
-        for(NotebookBrowserLibrary.Link link:snapshot.links)if(link.pinned){
-            if(count++%columns==0){row=row(getContext());grid.addView(row);}
-            NotebookButton card=button(getContext(),link.title+"\n"+NotebookBrowserLibrary.host(link.url),()->actions.open(link.url));card.setMaxLines(3);card.setContentDescription("Open pinned website "+link.title);card.setOnLongClickListener(v->{actions.manage(link);return true;});
-            LinearLayout.LayoutParams size=new LinearLayout.LayoutParams(0,dp(getContext(),92),1);size.setMargins(dp(getContext(),3),dp(getContext(),8),dp(getContext(),3),0);row.addView(card,size);
+        Context context=getContext();int width=Math.min(getWidth(),dp(context,760))-body.getPaddingLeft()-body.getPaddingRight();
+        int columns=Math.max(1,Math.min(4,(width+dp(context,12))/dp(context,140))),count=0;LinearLayout row=null;
+        java.util.List<NotebookBrowserLibrary.Link> pins=new java.util.ArrayList<>();for(NotebookBrowserLibrary.Link link:snapshot.links)if(link.pinned)pins.add(link);
+        for(int i=0;i<=pins.size();i++){
+            if(count%columns==0){row=row(context);row.setGravity(Gravity.TOP);grid.addView(row);}
+            NotebookBrowserLibrary.Link link=i<pins.size()?pins.get(i):null;
+            LinearLayout card=column(context);card.setGravity(Gravity.CENTER);card.setPadding(dp(context,10),dp(context,10),dp(context,10),dp(context,10));card.setBackground(NotebookUi.rounded(getResources().getDisplayMetrics().density,9));card.setFocusable(true);
+            if(link==null){
+                TextView add=label(context,"Add shortcut",14);add.setGravity(Gravity.CENTER);NotebookIconDrawable plus=new NotebookIconDrawable(NotebookIconDrawable.Icon.PLUS);plus.setBounds(0,0,dp(context,24),dp(context,24));add.setCompoundDrawables(null,plus,null,null);add.setCompoundDrawablePadding(dp(context,8));card.addView(add);card.setContentDescription("Add shortcut");card.setOnClickListener(v->actions.add());
+            }else{
+                TextView name=label(context,link.title,16);name.setGravity(Gravity.CENTER);name.setTypeface(null,Typeface.BOLD);name.setSingleLine(true);name.setEllipsize(TextUtils.TruncateAt.END);card.addView(name,new LinearLayout.LayoutParams(-1,-2));
+                TextView host=label(context,NotebookBrowserLibrary.host(link.url),12);host.setGravity(Gravity.CENTER);host.setSingleLine(true);host.setEllipsize(TextUtils.TruncateAt.END);host.setPadding(0,dp(context,8),0,0);card.addView(host,new LinearLayout.LayoutParams(-1,-2));
+                card.setContentDescription("Open pinned website "+link.title);card.setOnClickListener(v->actions.open(link.url));card.setOnLongClickListener(v->{actions.manage(link);return true;});
+            }
+            LinearLayout.LayoutParams size=new LinearLayout.LayoutParams(0,dp(context,100),1);size.topMargin=dp(context,12);if(count%columns!=0)size.setMarginStart(dp(context,12));row.addView(card,size);count++;
         }
-        if(row!=null && count%columns!=0)for(int i=count%columns;i<columns;i++)row.addView(new android.view.View(getContext()),new LinearLayout.LayoutParams(0,1,1));
-        NotebookButton add=button(getContext(),"+ Add shortcut",actions::add);grid.addView(add,new LinearLayout.LayoutParams(-1,dp(getContext(),42)));
+        if(row!=null&&count%columns!=0)for(int i=count%columns;i<columns;i++){LinearLayout.LayoutParams size=new LinearLayout.LayoutParams(0,1,1);size.setMarginStart(dp(context,12));row.addView(new View(context),size);}
     }
 }

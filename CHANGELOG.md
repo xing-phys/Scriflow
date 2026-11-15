@@ -6,6 +6,20 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.40.0-alpha.4 — Tidy browser controls and tabs (2026-11-15)
+
+- Replace browser action labels with centered monochrome icons, tooltips and
+  accessibility names. Use 48 dp touch targets and consistent spacing; wrap
+  actions on narrow screens instead of hiding them in a scrolling strip.
+- Separate the status island from header actions. Align start-page shortcut
+  tiles and add the shortcut action as a matching tile.
+- Give tabs separate title/address lines, a current-tab checkmark and spaced
+  close buttons. Show the number of open tabs in the toolbar icon.
+- Apply consistent icon controls and spacing to bookmarks, history and browser
+  data screens. Keep explicit text for destructive data confirmations.
+- Continue the browser alpha series with versionCode 104. Physical tablet and
+  e-ink acceptance remain pending.
+
 ## 0.40.0-alpha.3 — Browser start page, bookmarks, tabs and data settings (2026-11-15)
 
 - Add a native start page with editable/reorderable pinned websites, an address

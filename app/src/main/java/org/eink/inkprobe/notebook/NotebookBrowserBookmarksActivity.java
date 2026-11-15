@@ -26,12 +26,16 @@ public final class NotebookBrowserBookmarksActivity extends NotebookDisplayActiv
     @Override public void onCreate(Bundle saved){
         super.onCreate(saved);getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);getWindow().setWindowAnimations(0);
         if(saved!=null){selected=saved.getString("folder","*");offered=saved.getBoolean("offered");}
-        LinearLayout root=column(this);root.setPadding(dp(this,18),dp(this,10),dp(this,18),dp(this,12));LinearLayout header=row(this);
-        header.addView(button(this,"Done",this::finish),new LinearLayout.LayoutParams(dp(this,80),dp(this,40)));TextView title=label(this,"Bookmarks",21);title.setPadding(dp(this,12),0,0,0);header.addView(title,new LinearLayout.LayoutParams(0,dp(this,44),1));header.addView(deviceSettingsIsland());root.addView(header);
-        LinearLayout tools=row(this);tools.addView(button(this,"Add bookmark",()->edit(null,getIntent().getStringExtra("addUrl"),false)),new LinearLayout.LayoutParams(0,dp(this,42),1));tools.addView(button(this,"New collection",()->collection(null)),new LinearLayout.LayoutParams(0,dp(this,42),1));tools.addView(button(this,"Collection…",this::collectionActions),new LinearLayout.LayoutParams(0,dp(this,42),1));root.addView(tools);
-        folders=new Spinner(this);root.addView(folders);folders.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onNothingSelected(AdapterView<?> p){}public void onItemSelected(AdapterView<?> p,View v,int at,long id){if(snapshot!=null){selected=at==0?"*":at==1?"":snapshot.folders.get(at-2).id;render();}}});
-        search=input(this,"Find bookmarks",saved==null?"":saved.getString("query",""));search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int a,int c,int f){}public void onTextChanged(CharSequence s,int a,int b,int c){render();}public void afterTextChanged(Editable e){}});root.addView(search);
-        status=label(this,"Opening bookmarks…",12);root.addView(status);list=new ListView(this);list.setId(android.R.id.list);list.setOverScrollMode(View.OVER_SCROLL_NEVER);list.setDividerHeight(dp(this,8));list.setAdapter(adapter);root.addView(list,new LinearLayout.LayoutParams(-1,0,1));setContentView(root);
+        LinearLayout root=column(this);root.setPadding(dp(this,18),dp(this,12),dp(this,18),dp(this,12));header(this,root,"Bookmarks",this::finish,deviceSettingsIsland());
+        LinearLayout tools=row(this);
+        folders=new Spinner(this);folders.setContentDescription("Bookmark collection");
+        if(compact(this)){root.addView(folders,new LinearLayout.LayoutParams(-1,dp(this,48)));space(root,dp(this,8));}else tools.addView(folders,new LinearLayout.LayoutParams(0,dp(this,48),1));
+        tools.addView(icon(this,NotebookIconDrawable.Icon.BOOKMARK,"Add bookmark",()->edit(null,getIntent().getStringExtra("addUrl"),false)),compact(this)?new LinearLayout.LayoutParams(dp(this,48),dp(this,48)):beside(this,48,48));
+        tools.addView(icon(this,NotebookIconDrawable.Icon.NEW_FOLDER,"New collection",()->collection(null)),beside(this,48,48));
+        tools.addView(icon(this,NotebookIconDrawable.Icon.MORE,"Manage collection",this::collectionActions),beside(this,48,48));root.addView(tools);space(root,dp(this,12));
+        folders.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onNothingSelected(AdapterView<?> p){}public void onItemSelected(AdapterView<?> p,View v,int at,long id){if(snapshot!=null){selected=at==0?"*":at==1?"":snapshot.folders.get(at-2).id;render();}}});
+        search=input(this,"Find bookmarks",saved==null?"":saved.getString("query",""));field(search);search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int a,int c,int f){}public void onTextChanged(CharSequence s,int a,int b,int c){render();}public void afterTextChanged(Editable e){}});root.addView(search,new LinearLayout.LayoutParams(-1,dp(this,48)));
+        status=label(this,"Opening bookmarks…",12);status.setPadding(0,dp(this,10),0,dp(this,10));root.addView(status);list=new ListView(this);list.setId(android.R.id.list);NotebookBrowserUi.list(list);list.setAdapter(adapter);root.addView(list,new LinearLayout.LayoutParams(-1,0,1));setContentView(root);
     }
     @Override protected void onResume(){super.onResume();active=true;refresh();}
     @Override protected void onPause(){active=false;++generation;if(dialog!=null)dialog.dismiss();super.onPause();}
@@ -51,8 +55,8 @@ public final class NotebookBrowserBookmarksActivity extends NotebookDisplayActiv
         adapter.notifyDataSetChanged();status.setText(matches.isEmpty()?"No bookmarks here. Add a website or choose another collection.":matches.size()+" bookmarks · Tap to open online");
     }
     private View linkRow(NotebookBrowserLibrary.Link link){
-        LinearLayout row=row(this);row.setBackground(NotebookUi.rounded(getResources().getDisplayMetrics().density,6));row.setPadding(dp(this,8),dp(this,6),dp(this,6),dp(this,6));
-        TextView info=label(this,link.title+(link.pinned?" · Pinned":"")+"\n"+link.url+"\n"+snapshot.folderTitle(link.folder),15);info.setMaxLines(4);info.setContentDescription("Open bookmark "+link.title);info.setOnClickListener(v->open(link.url));row.addView(info,new LinearLayout.LayoutParams(0,-2,1));NotebookButton more=button(this,"…",()->actions(link));more.setContentDescription("Manage bookmark "+link.title);row.addView(more,new LinearLayout.LayoutParams(dp(this,44),dp(this,42)));return row;
+        LinearLayout row=row(this);row.setBackground(NotebookUi.rounded(getResources().getDisplayMetrics().density,7));row.setPadding(dp(this,12),dp(this,10),dp(this,10),dp(this,10));
+        TextView info=label(this,link.title+(link.pinned?" · Pinned":"")+"\n"+link.url+"\n"+snapshot.folderTitle(link.folder),15);info.setMaxLines(4);info.setEllipsize(TextUtils.TruncateAt.END);info.setMinimumHeight(dp(this,64));info.setContentDescription("Open bookmark "+link.title);info.setOnClickListener(v->open(link.url));row.addView(info,new LinearLayout.LayoutParams(0,-2,1));row.addView(icon(this,NotebookIconDrawable.Icon.MORE,"Manage bookmark "+link.title,()->actions(link)),beside(this,48,48));return row;
     }
     private void open(String url){if(busy)return;setResult(RESULT_OK,new Intent().putExtra(NotebookBrowserActivity.INITIAL_URL,url));finish();}
     private void actions(NotebookBrowserLibrary.Link link){if(busy)return;dialog=new AlertDialog.Builder(this).setTitle(link.title).setItems(new String[]{"Open website","Edit / move to collection",link.pinned?"Unpin from start page":"Pin to start page","Move shortcut earlier","Move shortcut later","Delete bookmark"},(d,at)->{

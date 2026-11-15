@@ -7,7 +7,7 @@ import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.Button;
 
 /** A static toolbar control: touching it does not animate or invert its pixels. */
-public final class NotebookButton extends Button {
+public class NotebookButton extends Button {
     private boolean available = true;
 
     public NotebookButton(Context context) {
