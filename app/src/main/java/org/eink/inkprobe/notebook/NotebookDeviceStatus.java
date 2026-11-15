@@ -39,6 +39,7 @@ final class NotebookDeviceStatus extends View {
     private int clockWidth;
     private final int percentWidth;
     private boolean started, networkRegistered, zenMode, writing;
+    private Runnable zenExit;
     private final Runnable secondTick = this::tickSeconds;
     private int networkEpoch;
     private ConnectivityManager.NetworkCallback network;
@@ -61,6 +62,7 @@ final class NotebookDeviceStatus extends View {
         connectivity = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
         updateDescription();
         setOnClickListener(view -> {
+            if (zenMode && zenExit != null) { zenExit.run(); return; }
             if (context instanceof NotebookDisplayActivity) ((NotebookDisplayActivity) context).openAppSettings();
         });
         setFocusable(true);
@@ -202,12 +204,13 @@ final class NotebookDeviceStatus extends View {
     }
 
     private void updateDescription() {
-        if (zenMode) { setContentDescription(shown.clock + "; tap to open settings"); return; }
+        if (zenMode) { setContentDescription(shown.clock + (zenExit == null ? "; tap to open settings" : "; tap to exit Zen mode")); return; }
         setContentDescription(shown.clock + ", battery "
             + (shown.battery < 0 ? "unavailable" : shown.battery + " percent")
             + (shown.wifi < 0 ? ", Wi-Fi status unavailable" : shown.wifi == 1 ? ", Wi-Fi connected" : ", Wi-Fi disconnected")
             + "; tap to open settings");
     }
+    void setZenExit(Runnable action) { zenExit = action; updateDescription(); }
 
     @Override protected void onMeasure(int widthSpec, int heightSpec) {
         int width = zenMode ? clockWidth : clockWidth + percentWidth + dp(16 + 16 + 4 + 8 + 8);

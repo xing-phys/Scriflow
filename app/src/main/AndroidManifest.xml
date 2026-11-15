@@ -3,6 +3,8 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.INTERNET" />
     <application android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:theme="@style/ScriflowTheme" android:allowBackup="false" android:usesCleartextTraffic="false" android:supportsRtl="true">
+        <provider android:name=".notebook.NotebookClipboardProvider" android:authorities="${applicationId}.noteclipboard"
+            android:exported="false" android:grantUriPermissions="true" />
         <!-- This optional dependency entry is removed, never instantiated. -->
         <receiver android:name="androidx.profileinstaller.ProfileInstallReceiver" tools:node="remove" tools:ignore="MissingClass" />
         <!-- Match Jnotes' firmware-managed scrolling/handwriting policy on this tablet.

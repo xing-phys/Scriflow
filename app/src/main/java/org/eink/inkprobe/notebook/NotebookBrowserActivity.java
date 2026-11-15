@@ -23,7 +23,12 @@ import java.text.DateFormat;
 import java.util.Date;
 
 /** A maintained browser engine, floating controls and a separate offline reading policy. */
-public class NotebookBrowserActivity extends NotebookDisplayActivity {
+public class NotebookBrowserActivity extends NotebookActivity {
+    @Override protected boolean isBrowserWorkspace() { return true; }
+    @Override protected void onWorkspaceZenChanged(boolean value) {
+        if (browserTools != null && browserTools.isZen() != value) browserTools.zen(value);
+    }
+
     static final String SAVED_ID = "savedWebsiteId", INITIAL_URL = "websiteUrl";
     private FrameLayout content;
     private TextView title, status, hint;
@@ -41,7 +46,7 @@ public class NotebookBrowserActivity extends NotebookDisplayActivity {
     private int restoreX, restoreY;
     private AlertDialog shownDialog;
     private NotebookBrowserHome startPage;
-    private boolean home;
+    private boolean home, startupHome;
     private final NotebookBrowserTabs tabs = new NotebookBrowserTabs();
     private final java.util.Map<String, NotebookBrowserEngine> engines = new java.util.HashMap<>();
     private NotebookBrowserIconButton tabButton;
@@ -64,6 +69,7 @@ public class NotebookBrowserActivity extends NotebookDisplayActivity {
         if (clearedRestore) state = null;
         super.onCreate(state);
         offline = getIntent().hasExtra(SAVED_ID);
+        startupHome = state == null ? !getIntent().hasExtra(INITIAL_URL) : state.getBoolean("startupHome", false);
         NotebookBrowserData.owner(dataReset);
         if (!offline) { if (state != null) restoreTabs(state.getBundle("tabs")); else tabs.restore(getSharedPreferences("browser-tabs", MODE_PRIVATE).getString("tabs", null)); }
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
@@ -112,6 +118,7 @@ public class NotebookBrowserActivity extends NotebookDisplayActivity {
         if (offline) tools.addView(icon(NotebookIconDrawable.Icon.BROWSER, "Open online",
             () -> { if (savedPage != null) openOnline(savedPage.url); }));
         tools.addView(icon(NotebookIconDrawable.Icon.FOLDER, "Saved websites", this::savedWebsites));
+        tools.addView(icon(NotebookIconDrawable.Icon.NOTES, "Floating or split notes", () -> { browserTools.collapse(true); openWorkspaceNotes(); }));
         controls.addView(tools, new LinearLayout.LayoutParams(-1, -2));
         View divider = new View(this); divider.setBackgroundColor(0xffbbbbbb);
         LinearLayout.LayoutParams dividerSize = new LinearLayout.LayoutParams(-1, dp(1));
@@ -120,7 +127,7 @@ public class NotebookBrowserActivity extends NotebookDisplayActivity {
         status = label(offline ? "Opening offline copy…" : "Enter an address to browse. Save keeps this page for offline reading.", 12);
         status.setMaxLines(2); status.setEllipsize(TextUtils.TruncateAt.END);
         details.addView(status, new LinearLayout.LayoutParams(0, dp(40), 1));
-        details.addView(deviceSettingsIsland(), NotebookBrowserUi.beside(this, -2, -2)); controls.addView(details);
+        controls.addView(details);
         content = new FrameLayout(this); content.setBackgroundColor(Color.WHITE);
         hint = label("Tap the dotted button for browser controls.\n\nEnter a website address, then tap Save after the page loads. Find your offline copy in Saved websites on the bookshelf.", 17);
         hint.setGravity(Gravity.CENTER); hint.setPadding(dp(22), dp(22), dp(22), dp(22));
@@ -141,21 +148,24 @@ public class NotebookBrowserActivity extends NotebookDisplayActivity {
         saveShield = new View(this); saveShield.setClickable(true); saveShield.setVisibility(View.GONE);
         saveShield.setContentDescription("Saving page"); content.addView(saveShield, new FrameLayout.LayoutParams(-1, -1));
         root.addView(content, new FrameLayout.LayoutParams(-1, -1));
-        browserTools = new NotebookBrowserTools(this, controls, deviceSettingsButton(), offline,
-            state == null ? null : state.getBundle("browserTools"));
-        root.addView(browserTools, new FrameLayout.LayoutParams(-1, -1)); setContentView(root);
+        browserTools = new NotebookBrowserTools(this, controls, offline,
+            state == null ? null : state.getBundle("browserTools"), this::setWorkspaceZen);
+        root.addView(browserTools, new FrameLayout.LayoutParams(-1, -1)); attachWorkspaceBackground(root);
         if (state != null) { restoreX = state.getInt("scrollX"); restoreY = state.getInt("scrollY"); }
         if (offline) loadSavedPage(getIntent().getStringExtra(SAVED_ID), state == null ? null : state.getBundle("browserHistory"));
         else {
             String url = state == null ? (clearedRestore ? null : getIntent().getStringExtra(INITIAL_URL)) : state.getString("currentUrl");
-            if (!NotebookBrowserAddress.isWebUrl(url) && !tabs.current().home) url = tabs.current().url;
+            if (state != null && !NotebookBrowserAddress.isWebUrl(url) && !tabs.current().home) url = tabs.current().url;
             if (NotebookBrowserAddress.isWebUrl(url) && (state == null || !state.getBoolean("home", false))) {
                 home = false; tabs.current().home = false; tabs.current().url = url; createWebView();
                 Bundle history = state == null ? null : state.getBundle("browserHistory");
                 if (web != null && history != null && web.restoreState(history) != null) {
                     currentUrl = web.getUrl(); address.setText(currentUrl); hint.setVisibility(View.GONE); startPage.setVisibility(View.GONE);
                 } else navigate(url);
-            } else showHome(state == null);
+            } else {
+                if (state == null && !tabs.current().home) tabs.startHome();
+                showHome(state == null);
+            }
         }
         updateTabButton(); updateControls();
     }
@@ -212,6 +222,7 @@ public class NotebookBrowserActivity extends NotebookDisplayActivity {
 
     private void navigate(String url) {
         if (!NotebookBrowserAddress.isWebUrl(url) || saving) return;
+        startupHome = false;
         if (web == null) createWebView();
         if (web == null) return;
         home = false; tabs.current().home = false; tabs.current().url = url;
@@ -522,6 +533,7 @@ public class NotebookBrowserActivity extends NotebookDisplayActivity {
     @Override protected void onSaveInstanceState(Bundle state) {
         state.putLong("browserDataRevision", NotebookBrowserData.revision(this));
         state.putString("currentUrl", currentUrl); state.putBoolean("home", home);
+        state.putBoolean("startupHome", startupHome);
         if (!offline) { state.putBundle("tabs", saveTabs()); rememberTabs(); }
         state.putBundle("browserTools", browserTools.save());
         if (web != null) {
@@ -569,7 +581,7 @@ public class NotebookBrowserActivity extends NotebookDisplayActivity {
     private void showHome(boolean collapse) {
         if (offline || saving) return;
         if (web != null && !home) NotebookBrowserPreviews.remember(this, web);
-        home = true; tabs.current().home = true; if (web != null) { web.onPause(); web.setVisibility(View.GONE); }
+        home = true; if (!startupHome) tabs.current().home = true; if (web != null) { web.onPause(); web.setVisibility(View.GONE); }
         hint.setVisibility(View.GONE); startPage.setVisibility(View.VISIBLE); address.setText(""); title.setText("Browser"); status.setText("Start page · " + tabs.items.size() + " tabs");
         loading = false; pageReady = false; if (collapse) browserTools.collapse(true); refreshHome(); updateControls(); updateTabButton();
     }
@@ -581,6 +593,7 @@ public class NotebookBrowserActivity extends NotebookDisplayActivity {
     private void updateTabButton() { if (tabButton != null) tabButton.setCount(tabs.items.size()); if (!offline) rememberTabs(); }
     private void activateTab(String id) {
         if (waitForSave()) return;
+        startupHome = false;
         if (web != null && !home) NotebookBrowserPreviews.remember(this, web);
         if (web != null) { web.onPause(); web.setVisibility(View.GONE); }
         tabs.select(id); NotebookBrowserTabs.Tab tab = tabs.current(); web = engines.get(id); currentUrl = tab.url; home = tab.home;

@@ -6,6 +6,21 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.40.0-alpha.6 — Browser note workspace and clipboard (2026-11-15)
+
+- Open fresh browser entries on the pinned start page while retaining website
+  tabs. Keep direct online links and screen recreation on their requested page.
+- Keep the shared time/battery/Wi-Fi pill at the top-right even with collapsed
+  controls; Zen uses the note's small rounded clock tab.
+- Reuse the native note workspace from the browser toolbox: editable floating
+  notes, four split positions, resizing, minimizing and reopening.
+- Copy lasso ink and figures to Android's PNG clipboard as well as the internal
+  note clipboard. Markdown copies supply plain source text. Website editors can
+  accept pasted images and submit them using their own Send controls.
+- Capture parsed browser CSS, including the legacy HTML-comment styles on Paul
+  Graham's mobile pages; treat an unreadable style as a warning.
+- VersionCode 106; physical Huawei pen/Eudic and live ChatGPT account checks remain pending.
+
 ## 0.40.0-alpha.5 — Browser previews and visible-page fixes (2026-11-15)
 
 - Add independent list/thumbnail switches for pins, bookmark collections and

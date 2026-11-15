@@ -1,6 +1,6 @@
 # Browser and offline websites
 
-**0.40.0-alpha.5** (versionCode **105**) bundles GeckoView
+**0.40.0-alpha.6** (versionCode **106**) bundles GeckoView
 **160.0.20261104181552**, the Firefox browser engine. Website JavaScript, CSS,
 fonts and math rendering no longer depend on the tablet's installed WebView.
 This alpha is awaiting physical testing on the Huawei MatePad Paper.
@@ -26,14 +26,17 @@ connection also reconnects after cached-page restoration. Navigation during
 saving cancels that attempt; storage, size-limit and connection failures are
 reported as capture errors rather than asking you to wait for rendering again.
 
-The browser opens a native start page with pinned websites when there is no
-restored page. The start page never fetches websites or favicons. Existing tabs
-restore their selected address when the app restarts. Live pages use the engine's
+Each fresh entry from the bookshelf opens the native start page with pinned
+websites. Existing website tabs remain available in Tabs; they do not load until
+you select them. A direct Open online link still opens its requested address,
+and screen recreation keeps the current page. The start page never fetches
+websites or favicons. Live pages use the engine's
 normal mobile layout, JavaScript and fonts, including MathJax and KaTeX.
 Ordinary website dialogs and HTML selection controls use native dialogs.
 User-initiated new-window links open another tab; automatic popups are
-blocked. Use Tabs to open an independent tab explicitly. File downloads,
-uploads and password-manager integration are outside this version.
+blocked. Use Tabs to open an independent tab explicitly. Image pasting into
+website editors is supported. File downloads, file-picker uploads and
+password-manager integration are outside this version.
 The bundled engine increases APK size. Its separate cookie profile may require
 signing into websites again after updating from the earlier WebView browser.
 
@@ -121,12 +124,12 @@ website data from alpha.1 is separate.
 
 ## Floating controls and Zen
 
-All app bars live in one floating panel: address, Back/Forward, Reload, Save,
-Bookshelf and status. The compact panel is at most 480 dp wide. Controls use
+Address, Back/Forward, Reload, Save, Bookshelf and Notes share one floating panel.
+The time/battery/Wi-Fi pill stays at the screen's top-right, including while the
+panel is collapsed, matching the bookshelf and notes. The compact panel is at most 480 dp wide. Controls use
 20 dp monochrome symbols within 48 dp touch targets
 and consistent gaps. Actions wrap into balanced rows on narrow screens; none
-need sideways scrolling. The time/battery/Wi-Fi island has its own separated
-status row. Hold an action icon to see its name; accessibility labels identify
+need sideways scrolling. Hold an action icon to see its name; accessibility labels identify
 each action as well.
 
 The layouts target the 10.3-inch 4:3 tablet in both portrait and landscape, such
@@ -153,17 +156,37 @@ avoids clearing the webpage to white when an Eudic floating lookup opens.
 Tap the dotted grip to fold the panel into a small button.
 Drag it whether expanded or collapsed. It stays on screen after rotation and
 keyboard changes, with scrolling if space is short. Position and collapse state
-are remembered. The page always fills the screen; folding controls does not
-change its width or reflow content.
+are remembered. Folding controls does not change the page width or reflow content. A docked
+note reserves part of the screen and the browser reflows into the remaining area.
 
 Tap the fullscreen-corners icon for **Zen mode**. Only the small top-right clock
-with seconds remains. Tap the clock or press Android Back to restore the previous
+with seconds remains, inside the same rounded tab used in notes. Tap the clock or press Android Back to restore the previous
 expanded/collapsed state. Zen survives recreation; new browser screens start
 outside Zen. Seconds run only while the clock is visible in the foreground.
 Errors expose the controls for recovery.
 
 Outside Zen, Android Back first closes an expanded panel, then follows page
 history, then leaves the browser. The panel's arrows operate history directly.
+
+## Notes and image paste
+
+Tap the **overlapping-window icon** (Floating or split notes) in the browser
+panel. Choose a notebook to use the same native editor, writing tools, lasso,
+figures and window controls as the AI workspace. In a note's corner menu, choose
+**Position…** for Left, Right, Top, Bottom or Floating. A docked note shares the
+screen with the webpage; floating notes leave the webpage full size. Minimize
+or close a note to recover the browser area, and use Notes to reopen minimized
+windows. Notes remain separate documents and save through the normal note writer.
+
+**Copy ink** in a lasso selection and Copy/Cut figure also put an image/png item
+on Android's clipboard. The internal vector/figure clipboard remains available
+for pasting inside notes. Wait for **Copied as image**, then hold in a website's
+editable message field and choose **Paste**. Website editors that accept pasted
+images (such as a chat composer) can attach that image; submit it with the
+website's Send button. Markdown copies place source text on the system clipboard.
+Scriflow does not submit it automatically. PNGs are bounded to 2048 pixels for
+ink and 1 MB, and stored privately with individual read-only clipboard grants;
+Android may evict these temporary files.
 
 ## Read offline
 
@@ -176,7 +199,9 @@ app. No revisit of the original address is required.
 New saves contain the rendered HTML document, embedded CSS, images, fonts,
 readable canvases and accessible frame contents. Already rendered math stays
 visible without running the original site's math scripts. Unavailable resources
-are counted and reported beside the save/offline status. Existing MHTML saves
+are counted and reported beside the save/offline status. Inline styles use the
+browser's parsed CSS rules, including legacy HTML comment wrappers such as the
+ones on Paul Graham's mobile pages; an unreadable style does not abort capture. Existing MHTML saves
 from alpha.1 remain readable through a separate legacy reader.
 
 The offline reader disables page JavaScript and network requests before opening

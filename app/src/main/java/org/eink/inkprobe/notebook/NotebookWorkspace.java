@@ -22,7 +22,9 @@ public final class NotebookWorkspace {
         Box(int x, int y, int width, int height) { this.x = x; this.y = y; this.width = width; this.height = height; }
     }
     private final List<Pane> panes = new ArrayList<>();
-    private boolean floatingBase;
+    private boolean floatingBase, externalBase;
+    /** An app surface occupies the background; every note can float or dock beside it. */
+    void setExternalBase(boolean value) { externalBase = value; }
     public List<Pane> panes() { return Collections.unmodifiableList(panes); }
     public Pane find(int id) { for (Pane pane : panes) if (pane.notebookId == id) return pane; return null; }
     public Pane base() { return panes.isEmpty() ? null : panes.get(0); }
@@ -36,9 +38,9 @@ public final class NotebookWorkspace {
     /** Docking a third window floats the previous dock, keeping at most two split notes. */
     public void place(Pane pane, Position position) {
         require(pane);
-        if (pane == base() && panes.size() > 1) promoteOther(pane);
+        if (!externalBase && pane == base() && panes.size() > 1) promoteOther(pane);
         if (position != Position.FLOATING) for (Pane other : panes)
-            if (other != base() && other != pane && other.position != Position.FLOATING) other.position = Position.FLOATING;
+            if ((externalBase || other != base()) && other != pane && other.position != Position.FLOATING) other.position = Position.FLOATING;
         pane.position = position;
     }
     public void resize(Pane pane, float delta, boolean reset) {
@@ -47,11 +49,11 @@ public final class NotebookWorkspace {
             pane.width = reset ? .55f : clamp(pane.width + delta, .3f, .95f);
             pane.height = reset ? .58f : clamp(pane.height + delta, .3f, .95f);
         } else {
-            for (Pane dock : panes) if (dock != base() && !dock.collapsed && dock.position != Position.FLOATING)
-                dock.split = reset ? .5f : clamp(dock.split + (pane == base() ? -delta : delta), .25f, .75f);
+            for (Pane dock : panes) if ((externalBase || dock != base()) && !dock.collapsed && dock.position != Position.FLOATING)
+                dock.split = reset ? .5f : clamp(dock.split + (!externalBase && pane == base() ? -delta : delta), .25f, .75f);
         }
     }
-    public boolean floating(Pane pane) { return floatingBase || pane != base() && pane.position == Position.FLOATING; }
+    public boolean floating(Pane pane) { return externalBase ? pane.position == Position.FLOATING : floatingBase || pane != base() && pane.position == Position.FLOATING; }
     boolean floatingBase() { return floatingBase; }
     void setFloatingBase(boolean value) { floatingBase = value; }
     /** Promote a visible pane without discarding the former base's floating geometry. */
@@ -62,7 +64,7 @@ public final class NotebookWorkspace {
     }
     public void minimize(Pane pane) {
         require(pane);
-        if (pane == base()) { promoteOther(pane); pane.position = Position.FLOATING; }
+        if (!externalBase && pane == base()) { promoteOther(pane); pane.position = Position.FLOATING; }
         pane.collapsed = true;
     }
     public void close(Pane pane) { require(pane); if (pane == base()) promoteOther(pane); panes.remove(pane); }
@@ -84,7 +86,7 @@ public final class NotebookWorkspace {
             return new Box(Math.round(clamp(pane.x, 0, 1) * (w - fw)), Math.round(clamp(pane.y, 0, 1) * (h - fh)), fw, fh);
         }
         Pane dock = null;
-        for (Pane other : panes) if (other != base() && !other.collapsed && other.position != Position.FLOATING) { dock = other; break; }
+        for (Pane other : panes) if ((externalBase || other != base()) && !other.collapsed && other.position != Position.FLOATING) { dock = other; break; }
         if (dock == null) return new Box(0, 0, w, h);
         boolean horizontal = dock.position == Position.LEFT || dock.position == Position.RIGHT;
         int side = Math.max(1, Math.round((horizontal ? w : h) * clamp(dock.split, .25f, .75f)));
@@ -95,6 +97,19 @@ public final class NotebookWorkspace {
             case TOP: return secondary ? new Box(0, 0, w, side) : new Box(0, side, w, h - side);
             default: return secondary ? new Box(0, h - side, w, side) : new Box(0, 0, w, h - side);
         }
+    }
+    Box backgroundBox(int width, int height) {
+        for (Pane pane : panes) if (!pane.collapsed && pane.position != Position.FLOATING) {
+            Box note = box(pane, width, height);
+            switch (pane.position) {
+                case LEFT: return new Box(note.width, 0, width - note.width, height);
+                case RIGHT: return new Box(0, 0, width - note.width, height);
+                case TOP: return new Box(0, note.height, width, height - note.height);
+                case BOTTOM: return new Box(0, 0, width, height - note.height);
+                default: break;
+            }
+        }
+        return new Box(0, 0, width, height);
     }
     /** A compact, versioned preference value. No document data is stored here. */
     public String encode() {
@@ -125,7 +140,7 @@ public final class NotebookWorkspace {
             } catch (IllegalArgumentException ignored) { /* Ignore only the damaged preference entry. */ }
         }
         Pane dock = null;
-        for (Pane p : panes) if (p != base() && p.position != Position.FLOATING) {
+        for (Pane p : panes) if ((externalBase || p != base()) && p.position != Position.FLOATING) {
             if (dock == null) dock = p; else p.position = Position.FLOATING;
         }
     }

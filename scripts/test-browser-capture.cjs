@@ -52,7 +52,8 @@ const katex = path.join(root, '.tools/markdown-renderer/node_modules/katex/dist'
       } else if (request.url === '/missing.svg') { response.writeHead(404); response.end('missing'); }
       else {
         response.setHeader('Content-Type', 'text/html; charset=utf-8');
-        response.end('<!doctype html><html><head><meta charset="utf-8"><title>Offline math snapshot</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/katex.css"></head><body>'
+        response.end('<!doctype html><html><head><meta charset="utf-8"><title>Offline math snapshot</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/katex.css">'
+          + '<style><!-- #scripted { border-bottom: 5px solid black; } --></style></head><body>'
           + '<h1>Offline quantum notes</h1><p id="physics">物理 · The state evolves under the Hamiltonian.</p><p id="formula" class="math"></p>'
           + '<img id="saved-image" src="/image.svg" srcset="/missing.svg 2x"><div id="background"></div><img id="unavailable" src="/missing.svg">'
           + '<canvas id="drawing" width="30" height="30"></canvas><iframe src="/frame"></iframe><p id="scripted"></p>'
@@ -98,6 +99,7 @@ const katex = path.join(root, '.tools/markdown-renderer/node_modules/katex/dist'
     equal(await offline.title(), 'Offline math snapshot', 'title survives cold offline reopen');
     equal(await offline.$eval('#physics', n => n.textContent), '物理 · The state evolves under the Hamiltonian.', 'UTF-8 text survives');
     equal(await offline.$eval('#scripted', n => n.textContent), 'Rendered online', 'DOM changes are frozen');
+    equal(await offline.$eval('#scripted', n => getComputedStyle(n).borderBottomWidth), '5px', 'legacy HTML-comment CSS captures parsed browser rules instead of aborting');
     equal(await offline.evaluate(() => window.liveRuns), undefined, 'saved scripts never execute');
     equal(await offline.$eval('h1', n => getComputedStyle(n).borderBottomWidth), '3px', 'external CSS survives');
     equal(await offline.$eval('#physics', n => getComputedStyle(n).borderLeftWidth), '7px', 'layered conditional CSS imports survive');

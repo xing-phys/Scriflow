@@ -8,7 +8,7 @@ public final class NotebookChatOnlyTest {
     public static void main(String[] args)throws Exception{
         String source=new String(Files.readAllBytes(Paths.get("app/src/main/java/org/eink/inkprobe/notebook/NotebookActivity.java")),StandardCharsets.UTF_8);
         String fixture=String.join("\n",
-            "package org.eink.inkprobe.notebook;import java.util.*;public class ChatOnlyFixture {",
+            "package org.eink.inkprobe.notebook;import java.util.*;public class ChatOnlyFixture {void positionWorkspaceBackground(){}",
             "static class View{ViewGroup parent;ViewGroup getParent(){return parent;}}static class ViewGroup extends View{void removeView(View v){if(v.parent==this)v.parent=null;}}",
             "static class FrameLayout extends ViewGroup{int getWidth(){return 1000;}int getHeight(){return 1200;}void addView(View v,int index,LayoutParams p){v.parent=this;}static class LayoutParams{LayoutParams(int w,int h){}}}",
             "static class NotebookCompanion{final NotebookWorkspace.Pane pane;final ViewGroup body=new ViewGroup();boolean shown;NotebookCompanion(NotebookWorkspace.Pane p){pane=p;}void setCacheBudget(NotebookCacheBudget b){}void close(){shown=false;}void show(String name,View canvas){shown=!pane.collapsed;if(shown&&canvas!=null){if(canvas.parent!=null)canvas.parent.removeView(canvas);canvas.parent=body;}}}",

@@ -63,6 +63,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     @Override public NotebookWritingGate writingGate() { return writingGate; }
     private NotebookRestingPaper restingPaper;
     private FrameLayout canvas, workspaceRoot, workspaceArea;
+    private View workspaceBackground;
     private final NotebookWorkspace workspace = new NotebookWorkspace();
     private final Map<NotebookWorkspace.Pane, NotebookCompanion> noteWindows = new LinkedHashMap<>();
     private NotebookWorkspace.Pane frontNote;
@@ -195,7 +196,8 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
-        independentAi = isIndependentAiWorkspace();
+        independentAi = isIndependentAiWorkspace() || isBrowserWorkspace();
+        workspace.setExternalBase(isBrowserWorkspace());
         independentEditorId = independentAi && saved != null ? saved.getInt("independentEditorId", 0) : 0;
         pendingIndependentNoteId = independentAi && saved != null ? saved.getInt("pendingIndependentNoteId", 0) : 0;
         restoredIndependentNotes = independentAi && saved != null ? saved.getString("independentNotes") : null;
@@ -303,6 +305,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         saveState.setVisibility(View.GONE);
         deviceStatus = new NotebookDeviceStatus(this,
             () -> workspaceInteractive() && writingGate.isQuiet());
+        if (isBrowserWorkspace()) deviceStatus.setZenExit(() -> setWorkspaceZen(false));
         NotebookButton more = new NotebookButton(this); more.setText("⋮"); more.setTextSize(20);
         more.setContentDescription("Expand note action icons: background, figures and export");
         more.setOnClickListener(v -> noteActions());
@@ -367,6 +370,49 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
 
     /** The bookshelf AI activity has its own lifecycle and starts with no notes. */
     protected boolean isIndependentAiWorkspace() { return false; }
+    protected boolean isBrowserWorkspace() { return false; }
+
+    /** Share the real note editor, status islands and popup windows with the browser. */
+    protected final void attachWorkspaceBackground(View background) {
+        workspaceBackground = background;
+        workspaceRoot.addView(background, 0, new FrameLayout.LayoutParams(-1, -1));
+        canvas.setVisibility(View.GONE);
+        workspaceRoot.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob) -> positionWorkspaceBackground());
+        positionWorkspaceBackground();
+    }
+    protected final void openWorkspaceNotes() { toggleNotes(); }
+    protected final void setWorkspaceZen(boolean value) {
+        if (zenMode == value) return;
+        if (ink != null) ink.pauseForEdit();
+        zenMode = value; deviceStatus.setZenMode(value); statusIslands.setZenMode(value); updateZenButton();
+        if (value) floatingTools.hide(); else showFloatingTools();
+        if (ink != null && active && !editing) { ink.redrawAfterOverlayChange(); ink.start(); }
+    }
+    protected void onWorkspaceZenChanged(boolean value) { }
+    protected final void appendWorkspaceDebug(org.json.JSONObject result) throws org.json.JSONException {
+        if ((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0) return;
+        result.put("workspaceZen", zenMode).put("noteEditorReady", canEdit());
+        org.json.JSONArray notes = new org.json.JSONArray();
+        for (NotebookWorkspace.Pane pane : workspace.panes()) {
+            NotebookWorkspace.Box box = workspace.box(pane,workspaceArea.getWidth(),workspaceArea.getHeight());
+            notes.put(new org.json.JSONObject().put("id",pane.notebookId).put("position",pane.position.name())
+                .put("collapsed",pane.collapsed).put("x",box.x).put("y",box.y).put("width",box.width).put("height",box.height));
+        }
+        result.put("notes",notes);
+    }
+    private void positionWorkspaceBackground() {
+        if (workspaceBackground == null || workspaceRoot.getWidth() < 1 || workspaceRoot.getHeight() < 1) return;
+        NotebookWorkspace.Box box = workspace.backgroundBox(workspaceRoot.getWidth(), workspaceRoot.getHeight());
+        FrameLayout.LayoutParams old = (FrameLayout.LayoutParams) workspaceBackground.getLayoutParams();
+        if (old.width != box.width || old.height != box.height || old.leftMargin != box.x || old.topMargin != box.y) {
+            FrameLayout.LayoutParams size = new FrameLayout.LayoutParams(box.width, box.height);
+            size.leftMargin = box.x; size.topMargin = box.y; workspaceBackground.setLayoutParams(size);
+        }
+        boolean visible = false;
+        for (NotebookWorkspace.Pane pane : workspace.panes()) if (!pane.collapsed) visible = true;
+        canvas.setVisibility(visible && independentEditorId != 0 ? View.VISIBLE : View.GONE);
+        if (!visible && floatingTools != null) floatingTools.hide();
+    }
 
     private NotebookButton statusButton(String text, String description, Runnable action) {
         NotebookButton button = new NotebookButton(this);
@@ -476,7 +522,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
                 public void failed(Throwable error){showError(new IOException("Could not render the notebook paper",error));}
                 public List<Rect> exclusions(){return restingPaperExclusions();}
             });
-            ink = new NotebookInk(this, NotebookPage.empty(), new NotebookInk.Listener() {
+            ink = createWritingSurface(NotebookPage.empty(), new NotebookInkBackend.Listener() {
                 @Override public void onGeometryReady(int width, int height) {
                     if (!active || surfaceOwner != inkGeneration) return;
                     if (geometryPending) {
@@ -588,6 +634,10 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             // storage has failed, leaving the full open page visible while Retry is offered.
             ink.start();
         } catch (Exception error) { showError(new IOException("Could not open the writing surface", error)); }
+    }
+
+    protected NotebookInkBackend createWritingSurface(NotebookPage initial, NotebookInkBackend.Listener listener) throws Exception {
+        return new NotebookInk(this, initial, listener);
     }
 
     private void configureViewport(int width, int height) {
@@ -1187,6 +1237,8 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     }
 
     private void showFloatingTools() {
+        if (isBrowserWorkspace() && (zenMode || independentWithoutEditor()
+                || workspace.find(independentEditorId) == null || workspace.find(independentEditorId).collapsed)) return;
         if (floatingTools != null && !floatingTools.isShowing() && workspaceInteractive() && overview == null) {
             floatingTools.show(workspaceRoot, toolsX, toolsY);
             if (placeToolsBelowStatus && floatingTools.isShowing()) {
@@ -1345,6 +1397,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     private void pauseAiChat(){if(aiWindows!=null)aiWindows.suspend();}
     private boolean applyChatDock(){return applyChatDock(false);}
     private boolean applyChatDock(boolean paused){
+        if (isBrowserWorkspace()) return false;
         if(aiWindows==null||!active||changingWorkspace||ink==null||shownError!=null||(!paused&&!canEdit())||workspaceRoot.getWidth()<1||workspaceRoot.getHeight()<1)return false;
         NotebookWorkspace.Box box=aiWindows.background();
         boolean floatingBase=independentAi||aiWindows.mainChat();
@@ -1407,6 +1460,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         button.setIcon(zenMode ? NotebookIconDrawable.Icon.EXIT_FULLSCREEN : NotebookIconDrawable.Icon.FULLSCREEN);
         button.setContentDescription(zenMode ? "Exit Zen mode" : "Enter Zen mode");
         button.setToolSelected(zenMode);
+        if (isBrowserWorkspace()) { if (zenMode) floatingTools.hide(); onWorkspaceZenChanged(zenMode); }
     }
 
     private void leaveZenForError() {
@@ -2835,6 +2889,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
 
     private void layoutWorkspace() {
         if (workspaceRoot.getWidth() < 1 || workspaceRoot.getHeight() < 1) return;
+        positionWorkspaceBackground();
         layingOutWorkspace = true;
         if (independentAi && independentEditorId == 0) {
             for (NotebookWorkspace.Pane pane : new ArrayList<>(noteWindows.keySet())) if (!workspace.panes().contains(pane))
@@ -2967,6 +3022,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             NotebookWorkspace.Pane replacement = workspace.replacement(pane);
             if (replacement == null) {
                 if (independentAi && close) { closeIndependentNote(pane); return; }
+                if (isBrowserWorkspace()) { retireIndependentNote(pane, false); return; }
                 if (aiWindows != null && aiWindows.mainChat()) changeWorkspace(() -> workspace.minimize(pane));
                 return;
             }
@@ -3066,9 +3122,15 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     }
 
     private void closeIndependentNote(NotebookWorkspace.Pane pane) {
+        retireIndependentNote(pane, true);
+    }
+
+    /** The browser keeps a minimized entry, while releasing its last native surface. */
+    private void retireIndependentNote(NotebookWorkspace.Pane pane, boolean close) {
         pauseForEdit();if(shownError!=null)return;
         captureViewCenter();persistPosition();rememberEditor();++generation;
-        workspace.close(pane);NotebookCompanion window=noteWindows.remove(pane);if(window!=null)window.close();
+        if(close)workspace.close(pane);else workspace.minimize(pane);
+        NotebookCompanion window=noteWindows.remove(pane);if(window!=null)window.close();
         independentEditorId=0;viewNotebookId=0;page=null;viewport=null;pages.clear();viewportBuffer.clear();
         resetIndependentView();
         disposeCanvas(true);layoutWorkspace();statusIslands.setNoteVisible(false);updateControls();showFloatingTools();

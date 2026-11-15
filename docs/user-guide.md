@@ -4,7 +4,7 @@ Scriflow is designed for Huawei MatePad Paper HMW-W09 on Android 10/API 29,
 firmware `HMW-W09 2.1.0.222(C00E170R1P8)`. Other devices and firmware have not
 been verified. See the [README](../README.md) for installation and current limits.
 
-This guide follows alpha prerelease **0.40.0-alpha.5**; the published stable release is
+This guide follows alpha prerelease **0.40.0-alpha.6**; the published stable release is
 **0.33.2**. This build reads older notes; ordinary edits use page format 8 and
 individually sized Markdown uses format 9. Older APKs cannot read formats they
 do not support. Physical checks of this exact APK remain pending.
@@ -43,6 +43,15 @@ changing screen orientation or zoom does not change the paper. Existing notes
 keep their original coordinates and PDF printing scale.
 
 ## Browser and saved websites
+
+Fresh bookshelf entries open the pinned start page; use Tabs to resume an
+existing website. Time, battery and Wi-Fi stay at the top-right while controls
+collapse. Zen replaces them with the same small rounded clock tab used in notes.
+The toolbox's overlapping-window icon opens floating or split notes; use a note's
+corner menu → Position to dock it beside the browser. Copy ink or a figure,
+wait for **Copied as image**, then hold a website message field and choose Paste.
+The website must support pasted image attachments; send using its own controls.
+
 
 Tap **Browser** on the bookshelf. A new tab shows pinned websites and a search
 field. Hold a shortcut to edit, reorder or unpin it; **Add shortcut** creates one.

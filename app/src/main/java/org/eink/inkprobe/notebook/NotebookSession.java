@@ -43,6 +43,7 @@ final class NotebookSession {
     private final Handler main = new Handler(Looper.getMainLooper());
     private final NotebookLibrary document;
     private final File directory;
+    private final Context context;
     private final Map<Integer,NotebookReadingSettings> reading = new java.util.concurrent.ConcurrentHashMap<>();
     private final Map<Integer,IOException> readingErrors = new java.util.concurrent.ConcurrentHashMap<>();
     private boolean initialPaperChecked, initialPaperRequired;
@@ -71,6 +72,7 @@ final class NotebookSession {
     private int navigationBook, navigationCount;
 
     private NotebookSession(Context context) {
+        this.context = context;
         NotebookMarkdownRasterizer.configure(context.getCacheDir());
         directory = new File(context.getFilesDir(), "notebook");
         document = new NotebookLibrary(directory);
@@ -123,8 +125,8 @@ final class NotebookSession {
     void load(Callback callback) { submit(() -> { prepareInitialPaper(); document.load(); }, callback); }
     NotebookLasso.Clipboard clipboard() { return clipboard; }
     NotebookFigure figureClipboard() { return figureClipboard; }
-    void copyFigure(NotebookFigure figure) { figureClipboard = figure; }
-    void copy(NotebookLasso.Selection selection) { clipboard = new NotebookLasso.Clipboard(selection); }
+    void copyFigure(NotebookFigure figure) { figureClipboard = figure; NotebookClipboard.figure(context, figure); }
+    void copy(NotebookLasso.Selection selection) { clipboard = new NotebookLasso.Clipboard(selection); NotebookClipboard.ink(context, selection.strokes); }
 
     void selectLasso(int id, List<NotebookPage.Point> path, LassoCallback callback) {
         final List<NotebookPage.Point> outline = new ArrayList<>(path);

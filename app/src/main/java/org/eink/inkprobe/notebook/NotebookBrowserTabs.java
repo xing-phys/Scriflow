@@ -16,6 +16,8 @@ final class NotebookBrowserTabs {
     Tab find(String id){for(Tab tab:items)if(tab.id.equals(id))return tab;return null;}
     Tab add(){if(items.size()>=MAX)throw new IllegalStateException("Up to 12 tabs can be open on this tablet.");Tab tab=new Tab(UUID.randomUUID().toString());items.add(tab);selected=tab.id;return tab;}
     void select(String id){if(find(id)==null)throw new IllegalArgumentException("This tab was closed.");selected=id;}
+    /** Reuse a start tab when available; at the limit Home is an unpersisted overlay. */
+    void startHome(){for(Tab tab:items)if(tab.home){selected=tab.id;return;}if(items.size()<MAX)add();}
     void close(String id){Tab target=find(id);if(target==null)return;int index=items.indexOf(target);items.remove(target);if(items.isEmpty())add();else if(id.equals(selected))selected=items.get(Math.min(index,items.size()-1)).id;}
     String encode(){
         try{java.io.ByteArrayOutputStream bytes=new java.io.ByteArrayOutputStream();java.io.DataOutputStream out=new java.io.DataOutputStream(bytes);out.writeInt(0x4e425431);out.writeUTF(selected);out.writeInt(items.size());for(Tab tab:items){out.writeUTF(tab.id);out.writeUTF(tab.url);out.writeUTF(tab.title==null?"":tab.title.substring(0,Math.min(1024,tab.title.length())));out.writeBoolean(tab.home);}out.flush();return Base64.getEncoder().encodeToString(bytes.toByteArray());}catch(java.io.IOException error){throw new IllegalStateException(error);}

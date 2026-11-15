@@ -101,8 +101,12 @@ export async function captureDocument(document, fetchResource, depth = 0) {
       })()); else copy.remove();
     } else if (tag === 'style') {
       let text = node.textContent;
-      if (!text.trim()) { try { text = [...node.sheet.cssRules].map(rule => rule.cssText).join('\n'); } catch { } }
-      work.push(css(text, node.baseURI).then(value => { copy.textContent = value; }));
+      // The browser has already recovered legacy HTML comment wrappers and other
+      // tolerated CSS syntax. Freeze its parsed rules instead of reparsing raw,
+      // sometimes invalid tracker-injected style text with a stricter parser.
+      try { if (node.sheet) text = [...node.sheet.cssRules].map(rule => rule.cssText).join('\n'); } catch { }
+      work.push(css(text, node.baseURI).then(value => { copy.textContent = value; })
+        .catch(() => { missing++; copy.remove(); }));
     } else if (tag === 'img' || tag === 'image') {
       const value = tag === 'img' ? node.currentSrc || node.src : node.getAttribute('href') || node.getAttribute('xlink:href');
       if (value) work.push(resource(value, node.baseURI).then(data => {
@@ -150,6 +154,7 @@ export async function captureDocument(document, fetchResource, depth = 0) {
 
 export function pageStats(document) {
   return { url: document.location.href, title: document.title, ready: document.readyState,
+    bodyLength: document.body?.textContent.length || 0, elementCount: document.querySelectorAll('*').length,
     userAgent: document.defaultView.navigator.userAgent, scrollY: document.defaultView.scrollY,
     width: document.defaultView.innerWidth, documentWidth: document.documentElement.scrollWidth,
     math: document.querySelectorAll('.math').length, renderedMath: document.querySelectorAll('mjx-container, .katex').length,

@@ -15,6 +15,10 @@ import org.json.JSONObject;
 public final class NotebookBrowserSelfTestActivity extends NotebookBrowserActivity {
     private static Bundle captured, forced;
     private String lifecycle = "created";
+    @Override protected NotebookInkBackend createWritingSurface(NotebookPage initial, NotebookInkBackend.Listener listener) throws Exception {
+        return getIntent().getBooleanExtra("softwareInk", false) ? new NotebookBrowserTestInk(this, initial, listener)
+            : super.createWritingSurface(initial, listener);
+    }
     @Override protected void onResume() { super.onResume(); lifecycle = "resumed"; }
     @Override protected void onPause() { super.onPause(); lifecycle = "paused"; getWindow().getDecorView().postDelayed(this::report, 500); }
     @Override protected void onStop() { super.onStop(); lifecycle = "stopped"; getWindow().getDecorView().postDelayed(this::report, 500); }
@@ -31,6 +35,20 @@ public final class NotebookBrowserSelfTestActivity extends NotebookBrowserActivi
 
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        if (intent.getBooleanExtra("copyInk", false)) {
+            NotebookPage.Stroke stroke = new NotebookPage.Stroke(2, 5, android.graphics.Color.BLACK, java.util.Arrays.asList(
+                new NotebookPage.Point(10, 10, 1000, .5f), new NotebookPage.Point(90, 70, 1010, .7f), new NotebookPage.Point(160, 10, 1020, .5f)));
+            NotebookSession.get(this).copy(NotebookLasso.all(NotebookPage.empty().withStrokes(java.util.Collections.singletonList(stroke))));
+        }
+        if (intent.getBooleanExtra("copyImage", false)) new Thread(() -> {
+            android.graphics.Bitmap image=android.graphics.Bitmap.createBitmap(180,100,android.graphics.Bitmap.Config.ARGB_8888);
+            android.graphics.Canvas canvas=new android.graphics.Canvas(image);canvas.drawColor(android.graphics.Color.WHITE);
+            android.graphics.Paint pen=new android.graphics.Paint();pen.setColor(android.graphics.Color.BLACK);pen.setStrokeWidth(7);
+            canvas.drawLine(10,80,90,10,pen);canvas.drawLine(90,10,170,80,pen);
+            java.io.ByteArrayOutputStream png=new java.io.ByteArrayOutputStream();image.compress(android.graphics.Bitmap.CompressFormat.PNG,100,png);image.recycle();
+            NotebookFigure figure=new NotebookFigure(java.util.UUID.randomUUID(),0,0,180,100,png.toByteArray());
+            runOnUiThread(() -> NotebookSession.get(this).copyFigure(figure));
+        }, "clipboard-fixture").start();
         if (intent.getBooleanExtra("captureState", false)) { captured = new Bundle(); onSaveInstanceState(captured); }
         if (intent.getBooleanExtra("restoreStale", false) && captured != null) { forced = captured; recreate(); return; }
         String click = intent.getStringExtra("click");
@@ -80,6 +98,7 @@ public final class NotebookBrowserSelfTestActivity extends NotebookBrowserActivi
                 JSONArray labels = new JSONArray(); labels(browserDebugRoot(), labels);
                 result.put("nativeLabels", labels);
                 result.put("lifecycle", lifecycle);
+                appendWorkspaceDebug(result);
                 result.put("time", System.currentTimeMillis());
                 try (FileOutputStream output = new FileOutputStream(new File(getFilesDir(), "browser-test.json"))) {
                     output.write(result.toString(2).getBytes(StandardCharsets.UTF_8));

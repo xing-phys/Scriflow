@@ -2,10 +2,8 @@ package org.eink.inkprobe.notebook;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.graphics.Color;
 import android.os.Bundle;
 import android.os.SystemClock;
-import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
@@ -21,17 +19,16 @@ final class NotebookBrowserTools extends FrameLayout {
     private final ScrollView panel;
     private final NotebookIconButton grip;
     private final NotebookGripGesture gesture;
-    private final NotebookDeviceStatus normalStatus, zenClock;
-    private final FrameLayout clockTarget;
+    private final java.util.function.Consumer<Boolean> zenChanged;
     private boolean resumed, dragging;
     private int pointer = -1;
     private float startX, startY, startLeft, startTop, pendingLeft, pendingTop;
     private long lastMove;
     private final Runnable moveFrame = this::applyMove;
 
-    NotebookBrowserTools(Context context, View controls, NotebookDeviceStatus normalStatus, boolean offline, Bundle saved) {
+    NotebookBrowserTools(Context context, View controls, boolean offline, Bundle saved, java.util.function.Consumer<Boolean> zenChanged) {
         super(context);
-        this.normalStatus = normalStatus;
+        this.zenChanged = zenChanged;
         preferences = context.getSharedPreferences("browser-ui", Context.MODE_PRIVATE);
         state = new NotebookBrowserToolbarState(saved == null ? preferences.getBoolean("collapsed", offline) : saved.getBoolean("collapsed"),
             saved == null ? preferences.getFloat("horizontal", 0) : saved.getFloat("horizontal"),
@@ -48,20 +45,6 @@ final class NotebookBrowserTools extends FrameLayout {
         grip.setOnClickListener(view -> collapse(!state.collapsed()));
         grip.setOnTouchListener((view, event) -> drag(event));
         addView(grip, new FrameLayout.LayoutParams(dp(36), dp(36)));
-        zenClock = new NotebookDeviceStatus(context, () -> true); zenClock.setZenMode(true);
-        zenClock.setClickable(false); zenClock.setFocusable(false); zenClock.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
-        clockTarget = new FrameLayout(context); clockTarget.setPadding(dp(6), dp(4), dp(6), dp(4));
-        clockTarget.setBackgroundColor(Color.WHITE); clockTarget.setFocusable(true);
-        clockTarget.setContentDescription("Clock; tap to exit Zen mode"); clockTarget.setOnClickListener(view -> zen(false));
-        clockTarget.setAccessibilityDelegate(new View.AccessibilityDelegate() {
-            @Override public void onInitializeAccessibilityNodeInfo(View host, android.view.accessibility.AccessibilityNodeInfo info) {
-                super.onInitializeAccessibilityNodeInfo(host, info);
-                info.setContentDescription(zenClock.getContentDescription().toString().replace("tap to open settings", "tap to exit Zen mode"));
-            }
-        });
-        clockTarget.addView(zenClock, new FrameLayout.LayoutParams(-2, -2));
-        FrameLayout.LayoutParams clockSpace = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.END);
-        clockSpace.topMargin = dp(6); clockSpace.setMarginEnd(dp(6)); addView(clockTarget, clockSpace);
         present();
     }
 
@@ -85,7 +68,6 @@ final class NotebookBrowserTools extends FrameLayout {
     void resumed(boolean value) {
         resumed = value;
         if (!value) stopDrag();
-        updateClocks();
     }
 
     Bundle save() {
@@ -93,19 +75,14 @@ final class NotebookBrowserTools extends FrameLayout {
         saved.putFloat("horizontal", state.horizontal()); saved.putFloat("vertical", state.vertical()); return saved;
     }
 
-    void dispose() { resumed = false; stopDrag(); updateClocks(); }
+    void dispose() { resumed = false; stopDrag(); }
 
     private void present() {
         panel.setVisibility(state.controlsVisible() ? VISIBLE : GONE);
         grip.setVisibility(state.gripVisible() ? VISIBLE : GONE);
         grip.setContentDescription((state.collapsed() ? "Expand" : "Collapse") + " browser controls; drag to move");
-        clockTarget.setVisibility(state.zen() ? VISIBLE : GONE);
-        updateClocks(); place();
-    }
-
-    private void updateClocks() {
-        if (resumed && state.controlsVisible()) normalStatus.start(); else normalStatus.stop();
-        if (resumed && state.zen()) zenClock.start(); else zenClock.stop();
+        zenChanged.accept(state.zen());
+        place();
     }
 
     @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
