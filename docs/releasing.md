@@ -312,9 +312,9 @@ build unsigned release APKs without possessing the permanent key.
 
 ## Version numbers
 
-The current prerelease is **0.40.0-alpha.4**, Android `versionCode` **104**,
-refining the bundled browser's icon controls, spacing, responsive layout and
-tab picker. It retains pinned shortcuts, bookmarks, history and data settings, the
+The current prerelease is **0.40.0-alpha.5**, Android `versionCode` **105**,
+adding browser thumbnails, smaller controls for the 4:3 tablet and fixes for
+floating-dictionary visibility and capture readiness. It retains the
 existing notebook/backup formats (8, or 9 for individually sized Markdown) and
 chat archive compatibility from 0.39. New website snapshots use self-contained HTML and NWS2 metadata, outside
 notebook backups; NWS1/MHTML archives remain readable. Versions 1–7 remain readable
@@ -390,16 +390,16 @@ and [Android versioning](https://developer.android.com/studio/publish/versioning
    The helper runs release lint and assembly, copies the candidate privately,
    verifies those exact bytes and the configured signing certificate, then
    stages a versioned APK and SHA-256 checksum under
-   `build/releases/`. For this release these are `scriflow-0.40.0-alpha.4.apk` and
-   `scriflow-0.40.0-alpha.4.apk.sha256`. Debugging is disabled, diagnostic screens are
+   `build/releases/`. For this release these are `scriflow-0.40.0-alpha.5.apk` and
+   `scriflow-0.40.0-alpha.5.apk.sha256`. Debugging is disabled, diagnostic screens are
    absent from the manifest, and the library is the only exported component.
 
 4. Compare the printed signer certificate SHA-256 with the intended permanent
    certificate. For later builds, pin that known digest during verification:
 
    ```bash
-   python3 scripts/verify-apk.py build/releases/scriflow-0.40.0-alpha.4.apk --certificate-sha256 YOUR_KNOWN_CERTIFICATE_SHA256
-   (cd build/releases && sha256sum -c scriflow-0.40.0-alpha.4.apk.sha256)
+   python3 scripts/verify-apk.py build/releases/scriflow-0.40.0-alpha.5.apk --certificate-sha256 YOUR_KNOWN_CERTIFICATE_SHA256
+   (cd build/releases && sha256sum -c scriflow-0.40.0-alpha.5.apk.sha256)
    ```
 
    Substitute the current version and the actual known digest. The APK file's
@@ -468,6 +468,15 @@ Do not use raw private version-1 files as a portable migration format, downgrade
 an APK over version-2 pages, or assume a signature change preserves app data.
 
 ## Publish only after acceptance
+
+For **0.40.0-alpha.5**, validate native 4:3 portrait/landscape previews, independent
+view choices, a floating PROCESS_TEXT Activity, cache deletion and offline capture.
+Run production visibility/connection-retry callbacks, the shipped content bridge
+with a permanently pending resource and cached-page restoration, existing
+regressions and debug/release lint/builds. Commit/push and publish the permanently
+signed alpha APK/checksum before asking for tablet testing; verify downloaded
+bytes and signer. Retain 0.33.2 as Latest stable. Emulator overlay checks do not
+replace acceptance with the actual Huawei/Eudic window and e-ink display.
 
 For **0.40.0-alpha.4**, inspect browser layouts on the native Android emulator
 at tablet and narrow widths, including long tab names, wrapping, touch targets,

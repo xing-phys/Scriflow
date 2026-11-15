@@ -1,18 +1,51 @@
 import { captureDocument, pageStats } from './capture.js';
-const port = browser.runtime.connectNative('scriflow');
-let active = null;
+let port = null, active = null, hidden = false, retry = null, heartbeat = null, announcements = 0;
 const acknowledgements = new Map();
-port.onMessage.addListener(async message => {
-  if (message.type === 'ack') { acknowledgements.get(message.sequence)?.(); acknowledgements.delete(message.sequence); return; }
-  if (message.type === 'cancel') {
-    const id = active; active = null;
-    if (id) browser.runtime.sendMessage({ type: 'cancel', id }).catch(() => {});
-    for (const resolve of acknowledgements.values()) resolve(); acknowledgements.clear(); return;
-  }
-  if (message.type === 'stats') { port.postMessage({ type: 'stats', id: message.id, ...pageStats(document) }); return; }
+const announce = () => {
+  try { port?.postMessage({ type: 'document', url: location.href, readable: document.readyState !== 'loading' && !!document.body }); } catch { }
+  clearTimeout(heartbeat);
+  // A few early announcements bridge native-event ordering without polling a
+  // permanently loading page for the rest of the reading session.
+  if (!hidden && document.readyState !== 'complete' && announcements++ < 20) heartbeat = setTimeout(announce, 500);
+};
+function retire() {
+  const id = active; active = null;
+  if (id) browser.runtime.sendMessage({ type: 'cancel', id }).catch(() => {});
+  for (const resolve of acknowledgements.values()) resolve(); acknowledgements.clear();
+}
+function connect() {
+  clearTimeout(retry); retry = null;
+  if (hidden || port) return;
+  announcements = 0;
+  try {
+    const owner = port = browser.runtime.connectNative('scriflow');
+    owner.onMessage.addListener(message => receive(owner, message));
+    owner.onDisconnect.addListener(() => {
+      if (port !== owner) return;
+      port = null; retire();
+      if (!hidden) retry = setTimeout(connect, 250);
+    });
+    announce();
+  } catch { port = null; if (!hidden) retry = setTimeout(connect, 1000); }
+}
+document.addEventListener('DOMContentLoaded', announce);
+addEventListener('load', announce);
+addEventListener('hashchange', announce);
+addEventListener('popstate', announce);
+addEventListener('pagehide', () => { hidden = true; clearTimeout(retry); clearTimeout(heartbeat); retire(); const old = port; port = null; old?.disconnect(); });
+addEventListener('pageshow', () => { hidden = false; connect(); announce(); });
+connect();
+
+async function receive(owner, message) {
+  if (owner !== port) return;
+  if (message.type === 'ack') { if (message.id === active) { acknowledgements.get(message.sequence)?.(); acknowledgements.delete(message.sequence); } return; }
+  if (message.type === 'cancel') { if (message.id === active) retire(); return; }
+  if (message.type === 'hello') { announce(); return; }
+  if (message.type === 'stats') { owner.postMessage({ type: 'stats', id: message.id, ...pageStats(document) }); return; }
   if (message.type !== 'capture' || active) return;
   const id = active = message.id;
   try {
+    if (!document.documentElement || !document.body) throw Error('The document has no readable content yet');
     await browser.runtime.sendMessage({ type: 'begin', id });
     // Observe the rendered document without invoking JavaScript supplied by a site.
     // MathJax may still be replacing formula nodes when the load event arrives.
@@ -39,9 +72,10 @@ port.onMessage.addListener(async message => {
         const timeout = setTimeout(() => { acknowledgements.delete(current); reject(Error('Capture writer timed out')); }, 15000);
         acknowledgements.set(current, () => { clearTimeout(timeout); resolve(); });
       });
-      port.postMessage({ type: 'chunk', id, sequence: current, text }); await ack; offset = end;
+      owner.postMessage({ type: 'chunk', id, sequence: current, text }); await ack; offset = end;
     }
-    port.postMessage({ type: 'complete', id, chunks: sequence, url: result.url, missing: result.missing });
-  } catch (error) { if (active === id) port.postMessage({ type: 'error', id, message: String(error.message) }); }
+    owner.postMessage({ type: 'complete', id, chunks: sequence, url: result.url, missing: result.missing });
+  } catch (error) { if (active === id && owner === port) owner.postMessage({ type: 'error', id,
+    code: /size limit|exceeds|too large/i.test(String(error.message)) ? 'size' : 'capture' }); }
   finally { if (active === id) { active = null; browser.runtime.sendMessage({ type: 'end', id }).catch(() => {}); } }
-});
+}

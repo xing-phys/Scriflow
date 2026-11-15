@@ -36,15 +36,17 @@ final class NotebookBrowserIconButton extends NotebookButton {
         sendAccessibilityEvent(android.view.accessibility.AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED);
     }
 
+    void setSymbol(NotebookIconDrawable.Icon icon, String name) { symbol.setIcon(icon); setContentDescription(name); setTooltipText(name); }
+
     @Override protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        int size = NotebookBrowserUi.dp(getContext(), 24);
+        int size = NotebookBrowserUi.dp(getContext(), 20);
         int left = (getWidth() - size) / 2, top = (getHeight() - size) / 2;
         symbol.setBounds(left, top, left + size, top + size);
         symbol.draw(canvas);
         if (count > 0) {
             // Keep the number inside the stacked-tab outline even at large system font sizes.
-            countPaint.setTextSize(NotebookBrowserUi.dp(getContext(), 10));
+            countPaint.setTextSize(NotebookBrowserUi.dp(getContext(), 9));
             Paint.FontMetrics metrics = countPaint.getFontMetrics();
             canvas.drawText(Integer.toString(count), getWidth() / 2f + size / 24f,
                 getHeight() / 2f + size / 12f - (metrics.ascent + metrics.descent) / 2f, countPaint);

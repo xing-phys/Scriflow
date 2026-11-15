@@ -20,6 +20,7 @@ abstract class NotebookBrowserEngine extends FrameLayout {
         void onDownload(NotebookBrowserEngine view);
         default void onNewTab(NotebookBrowserEngine view, String url) { view.loadUrl(url); }
         default void onDataCleared(NotebookBrowserEngine view) { }
+        default void onDocumentReady(NotebookBrowserEngine view, String url) { }
     }
     final Listener listener;
     NotebookBrowserEngine(Context context, Listener listener) { super(context); this.listener = listener; }
@@ -40,6 +41,9 @@ abstract class NotebookBrowserEngine extends FrameLayout {
     abstract void stopLoading();
     abstract void onResume();
     abstract void onPause();
+    void onWindowPause() { }
+    void capturePreview(Consumer<android.graphics.Bitmap> callback) { callback.accept(null); }
+    String captureError() { return "The page could not be captured. Please retry."; }
     abstract void destroy();
     boolean htmlCapture() { return true; }
     int captureWarnings() { return 0; }

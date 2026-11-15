@@ -34,10 +34,12 @@ public final class NotebookBrowserDataSelfTestActivity extends NotebookDisplayAc
     private void afterSeed(){android.util.Log.d("BrowserDataTest","Fixture cookies ready");NotebookBrowserData.sites(this,(sites,error)->{
         if(error!=null){fail(error);return;}try{check(sites.getOrDefault("first.scriflow-test.example",0)==1&&sites.getOrDefault("second.scriflow-test.example",0)==1,"real engine cookies appear in the app data list");
             if(getIntent().getBooleanExtra("seedOnly",false)||getIntent().getBooleanExtra("inspectOnly",false)){finishResult("passed");return;}
+            File previews=new File(getCacheDir(),"browser-previews");previews.mkdirs();Files.write(new File(previews,String.join("",Collections.nCopies(64,"a"))+".jpg").toPath(),new byte[]{1,2,3});
             NotebookBrowserData.clear(this,null,false,true,false,(value,failure)->{if(failure!=null){fail(failure);return;}afterCache();});
         }catch(Throwable failure){fail(failure.toString());}
     });}
     private void afterCache(){NotebookBrowserData.sites(this,(sites,error)->{try{
+        File[] previews=new File(getCacheDir(),"browser-previews").listFiles();check(previews==null||previews.length==0,"cache clearing deletes local page previews");
         if(error!=null)throw new IOException(error);check(NotebookBrowserData.openPages()==0,"data clearing retires foreground and inactive browser pages");check(sites.getOrDefault("first.scriflow-test.example",0)==1&&sites.getOrDefault("second.scriflow-test.example",0)==1,"cache-only deletion keeps persistent login cookies");check(Arrays.equals(libraryBytes,Files.readAllBytes(new File(getFilesDir(),"browser-library.nbr").toPath())),"cache-only deletion preserves bookmark and history bytes");
         NotebookBrowserData.clear(this,"first.scriflow-test.example",true,true,false,(value,failure)->{if(failure!=null){fail(failure);return;}afterHost();});
     }catch(Throwable failure){fail(failure.toString());}});}

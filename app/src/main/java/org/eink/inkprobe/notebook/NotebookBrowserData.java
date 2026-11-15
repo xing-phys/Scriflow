@@ -57,12 +57,12 @@ final class NotebookBrowserData {
         if(clearing){callback.complete(null,"Browser data is already being cleared.");return;}
         final String selected;try{selected=host==null?null:host(host);}catch(IllegalArgumentException error){callback.complete(null,error.getMessage());return;}
         if(!cookies&&!cache&&!history){callback.complete(null,"Choose data to clear.");return;}
-        GeckoRuntime runtime=NotebookBrowserRuntime.get(context);StorageController storage=runtime.getStorageController();clearing=true;
+        GeckoRuntime runtime=NotebookBrowserRuntime.get(context);StorageController storage=runtime.getStorageController();clearing=true;NotebookBrowserPreviews.invalidate();
         // Close every live engine before clearing; paused pages can also hold script timers.
         for(Runnable reset:new ArrayList<>(owners))reset.run();
         for(NotebookGeckoPage page:new ArrayList<>(pages))page.retireForDataClear();
         long flags=(cookies?StorageController.ClearFlags.COOKIES|StorageController.ClearFlags.DOM_STORAGES|StorageController.ClearFlags.AUTH_SESSIONS:0)|(cache?StorageController.ClearFlags.ALL_CACHES:0);
-        NotebookWebsiteTasks.run(()->{if(!context.getSharedPreferences("browser-data",Context.MODE_PRIVATE).edit().putLong("clearRevision",revision(context)+1).commit())throw new java.io.IOException("Could not invalidate old browser sessions.");if(!context.getSharedPreferences("browser-tabs",Context.MODE_PRIVATE).edit().remove("tabs").commit())throw new java.io.IOException("Could not clear restorable browser tabs.");if(history)new NotebookBrowserLibrary(context.getFilesDir()).clearHistory();return null;},(value,error)->{
+        NotebookWebsiteTasks.run(()->{NotebookBrowserPreviews.clear(context);if(!context.getSharedPreferences("browser-data",Context.MODE_PRIVATE).edit().putLong("clearRevision",revision(context)+1).commit())throw new java.io.IOException("Could not invalidate old browser sessions.");if(!context.getSharedPreferences("browser-tabs",Context.MODE_PRIVATE).edit().remove("tabs").commit())throw new java.io.IOException("Could not clear restorable browser tabs.");if(history)new NotebookBrowserLibrary(context.getFilesDir()).clearHistory();return null;},(value,error)->{
             if(error!=null){clearing=false;callback.complete(null,error.getMessage());return;}
             if(flags==0){clearing=false;callback.complete(null,null);return;}
             if(worker==null){HandlerThread thread=new HandlerThread("browser-data");thread.start();worker=new Handler(thread.getLooper());}

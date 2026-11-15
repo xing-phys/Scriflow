@@ -1,6 +1,6 @@
 # Browser and offline websites
 
-**0.40.0-alpha.4** (versionCode **104**) bundles GeckoView
+**0.40.0-alpha.5** (versionCode **105**) bundles GeckoView
 **160.0.20261104181552**, the Firefox browser engine. Website JavaScript, CSS,
 fonts and math rendering no longer depend on the tablet's installed WebView.
 This alpha is awaiting physical testing on the Huawei MatePad Paper.
@@ -13,10 +13,18 @@ This alpha is awaiting physical testing on the Huawei MatePad Paper.
    a scheme use HTTPS. The app's existing restriction on cleartext HTTP remains.
 3. Use the arrows for Back/Forward, the circular arrow to Reload, and pinch to
    zoom. The arrows also work offline after section links.
-4. Let the page load, and scroll to load any lazy images you want to keep. Tap
+4. Once the page is readable, scroll to load any lazy images you want to keep. Tap
    the **floppy-disk icon** (Save) and wait for **Saved to Saved websites · available offline**.
 5. Tap the **books icon** (Bookshelf), then the **Saved websites** folder, and choose a page.
    The browser's **folder icon** opens the same folder directly.
+
+Saving uses the rendered document and does not wait for all network requests to
+finish. A slow image or background request no longer leaves a readable page
+waiting indefinitely for capture. Math and fonts get a short settling interval;
+unavailable resources are reported in the saved copy's status. The capture
+connection also reconnects after cached-page restoration. Navigation during
+saving cancels that attempt; storage, size-limit and connection failures are
+reported as capture errors rather than asking you to wait for rendering again.
 
 The browser opens a native start page with pinned websites when there is no
 restored page. The start page never fetches websites or favicons. Existing tabs
@@ -37,6 +45,18 @@ Wikipedia and GitHub are initial shortcuts; removing them is remembered.
 Hold a shortcut to edit, unpin or move it earlier/later. Up to 32 shortcuts can
 be pinned. **Home** returns to this page without discarding the current website.
 Back can return from Home to that website.
+
+Use the **grid/list icon** beside Pinned websites to choose thumbnails or a list.
+Bookmarks has its own switch beside the collection controls, and Tabs has one
+beside the plus button. Each view remembers its choice independently. Preview
+cards retain separate menu/close buttons and the selected-tab marker.
+
+Previews are monochrome 4:3 images of pages already opened in the browser. A site
+without a preview has a local placeholder; browsing a library never opens sites
+or requests favicons to create thumbnails. The disposable private cache holds
+up to 160 images or 16 MB, outside notebook backups. Android may evict it, and a
+later visit refreshes the image. Clearing browser data also resets these previews;
+bookmark links and saved offline pages remain independent.
 
 The floating panel's **star icon** (Bookmark) saves the current address. Its **⋯**
 menu also offers bookmarking, pinning, collections, history, data settings,
@@ -102,11 +122,21 @@ website data from alpha.1 is separate.
 ## Floating controls and Zen
 
 All app bars live in one floating panel: address, Back/Forward, Reload, Save,
-Bookshelf and status. Controls use centered monochrome icons, 48 dp touch targets
+Bookshelf and status. The compact panel is at most 480 dp wide. Controls use
+20 dp monochrome symbols within 48 dp touch targets
 and consistent gaps. Actions wrap into balanced rows on narrow screens; none
 need sideways scrolling. The time/battery/Wi-Fi island has its own separated
 status row. Hold an action icon to see its name; accessibility labels identify
 each action as well.
+
+The layouts target the 10.3-inch 4:3 tablet in both portrait and landscape, such
+as 1404 × 1872 and 1872 × 1404 pixels. Android density scaling keeps the controls
+usable while preview columns follow the available width.
+
+Floating dictionary/translation windows can pause the browser Activity while its
+page remains visible. The visible session stays active behind that window;
+sessions pause when the browser is fully covered or their tab is hidden. This
+avoids clearing the webpage to white when an Eudic floating lookup opens.
 
 | Icon | Action |
 | --- | --- |

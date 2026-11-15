@@ -210,4 +210,5 @@ node scripts/test-markdown.cjs
 node scripts/test-websites.cjs
 bash scripts/build-browser-assets.sh
 node scripts/test-browser-capture.cjs
+node scripts/test-browser-bridge.cjs
 bash scripts/test-pdf-engine.sh

@@ -14,6 +14,10 @@ import org.json.JSONObject;
 /** Debug APK only: exercises the production browser and reports its rendered DOM. */
 public final class NotebookBrowserSelfTestActivity extends NotebookBrowserActivity {
     private static Bundle captured, forced;
+    private String lifecycle = "created";
+    @Override protected void onResume() { super.onResume(); lifecycle = "resumed"; }
+    @Override protected void onPause() { super.onPause(); lifecycle = "paused"; getWindow().getDecorView().postDelayed(this::report, 500); }
+    @Override protected void onStop() { super.onStop(); lifecycle = "stopped"; getWindow().getDecorView().postDelayed(this::report, 500); }
     @Override public void onCreate(Bundle state) {
         if (forced != null) { state = forced; forced = null; }
         super.onCreate(state);
@@ -75,6 +79,7 @@ public final class NotebookBrowserSelfTestActivity extends NotebookBrowserActivi
                 JSONObject result = stats == null ? new JSONObject().put("probe", "unavailable") : stats;
                 JSONArray labels = new JSONArray(); labels(browserDebugRoot(), labels);
                 result.put("nativeLabels", labels);
+                result.put("lifecycle", lifecycle);
                 result.put("time", System.currentTimeMillis());
                 try (FileOutputStream output = new FileOutputStream(new File(getFilesDir(), "browser-test.json"))) {
                     output.write(result.toString(2).getBytes(StandardCharsets.UTF_8));

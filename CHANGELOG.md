@@ -6,6 +6,21 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.40.0-alpha.5 — Browser previews and visible-page fixes (2026-11-15)
+
+- Add independent list/thumbnail switches for pins, bookmark collections and
+  tabs. Capture monochrome previews from visited pages in a bounded private
+  cache; keep placeholders for unvisited sites and reset previews on data clear.
+- Use smaller 20 dp symbols, preserve 48 dp touch targets and narrow the floating
+  toolbox to 480 dp. Adapt thumbnail columns to portrait/landscape 4:3 layouts.
+- Keep the selected browser session active while a floating dictionary window
+  pauses the Activity. Deactivate only when fully covered or the tab is hidden.
+- Connect capture at document start, enable saving on readable content, reconnect
+  cached documents and allow a bounded connection grace period. Preserve capture
+  ownership through cancellation and distinguish capture/storage errors from
+  rendering. Do not block readable pages on unfinished network requests.
+- VersionCode 105; physical Huawei/Eudic and e-ink acceptance remain pending.
+
 ## 0.40.0-alpha.4 — Tidy browser controls and tabs (2026-11-15)
 
 - Replace browser action labels with centered monochrome icons, tooltips and

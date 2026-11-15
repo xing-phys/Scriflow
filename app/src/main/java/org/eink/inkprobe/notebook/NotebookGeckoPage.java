@@ -42,6 +42,8 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
     private boolean closed, ready, back, forward, fresh = true;
     private int warnings, scrollX, scrollY;
     private Capture capture;
+    private String captureFailure = "The capture connection is not available. Please retry.";
+    private boolean painted, readable, notified;
     private final Map<String, Consumer<JSONObject>> probes = new HashMap<>();
 
     NotebookGeckoPage(Context context, boolean offline, String archive, Listener listener) {
@@ -81,12 +83,13 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
         session.setProgressDelegate(new GeckoSession.ProgressDelegate() {
             @Override public void onPageStart(GeckoSession owner, String value) {
                 if (closed || internal(value)) return;
-                prompts.close(); cancelCapture(); url = value; listener.onPageStarted(NotebookGeckoPage.this, value);
+                prompts.close(); cancelCapture(); pagePort = null; painted = readable = notified = false;
+                url = value; listener.onPageStarted(NotebookGeckoPage.this, value);
             }
             @Override public void onPageStop(GeckoSession owner, boolean success) {
                 if (closed || url == null || internal(url)) return;
                 if (fresh) { fresh = false; session.purgeHistory(); back = forward = false; }
-                if (success) listener.onPageFinished(NotebookGeckoPage.this, url);
+                if (success || painted && pagePort != null) listener.onPageFinished(NotebookGeckoPage.this, url);
                 else listener.onError(NotebookGeckoPage.this, "Couldn’t finish loading this page. Tap Reload to retry.");
             }
             @Override public void onSessionStateChange(GeckoSession owner, GeckoSession.SessionState value) { sessionState = value; }
@@ -99,6 +102,7 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
             }
         });
         session.setContentDelegate(new GeckoSession.ContentDelegate() {
+            @Override public void onFirstContentfulPaint(GeckoSession owner) { painted = true; documentReady(); }
             @Override public void onTitleChange(GeckoSession owner, String value) {
                 if (closed || url == null || internal(url)) return;
                 title = value == null ? "" : value; listener.onTitle(NotebookGeckoPage.this, title);
@@ -180,10 +184,20 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
             }
         });
         if (boot) port.postMessage(json("type", "configure", "offline", offline, "archive", archive));
-        else pagePort = port;
+        // A port becomes the capture owner only after its document identifies itself.
+    }
+
+    private void documentReady() {
+        if (!closed && !notified && pagePort != null && (painted || readable) && url != null && allowed(url, true)) { notified = true; listener.onDocumentReady(this, url); }
     }
 
     private void message(WebExtension.Port port, JSONObject message) {
+        if (message.optString("type").equals("document")) {
+            String source = message.optString("url");
+            if (!allowed(source, true) || url == null || !NotebookBrowserAddress.withoutFragment(source).equals(NotebookBrowserAddress.withoutFragment(url))) return;
+            if (pagePort != port) { cancelCapture(); notified = false; }
+            pagePort = port; readable = message.optBoolean("readable"); documentReady(); return;
+        }
         if (port != pagePort) return;
         String type = message.optString("type"), id = message.optString("id");
         if (type.equals("stats")) { Consumer<JSONObject> callback = probes.remove(id); if (callback != null) callback.accept(message); return; }
@@ -194,10 +208,11 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
             if (sequence != job.sequence || text.length() > 65536 || text.isEmpty()) { cancelCapture(); return; }
             job.sequence++;
             byte[] bytes = text.getBytes(StandardCharsets.UTF_8); job.bytes += bytes.length;
-            if (job.bytes > 64L * 1024 * 1024) { cancelCapture(); return; }
+            if (job.bytes > 64L * 1024 * 1024) { captureFailure = "This page is larger than the 64 MB offline capture limit."; cancelCapture(); return; }
             NotebookWebsiteTasks.run(() -> { if (job.output == null) throw new IOException("Capture writer is closed"); job.output.write(bytes); return null; }, (value, error) -> {
                 if (job != capture || closed) return;
-                if (error != null) cancelCapture(); else port.postMessage(json("type", "ack", "sequence", sequence));
+                if (error != null) { captureFailure = "Could not write the offline copy. Check available storage and retry."; cancelCapture(); }
+                else port.postMessage(json("type", "ack", "id", job.id, "sequence", sequence));
             });
         } else if (type.equals("complete")) {
             if (message.optInt("chunks", -1) != job.sequence || !job.url.equals(message.optString("url")) || !job.url.equals(url)) { cancelCapture(); return; }
@@ -206,12 +221,18 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
                 if (job != capture) return;
                 capture = null; job.callback.accept(error == null && !closed ? path : null);
             });
-        } else if (type.equals("error")) cancelCapture();
+        } else if (type.equals("error")) {
+            String code = message.optString("code");
+            captureFailure = code.equals("size") ? "This page is larger than the 64 MB offline capture limit."
+                : code.equals("changed") ? "The page changed during saving. Please retry."
+                : "The page could not be captured. Try Reload, then Save again.";
+            cancelCapture();
+        }
     }
 
     @Override void saveWebArchive(String path, boolean automatic, Consumer<String> callback) {
-        cancelCapture(); warnings = 0;
-        if (offline || closed || pagePort == null || url == null) { callback.accept(null); return; }
+        cancelCapture(); warnings = 0; captureFailure = "The page capture connection is unavailable. Reload the page and retry.";
+        if (offline || closed || url == null) { callback.accept(null); return; }
         Capture job = new Capture(path, url, callback); capture = job;
         NotebookWebsiteTasks.run(() -> {
             File destination = new File(path).getAbsoluteFile();
@@ -223,9 +244,15 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
             job.output = new FileOutputStream(destination); return null;
         }, (value, error) -> {
             if (capture != job || closed) { close(job); return; }
-            if (error != null || pagePort == null) cancelCapture();
-            else pagePort.postMessage(json("type", "capture", "id", job.id));
+            if (error != null) { captureFailure = "Could not create the offline copy. Check available storage and retry."; cancelCapture(); }
+            else beginCapture(job, 50);
         });
+    }
+    private void beginCapture(Capture job, int remaining) {
+        if (closed || capture != job) return;
+        if (pagePort != null) pagePort.postMessage(json("type", "capture", "id", job.id));
+        else if (remaining == 0) cancelCapture();
+        else postDelayed(() -> beginCapture(job, remaining - 1), 100);
     }
     private void close(Capture job) {
         NotebookWebsiteTasks.run(() -> { if (job.output != null) { job.output.close(); job.output = null; } return null; }, (value, error) -> { });
@@ -271,6 +298,7 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
     }
     @Override void stopLoading() { if (!closed) session.stop(); }
     @Override void onResume() { if (!closed) { session.setActive(true); runtime.getWebExtensionController().setTabActive(session, true); } }
+    @Override void onWindowPause() { if (!closed) { prompts.close(); session.flushSessionState(); } }
     @Override void onPause() { if (!closed) { prompts.close(); session.flushSessionState(); session.setActive(false); runtime.getWebExtensionController().setTabActive(session, false); } }
     @Override void destroy() {
         if (closed) return; prompts.close(); cancelCapture(); closed = true;
@@ -279,6 +307,11 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
     }
     void retireForDataClear() { if (closed) return; destroy(); listener.onDataCleared(this); }
     @Override int captureWarnings() { return warnings; }
+    @Override String captureError() { return captureFailure; }
+    @Override void capturePreview(Consumer<android.graphics.Bitmap> callback) {
+        if (closed || !painted || getVisibility() != VISIBLE) { callback.accept(null); return; }
+        surface.capturePixels().accept(callback::accept, error -> callback.accept(null));
+    }
     @Override int pageScrollX() { return scrollX; }
     @Override int pageScrollY() { return scrollY; }
     private static JSONObject json(Object... pairs) {

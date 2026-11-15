@@ -4,7 +4,7 @@ Scriflow is designed for Huawei MatePad Paper HMW-W09 on Android 10/API 29,
 firmware `HMW-W09 2.1.0.222(C00E170R1P8)`. Other devices and firmware have not
 been verified. See the [README](../README.md) for installation and current limits.
 
-This guide follows alpha prerelease **0.40.0-alpha.4**; the published stable release is
+This guide follows alpha prerelease **0.40.0-alpha.5**; the published stable release is
 **0.33.2**. This build reads older notes; ordinary edits use page format 8 and
 individually sized Markdown uses format 9. Older APKs cannot read formats they
 do not support. Physical checks of this exact APK remain pending.
@@ -50,6 +50,11 @@ Use the **house** icon to return here, **stacked squares** to create/switch/clos
 to manage saved links in named collections. Bookmarks open online; Save creates
 a separate offline copy. **History** can find and reopen recent websites.
 
+The grid/list switches in Pinned websites, Bookmarks and Tabs choose a thumbnail
+or list view and remember each choice. Thumbnails come from visited pages; an
+unvisited website has a placeholder. Browser data clearing resets the previews.
+Smaller symbols and a compact panel fit the tablet's 10.3-inch 4:3 screen.
+
 **Browser data** controls the search provider and cookie policy. Clear cache,
 cookies/site storage or history independently, or select an individual host.
 Clearing closes open website pages and may sign you out when cookies are selected;
@@ -59,6 +64,8 @@ Tap **Browser** on the bookshelf. Tap the **dotted button** to expand or collaps
 all browser controls, and drag it to move them. Enter an HTTPS website address
 and tap the **right arrow**. Use Back, Forward, Reload and pinch zoom while browsing. After
 loading, tap the **floppy disk** (Save) and wait for **Saved to Saved websites · available offline**.
+Readable pages can be saved while remaining resources are still loading. Floating
+dictionary windows keep the webpage visible behind them.
 Controls have consistent gaps and wrap on narrower screens. Hold an icon for its
 name. The tab picker marks the current tab and separates titles from close buttons.
 The fullscreen-corners icon enters **Zen mode**, leaving only the top-right

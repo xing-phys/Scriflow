@@ -30,7 +30,8 @@ NOTEBOOK_SCREENS = {PACKAGE + '.notebook.' + name for name in (
     'NotebookBrowserHistoryActivity', 'NotebookBrowserDataActivity',
     'NotebookTransferActivity', 'NotebookPdfExportActivity', 'NotebookPdfImportActivity')}
 DIAGNOSTICS = {PACKAGE + '.MainActivity', PACKAGE + '.notebook.NotebookSelfTestActivity',
-               PACKAGE + '.notebook.NotebookBrowserSelfTestActivity', PACKAGE + '.notebook.NotebookBrowserDataSelfTestActivity'}
+               PACKAGE + '.notebook.NotebookBrowserSelfTestActivity', PACKAGE + '.notebook.NotebookBrowserDataSelfTestActivity',
+               PACKAGE + '.notebook.NotebookBrowserOverlaySelfTestActivity'}
 # Gecko's standard runtime permissions support media/audio and its process services.
 # No camera, microphone, location or external-storage permission is granted.
 PERMISSIONS = {'android.permission.ACCESS_NETWORK_STATE', 'android.permission.INTERNET',

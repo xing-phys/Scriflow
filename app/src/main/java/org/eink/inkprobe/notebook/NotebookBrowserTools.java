@@ -116,7 +116,7 @@ final class NotebookBrowserTools extends FrameLayout {
 
     private void place() {
         if (getWidth() <= 0 || getHeight() <= 0) return;
-        int width = Math.max(1, Math.min(dp(560), getWidth() - dp(16)));
+        int width = Math.max(1, Math.min(dp(480), getWidth() - dp(16)));
         panel.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
         NotebookBrowserToolbarState.Layout layout = state.layout(getWidth(), getHeight(), dp(36), width,
             panel.getMeasuredHeight(), dp(8), dp(6));

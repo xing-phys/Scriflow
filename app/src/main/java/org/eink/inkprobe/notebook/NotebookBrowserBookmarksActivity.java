@@ -13,9 +13,11 @@ import static org.eink.inkprobe.notebook.NotebookBrowserUi.*;
 /** Bookmark collections and pin management; all addresses remain online links. */
 public final class NotebookBrowserBookmarksActivity extends NotebookDisplayActivity {
     private NotebookBrowserLibrary.Snapshot snapshot;
-    private ListView list;
+    private GridView list;
+    private boolean thumbnails;
+    private NotebookBrowserIconButton presentation;
     private final List<NotebookBrowserLibrary.Link> matches=new ArrayList<>();
-    private final BaseAdapter adapter=new BaseAdapter(){public int getCount(){return matches.size();}public Object getItem(int at){return matches.get(at);}public long getItemId(int at){return at;}public View getView(int at,View recycled,ViewGroup parent){return linkRow(matches.get(at));}};
+    private final BaseAdapter adapter=new BaseAdapter(){public int getCount(){return matches.size();}public Object getItem(int at){return matches.get(at);}public long getItemId(int at){return at;}public View getView(int at,View recycled,ViewGroup parent){NotebookBrowserLibrary.Link link=matches.get(at);return thumbnails?new NotebookBrowserCard(NotebookBrowserBookmarksActivity.this,link.title,link.url,"Open bookmark "+link.title,false,false,()->open(link.url),NotebookIconDrawable.Icon.MORE,"Manage bookmark "+link.title,()->actions(link)):linkRow(link);}};
     private Spinner folders;
     private EditText search;
     private TextView status;
@@ -26,6 +28,7 @@ public final class NotebookBrowserBookmarksActivity extends NotebookDisplayActiv
     @Override public void onCreate(Bundle saved){
         super.onCreate(saved);getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);getWindow().setWindowAnimations(0);
         if(saved!=null){selected=saved.getString("folder","*");offered=saved.getBoolean("offered");}
+        thumbnails=getSharedPreferences("browser-ui",MODE_PRIVATE).getBoolean("bookmarksThumbnails",false);
         LinearLayout root=column(this);root.setPadding(dp(this,18),dp(this,12),dp(this,18),dp(this,12));header(this,root,"Bookmarks",this::finish,deviceSettingsIsland());
         LinearLayout tools=row(this);
         folders=new Spinner(this);folders.setContentDescription("Bookmark collection");
@@ -33,10 +36,12 @@ public final class NotebookBrowserBookmarksActivity extends NotebookDisplayActiv
         tools.addView(icon(this,NotebookIconDrawable.Icon.BOOKMARK,"Add bookmark",()->edit(null,getIntent().getStringExtra("addUrl"),false)),compact(this)?new LinearLayout.LayoutParams(dp(this,48),dp(this,48)):beside(this,48,48));
         tools.addView(icon(this,NotebookIconDrawable.Icon.NEW_FOLDER,"New collection",()->collection(null)),beside(this,48,48));
         tools.addView(icon(this,NotebookIconDrawable.Icon.MORE,"Manage collection",this::collectionActions),beside(this,48,48));root.addView(tools);space(root,dp(this,12));
+        presentation=icon(this,NotebookIconDrawable.Icon.OVERVIEW,"Show bookmark thumbnails",()->{thumbnails=!thumbnails;getSharedPreferences("browser-ui",MODE_PRIVATE).edit().putBoolean("bookmarksThumbnails",thumbnails).apply();presentation();adapter.notifyDataSetChanged();});tools.addView(presentation,beside(this,48,48));
         folders.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onNothingSelected(AdapterView<?> p){}public void onItemSelected(AdapterView<?> p,View v,int at,long id){if(snapshot!=null){selected=at==0?"*":at==1?"":snapshot.folders.get(at-2).id;render();}}});
         search=input(this,"Find bookmarks",saved==null?"":saved.getString("query",""));field(search);search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int a,int c,int f){}public void onTextChanged(CharSequence s,int a,int b,int c){render();}public void afterTextChanged(Editable e){}});root.addView(search,new LinearLayout.LayoutParams(-1,dp(this,48)));
-        status=label(this,"Opening bookmarks…",12);status.setPadding(0,dp(this,10),0,dp(this,10));root.addView(status);list=new ListView(this);list.setId(android.R.id.list);NotebookBrowserUi.list(list);list.setAdapter(adapter);root.addView(list,new LinearLayout.LayoutParams(-1,0,1));setContentView(root);
+        status=label(this,"Opening bookmarks…",12);status.setPadding(0,dp(this,10),0,dp(this,10));root.addView(status);list=new GridView(this);list.setId(android.R.id.list);list.setOverScrollMode(View.OVER_SCROLL_NEVER);list.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));list.setStretchMode(GridView.STRETCH_COLUMN_WIDTH);presentation();list.setAdapter(adapter);root.addView(list,new LinearLayout.LayoutParams(-1,0,1));setContentView(root);
     }
+    private void presentation(){if(list==null)return;list.setNumColumns(thumbnails?Math.max(1,Math.min(4,(getResources().getConfiguration().screenWidthDp-24)/212)):1);list.setHorizontalSpacing(dp(this,12));list.setVerticalSpacing(dp(this,12));presentation.setSymbol(thumbnails?NotebookIconDrawable.Icon.OUTLINE:NotebookIconDrawable.Icon.OVERVIEW,thumbnails?"Show bookmarks as list":"Show bookmark thumbnails");}
     @Override protected void onResume(){super.onResume();active=true;refresh();}
     @Override protected void onPause(){active=false;++generation;if(dialog!=null)dialog.dismiss();super.onPause();}
     @Override protected void onSaveInstanceState(Bundle state){state.putString("folder",selected);state.putString("query",search.getText().toString());state.putBoolean("offered",offered);super.onSaveInstanceState(state);}
