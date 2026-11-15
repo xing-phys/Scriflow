@@ -6,6 +6,14 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.40.0-alpha.8 — Note-sized browser buttons (2026-11-15)
+
+- Match browser toolbox actions and grip to the note toolbox's 32 dp circular
+  buttons and 20 dp symbols. Keep the tab counter, labels and tooltips.
+- Pack fixed-size buttons with 6 dp gaps, wrap on narrow split views and reduce
+  the floating panel's maximum width to 400 dp. Preserve the larger address field.
+- VersionCode 108. Combining browser and writing tools remains under discussion.
+
 ## 0.40.0-alpha.7 — Shared browser notes and window fixes (2026-11-15)
 
 - Share open notes, editing focus, positions and minimized state between online

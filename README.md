@@ -26,14 +26,13 @@ pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
 stays in front, window operations retain the main editor, and PDF import opens
 the file picker directly before opening the imported note.
 
-The **[0.40.0-alpha.7 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.40.0-alpha.7)**
-shares one open-note workspace across online browsing and saved pages, including
-note positions, the editing note and minimized state. Pen/eraser settings stay
-above floating notes, split notes retain usable corner controls, and browser
-notes stay visible behind floating dictionary windows. It retains the pinned
-homepage, shared device status and Zen clock, floating/split notes, PNG clipboard
-pasting and the Paul Graham capture correction from alpha.6, plus thumbnails and
-the compact 4:3 browser layout.
+The **[0.40.0-alpha.8 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.40.0-alpha.8)**
+matches the browser toolbox to the writing toolbox: 32 dp circular buttons and
+movable grip, 20 dp symbols and a narrower 400 dp panel. Actions wrap beside a
+split note. It retains the shared online/offline note workspace, accessible
+split-note controls and dictionary-window retention from alpha.7, plus the
+pinned homepage, PNG clipboard pasting and offline capture improvements.
+
 It retains the current Firefox engine, movable collapsible browser controls,
 clock-only Zen and offline section Back/Forward introduced in alpha.2.
 

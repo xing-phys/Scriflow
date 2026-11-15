@@ -80,12 +80,12 @@ public class NotebookBrowserActivity extends NotebookActivity {
         LinearLayout controls = new LinearLayout(this); controls.setOrientation(LinearLayout.VERTICAL);
         controls.setPadding(dp(12), dp(10), dp(12), dp(10));
         LinearLayout header = new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL);
-        header.addView(icon(NotebookIconDrawable.Icon.LIBRARY, "Bookshelf", this::bookshelf), new LinearLayout.LayoutParams(dp(48), dp(48)));
+        header.addView(toolIcon(NotebookIconDrawable.Icon.LIBRARY, "Bookshelf", this::bookshelf), new LinearLayout.LayoutParams(dp(32), dp(32)));
         title = label(offline ? "Saved website" : "Browser", 18); title.setSingleLine(true);
         title.setEllipsize(TextUtils.TruncateAt.END); title.setPadding(dp(12), 0, dp(12), 0);
-        header.addView(title, new LinearLayout.LayoutParams(0, dp(48), 1));
-        header.addView(icon(NotebookIconDrawable.Icon.FULLSCREEN, "Enter Zen mode", () -> browserTools.zen(true)), new LinearLayout.LayoutParams(dp(48), dp(48)));
-        header.addView(icon(NotebookIconDrawable.Icon.MORE, "Browser menu", this::browserMenu), NotebookBrowserUi.beside(this, 48, 48));
+        header.addView(title, new LinearLayout.LayoutParams(0, dp(32), 1));
+        header.addView(toolIcon(NotebookIconDrawable.Icon.FULLSCREEN, "Enter Zen mode", () -> browserTools.zen(true)), new LinearLayout.LayoutParams(dp(32), dp(32)));
+        header.addView(toolIcon(NotebookIconDrawable.Icon.MORE, "Browser menu", this::browserMenu), NotebookBrowserUi.beside(this, 32, 32));
         controls.addView(header);
 
         LinearLayout addressRow = new LinearLayout(this); addressRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -100,25 +100,25 @@ public class NotebookBrowserActivity extends NotebookActivity {
         });
         NotebookBrowserUi.field(address);
         addressRow.addView(address, new LinearLayout.LayoutParams(0, dp(48), 1));
-        go = icon(NotebookIconDrawable.Icon.NEXT, "Browse website address", this::browse); go.setVisibility(offline ? View.GONE : View.VISIBLE);
-        addressRow.addView(go, NotebookBrowserUi.beside(this, 48, 48)); controls.addView(addressRow);
+        go = toolIcon(NotebookIconDrawable.Icon.NEXT, "Browse website address", this::browse); go.setVisibility(offline ? View.GONE : View.VISIBLE);
+        addressRow.addView(go, NotebookBrowserUi.beside(this, 32, 32)); controls.addView(addressRow);
 
         NotebookBrowserActions tools = new NotebookBrowserActions(this);
-        previous = icon(NotebookIconDrawable.Icon.PREVIOUS, "Back", () -> history(false));
-        next = icon(NotebookIconDrawable.Icon.NEXT, "Forward", () -> history(true));
-        reload = icon(NotebookIconDrawable.Icon.RETRY, "Reload page", this::reload);
+        previous = toolIcon(NotebookIconDrawable.Icon.PREVIOUS, "Back", () -> history(false));
+        next = toolIcon(NotebookIconDrawable.Icon.NEXT, "Forward", () -> history(true));
+        reload = toolIcon(NotebookIconDrawable.Icon.RETRY, "Reload page", this::reload);
         tools.addView(previous); tools.addView(next); tools.addView(reload);
         if (!offline) {
-            tools.addView(icon(NotebookIconDrawable.Icon.HOME, "Home", () -> { if (!waitForSave()) showHome(true); }));
-            tabButton = icon(NotebookIconDrawable.Icon.TABS, "Browser tabs", this::showTabs); tools.addView(tabButton);
-            tools.addView(icon(NotebookIconDrawable.Icon.BOOKMARK, "Bookmark this page", () -> bookmarks(true, false)));
+            tools.addView(toolIcon(NotebookIconDrawable.Icon.HOME, "Home", () -> { if (!waitForSave()) showHome(true); }));
+            tabButton = toolIcon(NotebookIconDrawable.Icon.TABS, "Browser tabs", this::showTabs); tools.addView(tabButton);
+            tools.addView(toolIcon(NotebookIconDrawable.Icon.BOOKMARK, "Bookmark this page", () -> bookmarks(true, false)));
         }
-        save = icon(NotebookIconDrawable.Icon.SAVE, "Save page for offline reading", this::savePage);
+        save = toolIcon(NotebookIconDrawable.Icon.SAVE, "Save page for offline reading", this::savePage);
         save.setVisibility(offline ? View.GONE : View.VISIBLE); tools.addView(save);
-        if (offline) tools.addView(icon(NotebookIconDrawable.Icon.BROWSER, "Open online",
+        if (offline) tools.addView(toolIcon(NotebookIconDrawable.Icon.BROWSER, "Open online",
             () -> { if (savedPage != null) openOnline(savedPage.url); }));
-        tools.addView(icon(NotebookIconDrawable.Icon.FOLDER, "Saved websites", this::savedWebsites));
-        tools.addView(icon(NotebookIconDrawable.Icon.NOTES, "Floating or split notes", () -> { browserTools.collapse(true); openWorkspaceNotes(); }));
+        tools.addView(toolIcon(NotebookIconDrawable.Icon.FOLDER, "Saved websites", this::savedWebsites));
+        tools.addView(toolIcon(NotebookIconDrawable.Icon.NOTES, "Floating or split notes", () -> { browserTools.collapse(true); openWorkspaceNotes(); }));
         controls.addView(tools, new LinearLayout.LayoutParams(-1, -2));
         View divider = new View(this); divider.setBackgroundColor(0xffbbbbbb);
         LinearLayout.LayoutParams dividerSize = new LinearLayout.LayoutParams(-1, dp(1));
@@ -706,6 +706,10 @@ public class NotebookBrowserActivity extends NotebookActivity {
     }
     @Override protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data); if (request == LINKS_RESULT && result == RESULT_OK && data != null) { String url = data.getStringExtra(INITIAL_URL); if (NotebookBrowserAddress.isWebUrl(url)) { if (offline) openOnline(url); else navigate(url); } }
+    }
+
+    private NotebookBrowserIconButton toolIcon(NotebookIconDrawable.Icon symbol, String name, Runnable action) {
+        return new NotebookBrowserIconButton(this, symbol, name, action, true);
     }
 
     private NotebookBrowserIconButton icon(NotebookIconDrawable.Icon symbol, String name, Runnable action) {

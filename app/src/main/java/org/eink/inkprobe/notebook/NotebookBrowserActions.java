@@ -4,15 +4,15 @@ import android.content.Context;
 import android.view.View;
 import android.view.ViewGroup;
 
-/** Equal-size action cells wrap into balanced rows instead of hiding off the panel's edge. */
+/** Note-sized action buttons wrap into balanced rows without stretching their outlines. */
 final class NotebookBrowserActions extends ViewGroup {
     private final int gap, target;
     private int columns = 1, cell;
 
     NotebookBrowserActions(Context context) {
         super(context);
-        gap = NotebookBrowserUi.dp(context, 8);
-        target = NotebookBrowserUi.dp(context, 48);
+        gap = NotebookBrowserUi.dp(context, 6);
+        target = NotebookBrowserUi.dp(context, 32);
     }
 
     @Override protected void onMeasure(int widthSpec, int heightSpec) {
@@ -22,7 +22,7 @@ final class NotebookBrowserActions extends ViewGroup {
         int capacity = Math.max(1, Math.min(Math.max(1, count), (width + gap) / (target + gap)));
         int rows = Math.max(1, (count + capacity - 1) / capacity);
         columns = Math.max(1, (count + rows - 1) / rows);
-        cell = Math.max(1, (width - (columns - 1) * gap) / columns);
+        cell = Math.max(1, Math.min(target, (width - (columns - 1) * gap) / columns));
         for (int i = 0; i < getChildCount(); i++) {
             View child = getChildAt(i);
             if (child.getVisibility() != GONE) child.measure(MeasureSpec.makeMeasureSpec(cell, MeasureSpec.EXACTLY),

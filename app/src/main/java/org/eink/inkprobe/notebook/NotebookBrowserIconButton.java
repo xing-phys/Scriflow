@@ -5,7 +5,7 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.view.accessibility.AccessibilityNodeInfo;
 
-/** A centered browser symbol with a static outline and a full 48 dp touch target. */
+/** Static browser icons: compact note-sized toolbox buttons or larger library actions. */
 @android.annotation.SuppressLint("ViewConstructor") // Created with an action and icon; never inflated from XML.
 final class NotebookBrowserIconButton extends NotebookButton {
     private final NotebookIconDrawable symbol;
@@ -13,13 +13,18 @@ final class NotebookBrowserIconButton extends NotebookButton {
     private int count;
 
     NotebookBrowserIconButton(Context context, NotebookIconDrawable.Icon icon, String name, Runnable action) {
+        this(context, icon, name, action, false);
+    }
+
+    NotebookBrowserIconButton(Context context, NotebookIconDrawable.Icon icon, String name, Runnable action, boolean compact) {
         super(context);
         symbol = new NotebookIconDrawable(icon);
         symbol.setCallback(this);
         NotebookUi.action(this, null);
         setPadding(0, 0, 0, 0);
-        setMinimumWidth(NotebookBrowserUi.dp(context, 48));
-        setMinimumHeight(NotebookBrowserUi.dp(context, 48));
+        if (compact) setBackground(NotebookUi.rounded(getResources().getDisplayMetrics().density, 1000));
+        setMinimumWidth(NotebookBrowserUi.dp(context, compact ? 32 : 48));
+        setMinimumHeight(NotebookBrowserUi.dp(context, compact ? 32 : 48));
         setContentDescription(name);
         setTooltipText(name);
         setOnClickListener(view -> action.run());

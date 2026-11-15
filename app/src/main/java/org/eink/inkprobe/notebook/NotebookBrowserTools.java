@@ -44,7 +44,7 @@ final class NotebookBrowserTools extends FrameLayout {
         gesture = new NotebookGripGesture(ViewConfiguration.get(context).getScaledTouchSlop());
         grip.setOnClickListener(view -> collapse(!state.collapsed()));
         grip.setOnTouchListener((view, event) -> drag(event));
-        addView(grip, new FrameLayout.LayoutParams(dp(36), dp(36)));
+        addView(grip, new FrameLayout.LayoutParams(dp(32), dp(32)));
         present();
     }
 
@@ -93,9 +93,9 @@ final class NotebookBrowserTools extends FrameLayout {
 
     private void place() {
         if (getWidth() <= 0 || getHeight() <= 0) return;
-        int width = Math.max(1, Math.min(dp(480), getWidth() - dp(16)));
+        int width = Math.max(1, Math.min(dp(400), getWidth() - dp(16)));
         panel.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
-        NotebookBrowserToolbarState.Layout layout = state.layout(getWidth(), getHeight(), dp(36), width,
+        NotebookBrowserToolbarState.Layout layout = state.layout(getWidth(), getHeight(), dp(32), width,
             panel.getMeasuredHeight(), dp(8), dp(6));
         size(grip, layout.gripSize, layout.gripSize); grip.setTranslationX(layout.gripLeft); grip.setTranslationY(layout.gripTop);
         size(panel, layout.panelWidth, layout.panelHeight); panel.setTranslationX(layout.panelLeft); panel.setTranslationY(layout.panelTop);
@@ -142,7 +142,7 @@ final class NotebookBrowserTools extends FrameLayout {
         removeCallbacks(moveFrame);
         if (!dragging) return;
         lastMove = SystemClock.uptimeMillis();
-        state.moveTo(pendingLeft, pendingTop, getWidth(), getHeight(), dp(36), dp(8)); place();
+        state.moveTo(pendingLeft, pendingTop, getWidth(), getHeight(), dp(32), dp(8)); place();
     }
 
     private void stopDrag() {
