@@ -26,14 +26,14 @@ pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
 stays in front, window operations retain the main editor, and PDF import opens
 the file picker directly before opening the imported note.
 
-The **[0.40.0-alpha.6 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.40.0-alpha.6)**
-opens the browser on its pinned start page, keeps the note-style device status
-pill visible and uses the same small rounded clock in Zen. Browser tools can
-open editable floating or split notes. Copied ink/figures also become PNG images
-on Android's clipboard for pasting into website editors. Saving Paul Graham's
-mobile pages handles their legacy CSS comment wrappers.
-It retains independent list/thumbnail choices for pins, bookmarks and tabs,
-smaller icons and a compact toolbox for the 10.3-inch 4:3 tablet.
+The **[0.40.0-alpha.7 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.40.0-alpha.7)**
+shares one open-note workspace across online browsing and saved pages, including
+note positions, the editing note and minimized state. Pen/eraser settings stay
+above floating notes, split notes retain usable corner controls, and browser
+notes stay visible behind floating dictionary windows. It retains the pinned
+homepage, shared device status and Zen clock, floating/split notes, PNG clipboard
+pasting and the Paul Graham capture correction from alpha.6, plus thumbnails and
+the compact 4:3 browser layout.
 It retains the current Firefox engine, movable collapsible browser controls,
 clock-only Zen and offline section Back/Forward introduced in alpha.2.
 

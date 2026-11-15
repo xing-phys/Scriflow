@@ -117,7 +117,9 @@ final class NotebookCompanion {
         menu.setContentDescription(name + ": options; drag to move floating note");
         minimize.setContentDescription(name + ": minimize; drag to resize floating note");
         boolean controls = workspace.panes().size() > 1 || workspace.floatingBase();
-        editorCornersVisible = controls && editor && workspace.floating(pane);
+        // A docked editor also has a native surface above ordinary child Views.
+        // Keep every active editor's controls in separately clipped windows.
+        editorCornersVisible = controls && editor;
         editorCorners.name(name);
         menu.setVisibility(controls && !editorCornersVisible ? View.VISIBLE : View.GONE);
         minimize.setVisibility(controls && !editorCornersVisible ? View.VISIBLE : View.GONE);

@@ -30,6 +30,9 @@ final class NotebookBrowserTestInk implements NotebookInkBackend {
                 if (paper != null) paper.draw(canvas,getWidth(),getHeight());
                 Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
                 for(NotebookPage.Stroke stroke:page.strokes) NotebookStrokeRenderer.draw(canvas,stroke,paint);
+                // A visible fixture mark lets screenshots detect a lost note behind PROCESS_TEXT.
+                paint.setColor(Color.DKGRAY);paint.setTextSize(24*getResources().getDisplayMetrics().scaledDensity);
+                canvas.drawText("Note surface fixture",24,180,paint);
             }
             @Override public boolean onTouchEvent(MotionEvent event) { if (alive && ready) listener.onFingerEvent(event); return true; }
         };

@@ -10,7 +10,7 @@ public final class NotebookBrowserUiTest {
     private static int assertions;
 
     public static void main(String[] args) throws Exception {
-        geometry(); externalNotes(); startup(); anchors(); presentation(); history(); backNavigation(); visibility(); captureBridgeRetry();
+        geometry(); externalNotes(); sharedNotes(); startup(); anchors(); presentation(); history(); backNavigation(); visibility(); captureBridgeRetry();
         System.out.println("NotebookBrowserUi: " + assertions + " assertions passed (bounded toolbox, state restoration and offline anchor mapping).");
     }
 
@@ -70,6 +70,26 @@ public final class NotebookBrowserUiTest {
             check(restored.find(2).position==NotebookWorkspace.Position.RIGHT,"split geometry survives recreation");
         }
     }
+    private static void sharedNotes() {
+        NotebookWorkspace online=new NotebookWorkspace();online.setExternalBase(true);online.add(8,NotebookWorkspace.Position.RIGHT);
+        Object live=new Object(),offline=new Object();NotebookBrowserNotes notes=new NotebookBrowserNotes(null,0,0);
+        notes.claim(live);NotebookBrowserNotes.Snapshot first=notes.save(live,online.encode(),8);
+        check(first.revision==1&&first.editor==8,"opening an online note publishes its selected editor and layout");
+        NotebookBrowserNotes.Snapshot saved=notes.claim(offline);NotebookWorkspace local=new NotebookWorkspace();local.setExternalBase(true);local.restore(saved.layout);
+        check(local.find(8).position==NotebookWorkspace.Position.RIGHT&&!local.find(8).collapsed,"saved pages acquire the same split note");
+        local.minimize(local.find(8));NotebookBrowserNotes.Snapshot minimized=notes.save(offline,local.encode(),0);
+        check(minimized.revision==2&&minimized.editor==0,"offline minimization publishes one shared change");
+        check(notes.save(live,online.encode(),8)==minimized,"a covered online screen cannot resurrect an older note layout");
+        notes.release(live);check(notes.owns(offline),"destroying an old screen cannot release the active owner");
+        NotebookBrowserNotes.Snapshot resumed=notes.claim(live);online.restore(resumed.layout);
+        check(online.find(8).collapsed&&resumed.editor==0,"returning online respects offline minimization");
+        online.close(online.find(8));NotebookBrowserNotes.Snapshot closed=notes.save(live,online.encode(),0);
+        NotebookBrowserNotes restarted=new NotebookBrowserNotes(closed.layout,closed.editor,closed.revision);
+        check(restarted.claim(new Object()).layout.equals("1\n")&&restarted.current().editor==0,"a persisted closed workspace stays closed after process restart");
+        check(notes.save(live,closed.layout,closed.editor)==closed,"unchanged metadata does not churn the shared revision");
+        notes.release(live);check(notes.save(live,first.layout,first.editor)==closed,"a destroyed owner cannot overwrite saved state");
+    }
+
     private static void startup() {
         NotebookBrowserTabs tabs = new NotebookBrowserTabs();
         tabs.current().home=false; tabs.current().url="https://example.org/retained";String old=tabs.current().id;

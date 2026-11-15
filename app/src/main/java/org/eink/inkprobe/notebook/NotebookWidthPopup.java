@@ -67,6 +67,9 @@ final class NotebookWidthPopup {
         container.addView(content,new FrameLayout.LayoutParams(-1,dp(48)));
         // Keep the editor's fullscreen/focus state. Back is handled by its Activity.
         popup = new PopupWindow(container, 0, 0, false);
+        // Tool configuration belongs above both panel and sub-panel note windows.
+        // Its native-ink exclusion is installed before it is shown.
+        popup.setWindowLayoutType(WindowManager.LayoutParams.TYPE_APPLICATION_SUB_PANEL);
         popup.setTouchable(true);
         // WATCH_OUTSIDE_TOUCH reports an outside DOWN without stealing it from the page.
         popup.setOutsideTouchable(true);

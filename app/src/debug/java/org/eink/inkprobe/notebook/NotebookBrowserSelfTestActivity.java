@@ -35,6 +35,12 @@ public final class NotebookBrowserSelfTestActivity extends NotebookBrowserActivi
 
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        String saved = intent.getStringExtra("openSaved");
+        if (saved != null && saved.matches("[a-f0-9-]{36}")) {
+            startActivity(new Intent(this, NotebookBrowserSelfTestActivity.class).putExtra(SAVED_ID, saved)
+                .putExtra("softwareInk", getIntent().getBooleanExtra("softwareInk", false)));
+            return;
+        }
         if (intent.getBooleanExtra("copyInk", false)) {
             NotebookPage.Stroke stroke = new NotebookPage.Stroke(2, 5, android.graphics.Color.BLACK, java.util.Arrays.asList(
                 new NotebookPage.Point(10, 10, 1000, .5f), new NotebookPage.Point(90, 70, 1010, .7f), new NotebookPage.Point(160, 10, 1020, .5f)));

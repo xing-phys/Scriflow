@@ -6,6 +6,18 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.40.0-alpha.7 — Shared browser notes and window fixes (2026-11-15)
+
+- Share open notes, editing focus, positions and minimized state between online
+  browsing and saved-page screens; persist the workspace across process restarts.
+  An older screen cannot overwrite changes made in a newer browser screen.
+- Show pen/eraser settings above floating notes and use separate corner controls
+  above native ink in split editors, keeping Position, Minimize and Close usable.
+- Retain browser notes behind floating dictionary windows launched from website
+  selection menus. Pause handwriting while covered and resume the same surface;
+  a full stop still releases native resources and transient settings panels.
+- VersionCode 107; physical Huawei/Eudic acceptance remains pending.
+
 ## 0.40.0-alpha.6 — Browser note workspace and clipboard (2026-11-15)
 
 - Open fresh browser entries on the pinned start page while retaining website

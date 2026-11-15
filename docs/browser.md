@@ -1,6 +1,6 @@
 # Browser and offline websites
 
-**0.40.0-alpha.6** (versionCode **106**) bundles GeckoView
+**0.40.0-alpha.7** (versionCode **107**) bundles GeckoView
 **160.0.20261104181552**, the Firefox browser engine. Website JavaScript, CSS,
 fonts and math rendering no longer depend on the tablet's installed WebView.
 This alpha is awaiting physical testing on the Huawei MatePad Paper.
@@ -170,6 +170,12 @@ history, then leaves the browser. The panel's arrows operate history directly.
 
 ## Notes and image paste
 
+Online browsing and saved pages share one open-note workspace. Open notes,
+the editing note, window positions and minimized state follow you between all
+browser screens, and survive restarting the app. Closing or minimizing a note
+on a saved page also updates the online browser when you return. The notes
+remain ordinary notebooks; their contents are not stored inside website archives.
+
 Tap the **overlapping-window icon** (Floating or split notes) in the browser
 panel. Choose a notebook to use the same native editor, writing tools, lasso,
 figures and window controls as the AI workspace. In a note's corner menu, choose
@@ -177,6 +183,10 @@ figures and window controls as the AI workspace. In a note's corner menu, choose
 screen with the webpage; floating notes leave the webpage full size. Minimize
 or close a note to recover the browser area, and use Notes to reopen minimized
 windows. Notes remain separate documents and save through the normal note writer.
+Both floating and split editors have corner controls for Position, Minimize and
+Close. Pen/eraser settings appear in front of the note. A floating Eudic lookup
+from the webpage keeps the notes visible while their writing input is paused;
+returning resumes the same note surface.
 
 **Copy ink** in a lasso selection and Copy/Cut figure also put an image/png item
 on Android's clipboard. The internal vector/figure clipboard remains available

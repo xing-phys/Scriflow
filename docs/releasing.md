@@ -312,9 +312,9 @@ build unsigned release APKs without possessing the permanent key.
 
 ## Version numbers
 
-The current prerelease is **0.40.0-alpha.6**, Android `versionCode` **106**,
-adding browser floating/split notes and PNG clipboard pasting, Home startup,
-shared device status/Zen and legacy CSS capture recovery. It retains the
+The current prerelease is **0.40.0-alpha.7**, Android `versionCode` **107**,
+sharing one browser note workspace between online and offline screens and fixing
+pen/eraser panel order, split-note controls and dictionary-window retention. It retains the
 existing notebook/backup formats (8, or 9 for individually sized Markdown) and
 chat archive compatibility from 0.39. New website snapshots use self-contained HTML and NWS2 metadata, outside
 notebook backups; NWS1/MHTML archives remain readable. Versions 1–7 remain readable
@@ -390,16 +390,16 @@ and [Android versioning](https://developer.android.com/studio/publish/versioning
    The helper runs release lint and assembly, copies the candidate privately,
    verifies those exact bytes and the configured signing certificate, then
    stages a versioned APK and SHA-256 checksum under
-   `build/releases/`. For this release these are `scriflow-0.40.0-alpha.6.apk` and
-   `scriflow-0.40.0-alpha.6.apk.sha256`. Debugging is disabled, diagnostic screens are
+   `build/releases/`. For this release these are `scriflow-0.40.0-alpha.7.apk` and
+   `scriflow-0.40.0-alpha.7.apk.sha256`. Debugging is disabled, diagnostic screens are
    absent from the manifest, and the library is the only exported component.
 
 4. Compare the printed signer certificate SHA-256 with the intended permanent
    certificate. For later builds, pin that known digest during verification:
 
    ```bash
-   python3 scripts/verify-apk.py build/releases/scriflow-0.40.0-alpha.6.apk --certificate-sha256 YOUR_KNOWN_CERTIFICATE_SHA256
-   (cd build/releases && sha256sum -c scriflow-0.40.0-alpha.6.apk.sha256)
+   python3 scripts/verify-apk.py build/releases/scriflow-0.40.0-alpha.7.apk --certificate-sha256 YOUR_KNOWN_CERTIFICATE_SHA256
+   (cd build/releases && sha256sum -c scriflow-0.40.0-alpha.7.apk.sha256)
    ```
 
    Substitute the current version and the actual known digest. The APK file's
@@ -468,6 +468,18 @@ Do not use raw private version-1 files as a portable migration format, downgrade
 an APK over version-2 pages, or assume a signature change preserves app data.
 
 ## Publish only after acceptance
+
+For **0.40.0-alpha.7** (versionCode **107**), verify settings popups above floating
+notes and independent native-ink exclusions for split-note corner controls.
+Adjust both pen and eraser widths and exercise split Position, resizing, Minimize,
+reopen and Close. Launch a floating PROCESS_TEXT window from the website context
+without the note dictionary flag: preserve note pixels and native-surface identity
+through pause/resume, and still release them on full stop. Verify online → saved
+page workspace transfer, changes flowing back to older screens, stale-owner write
+rejection and cold-start persistence. Use the existing explicit debug-only software
+note surface for emulator controller checks; disclose physical Huawei pen/Eudic
+acceptance as pending. Publish the permanent-key signed APK and checksum and keep
+0.33.2 Latest stable. The toolbox consolidation remains a design proposal.
 
 For **0.40.0-alpha.6** (versionCode **106**), validate fresh Home startup while
 retaining existing tabs, recreation/direct-link behavior, the permanent device

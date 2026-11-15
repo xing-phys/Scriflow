@@ -56,6 +56,7 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookBrowserToolbarState.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookBrowserLibrary.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookBrowserTabs.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookBrowserNotes.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookWebsites.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookLibrary.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookViewport.java \

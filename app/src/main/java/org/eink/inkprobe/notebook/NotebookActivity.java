@@ -52,6 +52,9 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     private boolean independentAi, openingIndependentNote;
     private int independentEditorId, pendingIndependentNoteId;
     private String restoredIndependentNotes;
+    private static NotebookBrowserNotes browserNotes;
+    private final Object browserNotesOwner = new Object();
+    private long browserNotesRevision;
     private NotebookInkBackend ink;
     private final NotebookWritingGate writingGate = new NotebookWritingGate(SystemClock::uptimeMillis,
         new NotebookWritingGate.Scheduler() {
@@ -201,6 +204,18 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         independentEditorId = independentAi && saved != null ? saved.getInt("independentEditorId", 0) : 0;
         pendingIndependentNoteId = independentAi && saved != null ? saved.getInt("pendingIndependentNoteId", 0) : 0;
         restoredIndependentNotes = independentAi && saved != null ? saved.getString("independentNotes") : null;
+        if (isBrowserWorkspace()) {
+            if (browserNotes == null) {
+                android.content.SharedPreferences notes = getSharedPreferences("browser-note-workspace", MODE_PRIVATE);
+                browserNotes = new NotebookBrowserNotes(notes.getString("layout", restoredIndependentNotes),
+                    notes.getInt("editor", independentEditorId), notes.getLong("revision", 0));
+            }
+            NotebookBrowserNotes.Snapshot shared = browserNotes.current();
+            restoredIndependentNotes = shared.layout; independentEditorId = shared.editor;
+            pendingIndependentNoteId = 0; browserNotesRevision = shared.revision;
+        }
+        boolean restoreNoteView = !isBrowserWorkspace() || saved == null
+            || saved.getLong("browserNotesRevision", 0) == browserNotesRevision;
         session = NotebookSession.get(this);
         // Cold-start word extraction also needs the bundled PDF fonts/CMaps, even
         // when only an inactive PDF is visible and no PDF link reader has run.
@@ -216,7 +231,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             @Override public void failed(IOException error) { if (active) showError(error); }
         });
         viewNotebookId = independentAi ? independentEditorId : session.notebookId();
-        if (saved != null && viewNotebookId == saved.getInt("viewNotebookId", -1)) {
+        if (restoreNoteView && saved != null && viewNotebookId == saved.getInt("viewNotebookId", -1)) {
             viewHistory.restore(viewNotebookId, saved.getByteArray("viewHistory"));
             zoom = saved.getFloat("zoom", 1);
             if (!NotebookPage.finite(zoom) || zoom <= 0) zoom = 1;
@@ -227,7 +242,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             restoreCenterX = saved.getFloat("viewCenterX", 0);
             restoreCenterY = saved.getFloat("viewCenterY", 0);
         }
-        if (saved != null) {
+        if (restoreNoteView && saved != null) {
             Bundle histories = saved.getBundle("workspaceViewHistories");
             if (histories != null) for (String key : histories.keySet()) {
                 try { workspaceHistories.put(Integer.parseInt(key), histories.getByteArray(key)); }
@@ -391,7 +406,9 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     protected void onWorkspaceZenChanged(boolean value) { }
     protected final void appendWorkspaceDebug(org.json.JSONObject result) throws org.json.JSONException {
         if ((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0) return;
-        result.put("workspaceZen", zenMode).put("noteEditorReady", canEdit());
+        result.put("workspaceZen", zenMode).put("noteEditorReady", canEdit())
+            .put("noteSurface", ink == null ? 0 : System.identityHashCode(ink))
+            .put("penWidth", penWidth).put("eraserWidth", eraserWidth);
         org.json.JSONArray notes = new org.json.JSONArray();
         for (NotebookWorkspace.Pane pane : workspace.panes()) {
             NotebookWorkspace.Box box = workspace.box(pane,workspaceArea.getWidth(),workspaceArea.getHeight());
@@ -426,6 +443,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
 
     @Override protected void onResume() {
         super.onResume();
+        resumeBrowserNotes();
         penWidthMode = NotebookSettings.penWidthMode(this);
         if (!independentAi && session.notebookId() != viewNotebookId) {
             viewNotebookId = session.notebookId();
@@ -464,7 +482,9 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         statusIslands.history(false,false);ink.start();updateControls();showFloatingTools();return true;
     }
     private boolean retainDictionaryEditor(){
-        if(!dictionaryPending||ink==null)return false;
+        // A webpage's PROCESS_TEXT menu launches Eudic outside lookupPdfText().
+        // Browser notes stay visible on any pause; a full stop releases them below.
+        if((!dictionaryPending&&!isBrowserWorkspace())||ink==null)return false;
         dictionaryPending=false;dictionaryRetained=true;
         ink.pauseForEdit();captureViewCenter();rememberEditor();persistPosition();saveWorkspace();
         active=false;dragging=false;fingerId=-1;whenReady=null;
@@ -2837,6 +2857,32 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
 
     private void saveWorkspace() {
         if (!independentAi) getPreferences(MODE_PRIVATE).edit().putString("noteWindows", workspace.encode()).apply();
+        if (isBrowserWorkspace() && browserNotes != null && browserNotes.owns(browserNotesOwner)) {
+            NotebookBrowserNotes.Snapshot saved = browserNotes.save(browserNotesOwner, workspace.encode(), independentEditorId);
+            if (saved.revision != browserNotesRevision) {
+                browserNotesRevision = saved.revision;
+                getSharedPreferences("browser-note-workspace", MODE_PRIVATE).edit().putString("layout", saved.layout)
+                    .putInt("editor", saved.editor).putLong("revision", saved.revision).apply();
+            }
+        }
+    }
+
+    private void resumeBrowserNotes() {
+        if (!isBrowserWorkspace() || browserNotes == null) return;
+        android.content.SharedPreferences tools = getPreferences(MODE_PRIVATE);
+        penWidth = NotebookPenConfig.restore(tools.getFloat("penWidth", NotebookPenConfig.DEFAULT_WIDTH));
+        eraserWidth = NotebookWidthRange.ERASER.restore(tools.getFloat("eraserWidth", NotebookWidthRange.ERASER.defaultWidth));
+        regionEraser = tools.getBoolean("regionEraser", false);
+        NotebookBrowserNotes.Snapshot shared = browserNotes.claim(browserNotesOwner);
+        if (shared.revision == browserNotesRevision) return;
+        ++generation; openingIndependentNote = false; pendingIndependentNoteId = 0;
+        for (NotebookCompanion window : noteWindows.values()) window.close();
+        noteWindows.clear(); disposeCanvas(true); page = null; viewport = null; pages.clear(); viewportBuffer.clear();
+        workspaceHistories.clear(); resetIndependentView();
+        workspace.restore(shared.layout); workspace.setFloatingBase(true);
+        independentEditorId = workspace.find(shared.editor) == null ? 0 : shared.editor;
+        viewNotebookId = independentEditorId; browserNotesRevision = shared.revision;
+        positionWorkspaceBackground();
     }
 
     private String notebookName(int id) {
@@ -3113,6 +3159,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         workspace.setFloatingBase(true);independentEditorId=id;viewNotebookId=id;
         if(reveal){resetIndependentView();viewHistory.restore(id,workspaceHistories.get(id));}
         restoreWorkspaceView();openCanvas(loaded);
+        if (isBrowserWorkspace()) saveWorkspace();
     }
 
     private void resetIndependentView() {
@@ -3134,6 +3181,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         independentEditorId=0;viewNotebookId=0;page=null;viewport=null;pages.clear();viewportBuffer.clear();
         resetIndependentView();
         disposeCanvas(true);layoutWorkspace();statusIslands.setNoteVisible(false);updateControls();showFloatingTools();
+        if (isBrowserWorkspace()) saveWorkspace();
     }
 
     private void openCompanion(boolean floating) {
@@ -3889,6 +3937,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
 
     @Override protected void onSaveInstanceState(Bundle state) {
         captureViewCenter(); rememberEditor(); saveWorkspace();
+        state.putLong("browserNotesRevision", browserNotesRevision);
         state.putInt("viewNotebookId", viewNotebookId);
         state.putByteArray("viewHistory", viewHistory.save(viewNotebookId));
         Bundle histories = new Bundle();
@@ -3914,6 +3963,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     }
     private void disposeCanvas() { disposeCanvas(false); }
     private void disposeCanvas(boolean preserveAi) {
+        if (widthPopup != null) { NotebookWidthPopup old = widthPopup; widthPopup = null; old.dismiss(); }
         if (!preserveAi) pauseAiChat();
         if(restingPaper!=null){restingPaper.close();restingPaper=null;}
         clearPdfText();
@@ -3942,6 +3992,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     }
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
     @Override protected void onDestroy() {
+        if (browserNotes != null) browserNotes.release(browserNotesOwner);
         writingGate.close();
         if(aiWindows!=null)aiWindows.suspend();main.removeCallbacks(refreshAiDock);
         if (stylusGesture != null) stylusGesture.stop();
