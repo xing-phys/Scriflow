@@ -109,7 +109,7 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   tests/NotebookFingerStreamTest.java tests/NotebookInputPolicyTest.java tests/NotebookSensorRotationTest.java tests/NotebookDisplayStateTest.java tests/NotebookViewportBufferTest.java \
   tests/NotebookPdfTest.java tests/NotebookOutlineFixture.java tests/NotebookStrokeOutlineTest.java tests/NotebookOverlayClipTest.java \
   tests/NotebookToolStripTest.java tests/NotebookGripGestureTest.java tests/NotebookDeviceStatusStateTest.java \
-  tests/NotebookPenConfigTest.java tests/NotebookPenSliderTest.java \
+  tests/NotebookPenConfigTest.java tests/NotebookPenSliderTest.java tests/NotebookToolSettingsTest.java tests/NotebookBrowserMediaTest.java \
   tests/NotebookPenSliderCloseTest.java tests/NotebookRegionEraserTest.java tests/NotebookRegionEraserInteractionTest.java tests/NotebookEraserTest.java tests/NotebookEraserCommitTest.java tests/NotebookFoundationTest.java \
   tests/NotebookStrokeScaleTest.java tests/NotebookViewportSaveTest.java
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookWritingGateTest
@@ -172,6 +172,8 @@ java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookLibraryTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookShelfTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookWebsitesTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookBrowserUiTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookToolSettingsTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookBrowserMediaTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookBrowserLibraryTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookShelfSelectionTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPaperSizeTest

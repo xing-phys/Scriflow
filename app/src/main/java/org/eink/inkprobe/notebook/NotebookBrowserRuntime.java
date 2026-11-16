@@ -39,7 +39,7 @@ final class NotebookBrowserRuntime {
                 + "  app.normandy.enabled: false\n  app.shield.optoutstudies.enabled: false\n"
                 + "  browser.ping-centre.telemetry: false\n  network.prefetch-next: false\n"
                 + "  network.dns.disablePrefetch: true\n  network.predictor.enabled: false\n"
-                + "  browser.sessionstore.interval: 1000\n";
+                + "  browser.sessionstore.interval: 15000\n";
             try (FileOutputStream output = new FileOutputStream(config)) { output.write(prefs.getBytes(StandardCharsets.UTF_8)); }
             settings.configFilePath(config.getAbsolutePath());
         } catch (java.io.IOException error) { throw new IllegalStateException("Could not prepare the browser profile.", error); }
@@ -51,6 +51,9 @@ final class NotebookBrowserRuntime {
         servicesSession.setContentDelegate(new GeckoSession.ContentDelegate() { });
         servicesSession.setProgressDelegate(new GeckoSession.ProgressDelegate() { });
         servicesSession.setNavigationDelegate(new GeckoSession.NavigationDelegate() { });
+        // Device enumeration may be routed to the newest hidden window. It must
+        // not prompt or grant hardware access; the requesting page handles consent.
+        servicesSession.setPermissionDelegate(new GeckoSession.PermissionDelegate() { });
         servicesSession.open(runtime); servicesSession.loadUri("about:blank"); servicesSession.setActive(false);
         return runtime;
     }

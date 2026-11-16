@@ -4,7 +4,7 @@ Scriflow is designed for Huawei MatePad Paper HMW-W09 on Android 10/API 29,
 firmware `HMW-W09 2.1.0.222(C00E170R1P8)`. Other devices and firmware have not
 been verified. See the [README](../README.md) for installation and current limits.
 
-This guide follows alpha prerelease **0.40.0-alpha.10**; the published stable release is
+This guide follows alpha prerelease **0.40.0-alpha.11**; the published stable release is
 **0.33.2**. This build reads older notes; ordinary edits use page format 8 and
 individually sized Markdown uses format 9. Older APKs cannot read formats they
 do not support. Physical checks of this exact APK remain pending.
@@ -43,6 +43,13 @@ changing screen orientation or zoom does not change the paper. Existing notes
 keep their original coordinates and PDF printing scale.
 
 ## Browser and saved websites
+
+On first entering the online Browser, Scriflow asks Android for microphone permission.
+A website must also ask you to allow its microphone use for the current page.
+This supports website voice input; notes and native AI chat do not yet have
+their own voice input. Android's app settings can revoke microphone access.
+Pen thickness, eraser size and eraser mode are shared across all note workspaces.
+Their popups and the note tray appear near the button you tapped.
 
 Fresh bookshelf entries open the pinned start page; use Tabs to resume an
 existing website. Rotation resizes live pages without reloading forms or tabs.

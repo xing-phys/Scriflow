@@ -252,11 +252,9 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
                 catch (NumberFormatException ignored) { }
             }
         }
-        penWidth = NotebookPenConfig.restore(getPreferences(MODE_PRIVATE)
-            .getFloat("penWidth", NotebookPenConfig.DEFAULT_WIDTH));
-        eraserWidth = NotebookWidthRange.ERASER.restore(getPreferences(MODE_PRIVATE)
-            .getFloat("eraserWidth", NotebookWidthRange.ERASER.defaultWidth));
-        regionEraser=getPreferences(MODE_PRIVATE).getBoolean("regionEraser",false);
+        penWidth = NotebookToolSettings.penWidth(this);
+        eraserWidth = NotebookToolSettings.eraserWidth(this);
+        regionEraser = NotebookToolSettings.regionEraser(this);
         if (saved != null && saved.getBoolean("eraser", false)) tool = NotebookInk.Tool.ERASER;
         if (saved != null && saved.getBoolean("lasso", false)) tool = NotebookInk.Tool.LASSO;
         Bundle browserTools = isBrowserWorkspace() && saved != null ? saved.getBundle("browserTools") : null;
@@ -427,6 +425,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         if (widthPopup != null) widthPopup.dismiss();
         if (noteTray != null) noteTray.hide();
         if (aiWindows != null) aiWindows.hideTray();
+        if (viewMenu != null) viewMenu.dismiss();
     }
     protected final void collapseWorkspaceTools(boolean value) {
         boolean resume = canEdit();
@@ -491,7 +490,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     @Override protected void onResume() {
         super.onResume();
         resumeBrowserNotes();
-        penWidthMode = NotebookSettings.penWidthMode(this);
+        resumeToolSettings();
         if (!independentAi && session.notebookId() != viewNotebookId) {
             viewNotebookId = session.notebookId();
             zoom = 1; zoomFit = NotebookViewport.Fit.WIDTH; restoreCenter = false; viewport = null;
@@ -511,6 +510,20 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
                 if (independentEditorId == 0) startIndependentAi(); else restoreIndependentEditor();
             } else { layoutWorkspace(); statusIslands.show(workspaceRoot); loadPage(); }
         });
+    }
+
+    private void resumeToolSettings() {
+        penWidth = NotebookToolSettings.penWidth(this);
+        eraserWidth = NotebookToolSettings.eraserWidth(this);
+        regionEraser = NotebookToolSettings.regionEraser(this);
+        penWidthMode = NotebookSettings.penWidthMode(this);
+        // Dictionary bubbles and covered browser windows can retain a paused ink
+        // surface. Apply the latest shared choices before handwriting resumes.
+        if (ink != null) {
+            ink.setTool(inputTool());
+            ink.setPenWidth(fittedPenWidth());
+            ink.setEraserWidth(fittedEraserWidth());
+        }
     }
 
     private void startIndependentAi() {
@@ -1744,12 +1757,12 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
                         if (!active || request != generation || shownError != null) return;
                         if (erasing) { eraserWidth = chosen; ink.setEraserWidth(fittedEraserWidth()); }
                         else { penWidth = chosen; ink.setPenWidth(fittedPenWidth()); }
-                        getPreferences(MODE_PRIVATE).edit().putFloat(erasing ? "eraserWidth" : "penWidth", chosen).apply();
+                        NotebookToolSettings.width(NotebookActivity.this, erasing, chosen);
                     }
                     @Override public void onEraserModeChanged(boolean region){
                         if(!active||request!=generation||shownError!=null||!erasing)return;
                         regionEraser=region;
-                        getPreferences(MODE_PRIVATE).edit().putBoolean("regionEraser",region).apply();
+                        NotebookToolSettings.regionEraser(NotebookActivity.this, region);
                         ink.setTool(inputTool());updateControls();
                     }
                     @Override public void onContactEnd() {
@@ -1768,7 +1781,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
                         widthPopupBounds.set(bounds); updateOverlayBounds();
                     }
                 });
-            widthPopup.show(canvas, erasing ? eraserButton : penButton, floatingTools.bounds(), floatingTools.isVertical());
+            widthPopup.show(workspaceRoot, erasing ? eraserButton : penButton, floatingTools.bounds(), floatingTools.isVertical());
             opening[0] = false;
             // The bar owns only its bounds. Writing outside can start with the first DOWN.
             editing = false; ink.start(); updateControls(); scheduleSaveState();
@@ -2939,10 +2952,6 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
 
     private void resumeBrowserNotes() {
         if (!isBrowserWorkspace() || browserNotes == null) return;
-        android.content.SharedPreferences tools = getPreferences(MODE_PRIVATE);
-        penWidth = NotebookPenConfig.restore(tools.getFloat("penWidth", NotebookPenConfig.DEFAULT_WIDTH));
-        eraserWidth = NotebookWidthRange.ERASER.restore(tools.getFloat("eraserWidth", NotebookWidthRange.ERASER.defaultWidth));
-        regionEraser = tools.getBoolean("regionEraser", false);
         NotebookBrowserNotes.Snapshot shared = browserNotes.claim(browserNotesOwner);
         if (shared.revision == browserNotesRevision) return;
         ++generation; openingIndependentNote = false; pendingIndependentNoteId = 0;
@@ -3190,7 +3199,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             .setItems(labels,(menu,index)->choice[0]=index).setNegativeButton("Cancel",null).create();
         viewMenu=dialog;dialog.setOnDismissListener(closed->{viewMenu=null;
             if(active&&choice[0]>=0)openIndependentNote(choices.get(choice[0]).id);});
-        showStaticDialog(dialog);
+        showNoteDialog(dialog);
     }
 
     /** Only an explicit selection is allowed to open the first notebook in an AI workspace. */
@@ -3281,7 +3290,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
                 else chooseCompanionPosition(id);
             });
         });
-        showStaticDialog(dialog);
+        showNoteDialog(dialog);
     }
 
     private void chooseCompanionPosition(int notebook) {
@@ -3299,6 +3308,12 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
                 if (pane == null) workspace.add(notebook, position); else workspace.place(pane, position);
             }); });
         });
+        showNoteDialog(dialog);
+    }
+
+    private void showNoteDialog(AlertDialog dialog) {
+        if (isBrowserWorkspace()) NotebookToolPopup.anchor(dialog, workspaceRoot,
+            floatingTools.button(NotebookFloatingTools.Action.NOTES), floatingTools.bounds(), floatingTools.isVertical());
         showStaticDialog(dialog);
     }
 

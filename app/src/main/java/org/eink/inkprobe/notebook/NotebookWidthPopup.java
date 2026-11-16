@@ -107,18 +107,8 @@ final class NotebookWidthPopup {
             finish(null); return;
         }
         int[] origin = new int[2]; canvas.getLocationOnScreen(origin);
-        Rect button = new Rect();
-        if (pen.getLocalVisibleRect(button)) {
-            int[] penOrigin = new int[2]; pen.getLocationOnScreen(penOrigin);
-            button.offset(penOrigin[0] - origin[0], penOrigin[1] - origin[1]);
-        } else {
-            button.set(tools); button.offset(-origin[0], -origin[1]);
-        }
-        Rect palette = new Rect(tools); palette.offset(-origin[0], -origin[1]);
-        NotebookPenSliderLayout.Box bar = NotebookPenSliderLayout.place(canvas.getWidth(), canvas.getHeight(),
-            new NotebookPenSliderLayout.Box(button.left, button.top, Math.max(1, button.width()), Math.max(1, button.height())),
-            new NotebookPenSliderLayout.Box(palette.left, palette.top, Math.max(1, palette.width()), Math.max(1, palette.height())),
-            vertical, dp(region?70:224), dp(range==NotebookWidthRange.ERASER?(region?32:88):48), dp(6), dp(8));
+        NotebookPenSliderLayout.Box bar = NotebookToolPopup.place(canvas, pen, tools, vertical,
+            dp(region?70:224), dp(range==NotebookWidthRange.ERASER?(region?32:88):48));
         int offset=range==NotebookWidthRange.ERASER?dp(40):0;
         content.setVisibility(region?View.GONE:View.VISIBLE);
         FrameLayout.LayoutParams slider=(FrameLayout.LayoutParams)content.getLayoutParams();

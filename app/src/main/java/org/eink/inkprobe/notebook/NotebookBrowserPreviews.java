@@ -20,6 +20,12 @@ final class NotebookBrowserPreviews {
     private static final Map<NotebookBrowserPreview, String> VIEWS = new WeakHashMap<>();
     private static volatile long revision;
     private static long request, active;
+    private static Runnable timeout;
+    private static final class Recent {
+        final String url; final long at;
+        Recent(String url) { this.url = url; at = android.os.SystemClock.uptimeMillis(); }
+    }
+    private static final Map<NotebookBrowserEngine, Recent> RECENT = new WeakHashMap<>();
 
     private static String key(String url) {
         if (!NotebookBrowserAddress.isWebUrl(url)) return null;
@@ -56,12 +62,17 @@ final class NotebookBrowserPreviews {
     static void remember(Context context, NotebookBrowserEngine page) {
         String url = page.getUrl(), key = key(url);
         if (key == null || active != 0 || NotebookBrowserData.clearing()) return;
+        Recent recent = RECENT.get(page);
+        if (recent != null && recent.url.equals(url) && android.os.SystemClock.uptimeMillis() - recent.at < 5000) return;
         long ticket = active = ++request, expected = revision;
         Context app = context.getApplicationContext();
-        MAIN.postDelayed(() -> { if (active == ticket) active = 0; }, 8000);
+        Runnable expiry = () -> { if (active == ticket) active = 0; };
+        timeout = expiry; MAIN.postDelayed(expiry, 8000);
         page.capturePreview(bitmap -> {
+            MAIN.removeCallbacks(expiry); if (timeout == expiry) timeout = null;
             if (active != ticket || expected != revision || !url.equals(page.getUrl())) { if (active == ticket) active = 0; if (bitmap != null) bitmap.recycle(); return; }
             if (bitmap == null) { active = 0; return; }
+            Recent captured = new Recent(url); RECENT.put(page, captured);
             NotebookWebsiteTasks.run(() -> {
                 try {
                     Bitmap small = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888);
@@ -87,15 +98,17 @@ final class NotebookBrowserPreviews {
                 } finally { bitmap.recycle(); }
             }, (small, error) -> {
                 if (active == ticket) active = 0;
-                if (small == null || expected != revision) return;
+                if (small == null || expected != revision) { if (RECENT.get(page) == captured) RECENT.remove(page); return; }
                 MEMORY.put(key, small);
                 for (Map.Entry<NotebookBrowserPreview, String> entry : new ArrayList<>(VIEWS.entrySet())) { NotebookBrowserPreview view = entry.getKey(); if (view != null && key.equals(entry.getValue())) view.setImageBitmap(small); }
             });
         });
     }
 
+    static void documentStarted(NotebookBrowserEngine page) { RECENT.remove(page); }
+
     /** Called synchronously before browser owners and in-flight captures are retired. */
-    static void invalidate() { revision++; active = 0; MEMORY.evictAll(); for (NotebookBrowserPreview view : new ArrayList<>(VIEWS.keySet())) view.setImageBitmap(null); }
+    static void invalidate() { revision++; active = 0; RECENT.clear(); if (timeout != null) MAIN.removeCallbacks(timeout); timeout = null; MEMORY.evictAll(); for (NotebookBrowserPreview view : new ArrayList<>(VIEWS.keySet())) view.setImageBitmap(null); }
 
     /** Run on website-storage, after invalidation. Only the disposable preview directory is touched. */
     static void clear(Context context) throws IOException {

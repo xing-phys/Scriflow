@@ -57,6 +57,12 @@ final class NotebookBrowserAddress {
         catch (IllegalArgumentException error) { return false; }
     }
 
+    static String origin(String url) {
+        if (!isWebUrl(url)) return "";
+        URI uri = URI.create(normalize(url)); int port = uri.getPort();
+        return "https://" + uri.getHost().toLowerCase(Locale.ROOT) + (port < 0 || port == 443 ? "" : ":" + port);
+    }
+
     static String withoutFragment(String url) {
         if (url == null) return "";
         int fragment = url.indexOf('#');

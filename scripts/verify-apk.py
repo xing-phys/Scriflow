@@ -33,8 +33,9 @@ DIAGNOSTICS = {PACKAGE + '.MainActivity', PACKAGE + '.notebook.NotebookSelfTestA
                PACKAGE + '.notebook.NotebookBrowserSelfTestActivity', PACKAGE + '.notebook.NotebookBrowserDataSelfTestActivity',
                PACKAGE + '.notebook.NotebookBrowserOverlaySelfTestActivity'}
 # Gecko's standard runtime permissions support media/audio and its process services.
-# No camera, microphone, location or external-storage permission is granted.
+# Microphone access is requested at runtime; camera, location and external storage remain undeclared.
 PERMISSIONS = {'android.permission.ACCESS_NETWORK_STATE', 'android.permission.INTERNET',
+               'android.permission.RECORD_AUDIO',
                'android.permission.WAKE_LOCK', 'android.permission.MODIFY_AUDIO_SETTINGS',
                PACKAGE + '.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION'}
 COMPONENTS = {'activity', 'activity-alias', 'service', 'receiver', 'provider'}
@@ -223,6 +224,10 @@ def verify_manifest(manifest, badging, variant, version):
     permissions = {element.attributes.get('android:name') for element in manifest.walk()
                    if element.tag.startswith('uses-permission')}
     require(permissions == PERMISSIONS, f'Unexpected permissions: {sorted(permissions, key=str)}; expected {sorted(PERMISSIONS)}.')
+    microphones = [child for child in manifest.children if child.tag == 'uses-feature'
+                   and child.attributes.get('android:name') == 'android.hardware.microphone']
+    require(len(microphones) == 1 and microphones[0].attributes.get('android:required') == 0,
+            'Microphone hardware must be optional so tablets without it remain supported.')
     components = [child for child in application.children if child.tag in COMPONENTS]
     names = [component_name(component) for component in components]
     require(all(names) and len(names) == len(set(names)), 'Missing or duplicate component names.')

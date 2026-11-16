@@ -1,9 +1,37 @@
 # Browser and offline websites
 
-**0.40.0-alpha.10** (versionCode **110**) bundles GeckoView
+**0.40.0-alpha.11** (versionCode **111**) bundles GeckoView
 **160.0.20261104181552**, the Firefox browser engine. Website JavaScript, CSS,
 fonts and math rendering no longer depend on the tablet's installed WebView.
 This alpha is awaiting physical testing on the Huawei MatePad Paper.
+
+## Voice input and power use
+
+The first online Browser entry asks for Android microphone permission. If you
+decline, it does not ask proactively again; using a website's voice control can
+request permission again. Android app settings can revoke access. A foreground
+HTTPS page must also show its origin in an **Allow microphone?** prompt before
+it can record. Consent lasts for that document, including repeated voice input,
+and resets on a new document. Different origins, hidden tabs, offline pages and
+camera requests cannot receive that consent. Website voice features process
+audio according to that website's terms. Native note/AI voice input is not added.
+
+Session snapshots use a 15-second periodic interval instead of one second,
+with explicit checkpoints on navigation and when leaving a page. Near-duplicate
+thumbnail captures are coalesced for five seconds; a new document resets that
+limit. Completed captures cancel their timeout. Hidden pages stop capture-bridge
+reconnect/early-readiness timers, and connection failures back off to a maximum
+30-second retry interval. Showing a page retries immediately. Normal JavaScript,
+rendering and foreground responsiveness remain enabled. Battery-life improvement
+has not yet been measured on the physical tablet.
+
+Pen thickness, eraser size and stroke/region eraser mode use one configuration
+across ordinary notes, AI workspaces and online/offline browser notes. The first
+update preserves the normal notebook's saved choices, falling back to AI/browser
+choices for settings never saved there. Existing open screens refresh the shared
+configuration when resumed. Popup placement uses the full workspace and free
+space beside the actual pen, eraser or note button, without covering other
+controls. The browser's note picker also opens near its Notes button.
 
 ## Browse and save
 

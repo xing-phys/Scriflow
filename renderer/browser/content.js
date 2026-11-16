@@ -1,21 +1,30 @@
 import { captureDocument, pageStats } from './capture.js';
 let port = null, active = null, hidden = false, retry = null, heartbeat = null, announcements = 0;
+let retryDelay = 250;
+const visible = () => !hidden && document.visibilityState !== 'hidden';
 const acknowledgements = new Map();
 const announce = () => {
+  clearTimeout(heartbeat); heartbeat = null;
+  if (!visible() || !port) return;
   try { port?.postMessage({ type: 'document', url: location.href, readable: document.readyState !== 'loading' && !!document.body }); } catch { }
-  clearTimeout(heartbeat);
   // A few early announcements bridge native-event ordering without polling a
   // permanently loading page for the rest of the reading session.
-  if (!hidden && document.readyState !== 'complete' && announcements++ < 20) heartbeat = setTimeout(announce, 500);
+  if (document.readyState !== 'complete' && announcements++ < 20) heartbeat = setTimeout(announce, 500);
 };
 function retire() {
   const id = active; active = null;
   if (id) browser.runtime.sendMessage({ type: 'cancel', id }).catch(() => {});
   for (const resolve of acknowledgements.values()) resolve(); acknowledgements.clear();
 }
+function reconnectLater() {
+  clearTimeout(retry); retry = null;
+  if (!visible()) return;
+  retry = setTimeout(connect, retryDelay);
+  retryDelay = Math.min(30000, retryDelay * 2);
+}
 function connect() {
   clearTimeout(retry); retry = null;
-  if (hidden || port) return;
+  if (!visible() || port) return;
   announcements = 0;
   try {
     const owner = port = browser.runtime.connectNative('scriflow');
@@ -23,10 +32,11 @@ function connect() {
     owner.onDisconnect.addListener(() => {
       if (port !== owner) return;
       port = null; retire();
-      if (!hidden) retry = setTimeout(connect, 250);
+      clearTimeout(heartbeat); heartbeat = null;
+      reconnectLater();
     });
     announce();
-  } catch { port = null; if (!hidden) retry = setTimeout(connect, 1000); }
+  } catch { port = null; reconnectLater(); }
 }
 document.addEventListener('DOMContentLoaded', announce);
 addEventListener('load', announce);
@@ -34,13 +44,17 @@ addEventListener('hashchange', announce);
 addEventListener('popstate', announce);
 addEventListener('pagehide', () => { hidden = true; clearTimeout(retry); clearTimeout(heartbeat); retire(); const old = port; port = null; old?.disconnect(); });
 addEventListener('pageshow', () => { hidden = false; connect(); announce(); });
+document.addEventListener('visibilitychange', () => {
+  if (visible()) { connect(); announce(); }
+  else { clearTimeout(retry); retry = null; clearTimeout(heartbeat); heartbeat = null; }
+});
 connect();
 
 async function receive(owner, message) {
   if (owner !== port) return;
   if (message.type === 'ack') { if (message.id === active) { acknowledgements.get(message.sequence)?.(); acknowledgements.delete(message.sequence); } return; }
   if (message.type === 'cancel') { if (message.id === active) retire(); return; }
-  if (message.type === 'hello') { announce(); return; }
+  if (message.type === 'hello') { retryDelay = 250; announce(); return; }
   if (message.type === 'stats') { owner.postMessage({ type: 'stats', id: message.id, ...pageStats(document) }); return; }
   if (message.type !== 'capture' || active) return;
   const id = active = message.id;

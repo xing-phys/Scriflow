@@ -58,18 +58,20 @@ public class NotebookBrowserActivity extends NotebookActivity {
     private static final int LINKS_RESULT = 6201;
     private final Runnable dataReset = this::forgetBrowserData;
     private Runnable previewUpdate;
+    private NotebookMicrophone microphone;
 
     private void schedulePreview() {
         if (previewUpdate != null) content.removeCallbacks(previewUpdate);
         NotebookBrowserEngine page = web;
         previewUpdate = () -> { if (!offline && resumed && !home && web == page && page != null && !isDestroyed()) NotebookBrowserPreviews.remember(this, page); };
-        content.postDelayed(previewUpdate, 700);
+        content.postDelayed(previewUpdate, 1500);
     }
 
     @Override public void onCreate(Bundle state) {
         boolean clearedRestore = state != null && state.getLong("browserDataRevision", 0) != NotebookBrowserData.revision(this);
         if (clearedRestore) state = null;
         super.onCreate(state);
+        microphone = new NotebookMicrophone(this);
         offline = getIntent().hasExtra(SAVED_ID);
         startupHome = state == null ? !getIntent().hasExtra(INITIAL_URL) : state.getBoolean("startupHome", false);
         NotebookBrowserData.owner(dataReset);
@@ -189,7 +191,7 @@ public class NotebookBrowserActivity extends NotebookActivity {
             if (NotebookBrowserData.clearing()) { Toast.makeText(this, "Wait for browser data clearing to finish", Toast.LENGTH_SHORT).show(); return; }
             BrowserClient client = new BrowserClient(offline ? "offline" : tabs.current().id);
             web = offline && savedPage != null && savedPage.format == NotebookWebsites.Format.MHTML
-                ? new NotebookLegacyWebPage(this, archiveUrl, client) : new NotebookGeckoPage(this, offline, archiveUrl, client);
+                ? new NotebookLegacyWebPage(this, archiveUrl, client) : new NotebookGeckoPage(this, offline, archiveUrl, client, microphone, () -> resumed);
             if (!offline) engines.put(tabs.current().id, web);
             content.addView(web, 0, new FrameLayout.LayoutParams(-1, -1));
             if (resumed) web.onResume();
@@ -421,6 +423,7 @@ public class NotebookBrowserActivity extends NotebookActivity {
         }
 
         @Override public void onPageStarted(NotebookBrowserEngine view, String url) {
+            NotebookBrowserPreviews.documentStarted(view);
             remember(view, url); PageState state = pageState(view); state.loading = true; state.ready = false; state.failed = false; state.starts++;
             if (view != web || home) return;
             if (scrollRestore != null) cancelScrollRestore();
@@ -572,6 +575,12 @@ public class NotebookBrowserActivity extends NotebookActivity {
         if (offline && web == null && archiveUrl != null && !NotebookBrowserData.clearing()) { createWebView(); if (web != null) web.loadUrl(archiveUrl); }
         if (web != null && !home) web.onResume();
         if (!offline && home) refreshHome();
+        microphone.resumed(true);
+        if (!offline) microphone.askOnce();
+    }
+
+    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
+        if (microphone == null || !microphone.permissionResult(requestCode)) super.onRequestPermissionsResult(requestCode, permissions, results);
     }
 
     @Override public void onConfigurationChanged(Configuration configuration) {
@@ -583,8 +592,10 @@ public class NotebookBrowserActivity extends NotebookActivity {
     }
     @Override protected void onPause() {
         content.removeCallbacks(saveReadingPosition); saveReadingPosition();
+        if (previewUpdate != null) content.removeCallbacks(previewUpdate);
         if (!offline && !home && web != null && pageReady) NotebookBrowserPreviews.remember(this, web);
         resumed = false;
+        microphone.resumed(false);
         // A dictionary bubble pauses this Activity while the page is still visible.
         // Gecko's active flag represents visibility; deactivate only onStop or tab hiding.
         if (web != null && !home) web.onWindowPause();
@@ -612,6 +623,7 @@ public class NotebookBrowserActivity extends NotebookActivity {
     }
 
     @Override protected void onDestroy() {
+        if (microphone != null) microphone.close();
         if (content != null) { content.removeCallbacks(saveReadingPosition); cancelScrollRestore(); }
         if (content != null && previewUpdate != null) content.removeCallbacks(previewUpdate);
         NotebookBrowserData.removeOwner(dataReset);

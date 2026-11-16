@@ -34,6 +34,7 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
     private final GeckoSession session;
     private final GeckoView surface;
     private final NotebookBrowserPrompts prompts;
+    private final NotebookBrowserMedia media;
     private final boolean offline;
     private final String archive;
     private WebExtension extension;
@@ -48,12 +49,17 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
     private String captureFailure = "The capture connection is not available. Please retry.";
     private boolean painted, readable, notified;
     private final Map<String, Consumer<JSONObject>> probes = new HashMap<>();
+    private final Runnable flushState;
 
-    NotebookGeckoPage(Context context, boolean offline, String archive, Listener listener) {
+    NotebookGeckoPage(android.app.Activity context, boolean offline, String archive, Listener listener,
+                     NotebookMicrophone microphone, java.util.function.BooleanSupplier foreground) {
         super(context, listener); this.offline = offline; this.archive = archive == null ? "" : NotebookBrowserAddress.withoutFragment(archive);
         runtime = NotebookBrowserRuntime.get(context);
         session = new GeckoSession(new GeckoSessionSettings.Builder().allowJavascript(true).suspendMediaWhenInactive(true).build());
+        flushState = () -> { if (!closed) session.flushSessionState(); };
         prompts = new NotebookBrowserPrompts(context, () -> url);
+        media = new NotebookBrowserMedia(context, microphone,
+            () -> !this.offline && !closed && Boolean.TRUE.equals(active) && foreground.getAsBoolean() && getVisibility() == VISIBLE, () -> url);
         if (!offline) session.setPromptDelegate(prompts);
         surface = new GeckoView(context); addView(surface, new LayoutParams(-1, -1));
         session.setCompositorScrollDelegate(new GeckoSession.CompositorScrollDelegate() {
@@ -72,10 +78,11 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
             @Override public void onLocationChange(GeckoSession owner, String value,
                     List<GeckoSession.PermissionDelegate.ContentPermission> permissions, Boolean gesture) {
                 if (closed || internal(value)) return;
+                if (!NotebookBrowserAddress.origin(value).equals(NotebookBrowserAddress.origin(url))) media.reset();
                 url = value; listener.onHistoryChanged(NotebookGeckoPage.this, value);
                 // Session-store history normally arrives on a delayed timer. Request
                 // its current index after each location change, including hash jumps.
-                post(() -> { if (!closed) session.flushSessionState(); });
+                removeCallbacks(flushState); post(flushState);
             }
             @Override public void onCanGoBack(GeckoSession owner, boolean value) { back = value; changed(); }
             @Override public void onCanGoForward(GeckoSession owner, boolean value) { forward = value; changed(); }
@@ -89,7 +96,7 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
         session.setProgressDelegate(new GeckoSession.ProgressDelegate() {
             @Override public void onPageStart(GeckoSession owner, String value) {
                 if (closed || internal(value)) return;
-                prompts.close(); cancelCapture(); pagePort = null; painted = readable = notified = false;
+                prompts.close(); media.reset(); cancelCapture(); pagePort = null; painted = readable = notified = false;
                 url = value; listener.onPageStarted(NotebookGeckoPage.this, value);
             }
             @Override public void onPageStop(GeckoSession owner, boolean success) {
@@ -120,12 +127,7 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
                 if (!closed) listener.onDownload(NotebookGeckoPage.this);
             }
         });
-        session.setPermissionDelegate(new GeckoSession.PermissionDelegate() {
-            @Override public void onAndroidPermissionsRequest(GeckoSession owner, String[] permissions, Callback callback) { callback.reject(); }
-            @Override public GeckoResult<Integer> onContentPermissionRequest(GeckoSession owner, ContentPermission permission) {
-                return GeckoResult.fromValue(ContentPermission.VALUE_DENY);
-            }
-        });
+        session.setPermissionDelegate(media);
         session.open(runtime); surface.setSession(session); NotebookBrowserData.register(this);
         NotebookBrowserRuntime.extension(context).accept(value -> {
             if (closed) return;
@@ -201,7 +203,7 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
         if (message.optString("type").equals("document")) {
             String source = message.optString("url");
             if (!allowed(source, true) || url == null || !NotebookBrowserAddress.withoutFragment(source).equals(NotebookBrowserAddress.withoutFragment(url))) return;
-            if (pagePort != port) { cancelCapture(); notified = false; }
+            if (pagePort != port) { cancelCapture(); notified = false; port.postMessage(json("type", "hello")); }
             pagePort = port; readable = message.optBoolean("readable"); documentReady(); return;
         }
         if (port != pagePort) return;
@@ -304,10 +306,10 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
     }
     @Override void stopLoading() { if (!closed) session.stop(); }
     @Override void onResume() { if (!closed && !Boolean.TRUE.equals(active)) { active = true; session.setActive(true); runtime.getWebExtensionController().setTabActive(session, true); } }
-    @Override void onWindowPause() { if (!closed) { prompts.close(); session.flushSessionState(); } }
-    @Override void onPause() { if (!closed && !Boolean.FALSE.equals(active)) { active = false; prompts.close(); session.flushSessionState(); session.setActive(false); runtime.getWebExtensionController().setTabActive(session, false); } }
+    @Override void onWindowPause() { if (!closed) { prompts.close(); media.cancelPrompt(); removeCallbacks(flushState); session.flushSessionState(); } }
+    @Override void onPause() { if (!closed && !Boolean.FALSE.equals(active)) { active = false; prompts.close(); media.cancelPrompt(); removeCallbacks(flushState); session.flushSessionState(); session.setActive(false); runtime.getWebExtensionController().setTabActive(session, false); } }
     @Override void destroy() {
-        if (closed) return; prompts.close(); cancelCapture(); closed = true;
+        if (closed) return; prompts.close(); media.reset(); removeCallbacks(flushState); cancelCapture(); closed = true;
         for (Consumer<JSONObject> callback : probes.values()) callback.accept(null); probes.clear();
         NotebookBrowserData.unregister(this); NotebookBrowserRuntime.unbind(session); surface.releaseSession(); session.close(); removeView(surface);
     }

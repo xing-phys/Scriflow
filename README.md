@@ -26,9 +26,12 @@ pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
 stays in front, window operations retain the main editor, and PDF import opens
 the file picker directly before opening the imported note.
 
-The **[0.40.0-alpha.10 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.40.0-alpha.10)**
-keeps live browser documents through portrait/landscape turns, remembers each
-saved page's reading position, and leaves the tab picker open while closing tabs.
+The **[0.40.0-alpha.11 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.40.0-alpha.11)**
+adds website microphone permission, reduces repeated browser background work,
+places tool popups beside their buttons, and shares pen/eraser settings across
+ordinary notes, AI chat and browser notes. It keeps live browser documents through
+portrait/landscape turns, remembers each saved page's reading position, and leaves
+the tab picker open while closing tabs.
 The single compact toolbox stays above notes and floating AI chats, adds writing
 actions for visible notes, and omits the routine page/tab-count status row.
 Minimizing or closing a browser chat preserves the browser and note workspace.

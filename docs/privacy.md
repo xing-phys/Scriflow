@@ -174,8 +174,16 @@ the transfer and its own privacy terms apply.
 `INTERNET` permits optional AI requests and browsing. The bundled browser also
 declares `WAKE_LOCK` and `MODIFY_AUDIO_SETTINGS` for its standard runtime/media
 support. AndroidX declares an app-private signature permission for internal
-receivers. No camera, microphone, location or shared-storage permission is
-requested. Browser sessions and clocks pause in the background; cleartext
+receivers. `RECORD_AUDIO` is requested on the first online Browser entry for
+website voice input; microphone hardware is optional. Denial is not proactively
+repeated on each entry. A foreground HTTPS page also needs explicit consent in
+a prompt naming its origin. That consent lasts for its current document and
+is not shared with other origins or offline copies. Android app settings can
+revoke microphone permission. Audio is handled by the website you choose to
+use; Scriflow does not add a native recording or transcription service.
+No camera, location or shared-storage permission is requested.
+Hidden browser sessions suspend media playback and capture-bridge retry timers;
+clocks pause in the background; cleartext
 traffic is disabled. The status bar also shows the
 tablet's time and battery level.
 Following an external PDF link opens another installed app, such as a browser;

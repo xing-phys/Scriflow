@@ -12,8 +12,33 @@ public final class NotebookPenSliderTest {
         contactOwnership();
         repeatedAdjustmentsWithoutClosing();
         placementAtEdges();
+        browserPanel();
         variedWindows();
         System.out.println("NotebookPenSlider: " + assertions + " assertions passed (width, contacts and placement).");
+    }
+
+    private static void browserPanel() {
+        for (int[] size : new int[][]{{702, 936}, {936, 702}, {1404, 1872}, {1872, 1404}}) {
+            int scale = size[0] > 1000 ? 2 : 1;
+            NotebookPenSliderLayout.Box tools = box(150 * scale, 100 * scale, 400 * scale, 250 * scale);
+            NotebookPenSliderLayout.Box pen = box(170 * scale, 308 * scale, 32 * scale, 32 * scale);
+            NotebookPenSliderLayout.Box bar = NotebookPenSliderLayout.place(size[0], size[1], pen, tools,
+                false, 224 * scale, 48 * scale, 6 * scale, 8 * scale);
+            check(bar.top == tools.bottom() + 6 * scale, "browser pen row opens directly below its button on the full workspace");
+            check(bar.right() > 260 * scale, "popup can extend beyond a narrow floating note rather than being clamped to its canvas");
+            NotebookPenSliderLayout.Box notes = box(506 * scale, 240 * scale, 32 * scale, 32 * scale);
+            bar = NotebookPenSliderLayout.place(size[0], size[1], notes, tools, false, 76 * scale, 40 * scale, 6 * scale, 8 * scale);
+            check(bar.left == tools.right() + 6 * scale, "note tray chooses the nearby right edge rather than the distant panel bottom");
+            check(bar.top <= notes.top && bar.bottom() >= notes.bottom(), "tray stays aligned with the triggering note button");
+            java.util.List<NotebookPenSliderLayout.Box> controls = java.util.Arrays.asList(pen, notes,
+                box(208 * scale, 308 * scale, 32 * scale, 32 * scale));
+            bar = NotebookPenSliderLayout.place(size[0], size[1], notes, tools, false,
+                76 * scale, 40 * scale, 6 * scale, 8 * scale, controls);
+            check(bar.top == notes.bottom() + 6 * scale, "unused cells let the note tray sit immediately beside its button");
+            for (NotebookPenSliderLayout.Box control : controls)
+                check(bar.left >= control.right() || bar.right() <= control.left || bar.top >= control.bottom() || bar.bottom() <= control.top,
+                    "nearby popup never covers another toolbox control");
+        }
     }
 
     private static void widthsAndRememberedChoices() {

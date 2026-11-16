@@ -54,20 +54,15 @@ final class NotebookNoteTray {
             row.addView(button, item); count++;
         }
         int[] origin = new int[2]; anchor.getLocationOnScreen(origin);
-        int[] button = new int[2]; notesButton.getLocationOnScreen(button);
         int length = dp(8 + 32 * count + 4 * (count - 1));
-        int width = vertical ? dp(40) : Math.min(anchor.getWidth() - dp(16), length);
-        int height = vertical ? Math.min(anchor.getHeight() - dp(16), length) : dp(40);
+        if (!anchor.isAttachedToWindow() || anchor.getWidth() <= 0 || anchor.getHeight() <= 0) return;
+        NotebookPenSliderLayout.Box placement = NotebookToolPopup.place(anchor, notesButton, tools, vertical,
+            vertical ? dp(40) : length, vertical ? length : dp(40));
+        int width = placement.width, height = placement.height;
         FrameLayout scroll;
         if (vertical) { ScrollView view = new ScrollView(context); view.setFillViewport(true); view.addView(row); scroll = view; }
         else { HorizontalScrollView view = new HorizontalScrollView(context); view.setFillViewport(true); view.addView(row); scroll = view; }
-        // Align the first icon with its button, even when the toolbox strip has scrolled.
-        int x = vertical ? tools.right + dp(6) : button[0] + notesButton.getWidth() / 2 - dp(20);
-        int y = vertical ? button[1] + notesButton.getHeight() / 2 - dp(20) : tools.bottom + dp(6);
-        if (vertical && x + width > origin[0] + anchor.getWidth() - dp(8)) x = tools.left - width - dp(6);
-        if (!vertical && y + height > origin[1] + anchor.getHeight() - dp(8)) y = tools.top - height - dp(6);
-        x = Math.max(origin[0] + dp(8), Math.min(origin[0] + anchor.getWidth() - width - dp(8), x));
-        y = Math.max(origin[1] + dp(8), Math.min(origin[1] + anchor.getHeight() - height - dp(8), y));
+        int x = origin[0] + placement.left, y = origin[1] + placement.top;
         popup = new PopupWindow(scroll, width, height, false); popup.setAnimationStyle(0);
         popup.setWindowLayoutType(android.view.WindowManager.LayoutParams.TYPE_APPLICATION_SUB_PANEL);
         popup.setClippingEnabled(false); popup.setIsLaidOutInScreen(true); popup.setOutsideTouchable(false);
