@@ -25,9 +25,6 @@ import java.util.Date;
 /** A maintained browser engine, floating controls and a separate offline reading policy. */
 public class NotebookBrowserActivity extends NotebookActivity {
     @Override protected boolean isBrowserWorkspace() { return true; }
-    @Override protected void onWorkspaceZenChanged(boolean value) {
-        if (browserTools != null && browserTools.isZen() != value) browserTools.zen(value);
-    }
 
     static final String SAVED_ID = "savedWebsiteId", INITIAL_URL = "websiteUrl";
     private FrameLayout content;
@@ -35,7 +32,6 @@ public class NotebookBrowserActivity extends NotebookActivity {
     private View saveShield;
     private EditText address;
     private NotebookButton go, previous, next, reload, save;
-    private NotebookBrowserTools browserTools;
     private NotebookBrowserEngine web;
     private NotebookWebsites.Saved savedPage;
     private NotebookWebsites.Pending pendingSave;
@@ -84,15 +80,21 @@ public class NotebookBrowserActivity extends NotebookActivity {
         title = label(offline ? "Saved website" : "Browser", 18); title.setSingleLine(true);
         title.setEllipsize(TextUtils.TruncateAt.END); title.setPadding(dp(12), 0, dp(12), 0);
         header.addView(title, new LinearLayout.LayoutParams(0, dp(32), 1));
-        header.addView(toolIcon(NotebookIconDrawable.Icon.FULLSCREEN, "Enter Zen mode", () -> browserTools.zen(true)), new LinearLayout.LayoutParams(dp(32), dp(32)));
+        header.addView(workspaceToolButton(NotebookFloatingTools.Action.ZEN), new LinearLayout.LayoutParams(dp(32), dp(32)));
         header.addView(toolIcon(NotebookIconDrawable.Icon.MORE, "Browser menu", this::browserMenu), NotebookBrowserUi.beside(this, 32, 32));
         controls.addView(header);
 
         LinearLayout addressRow = new LinearLayout(this); addressRow.setGravity(Gravity.CENTER_VERTICAL);
         addressRow.setPadding(0, dp(12), 0, dp(12));
-        address = new EditText(this); address.setTextColor(Color.BLACK); address.setTextSize(14);
+        address = new EditText(this) {
+            @Override public void onWindowFocusChanged(boolean focused) {
+                super.onWindowFocusChanged(focused);
+                if (focused && hasFocus()) browserToolTextInput(this, true);
+            }
+        }; address.setTextColor(Color.BLACK); address.setTextSize(14);
         address.setSingleLine(true); address.setHint("Search or enter a website");
         address.setContentDescription("Website address"); address.setSelectAllOnFocus(true);
+        address.setOnFocusChangeListener((view, focused) -> browserToolTextInput(view, focused));
         address.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
         address.setImeOptions(EditorInfo.IME_ACTION_GO); address.setEnabled(!offline);
         address.setOnEditorActionListener((view, action, event) -> {
@@ -118,7 +120,8 @@ public class NotebookBrowserActivity extends NotebookActivity {
         if (offline) tools.addView(toolIcon(NotebookIconDrawable.Icon.BROWSER, "Open online",
             () -> { if (savedPage != null) openOnline(savedPage.url); }));
         tools.addView(toolIcon(NotebookIconDrawable.Icon.FOLDER, "Saved websites", this::savedWebsites));
-        tools.addView(toolIcon(NotebookIconDrawable.Icon.NOTES, "Floating or split notes", () -> { browserTools.collapse(true); openWorkspaceNotes(); }));
+        NotebookIconButton notes = workspaceToolButton(NotebookFloatingTools.Action.NOTES);
+        notes.setContentDescription("Floating or split notes"); notes.setTooltipText("Floating or split notes"); tools.addView(notes);
         controls.addView(tools, new LinearLayout.LayoutParams(-1, -2));
         View divider = new View(this); divider.setBackgroundColor(0xffbbbbbb);
         LinearLayout.LayoutParams dividerSize = new LinearLayout.LayoutParams(-1, dp(1));
@@ -128,6 +131,19 @@ public class NotebookBrowserActivity extends NotebookActivity {
         status.setMaxLines(2); status.setEllipsize(TextUtils.TruncateAt.END);
         details.addView(status, new LinearLayout.LayoutParams(0, dp(40), 1));
         controls.addView(details);
+        LinearLayout writing = new LinearLayout(this); writing.setOrientation(LinearLayout.VERTICAL);
+        writing.setVisibility(View.GONE);
+        View writingDivider = new View(this); writingDivider.setBackgroundColor(0xffbbbbbb);
+        LinearLayout.LayoutParams writingDividerSize = new LinearLayout.LayoutParams(-1, dp(1));
+        writingDividerSize.setMargins(0, dp(8), 0, dp(10)); writing.addView(writingDivider, writingDividerSize);
+        NotebookBrowserActions writingActions = new NotebookBrowserActions(this);
+        for (NotebookFloatingTools.Action action : new NotebookFloatingTools.Action[] {
+                NotebookFloatingTools.Action.PEN, NotebookFloatingTools.Action.ERASER, NotebookFloatingTools.Action.LASSO,
+                NotebookFloatingTools.Action.ADD_PAGE, NotebookFloatingTools.Action.OUTLINE, NotebookFloatingTools.Action.AI_CHAT }) {
+            NotebookIconButton button = workspaceToolButton(action);
+            button.setTooltipText(button.getContentDescription()); writingActions.addView(button);
+        }
+        writing.addView(writingActions, new LinearLayout.LayoutParams(-1, -2)); controls.addView(writing);
         content = new FrameLayout(this); content.setBackgroundColor(Color.WHITE);
         hint = label("Tap the dotted button for browser controls.\n\nEnter a website address, then tap Save after the page loads. Find your offline copy in Saved websites on the bookshelf.", 17);
         hint.setGravity(Gravity.CENTER); hint.setPadding(dp(22), dp(22), dp(22), dp(22));
@@ -148,9 +164,7 @@ public class NotebookBrowserActivity extends NotebookActivity {
         saveShield = new View(this); saveShield.setClickable(true); saveShield.setVisibility(View.GONE);
         saveShield.setContentDescription("Saving page"); content.addView(saveShield, new FrameLayout.LayoutParams(-1, -1));
         root.addView(content, new FrameLayout.LayoutParams(-1, -1));
-        browserTools = new NotebookBrowserTools(this, controls, offline,
-            state == null ? null : state.getBundle("browserTools"), this::setWorkspaceZen);
-        root.addView(browserTools, new FrameLayout.LayoutParams(-1, -1)); attachWorkspaceBackground(root);
+        attachWorkspaceBackground(root); attachBrowserTools(controls, header, writing);
         if (state != null) { restoreX = state.getInt("scrollX"); restoreY = state.getInt("scrollY"); }
         if (offline) loadSavedPage(getIntent().getStringExtra(SAVED_ID), state == null ? null : state.getBundle("browserHistory"));
         else {
@@ -463,7 +477,7 @@ public class NotebookBrowserActivity extends NotebookActivity {
     private void fail(String message) {
         failed = true; loading = false; pageReady = false;
         status.setText(message); hint.setText(message); hint.setVisibility(View.VISIBLE);
-        if (browserTools != null) browserTools.reveal(); updateControls();
+        revealWorkspaceTools(); updateControls();
     }
 
     private void updateControls() {
@@ -507,7 +521,7 @@ public class NotebookBrowserActivity extends NotebookActivity {
     }
 
     @Override protected void onResume() {
-        super.onResume(); resumed = true; browserTools.resumed(true);
+        super.onResume(); resumed = true;
         if (offline && web == null && archiveUrl != null && !NotebookBrowserData.clearing()) { createWebView(); if (web != null) web.loadUrl(archiveUrl); }
         if (web != null && !home) web.onResume();
         if (!offline && home) showHome(false);
@@ -515,7 +529,6 @@ public class NotebookBrowserActivity extends NotebookActivity {
     @Override protected void onPause() {
         if (!offline && !home && web != null && pageReady) NotebookBrowserPreviews.remember(this, web);
         resumed = false;
-        browserTools.resumed(false);
         // A dictionary bubble pauses this Activity while the page is still visible.
         // Gecko's active flag represents visibility; deactivate only onStop or tab hiding.
         if (web != null && !home) web.onWindowPause();
@@ -535,7 +548,6 @@ public class NotebookBrowserActivity extends NotebookActivity {
         state.putString("currentUrl", currentUrl); state.putBoolean("home", home);
         state.putBoolean("startupHome", startupHome);
         if (!offline) { state.putBundle("tabs", saveTabs()); rememberTabs(); }
-        state.putBundle("browserTools", browserTools.save());
         if (web != null) {
             state.putInt("scrollX", web.pageScrollX()); state.putInt("scrollY", web.pageScrollY());
             Bundle history = new Bundle(); web.saveState(history); state.putBundle("browserHistory", history);
@@ -547,7 +559,6 @@ public class NotebookBrowserActivity extends NotebookActivity {
         if (content != null && previewUpdate != null) content.removeCallbacks(previewUpdate);
         NotebookBrowserData.removeOwner(dataReset);
         ++saveSequence; cancelArchiveTimeout();
-        if (browserTools != null) browserTools.dispose();
         if (pendingSave != null) { abandonQuietly(pendingSave); pendingSave = null; }
         if (offline && web != null) { content.removeView(web); web.stopLoading(); web.destroy(); }
         for (NotebookBrowserEngine page : new java.util.ArrayList<>(engines.values())) { content.removeView(page); page.stopLoading(); page.destroy(); }
@@ -558,8 +569,8 @@ public class NotebookBrowserActivity extends NotebookActivity {
     }
 
     @Override public void onBackPressed() {
-        if (browserTools.isZen()) { browserTools.zen(false); return; }
-        if (!browserTools.isCollapsed()) { browserTools.collapse(true); return; }
+        if (workspaceZen()) { setWorkspaceZen(false); return; }
+        if (!workspaceToolsCollapsed()) { collapseWorkspaceTools(true); return; }
         if (waitForSave()) return;
         if (home && web != null && NotebookBrowserAddress.isWebUrl(web.getUrl())) { showCurrentPage(); return; }
         if (canHistory(false)) { history(false); return; }
@@ -583,7 +594,7 @@ public class NotebookBrowserActivity extends NotebookActivity {
         if (web != null && !home) NotebookBrowserPreviews.remember(this, web);
         home = true; if (!startupHome) tabs.current().home = true; if (web != null) { web.onPause(); web.setVisibility(View.GONE); }
         hint.setVisibility(View.GONE); startPage.setVisibility(View.VISIBLE); address.setText(""); title.setText("Browser"); status.setText("Start page · " + tabs.items.size() + " tabs");
-        loading = false; pageReady = false; if (collapse) browserTools.collapse(true); refreshHome(); updateControls(); updateTabButton();
+        loading = false; pageReady = false; if (collapse) collapseWorkspaceTools(true); refreshHome(); updateControls(); updateTabButton();
     }
     private void showCurrentPage() {
         if (web == null) { navigate(tabs.current().url); return; }

@@ -1,6 +1,6 @@
 # Browser and offline websites
 
-**0.40.0-alpha.8** (versionCode **108**) bundles GeckoView
+**0.40.0-alpha.9** (versionCode **109**) bundles GeckoView
 **160.0.20261104181552**, the Firefox browser engine. Website JavaScript, CSS,
 fonts and math rendering no longer depend on the tablet's installed WebView.
 This alpha is awaiting physical testing on the Huawei MatePad Paper.
@@ -128,8 +128,12 @@ Address, Back/Forward, Reload, Save, Bookshelf and Notes share one floating pane
 The time/battery/Wi-Fi pill stays at the screen's top-right, including while the
 panel is collapsed, matching the bookshelf and notes. The compact panel is at most
 400 dp wide. Toolbox actions and the dotted grip use the same 32 dp circular
-buttons and 20 dp monochrome symbols as the note toolbox. Action rows use 6 dp
-gaps and wrap without stretching their buttons. Library/start-page controls keep
+buttons and 20 dp monochrome symbols. Browser and note actions share this
+single window above floating and split notes. Opening a note adds a separated
+writing row; minimizing or closing every note hides it. Browser buttons keep
+their positions, with one Notes button, one Zen button and one dotted grip.
+The writing row provides Pen, Eraser, Lasso, Add page, Outline and AI chat.
+Action rows use 6 dp gaps and wrap without stretching their buttons. Library/start-page controls keep
 their larger size. Actions wrap into balanced rows on narrow screens; none
 need sideways scrolling. Hold an action icon to see its name; accessibility labels identify
 each action as well.

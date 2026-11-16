@@ -69,6 +69,7 @@ final class NotebookNoteTray {
         x = Math.max(origin[0] + dp(8), Math.min(origin[0] + anchor.getWidth() - width - dp(8), x));
         y = Math.max(origin[1] + dp(8), Math.min(origin[1] + anchor.getHeight() - height - dp(8), y));
         popup = new PopupWindow(scroll, width, height, false); popup.setAnimationStyle(0);
+        popup.setWindowLayoutType(android.view.WindowManager.LayoutParams.TYPE_APPLICATION_SUB_PANEL);
         popup.setClippingEnabled(false); popup.setIsLaidOutInScreen(true); popup.setOutsideTouchable(false);
         popup.setEnterTransition(null); popup.setExitTransition(null);
         popup.setOnDismissListener(() -> { bounds.setEmpty(); listener.boundsChanged(); });

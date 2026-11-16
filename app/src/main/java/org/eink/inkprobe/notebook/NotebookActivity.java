@@ -256,7 +256,8 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         regionEraser=getPreferences(MODE_PRIVATE).getBoolean("regionEraser",false);
         if (saved != null && saved.getBoolean("eraser", false)) tool = NotebookInk.Tool.ERASER;
         if (saved != null && saved.getBoolean("lasso", false)) tool = NotebookInk.Tool.LASSO;
-        zenMode = saved != null && saved.getBoolean("zenMode", false);
+        Bundle browserTools = isBrowserWorkspace() && saved != null ? saved.getBundle("browserTools") : null;
+        zenMode = browserTools != null ? browserTools.getBoolean("zen") : saved != null && saved.getBoolean("zenMode", false);
         if(saved!=null){restoredAiWindows=saved.getString("aiWindows");legacyAiOpen=restoredAiWindows==null&&saved.getBoolean("aiChatOpen",false);legacyAiId=saved.getString("aiSessionId");legacyAiProfile=saved.getString("aiSettingsProfile");}
         if (saved != null && saved.getByteArray("markdownDraft") != null) {
             try { pendingMarkdownDraft = NotebookMarkdownDraft.fromSnapshot(saved.getByteArray("markdownDraft")); }
@@ -333,6 +334,12 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         toolsX = getPreferences(MODE_PRIVATE).getFloat("toolsX", 0.5f);
         toolsY = getPreferences(MODE_PRIVATE).getFloat("toolsY", 0f);
         placeToolsBelowStatus = !getPreferences(MODE_PRIVATE).getBoolean("floatingStatusLayout", false);
+        android.content.SharedPreferences browserUi = getSharedPreferences("browser-ui", MODE_PRIVATE);
+        if (isBrowserWorkspace()) {
+            toolsX = browserTools == null ? browserUi.getFloat("horizontal", 0) : browserTools.getFloat("horizontal");
+            toolsY = browserTools == null ? browserUi.getFloat("vertical", 0) : browserTools.getFloat("vertical");
+            placeToolsBelowStatus = true;
+        }
         floatingTools = new NotebookFloatingTools(this, new NotebookFloatingTools.Listener() {
             @Override public void onAction(NotebookFloatingTools.Action action) {
                 if (toolsContact) pendingToolAction = action;
@@ -350,6 +357,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             @Override public boolean onMoveStart() {
                 if (noteTray != null) noteTray.hide();
                 if(aiWindows!=null)aiWindows.hideTray();
+                if (widthPopup != null) widthPopup.dismiss();
                 return toolsContact && shownError == null;
             }
             @Override public void onMoveEnd() { /* Resume only after all toolbar contacts lift. */ }
@@ -361,11 +369,17 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             }
             @Override public void onPositionChanged(float x, float y) {
                 toolsX = x; toolsY = y;
-                getPreferences(MODE_PRIVATE).edit().putFloat("toolsX", x).putFloat("toolsY", y).apply();
+                if (isBrowserWorkspace()) browserUi.edit().putFloat("horizontal", x).putFloat("vertical", y).apply();
+                else getPreferences(MODE_PRIVATE).edit().putFloat("toolsX", x).putFloat("toolsY", y).apply();
+            }
+            @Override public void onBrowserDismissed() {
+                rememberToolsCollapsed(); workspaceRoot.post(NotebookActivity.this::showFloatingTools);
             }
         });
-        floatingTools.setVertical(getPreferences(MODE_PRIVATE).getBoolean("toolsVertical", false));
-        floatingTools.setCollapsed(getPreferences(MODE_PRIVATE).getBoolean("toolsCollapsed", false));
+        floatingTools.setVertical(!isBrowserWorkspace() && getPreferences(MODE_PRIVATE).getBoolean("toolsVertical", false));
+        floatingTools.setCollapsed(isBrowserWorkspace()
+            ? browserTools == null ? browserUi.getBoolean("collapsed", getIntent().hasExtra("savedWebsiteId")) : browserTools.getBoolean("collapsed")
+            : getPreferences(MODE_PRIVATE).getBoolean("toolsCollapsed", false));
         addButton = floatingTools.button(NotebookFloatingTools.Action.ADD_PAGE);
         viewNavigation = new NotebookViewNavigation(this, this::changeViewHistory, bounds -> {
             viewNavigationBounds.set(bounds); updateOverlayBounds();
@@ -395,10 +409,31 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         workspaceRoot.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob) -> positionWorkspaceBackground());
         positionWorkspaceBackground();
     }
-    protected final void openWorkspaceNotes() { toggleNotes(); }
+    protected final NotebookIconButton workspaceToolButton(NotebookFloatingTools.Action action) { return floatingTools.button(action); }
+    protected final View workspaceToolsView() { return floatingTools.controlsView(); }
+    protected final void attachBrowserTools(LinearLayout controls, LinearLayout header, View writing) {
+        floatingTools.browserControls(controls, header, writing);
+        workspaceRoot.post(this::showFloatingTools);
+    }
+    protected final boolean workspaceZen() { return zenMode; }
+    protected final boolean workspaceToolsCollapsed() { return floatingTools.isCollapsed(); }
+    protected final void browserToolTextInput(View editor, boolean enabled) { floatingTools.browserTextInput(editor, enabled); }
+    protected final void collapseWorkspaceTools(boolean value) {
+        boolean resume = canEdit();
+        if (ink != null) ink.pauseForEdit();
+        if (value && widthPopup != null) widthPopup.dismiss();
+        floatingTools.setCollapsed(value); rememberToolsCollapsed();
+        if (resume && shownError == null) { ink.redrawAfterOverlayChange(); ink.start(); }
+    }
+    protected final void revealWorkspaceTools() { setWorkspaceZen(false); collapseWorkspaceTools(false); showFloatingTools(); }
+    private void rememberToolsCollapsed() {
+        if (isBrowserWorkspace()) getSharedPreferences("browser-ui", MODE_PRIVATE).edit().putBoolean("collapsed", floatingTools.isCollapsed()).apply();
+        else getPreferences(MODE_PRIVATE).edit().putBoolean("toolsCollapsed", floatingTools.isCollapsed()).apply();
+    }
     protected final void setWorkspaceZen(boolean value) {
         if (zenMode == value) return;
         if (ink != null) ink.pauseForEdit();
+        if (value) { floatingTools.hideKeyboard(); if (widthPopup != null) widthPopup.dismiss(); }
         zenMode = value; deviceStatus.setZenMode(value); statusIslands.setZenMode(value); updateZenButton();
         if (value) floatingTools.hide(); else showFloatingTools();
         if (ink != null && active && !editing) { ink.redrawAfterOverlayChange(); ink.start(); }
@@ -406,6 +441,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     protected void onWorkspaceZenChanged(boolean value) { }
     protected final void appendWorkspaceDebug(org.json.JSONObject result) throws org.json.JSONException {
         if ((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0) return;
+        floatingTools.appendDebug(result);
         result.put("workspaceZen", zenMode).put("noteEditorReady", canEdit())
             .put("noteSurface", ink == null ? 0 : System.identityHashCode(ink))
             .put("penWidth", penWidth).put("eraserWidth", eraserWidth);
@@ -428,7 +464,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         boolean visible = false;
         for (NotebookWorkspace.Pane pane : workspace.panes()) if (!pane.collapsed) visible = true;
         canvas.setVisibility(visible && independentEditorId != 0 ? View.VISIBLE : View.GONE);
-        if (!visible && floatingTools != null) floatingTools.hide();
+        if (floatingTools != null) floatingTools.browserWritingVisible(visible);
     }
 
     private NotebookButton statusButton(String text, String description, Runnable action) {
@@ -1257,8 +1293,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     }
 
     private void showFloatingTools() {
-        if (isBrowserWorkspace() && (zenMode || independentWithoutEditor()
-                || workspace.find(independentEditorId) == null || workspace.find(independentEditorId).collapsed)) return;
+        if (isBrowserWorkspace() && (zenMode || !floatingTools.hasBrowserControls())) return;
         if (floatingTools != null && !floatingTools.isShowing() && workspaceInteractive() && overview == null) {
             floatingTools.show(workspaceRoot, toolsX, toolsY);
             if (placeToolsBelowStatus && floatingTools.isShowing()) {
@@ -1347,7 +1382,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
                 getPreferences(MODE_PRIVATE).edit().putBoolean("toolsVertical",floatingTools.isVertical()).apply();
             } else if (action == NotebookFloatingTools.Action.COLLAPSE) {
                 if(noteTray!=null)noteTray.hide();floatingTools.setCollapsed(!floatingTools.isCollapsed());
-                getPreferences(MODE_PRIVATE).edit().putBoolean("toolsCollapsed",floatingTools.isCollapsed()).apply();
+                rememberToolsCollapsed();
             } else if (action == NotebookFloatingTools.Action.ZEN) {
                 zenMode=!zenMode;deviceStatus.setZenMode(zenMode);statusIslands.setZenMode(zenMode);updateZenButton();
             }
@@ -1508,7 +1543,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         if (shownError != null) return;
         if (noteTray != null) noteTray.hide();if(aiWindows!=null)aiWindows.hideTray();
         floatingTools.setCollapsed(!floatingTools.isCollapsed());
-        getPreferences(MODE_PRIVATE).edit().putBoolean("toolsCollapsed", floatingTools.isCollapsed()).apply();
+        rememberToolsCollapsed();
         final int request = generation;
         session.load((loaded, error) -> finishEdit(request, loaded, error));
     }
@@ -3936,6 +3971,10 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     @Override public void onLowMemory() { super.onLowMemory(); trimRenderCaches(); }
 
     @Override protected void onSaveInstanceState(Bundle state) {
+        if (isBrowserWorkspace()) {
+            Bundle tools = new Bundle(); tools.putBoolean("collapsed", floatingTools.isCollapsed()); tools.putBoolean("zen", zenMode);
+            tools.putFloat("horizontal", toolsX); tools.putFloat("vertical", toolsY); state.putBundle("browserTools", tools);
+        }
         captureViewCenter(); rememberEditor(); saveWorkspace();
         state.putLong("browserNotesRevision", browserNotesRevision);
         state.putInt("viewNotebookId", viewNotebookId);
@@ -3982,7 +4021,8 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         linkTap.cancel(); pdfBackgrounds.clear(); figureImages.clear(); strokePaths.clear();
         if (zoomBadge != null) zoomBadge.dismiss();
         penDown = false;
-        if (floatingTools != null) floatingTools.hide();
+        // Browser controls remain in place while a note's native surface is created or retired.
+        if (floatingTools != null && !(isBrowserWorkspace() && preserveAi && active)) floatingTools.hide();
         if (viewNavigation != null) viewNavigation.hide();
         if (noteTray != null) noteTray.hide();
         if (ink != null) { ink.release(); ink = null; }

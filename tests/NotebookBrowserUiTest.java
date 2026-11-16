@@ -10,44 +10,9 @@ public final class NotebookBrowserUiTest {
     private static int assertions;
 
     public static void main(String[] args) throws Exception {
-        geometry(); externalNotes(); sharedNotes(); startup(); anchors(); presentation(); history(); backNavigation(); visibility(); captureBridgeRetry();
-        System.out.println("NotebookBrowserUi: " + assertions + " assertions passed (bounded toolbox, state restoration and offline anchor mapping).");
+        externalNotes(); sharedNotes(); startup(); anchors(); presentation(); history(); backNavigation(); visibility(); captureBridgeRetry();
+        System.out.println("NotebookBrowserUi: " + assertions + " assertions passed (shared toolbox, state restoration and offline anchor mapping).");
     }
-
-    private static void geometry() {
-        NotebookBrowserToolbarState state = new NotebookBrowserToolbarState(false, .25f, .75f);
-        check(state.controlsVisible() && state.gripVisible() && !state.zen(), "expanded controls start with the grip");
-        state.collapse(true); state.zen(true);
-        check(!state.controlsVisible() && !state.gripVisible() && state.zen(), "Zen hides both controls and grip");
-        state.zen(false);
-        check(state.collapsed() && !state.controlsVisible() && state.gripVisible(), "leaving Zen restores the collapsed state");
-        state.collapse(false); state.zen(true); state.zen(false);
-        check(state.controlsVisible() && state.horizontal() == .25f && state.vertical() == .75f, "Zen preserves expansion and position");
-        for (int width : new int[]{1, 36, 200, 320, 702, 936}) {
-            for (int height : new int[]{1, 36, 100, 300, 702, 936}) {
-                for (float x : new float[]{0, .5f, 1}) for (float y : new float[]{0, .5f, 1}) {
-                    state.position(x, y);
-                    NotebookBrowserToolbarState.Layout layout = state.layout(width, height, 36, 560, 220, 8, 6);
-                    check(layout.gripSize > 0 && layout.panelWidth > 0 && layout.panelHeight > 0, "all overlay dimensions stay positive");
-                    check(layout.gripLeft >= 0 && layout.gripTop >= 0 && layout.gripLeft + layout.gripSize <= width
-                        && layout.gripTop + layout.gripSize <= height, "grip stays on screen across rotation and keyboard sizes");
-                    check(layout.panelLeft >= 0 && layout.panelTop >= 0 && layout.panelLeft + layout.panelWidth <= width
-                        && layout.panelTop + layout.panelHeight <= height, "expanded controls stay inside the viewport");
-                    if (height >= 100) check(layout.panelTop + layout.panelHeight <= layout.gripTop
-                        || layout.panelTop >= layout.gripTop + layout.gripSize, "scrollable panel leaves the grip exposed");
-                }
-            }
-        }
-        state.moveTo(-10000, 10000, 702, 936, 36, 8);
-        check(state.horizontal() == 0 && state.vertical() == 1, "drag clamps at the available edges");
-        state.position(Float.NaN, Float.POSITIVE_INFINITY);
-        check(state.horizontal() == 0 && state.vertical() == 0, "invalid saved coordinates recover to a reachable corner");
-        state.position(.5f, .5f);
-        NotebookBrowserToolbarState.Layout portrait = state.layout(702, 936, 36, 560, 220, 8, 6);
-        NotebookBrowserToolbarState.Layout landscape = state.layout(936, 702, 36, 560, 220, 8, 6);
-        check(portrait.gripLeft == landscape.gripTop && portrait.gripTop == landscape.gripLeft, "normalized placement follows rotation");
-    }
-
 
     private static void externalNotes() {
         for (int[] size : new int[][]{{702,936},{936,702},{1404,1872},{1872,1404}}) {
@@ -113,15 +78,13 @@ public final class NotebookBrowserUiTest {
     }
 
     private static void presentation() throws Exception {
-        String source = source("NotebookBrowserTools");
+        String source = source("NotebookActivity");
         String fixture = String.join("\n",
             "package org.eink.inkprobe.notebook; public class BrowserToolsFixture {",
-            "static final int VISIBLE=0,GONE=8;static class View {int visibility;String description;void setVisibility(int v){visibility=v;}void setContentDescription(String s){description=s;}void requestDisallowInterceptTouchEvent(boolean b){}}",
-            "static class Clock {boolean started;void start(){started=true;}void stop(){started=false;}}static class Bundle {java.util.Map<String,Object> values=new java.util.HashMap<>();void putBoolean(String k,boolean v){values.put(k,v);}void putFloat(String k,float v){values.put(k,v);}}",
-            "final NotebookBrowserToolbarState state=new NotebookBrowserToolbarState(false,.25f,.75f);final View panel=new View(),grip=new View();final java.util.function.Consumer<Boolean> zenChanged=b->sharedZen=b;static boolean sharedZen;final NotebookGripGesture gesture=new NotebookGripGesture(8);final Runnable moveFrame=()->{};boolean resumed,dragging;int pointer=-1,remembers,keyboards,placements;void removeCallbacks(Runnable r){}View getParent(){return new View();}void place(){placements++;}void remember(){remembers++;}void hideKeyboard(){keyboards++;}",
-            method(source, "void collapse("), method(source, "void zen("), method(source, "void reveal("), method(source, "void resumed("),
-            method(source, "Bundle save("), method(source, "void dispose("), method(source, "private void present("), method(source, "private void stopDrag("),
-            "static int checks;static void check(boolean b,String m){checks++;if(!b)throw new AssertionError(m);}public static void run(){BrowserToolsFixture f=new BrowserToolsFixture();f.resumed(true);f.present();check(f.panel.visibility==VISIBLE&&f.grip.visibility==VISIBLE&&!sharedZen,\"normal toolbox leaves the shared device island in normal mode\");f.collapse(true);check(f.panel.visibility==GONE&&f.grip.visibility==VISIBLE&&!sharedZen,\"collapse preserves normal device status\");check(f.keyboards==1&&f.remembers==1,\"collapse dismisses keyboard and remembers position\");f.zen(true);check(f.panel.visibility==GONE&&f.grip.visibility==GONE&&sharedZen,\"Zen hides the toolbox and requests the shared note clock\");Bundle saved=f.save();check(Boolean.TRUE.equals(saved.values.get(\"zen\"))&&Boolean.TRUE.equals(saved.values.get(\"collapsed\"))&&saved.values.get(\"horizontal\").equals(.25f)&&saved.values.get(\"vertical\").equals(.75f),\"recreation retains Zen, collapse and placement\");f.zen(false);check(!sharedZen&&f.panel.visibility==GONE&&f.grip.visibility==VISIBLE,\"clock exit restores the previous collapsed mode\");f.collapse(false);f.zen(true);f.zen(false);check(f.panel.visibility==VISIBLE&&!sharedZen,\"clock exit restores expanded controls\");f.zen(true);f.resumed(false);check(f.state.zen()&&!f.dragging,\"pause preserves mode and stops dragging\");f.reveal();check(!sharedZen&&f.state.controlsVisible()&&f.panel.visibility==VISIBLE,\"errors expose recovery controls\");f.dispose();check(!f.resumed&&!f.dragging,\"retired controls stop their contact state\");System.out.println(\"NotebookBrowserTools: \"+checks+\" assertions passed (shared status, collapse, Zen and restoration).\");}}"
+            "static class Ink {int pauses,redraws,starts;void pauseForEdit(){pauses++;}void redrawAfterOverlayChange(){redraws++;}void start(){starts++;}}static class Tools {boolean showing=true,collapsed;int keyboards;void hide(){showing=false;}void setCollapsed(boolean b){collapsed=b;if(b)hideKeyboard();}boolean isCollapsed(){return collapsed;}void hideKeyboard(){keyboards++;}}static class Status {boolean zen;void setZenMode(boolean b){zen=b;}}static class Width {int dismissals;void dismiss(){dismissals++;}}",
+            "boolean zenMode,active=true,editing;Ink ink;Tools floatingTools=new Tools();Status deviceStatus=new Status(),statusIslands=new Status();Width widthPopup;Object shownError;int remembers;boolean canEdit(){return ink!=null&&active&&!editing;}void updateZenButton(){}void showFloatingTools(){floatingTools.showing=!zenMode;}void rememberToolsCollapsed(){remembers++;}",
+            method(source,"protected final void setWorkspaceZen("), method(source,"protected final void collapseWorkspaceTools("),method(source,"protected final void revealWorkspaceTools("),
+            "static int checks;static void check(boolean b,String m){checks++;if(!b)throw new AssertionError(m);}public static void run(){BrowserToolsFixture f=new BrowserToolsFixture();f.collapseWorkspaceTools(true);check(f.floatingTools.collapsed&&f.remembers==1,\"one collapsed toolbox before a note exists\");f.setWorkspaceZen(true);check(!f.floatingTools.showing&&f.deviceStatus.zen&&f.statusIslands.zen,\"Zen hides the shared window and changes the status islands\");f.setWorkspaceZen(false);check(f.floatingTools.showing&&f.floatingTools.collapsed&&!f.deviceStatus.zen,\"clock exit restores the one collapsed toolbox\");f.ink=new Ink();f.widthPopup=new Width();f.collapseWorkspaceTools(false);check(!f.floatingTools.collapsed&&f.ink.pauses==1&&f.ink.redraws==1&&f.ink.starts==1,\"expanded browser and writing actions update native exclusions with ink paused\");f.setWorkspaceZen(true);check(!f.floatingTools.showing&&f.widthPopup.dismissals==1&&f.ink.starts==2,\"note Zen also hides pen options and restarts writing\");f.revealWorkspaceTools();check(!f.zenMode&&!f.floatingTools.collapsed&&f.floatingTools.showing,\"errors reveal the same shared toolbox\");f.editing=true;int starts=f.ink.starts;f.collapseWorkspaceTools(true);check(f.ink.starts==starts,\"tool collapse cannot resume a separate edit in progress\");System.out.println(\"NotebookBrowserTools: \"+checks+\" assertions passed (production shared Zen, collapse and native pause/resume).\");}}"
         );
         NotebookWorkspaceActivationTest.runFixture("org.eink.inkprobe.notebook.BrowserToolsFixture", fixture);
     }
@@ -146,7 +109,7 @@ public final class NotebookBrowserUiTest {
         String code=source("NotebookBrowserActivity");
         String fixture=String.join("\n",
             "package org.eink.inkprobe.notebook;class BackBase {int exits;public void onBackPressed(){exits++;}void overridePendingTransition(int a,int b){}}public class BrowserBackFixture extends BackBase {",
-            "static class Tools {boolean zen,collapsed=true;boolean isZen(){return zen;}boolean isCollapsed(){return collapsed;}void zen(boolean b){zen=b;}void collapse(boolean b){collapsed=b;}}static class Web {String getUrl(){return \"https://example.org/\";}}Tools browserTools=new Tools();Web web=new Web();boolean home,offline,waiting,back;int restored,moves;boolean waitForSave(){return waiting;}boolean canHistory(boolean forward){return back;}void history(boolean forward){moves++;}void showCurrentPage(){restored++;home=false;}",
+            "static class Tools {boolean zen,collapsed=true;boolean isZen(){return zen;}boolean isCollapsed(){return collapsed;}void zen(boolean b){zen=b;}void collapse(boolean b){collapsed=b;}}static class Web {String getUrl(){return \"https://example.org/\";}}Tools browserTools=new Tools();boolean workspaceZen(){return browserTools.zen;}boolean workspaceToolsCollapsed(){return browserTools.collapsed;}void setWorkspaceZen(boolean b){browserTools.zen=b;}void collapseWorkspaceTools(boolean b){browserTools.collapsed=b;}Web web=new Web();boolean home,offline,waiting,back;int restored,moves;boolean waitForSave(){return waiting;}boolean canHistory(boolean forward){return back;}void history(boolean forward){moves++;}void showCurrentPage(){restored++;home=false;}",
             method(code,"@Override public void onBackPressed("),
             "static void check(boolean b){if(!b)throw new AssertionError(\"Back navigation regression\");}public static void run(){BrowserBackFixture f=new BrowserBackFixture();f.onBackPressed();check(f.exits==1);f.home=true;f.onBackPressed();check(f.restored==1&&f.exits==1);f.home=true;f.web=null;f.onBackPressed();check(f.exits==2);f.browserTools.zen=true;f.onBackPressed();check(!f.browserTools.zen&&f.exits==2);f.browserTools.collapsed=false;f.onBackPressed();check(f.browserTools.collapsed&&f.exits==2);f.waiting=true;f.onBackPressed();check(f.exits==2);f.waiting=false;f.home=false;f.back=true;f.onBackPressed();check(f.moves==1&&f.exits==2);System.out.println(\"NotebookBrowserBack: 7 assertions passed (production Home return, root exit, Zen/panel priority, saving and history).\");}}"
         );
@@ -159,7 +122,7 @@ public final class NotebookBrowserUiTest {
             "package org.eink.inkprobe.notebook;class VisibilityBase{protected void onPause(){}protected void onStop(){}}public class BrowserVisibilityFixture extends VisibilityBase{",
             "static class Session{boolean active=true;void setActive(boolean b){active=b;}void flushSessionState(){}}static class Prompts{void close(){}}static class Runtime{Runtime getWebExtensionController(){return this;}void setTabActive(Session s,boolean b){}}static class Page{boolean closed;Session session=new Session();Prompts prompts=new Prompts();Runtime runtime=new Runtime();",
             method(page,"@Override void onResume(").replace("@Override ",""),method(page,"@Override void onWindowPause(").replace("@Override ",""),method(page,"@Override void onPause(").replace("@Override ",""),"}",
-            "static class Tools{void resumed(boolean b){}}static class Dialog{void dismiss(){}}static class NotebookBrowserPreviews{static void remember(Object a,Page b){}}boolean offline,home,pageReady=true,resumed=true;Page web=new Page();Tools browserTools=new Tools();Dialog shownDialog;java.util.Map<String,Page> engines=new java.util.HashMap<>();void rememberTabs(){}",
+            "static class Dialog{void dismiss(){}}static class NotebookBrowserPreviews{static void remember(Object a,Page b){}}boolean offline,home,pageReady=true,resumed=true;Page web=new Page();Dialog shownDialog;java.util.Map<String,Page> engines=new java.util.HashMap<>();void rememberTabs(){}",
             method(activity,"@Override protected void onPause("),method(activity,"@Override protected void onStop("),
             "static int checks;static void check(boolean b){checks++;if(!b)throw new AssertionError(\"Visible page lifecycle regression\");}public static void run(){BrowserVisibilityFixture f=new BrowserVisibilityFixture();Page background=new Page();background.onPause();f.engines.put(\"current\",f.web);f.engines.put(\"background\",background);f.onPause();check(f.web.session.active);check(!background.session.active);check(!f.resumed);f.onStop();check(!f.web.session.active&&!background.session.active);f.web.onResume();check(f.web.session.active);f.web.onWindowPause();check(f.web.session.active);f.web.closed=true;f.web.onPause();check(f.web.session.active);BrowserVisibilityFixture offline=new BrowserVisibilityFixture();offline.offline=true;offline.onPause();check(offline.web.session.active);offline.onStop();check(!offline.web.session.active);System.out.println(\"NotebookBrowserVisibility: \"+checks+\" assertions passed (production Gecko visibility, floating overlays, hidden tabs and full background).\");}}"
         ).replace("NotebookBrowserEngine page : engines.values()","Page page : engines.values()");

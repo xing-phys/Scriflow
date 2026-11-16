@@ -8,8 +8,10 @@ import android.os.SystemClock;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.ViewConfiguration;
 import android.view.WindowManager;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
 import android.widget.HorizontalScrollView;
@@ -31,6 +33,7 @@ public final class NotebookFloatingTools {
         void onMoveEnd();
         void onBoundsChanged(Rect screenBounds);
         void onPositionChanged(float horizontalFraction, float verticalFraction);
+        default void onBrowserDismissed() { }
     }
 
     private static final long MOVE_INTERVAL_MS = 32;
@@ -49,9 +52,12 @@ public final class NotebookFloatingTools {
     private boolean vertical, collapsed;
     private int width, height;
     private int movingPointer = -1;
-    private boolean gripGesture, moveAccepted, disposed;
+    private boolean gripGesture, moveAccepted, disposed, hiding;
     private boolean contactActive, contactAccepted;
     private boolean zenContact;
+    private LinearLayout browserControls, browserHeader;
+    private ScrollView browserScroll;
+    private View browserWriting;
     private float startRawX, startRawY;
     private int startLeft, startTop, pendingLeft, pendingTop;
     private float horizontalFraction, verticalFraction;
@@ -134,6 +140,10 @@ public final class NotebookFloatingTools {
                 listener.onBoundsChanged(new Rect());
             }
             finishContact();
+            // Back can dismiss a focusable address editor. Restore the single collapsed toolbox.
+            if (hasBrowserControls() && !hiding && !disposed) {
+                hideKeyboard(); collapsed = true; describeGrip(); listener.onBrowserDismissed();
+            }
         });
     }
 
@@ -149,6 +159,75 @@ public final class NotebookFloatingTools {
 
     public boolean isVertical() { return vertical; }
 
+    /** Browser and writing actions share this window, contact barrier, grip and native-ink hole. */
+    void browserControls(LinearLayout controls, LinearLayout header, View writing) {
+        browserControls = controls; browserHeader = header; browserWriting = writing;
+        vertical = false;
+        browserScroll = new ScrollView(activity);
+        browserScroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        browserScroll.setVerticalScrollBarEnabled(false);
+        browserScroll.setSmoothScrollingEnabled(false);
+        browserScroll.addView(controls, new ScrollView.LayoutParams(-1, -2));
+        controls.setFocusableInTouchMode(true);
+        popup.setTouchModal(false);
+        popup.setOutsideTouchable(true);
+        popup.setTouchInterceptor((view, event) -> {
+            if (event.getActionMasked() != MotionEvent.ACTION_OUTSIDE) return false;
+            // The same outside DOWN still reaches the page/note; only the address editor loses focus.
+            hideKeyboard(); return true;
+        });
+        describeGrip();
+    }
+
+    void browserWritingVisible(boolean visible) {
+        if (browserWriting == null || (browserWriting.getVisibility() == View.VISIBLE) == visible) return;
+        browserWriting.setVisibility(visible ? View.VISIBLE : View.GONE);
+        if (isShowing()) { position(horizontalFraction, verticalFraction, true); rememberPosition(); }
+    }
+
+    boolean hasBrowserControls() { return browserControls != null; }
+
+    void hideKeyboard() {
+        if (!hasBrowserControls()) return;
+        InputMethodManager keyboard = (InputMethodManager) activity.getSystemService(Activity.INPUT_METHOD_SERVICE);
+        if (keyboard != null) keyboard.hideSoftInputFromWindow(content.getWindowToken(), 0);
+        browserControls.requestFocus();
+        browserTextInput(null, false);
+    }
+
+    void browserTextInput(View editor, boolean enabled) {
+        if (!hasBrowserControls()) return;
+        if (popup.isFocusable() != enabled) {
+            popup.setFocusable(enabled);
+            if (popup.isShowing()) popup.update();
+        }
+        if (enabled && editor != null) editor.post(() -> {
+            if (!disposed && popup.isShowing() && editor.hasFocus() && editor.hasWindowFocus()) {
+                InputMethodManager keyboard = (InputMethodManager) activity.getSystemService(Activity.INPUT_METHOD_SERVICE);
+                if (keyboard != null) keyboard.showSoftInput(editor, InputMethodManager.SHOW_IMPLICIT);
+            }
+        });
+    }
+
+    void appendDebug(org.json.JSONObject result) throws org.json.JSONException {
+        result.put("toolboxVisible", isShowing()).put("toolboxCollapsed", collapsed)
+            .put("noteToolsVisible", browserWriting != null && browserWriting.getVisibility() == View.VISIBLE);
+        org.json.JSONArray controls = new org.json.JSONArray();
+        if (isShowing()) debugControls(content, controls);
+        result.put("toolboxControls", controls);
+    }
+
+    private void debugControls(View view, org.json.JSONArray controls) throws org.json.JSONException {
+        if (!view.isShown()) return;
+        if (view.getContentDescription() != null) {
+            int[] location = new int[2]; view.getLocationOnScreen(location);
+            controls.put(new org.json.JSONObject().put("name", view.getContentDescription()).put("x", location[0])
+                .put("y", location[1]).put("width", view.getWidth()).put("height", view.getHeight()));
+        }
+        if (view instanceof ViewGroup) for (int i = 0; i < ((ViewGroup) view).getChildCount(); i++)
+            debugControls(((ViewGroup) view).getChildAt(i), controls);
+    }
+
     boolean isZenContact() { return zenContact; }
 
     public boolean isCollapsed() { return collapsed; }
@@ -156,12 +235,18 @@ public final class NotebookFloatingTools {
     /** Keep the grip at the same screen position where space permits. Ink must be paused. */
     public void setCollapsed(boolean value) {
         if (collapsed == value) return;
+        if (value) hideKeyboard();
         collapsed = value;
-        grip.setContentDescription(value ? "Expand tools; drag to move" : "Collapse tools; drag to move");
+        describeGrip();
         if (isShowing()) {
             position(horizontalFraction, verticalFraction, true);
             rememberPosition();
         }
+    }
+
+    private void describeGrip() {
+        grip.setContentDescription((collapsed ? "Expand" : "Collapse")
+            + (hasBrowserControls() ? " browser toolbox; drag to move" : " tools; drag to move"));
     }
 
     /** Initial placement only. Subsequent grip drags remain unrestricted by the islands. */
@@ -218,7 +303,11 @@ public final class NotebookFloatingTools {
 
     public void hide() {
         main.removeCallbacks(moveFrame);
-        if (popup.isShowing()) popup.dismiss();
+        hideKeyboard();
+        if (popup.isShowing()) {
+            hiding = true;
+            try { popup.dismiss(); } finally { hiding = false; }
+        }
         else {
             stopDrag();
             if (anchor != null) anchor.removeOnLayoutChangeListener(layoutListener);
@@ -243,6 +332,7 @@ public final class NotebookFloatingTools {
     }
 
     public Rect bounds() { return new Rect(screenBounds); }
+    View controlsView() { return content; }
 
     private void position(float horizontal, float vertical) {
         position(horizontal, vertical, false);
@@ -251,21 +341,30 @@ public final class NotebookFloatingTools {
     private void position(float horizontal, float vertical, boolean keepGripPosition) {
         if (anchor == null) return;
         int previousLeft = screenBounds.left, previousTop = screenBounds.top;
+        int[] previousGrip = new int[2];
+        if (keepGripPosition && hasBrowserControls()) grip.getLocationOnScreen(previousGrip);
         horizontalFraction = fraction(horizontal);
         verticalFraction = fraction(vertical);
         updateAllowedBounds();
-        NotebookToolStrip.Layout layout = NotebookToolStrip.measure(this.vertical, collapsed ? 1 : order.length,
-                Math.max(1, allowedBounds.width()), Math.max(1, allowedBounds.height()),
-                dp(32), dp(28), dp(6), dp(4));
-        width = layout.width; height = layout.height;
-        buildStrip(layout);
-        content.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
-                View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
+        if (hasBrowserControls()) measureBrowser();
+        else {
+            NotebookToolStrip.Layout layout = NotebookToolStrip.measure(this.vertical, collapsed ? 1 : order.length,
+                    Math.max(1, allowedBounds.width()), Math.max(1, allowedBounds.height()),
+                    dp(32), dp(28), dp(6), dp(4));
+            width = layout.width; height = layout.height;
+            buildStrip(layout);
+            content.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
+        }
         int left = allowedBounds.left + Math.round(horizontalFraction
                 * Math.max(0, allowedBounds.width() - width));
         int top = allowedBounds.top + Math.round(verticalFraction
                 * Math.max(0, allowedBounds.height() - height));
         if (keepGripPosition) {
+            if (hasBrowserControls()) {
+                previousLeft = previousGrip[0] - content.getPaddingLeft() - (collapsed ? 0 : browserControls.getPaddingLeft());
+                previousTop = previousGrip[1] - content.getPaddingTop() - (collapsed ? 0 : browserControls.getPaddingTop());
+            }
             left = Math.max(allowedBounds.left, Math.min(allowedBounds.right - width, previousLeft));
             top = Math.max(allowedBounds.top, Math.min(allowedBounds.bottom - height, previousTop));
         }
@@ -275,6 +374,25 @@ public final class NotebookFloatingTools {
         popup.setWidth(width);
         popup.setHeight(height);
         if (popup.isShowing()) popup.update(left, top, width, height);
+    }
+
+    private void measureBrowser() {
+        // Keep the address field attached while moving/resizing: rebuilding it would lose focus and the keyboard.
+        View desired = collapsed ? grip : browserScroll;
+        if (content.getChildCount() != 1 || content.getChildAt(0) != desired) {
+            content.removeAllViews();
+            if (grip.getParent() instanceof ViewGroup) ((ViewGroup) grip.getParent()).removeView(grip);
+            if (!collapsed) {
+                LinearLayout.LayoutParams item = new LinearLayout.LayoutParams(dp(32), dp(32));
+                item.rightMargin = dp(6); browserHeader.addView(grip, 0, item);
+            }
+            content.addView(desired, new LinearLayout.LayoutParams(collapsed ? dp(32) : -1, collapsed ? dp(32) : -2));
+            content.setBackground(collapsed ? null : NotebookUi.rounded(activity.getResources().getDisplayMetrics().density, 7));
+        }
+        width = Math.min(collapsed ? dp(40) : dp(400), Math.max(1, allowedBounds.width()));
+        content.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(Math.max(1, allowedBounds.height()), View.MeasureSpec.AT_MOST));
+        height = Math.max(1, content.getMeasuredHeight());
     }
 
     private void updateAllowedBounds() {

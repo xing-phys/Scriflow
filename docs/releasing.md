@@ -312,9 +312,9 @@ build unsigned release APKs without possessing the permanent key.
 
 ## Version numbers
 
-The current prerelease is **0.40.0-alpha.8**, Android `versionCode` **108**,
-matching browser toolbox buttons and grip to the note toolbox, with compact
-fixed-size action rows and a 400 dp panel. It retains the
+The current prerelease is **0.40.0-alpha.9**, Android `versionCode` **109**,
+combining browser and note controls in one window above notes, with a conditional
+writing row, 32 dp buttons, one grip and a 400 dp panel. It retains the
 existing notebook/backup formats (8, or 9 for individually sized Markdown) and
 chat archive compatibility from 0.39. New website snapshots use self-contained HTML and NWS2 metadata, outside
 notebook backups; NWS1/MHTML archives remain readable. Versions 1–7 remain readable
@@ -390,16 +390,16 @@ and [Android versioning](https://developer.android.com/studio/publish/versioning
    The helper runs release lint and assembly, copies the candidate privately,
    verifies those exact bytes and the configured signing certificate, then
    stages a versioned APK and SHA-256 checksum under
-   `build/releases/`. For this release these are `scriflow-0.40.0-alpha.8.apk` and
-   `scriflow-0.40.0-alpha.8.apk.sha256`. Debugging is disabled, diagnostic screens are
+   `build/releases/`. For this release these are `scriflow-0.40.0-alpha.9.apk` and
+   `scriflow-0.40.0-alpha.9.apk.sha256`. Debugging is disabled, diagnostic screens are
    absent from the manifest, and the library is the only exported component.
 
 4. Compare the printed signer certificate SHA-256 with the intended permanent
    certificate. For later builds, pin that known digest during verification:
 
    ```bash
-   python3 scripts/verify-apk.py build/releases/scriflow-0.40.0-alpha.8.apk --certificate-sha256 YOUR_KNOWN_CERTIFICATE_SHA256
-   (cd build/releases && sha256sum -c scriflow-0.40.0-alpha.8.apk.sha256)
+   python3 scripts/verify-apk.py build/releases/scriflow-0.40.0-alpha.9.apk --certificate-sha256 YOUR_KNOWN_CERTIFICATE_SHA256
+   (cd build/releases && sha256sum -c scriflow-0.40.0-alpha.9.apk.sha256)
    ```
 
    Substitute the current version and the actual known digest. The APK file's
@@ -469,13 +469,15 @@ an APK over version-2 pages, or assume a signature change preserves app data.
 
 ## Publish only after acceptance
 
-For **0.40.0-alpha.8** (versionCode **108**), check the browser's 32 dp circular
-buttons and grip against the note toolbox. Verify action spacing, tab counts,
-collapse/drag and narrow split layouts on true 4:3 portrait/landscape screens.
-Keep the address field usable and library/start-page actions at their existing
-size. Run existing regressions and Android lint/builds; sign with the permanent
-key, verify downloaded APK/checksum bytes and publish an alpha for tablet testing.
-The combined toolbox remains a design proposal.
+For **0.40.0-alpha.9** (versionCode **109**), verify there is only one toolbox
+and grip. Before opening notes show browser actions; with floating or split notes
+show the writing row in the same panel; after minimizing/closing all notes hide
+that row. Place the toolbox over a floating note and use both browser and writing
+actions. Verify pen/eraser settings, native exclusions and pause/resume, address
+keyboard entry, collapse/drag, Zen, online/offline transfer and recreation on
+true 4:3 portrait/landscape screens. Run regressions and Android lint/builds;
+sign with the permanent key, verify downloaded APK/checksum bytes and publish
+an alpha for tablet testing. Physical Huawei pen/Eudic acceptance remains pending.
 
 For **0.40.0-alpha.7** (versionCode **107**), verify settings popups above floating
 notes and independent native-ink exclusions for split-note corner controls.
@@ -487,7 +489,7 @@ page workspace transfer, changes flowing back to older screens, stale-owner writ
 rejection and cold-start persistence. Use the existing explicit debug-only software
 note surface for emulator controller checks; disclose physical Huawei pen/Eudic
 acceptance as pending. Publish the permanent-key signed APK and checksum and keep
-0.33.2 Latest stable. The toolbox consolidation remains a design proposal.
+0.33.2 Latest stable.
 
 For **0.40.0-alpha.6** (versionCode **106**), validate fresh Home startup while
 retaining existing tabs, recreation/direct-link behavior, the permanent device

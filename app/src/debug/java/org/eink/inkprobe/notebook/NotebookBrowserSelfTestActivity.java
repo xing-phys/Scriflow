@@ -58,10 +58,10 @@ public final class NotebookBrowserSelfTestActivity extends NotebookBrowserActivi
         if (intent.getBooleanExtra("captureState", false)) { captured = new Bundle(); onSaveInstanceState(captured); }
         if (intent.getBooleanExtra("restoreStale", false) && captured != null) { forced = captured; recreate(); return; }
         String click = intent.getStringExtra("click");
-        if (click != null) click(browserDebugRoot(), click);
-        String tabText = intent.getStringExtra("tabText"); if (tabText != null) { click(getWindow().getDecorView(), "Browser tabs"); textClick(browserDebugRoot(), tabText); }
+        if (click != null && !click(workspaceToolsView(), click)) click(browserDebugRoot(), click);
+        String tabText = intent.getStringExtra("tabText"); if (tabText != null) { click(workspaceToolsView(), "Browser tabs"); textClick(browserDebugRoot(), tabText); }
         String text = intent.getStringExtra("textClick"); if (text != null) textClick(browserDebugRoot(), text);
-        String url = intent.getStringExtra("navigate"); if (url != null) { fill(getWindow().getDecorView(), "Website address", url); click(getWindow().getDecorView(), "Browse website address"); }
+        String url = intent.getStringExtra("navigate"); if (url != null) { fill(workspaceToolsView(), "Website address", url); click(workspaceToolsView(), "Browse website address"); }
         String fragment = intent.getStringExtra("fragment");
         if (fragment != null && fragment.matches("[A-Za-z0-9_-]+")) jump(getWindow().getDecorView(), fragment);
         if (intent.getBooleanExtra("recreate", false)) { recreate(); return; }

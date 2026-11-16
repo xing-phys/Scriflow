@@ -6,6 +6,17 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.40.0-alpha.9 — One browser and note toolbox (2026-11-16)
+
+- Put browser and note tools in the same movable window above floating and split
+  notes. Keep one dotted grip, one Notes button and one Zen button.
+- Show browser actions before a note is open. Add the writing row for visible
+  notes; hide it when all notes are minimized or closed. Keep browser positions
+  stable and preserve compact 32 dp buttons.
+- Share native handwriting contact barriers and exclusions for the entire
+  toolbox. Retain address entry, collapse/drag, Zen and shared online/offline notes.
+- VersionCode 109; physical Huawei handwriting/Eudic acceptance remains pending.
+
 ## 0.40.0-alpha.8 — Note-sized browser buttons (2026-11-15)
 
 - Match browser toolbox actions and grip to the note toolbox's 32 dp circular
