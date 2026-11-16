@@ -340,7 +340,10 @@ def main():
             extension = json.loads(package.read('assets/browser-extension/manifest.json'))
             require(extension['browser_specific_settings']['gecko']['id'] == 'browser@scriflow.local', 'Unexpected browser extension identity.')
             require(extension['version'] == '1.' + str(version[1]), 'Browser extension must update with every APK versionCode.')
-            require('assets/geckoview-MPL-2.0.txt' in package.namelist(), 'Missing browser engine license.')
+            for name in ('geckoview-MPL-2.0.txt', 'geckoview-third-party.html', 'geckoview-SOURCE.txt'):
+                require('assets/' + name in package.namelist(), 'Missing browser engine notice: ' + name)
+                require(package.read('assets/' + name) == (ROOT / 'licenses' / name).read_bytes(),
+                        'Packaged browser engine notice differs from the reviewed file: ' + name)
             require(any(name.startswith('lib/arm64-v8a/') and name.endswith('/libxul.so') for name in package.namelist()),
                     'APK is missing the bundled ARM64 browser engine.')
             if args.variant == 'release':

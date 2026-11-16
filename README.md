@@ -48,6 +48,10 @@ linked pages. See [Browser and offline websites](docs/browser.md) for controls
 and capture limits. This alpha awaits tablet testing; its signed APK and
 checksum are on the release page.
 
+Bundled-engine maintenance uses weekly update PRs and daily Mozilla security
+advisory checks. See [browser maintenance](docs/browser-maintenance.md) for the
+review, verification and signed-update process.
+
 It also retains the independent AI workspace from 0.39:
 open a new or saved AI chat from the bookshelf in its own workspace, with no
 notes open. Choose a floating note from the toolbox when needed; closing or

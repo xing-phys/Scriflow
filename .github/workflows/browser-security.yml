@@ -1,0 +1,31 @@
+name: Browser security advisories
+
+on:
+  schedule:
+    # Daily at 08:23 in China. A missed scheduled run can be started manually.
+    - cron: '23 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: browser-security-advisories
+  cancel-in-progress: false
+
+jobs:
+  advisories:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out trusted default-branch code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Check Mozilla advisories and open new review issues
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          BROWSER_SECURITY_ASSIGNEE: xing-phys
+        run: python3 scripts/check_browser_security.py --write-issues

@@ -8,6 +8,7 @@ for required in javac java; do
 done
 rm -rf build/host-tests
 mkdir -p build/host-tests
+python3 -m unittest discover -s tests -p 'test_browser_maintenance.py'
 javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   app/src/main/java/org/eink/inkprobe/CallbackTiming.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookBackup.java \

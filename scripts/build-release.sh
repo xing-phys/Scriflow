@@ -26,7 +26,9 @@ done
 if [[ -z "${JAVA_HOME:-}" && -x .tools/jdk-17.0.21+9/bin/java ]]; then
   export JAVA_HOME="$ROOT/.tools/jdk-17.0.21+9"
 fi
+python3 scripts/browser_engine.py check
 ./gradlew --no-daemon "$@" :app:lintRelease :app:assembleRelease
+python3 scripts/browser_engine.py verify
 python3 - <<'PY'
 from pathlib import Path
 import hashlib

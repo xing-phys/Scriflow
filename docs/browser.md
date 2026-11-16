@@ -5,6 +5,10 @@
 fonts and math rendering no longer depend on the tablet's installed WebView.
 This alpha is awaiting physical testing on the Huawei MatePad Paper.
 
+Engine updates are monitored through weekly Dependabot checks and a daily Mozilla
+security-advisory workflow. Upgrades require provenance/license verification,
+tests and a new signed APK. See [browser maintenance](browser-maintenance.md).
+
 ## Voice input and power use
 
 The first online Browser entry asks for Android microphone permission. If you

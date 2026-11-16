@@ -13,7 +13,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  engine-policy:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test update and advisory handling without network or repository writes
+        run: python3 -m unittest discover -s tests -p 'test_browser_maintenance.py'
+      - name: Check the engine pin and its provenance record
+        run: python3 scripts/browser_engine.py check
   android:
+    needs: engine-policy
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
@@ -48,6 +60,8 @@ jobs:
           fi
       - name: Test, lint, and build both variants
         run: ./gradlew --no-daemon --stacktrace hostTest :app:lintDebug :app:lintRelease :app:assembleDebug :app:assembleRelease
+      - name: Verify the resolved engine archive and third-party notices
+        run: python3 scripts/browser_engine.py verify
       - name: Verify the debug APK
         run: >-
           python3 scripts/verify-apk.py app/build/outputs/apk/debug/app-debug.apk

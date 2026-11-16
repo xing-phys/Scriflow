@@ -1,0 +1,16 @@
+version: 2
+updates:
+  - package-ecosystem: gradle
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:15"
+      timezone: Asia/Shanghai
+    allow:
+      - dependency-name: org.mozilla.geckoview:geckoview
+    open-pull-requests-limit: 2
+    assignees:
+      - xing-phys
+    commit-message:
+      prefix: "build(browser)"
