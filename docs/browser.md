@@ -1,6 +1,6 @@
 # Browser and offline websites
 
-**0.40.0-alpha.9** (versionCode **109**) bundles GeckoView
+**0.40.0-alpha.10** (versionCode **110**) bundles GeckoView
 **160.0.20261104181552**, the Firefox browser engine. Website JavaScript, CSS,
 fonts and math rendering no longer depend on the tablet's installed WebView.
 This alpha is awaiting physical testing on the Huawei MatePad Paper.
@@ -40,6 +40,20 @@ password-manager integration are outside this version.
 The bundled engine increases APK size. Its separate cookie profile may require
 signing into websites again after updating from the earlier WebView browser.
 
+Live browser sessions remain attached while rotating the tablet or returning
+from a floating lookup. Rotation resizes the page and note surfaces; it preserves
+forms, scroll, tab documents and active captures. Switching to an already-open
+tab reuses its session, and closing a background tab does not hide/reactivate the
+current page. Reload is for the explicit Reload action; navigation, a reclaimed
+renderer or process restart can still require loading a document. Websites may
+also refresh their own content.
+
+Saved websites remember reading coordinates separately for each saved copy.
+Closing/reopening a copy or restarting the app returns to that point. Scrolls are
+checkpointed after a short pause and on leaving the reader; returning to the top
+is remembered too. Restoring a position never enables saved-page JavaScript or
+network access, and touching the page takes priority over a pending restoration.
+
 ## Start page, bookmarks and collections
 
 The start page has a **Search or enter a website** field, pinned shortcuts,
@@ -48,6 +62,9 @@ Wikipedia and GitHub are initial shortcuts; removing them is remembered.
 Hold a shortcut to edit, unpin or move it earlier/later. Up to 32 shortcuts can
 be pinned. **Home** returns to this page without discarding the current website.
 Back can return from Home to that website.
+The tab picker stays open as you close tabs in either list or thumbnail view,
+updates its count/selection and preserves its scroll position. Tap Done or select
+a tab when finished.
 
 Use the **grid/list icon** beside Pinned websites to choose thumbnails or a list.
 Bookmarks has its own switch beside the collection controls, and Tabs has one
@@ -133,6 +150,11 @@ single window above floating and split notes. Opening a note adds a separated
 writing row; minimizing or closing every note hides it. Browser buttons keep
 their positions, with one Notes button, one Zen button and one dotted grip.
 The writing row provides Pen, Eraser, Lasso, Add page, Outline and AI chat.
+Routine title/tab-count status text takes no extra row; saving progress and
+capture warnings appear only while relevant. The toolbox and device status
+stay above floating chats as well as notes. Activating a note or chat brings
+that content window forward while leaving the shared controls accessible.
+Closing or minimizing the browser's last chat keeps the browser and notes open.
 Action rows use 6 dp gaps and wrap without stretching their buttons. Library/start-page controls keep
 their larger size. Actions wrap into balanced rows on narrow screens; none
 need sideways scrolling. Hold an action icon to see its name; accessibility labels identify
@@ -171,7 +193,8 @@ expanded/collapsed state. Zen survives recreation; new browser screens start
 outside Zen. Seconds run only while the clock is visible in the foreground.
 Errors expose the controls for recovery.
 
-Outside Zen, Android Back first closes an expanded panel, then follows page
+Focused dialogs, the keyboard and chat windows handle Android Back first.
+Outside Zen with the webpage focused, Back closes an expanded panel, then follows page
 history, then leaves the browser. The panel's arrows operate history directly.
 
 ## Notes and image paste

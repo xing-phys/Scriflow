@@ -21,9 +21,15 @@ abstract class NotebookBrowserEngine extends FrameLayout {
         default void onNewTab(NotebookBrowserEngine view, String url) { view.loadUrl(url); }
         default void onDataCleared(NotebookBrowserEngine view) { }
         default void onDocumentReady(NotebookBrowserEngine view, String url) { }
+        default void onScrollChanged(NotebookBrowserEngine view, int x, int y) { }
+        default void onUserInteraction(NotebookBrowserEngine view) { }
     }
     final Listener listener;
     NotebookBrowserEngine(Context context, Listener listener) { super(context); this.listener = listener; }
+    @Override public boolean onInterceptTouchEvent(android.view.MotionEvent event) {
+        if (event.getActionMasked() == android.view.MotionEvent.ACTION_DOWN) listener.onUserInteraction(this);
+        return super.onInterceptTouchEvent(event);
+    }
     abstract String getUrl();
     abstract String getTitle();
     abstract void loadUrl(String url);

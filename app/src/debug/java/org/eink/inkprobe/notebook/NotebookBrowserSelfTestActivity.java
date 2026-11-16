@@ -32,9 +32,16 @@ public final class NotebookBrowserSelfTestActivity extends NotebookBrowserActivi
     @Override protected void onBrowserDocumentReady() {
         getWindow().getDecorView().postDelayed(this::report, 3000);
     }
+    @Override public void onConfigurationChanged(android.content.res.Configuration configuration) {
+        super.onConfigurationChanged(configuration); getWindow().getDecorView().postDelayed(this::report, 1800);
+    }
 
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        if (intent.hasExtra("orientation")) {
+            NotebookSettings.setOrientation(this, NotebookSettings.Orientation.valueOf(intent.getStringExtra("orientation"))); refreshDisplayOrientation();
+        }
+        if (intent.hasExtra("scrollY")) browserDebugScrollTo(0, intent.getIntExtra("scrollY", 0));
         String saved = intent.getStringExtra("openSaved");
         if (saved != null && saved.matches("[a-f0-9-]{36}")) {
             startActivity(new Intent(this, NotebookBrowserSelfTestActivity.class).putExtra(SAVED_ID, saved)

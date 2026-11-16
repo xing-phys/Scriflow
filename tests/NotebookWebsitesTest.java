@@ -23,7 +23,7 @@ public final class NotebookWebsitesTest {
 
     public static void main(String[] args) throws Exception {
         try {
-            addresses(); publicationAndRestart(); htmlSnapshots(); failedSaves(); corruptionIsIsolated(); deletionAndPaths(); abandonedSaves();
+            addresses(); publicationAndRestart(); htmlSnapshots(); readingPositions(); failedSaves(); corruptionIsIsolated(); deletionAndPaths(); abandonedSaves();
             System.out.println("NotebookWebsites: " + assertions + " assertions passed (real files, atomic snapshots, restart, path isolation and HTTPS addresses).");
         } finally { for (File root : roots) remove(root); }
     }
@@ -50,6 +50,38 @@ public final class NotebookWebsitesTest {
         for (String scheme : Arrays.asList("file", "content", "https", "http", "intent", null))
             check(!NotebookBrowserAddress.isEmbeddedScheme(scheme), "files, content providers and network URLs are never classified as embedded resources");
         equal("https://example.org/?q=%23x", NotebookBrowserAddress.withoutFragment("https://example.org/?q=%23x#heading"), "fragment removal retains escaped hash");
+    }
+
+    private static void readingPositions() throws Exception {
+        File root = root(); NotebookWebsites store = new NotebookWebsites(root);
+        NotebookWebsites.Saved first = save(store, "First", "https://example.org/article");
+        NotebookWebsites.Saved second = save(store, "Second", first.url);
+        check(store.position(first).x == 0 && store.position(first).y == 0, "an unread archive starts at the top");
+        byte[] before = Files.readAllBytes(store.archive(first).toPath());
+        store.position(first, 28, 14567); store.position(second, 0, 260);
+        NotebookWebsites cold = new NotebookWebsites(root);
+        check(cold.position(first).x == 28 && cold.position(first).y == 14567, "saved reading coordinates survive process restart");
+        check(cold.position(second).y == 260, "copies of the same source page have independent checkpoints");
+        File folder = new File(root, "websites/" + first.id), position = new File(folder, "reading.nwp");
+        File staging = new File(folder, ".reading.nwp.tmp"); check(staging.mkdir(), "prepare a failed checkpoint write");
+        expectIo(() -> store.position(first, 3, 500));
+        check(store.position(first).y == 14567, "a failed write preserves the previous checkpoint");
+        store.position(first, -5, 0);
+        check(cold.position(first).x == 0 && cold.position(first).y == 0, "returning to the top replaces the previous checkpoint");
+        Files.write(position.toPath(), new byte[]{1, 2, 3});
+        check(store.position(first).y == 0 && store.list().size() == 2, "a damaged checkpoint never hides the saved website");
+        try (DataOutputStream output = new DataOutputStream(new FileOutputStream(position))) {
+            output.writeInt(0x4e575031); output.writeInt(0); output.writeInt(-1);
+        }
+        check(store.position(first).y == 0, "negative stored coordinates recover safely");
+        Files.delete(position.toPath()); File outside = new File(root, "outside"); Files.write(outside.toPath(), new byte[]{8, 9});
+        Files.createSymbolicLink(position.toPath(), outside.toPath());
+        expectIo(() -> store.position(first, 2, 3));
+        check(Arrays.equals(Files.readAllBytes(outside.toPath()), new byte[]{8, 9}), "checkpoint writes cannot follow a private-file symlink");
+        Files.delete(position.toPath()); store.position(first, 4, 500);
+        check(Arrays.equals(before, Files.readAllBytes(store.archive(first).toPath())), "reading checkpoints leave archive bytes unchanged");
+        store.delete(first.id); store.position(first, 4, 700);
+        check(!folder.exists() && store.list().size() == 1, "deletion removes the checkpoint and late writes cannot recreate the page");
     }
 
     private static void publicationAndRestart() throws Exception {

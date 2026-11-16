@@ -6,6 +6,21 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.40.0-alpha.10 — Browser continuity and window coordination (2026-11-16)
+
+- Remove the routine toolbox status row; show saving progress/warnings only when relevant.
+- Resize live browser documents and note surfaces through rotation without
+  recreating their Activity. Avoid duplicate engine activation and preserve the
+  current session when closing background tabs.
+- Restore the toolbox/status above chats after their actual window raise. Keep
+  the user's note/chat stacking choice, native writing barriers and IME behavior.
+- Keep the browser and notes alive when its last floating chat is minimized or closed.
+- Checkpoint and restore each offline copy's reading position, including after
+  process restart; support Gecko's native scroll API without saved-page scripts.
+- Keep the existing tab picker open and update its rows/count/selection after
+  closing tabs in either list or thumbnail mode.
+- VersionCode 110; physical Huawei handwriting, rotation and Eudic acceptance remain pending.
+
 ## 0.40.0-alpha.9 — One browser and note toolbox (2026-11-16)
 
 - Put browser and note tools in the same movable window above floating and split

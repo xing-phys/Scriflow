@@ -132,6 +132,9 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     private final Runnable refreshAiDock=()->applyChatDock();
     private final Rect aiKeyboardBounds = new Rect();
     private boolean aiContact, aiMoved;
+    private boolean chatOverlaysPending;
+    private final Runnable restoreChatOverlays = this::restoreChatOverlays;
+    private final Runnable reflowBrowserTools = this::reflowBrowserTools;
     private float toolsX = 0.5f, toolsY;
     private boolean placeToolsBelowStatus;
     private final Rect toolsBounds = new Rect();
@@ -375,6 +378,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             @Override public void onBrowserDismissed() {
                 rememberToolsCollapsed(); workspaceRoot.post(NotebookActivity.this::showFloatingTools);
             }
+            @Override public void onBrowserContentSizeChanged() { writingGate.defer(reflowBrowserTools); }
         });
         floatingTools.setVertical(!isBrowserWorkspace() && getPreferences(MODE_PRIVATE).getBoolean("toolsVertical", false));
         floatingTools.setCollapsed(isBrowserWorkspace()
@@ -418,6 +422,12 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     protected final boolean workspaceZen() { return zenMode; }
     protected final boolean workspaceToolsCollapsed() { return floatingTools.isCollapsed(); }
     protected final void browserToolTextInput(View editor, boolean enabled) { floatingTools.browserTextInput(editor, enabled); }
+    protected final void browserWorkspaceResized() {
+        // Transient controls hold geometry/scale from before the turn; documents and editors stay attached.
+        if (widthPopup != null) widthPopup.dismiss();
+        if (noteTray != null) noteTray.hide();
+        if (aiWindows != null) aiWindows.hideTray();
+    }
     protected final void collapseWorkspaceTools(boolean value) {
         boolean resume = canEdit();
         if (ink != null) ink.pauseForEdit();
@@ -442,6 +452,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     protected final void appendWorkspaceDebug(org.json.JSONObject result) throws org.json.JSONException {
         if ((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0) return;
         floatingTools.appendDebug(result);
+        aiWindows.appendDebug(result);
         result.put("workspaceZen", zenMode).put("noteEditorReady", canEdit())
             .put("noteSurface", ink == null ? 0 : System.identityHashCode(ink))
             .put("penWidth", penWidth).put("eraserWidth", eraserWidth);
@@ -1301,7 +1312,6 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
                 placeToolsBelowStatus = false;
                 getPreferences(MODE_PRIVATE).edit().putBoolean("floatingStatusLayout", true).apply();
             }
-            if (floatingTools.isShowing() && aiWindows != null) aiWindows.raiseFloatingAboveTools();
         }
     }
 
@@ -1349,6 +1359,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         if (!toolsContact) return;
         lastInputAt = SystemClock.uptimeMillis();
         toolsContact = false;
+        if (chatOverlaysPending) writingGate.defer(restoreChatOverlays);
         if (independentWithoutEditor()) {
             NotebookFloatingTools.Action action=pendingToolAction;pendingToolAction=null;
             if (active && action != null) performToolAction(action);
@@ -1413,6 +1424,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             public void contactEnd(){finishAiContact();}
             public void attachNotebook(NotebookAiChat chat){chooseAiNotebook(chat);}
             public void chatRaised(){frontNote=null;++windowStackRevision;}
+            public void overlaysRaised(){chatOverlaysPending=true;writingGate.defer(restoreChatOverlays);}
             public void boundsChanged(){
                 List<Rect> current=aiWindows==null?java.util.Collections.emptyList():aiWindows.exclusions();
                 if(aiExclusions.equals(current))return;aiExclusions=current;
@@ -1420,9 +1432,31 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
                 updateOverlayBounds();if(resume){ink.redrawAfterOverlayChange();ink.start();}
             }
             public void workspaceChanged(){if(aiWindows!=null&&aiWindows.consumeShelfMain()&&!independentAi)pendingHideNotes=true;main.removeCallbacks(refreshAiDock);main.post(refreshAiDock);}
-            public boolean mainDismissed(){if(!independentAi)return false;finish();overridePendingTransition(0,0);return true;}
+            public boolean mainDismissed(){return dismissAiWorkspace();}
         },restoredAiWindows,independentAi);
         if(legacyAiOpen)aiWindows.migrate(legacyAiId,legacyAiProfile);
+    }
+    private boolean dismissAiWorkspace() {
+        if (!isIndependentAiWorkspace()) return false;
+        finish(); overridePendingTransition(0, 0); return true;
+    }
+
+    /** Finish a chat's actual window raise before restoring the shared controls, without reordering notes/chats. */
+    private void restoreChatOverlays() {
+        if (!active || !chatOverlaysPending || toolsContact || aiContact) return;
+        chatOverlaysPending = false;
+        boolean resume = canEdit();
+        if (resume) ink.pauseForEdit();
+        statusIslands.raise();
+        if (floatingTools != null && floatingTools.isShowing()) floatingTools.raise();
+        if (resume && shownError == null) { ink.redrawAfterOverlayChange(); ink.start(); }
+    }
+    private void reflowBrowserTools() {
+        if (!active || toolsContact || aiContact) return;
+        boolean resume = canEdit();
+        if (resume) ink.pauseForEdit();
+        floatingTools.reflowBrowserControls();
+        if (resume && shownError == null) { ink.redrawAfterOverlayChange(); ink.start(); }
     }
     private void toggleAiChat(){
         if(!workspaceInteractive()||aiWindows==null)return;if(noteTray!=null)noteTray.hide();
@@ -1485,6 +1519,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     private void finishAiContact() {
         if (!aiContact) return;
         aiContact = false; lastInputAt = SystemClock.uptimeMillis();
+        if (chatOverlaysPending) writingGate.defer(restoreChatOverlays);
         if (!active || shownError != null || ink == null) return;
         final int request = generation; final boolean restore = aiMoved;
         session.load((loaded, error) -> {
@@ -3024,7 +3059,6 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         if (resume) ink.pauseForEdit();
         statusIslands.raise();
         if (floatingTools != null && floatingTools.isShowing()) floatingTools.raise();
-        if (aiWindows != null) aiWindows.raiseFloatingAboveTools();
         if (resume && shownError == null) { ink.redrawAfterOverlayChange(); ink.start(); }
     }
 

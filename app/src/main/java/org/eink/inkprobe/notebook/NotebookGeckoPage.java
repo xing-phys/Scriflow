@@ -25,6 +25,8 @@ import org.mozilla.geckoview.GeckoView;
 import org.mozilla.geckoview.WebExtension;
 import org.mozilla.geckoview.WebRequestError;
 import org.mozilla.geckoview.WebResponse;
+import org.mozilla.geckoview.PanZoomController;
+import org.mozilla.geckoview.ScreenLength;
 
 /** Current Firefox engine plus an isolated, app-owned capture extension. */
 final class NotebookGeckoPage extends NotebookBrowserEngine {
@@ -40,6 +42,7 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
     private GeckoSession.SessionState sessionState, pendingState;
     private History history = new History(new ArrayList<>(), -1);
     private boolean closed, ready, back, forward, fresh = true;
+    private Boolean active;
     private int warnings, scrollX, scrollY;
     private Capture capture;
     private String captureFailure = "The capture connection is not available. Please retry.";
@@ -53,8 +56,11 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
         prompts = new NotebookBrowserPrompts(context, () -> url);
         if (!offline) session.setPromptDelegate(prompts);
         surface = new GeckoView(context); addView(surface, new LayoutParams(-1, -1));
-        session.setScrollDelegate(new GeckoSession.ScrollDelegate() {
-            @Override public void onScrollChanged(GeckoSession owner, int x, int y) { scrollX = x; scrollY = y; }
+        session.setCompositorScrollDelegate(new GeckoSession.CompositorScrollDelegate() {
+            @Override public void onScrollChanged(GeckoSession owner, GeckoSession.ScrollPositionUpdate update) {
+                scrollX = Math.max(0, Math.round(update.scrollX)); scrollY = Math.max(0, Math.round(update.scrollY));
+                listener.onScrollChanged(NotebookGeckoPage.this, scrollX, scrollY);
+            }
         });
         session.setNavigationDelegate(new GeckoSession.NavigationDelegate() {
             @Override public GeckoResult<AllowOrDeny> onLoadRequest(GeckoSession owner, LoadRequest request) {
@@ -297,9 +303,9 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
         saved.putString("engine", "gecko"); saved.putString("state", state); history.save(saved);
     }
     @Override void stopLoading() { if (!closed) session.stop(); }
-    @Override void onResume() { if (!closed) { session.setActive(true); runtime.getWebExtensionController().setTabActive(session, true); } }
+    @Override void onResume() { if (!closed && !Boolean.TRUE.equals(active)) { active = true; session.setActive(true); runtime.getWebExtensionController().setTabActive(session, true); } }
     @Override void onWindowPause() { if (!closed) { prompts.close(); session.flushSessionState(); } }
-    @Override void onPause() { if (!closed) { prompts.close(); session.flushSessionState(); session.setActive(false); runtime.getWebExtensionController().setTabActive(session, false); } }
+    @Override void onPause() { if (!closed && !Boolean.FALSE.equals(active)) { active = false; prompts.close(); session.flushSessionState(); session.setActive(false); runtime.getWebExtensionController().setTabActive(session, false); } }
     @Override void destroy() {
         if (closed) return; prompts.close(); cancelCapture(); closed = true;
         for (Consumer<JSONObject> callback : probes.values()) callback.accept(null); probes.clear();
@@ -314,6 +320,10 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
     }
     @Override int pageScrollX() { return scrollX; }
     @Override int pageScrollY() { return scrollY; }
+    @Override void scrollPageTo(int x, int y) {
+        if (!closed && ready) session.getPanZoomController().scrollTo(ScreenLength.fromPixels(Math.max(0, x)),
+            ScreenLength.fromPixels(Math.max(0, y)), PanZoomController.SCROLL_BEHAVIOR_AUTO);
+    }
     private static JSONObject json(Object... pairs) {
         JSONObject result = new JSONObject();
         try { for (int i = 0; i < pairs.length; i += 2) result.put((String) pairs[i], pairs[i + 1]); }

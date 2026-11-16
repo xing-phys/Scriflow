@@ -19,6 +19,7 @@ final class NotebookWebsites {
     private static final int MAGIC = 0x4e575331; // NWS1
     private static final int HTML_MAGIC = 0x4e575332; // NWS2: self-contained HTML and capture warnings
     private static final String METADATA = "website.nws";
+    private static final int POSITION_MAGIC = 0x4e575031; // NWP1: CSS scroll coordinates, separate from the immutable archive.
     private final File root;
 
     enum Format {
@@ -48,6 +49,11 @@ final class NotebookWebsites {
         private Pending(String id, File directory, Format format) {
             this.id = id; this.directory = directory; this.format = format; this.archive = new File(directory, format.filename);
         }
+    }
+
+    static final class Position {
+        final int x, y;
+        Position(int x, int y) { this.x = Math.max(0, x); this.y = Math.max(0, y); }
     }
 
     NotebookWebsites(File filesDirectory) throws IOException {
@@ -94,6 +100,29 @@ final class NotebookWebsites {
     File archive(Saved entry) throws IOException {
         Saved current = get(entry.id);
         return child(directory(entry.id), current.format.filename);
+    }
+
+    Position position(Saved entry) throws IOException {
+        File file = child(directory(entry.id), "reading.nwp");
+        if (!file.isFile() || file.length() != 12) return new Position(0, 0);
+        try (DataInputStream input = new DataInputStream(new FileInputStream(file))) {
+            if (input.readInt() != POSITION_MAGIC) return new Position(0, 0);
+            int x = input.readInt(), y = input.readInt();
+            return x < 0 || y < 0 ? new Position(0, 0) : new Position(x, y);
+        } catch (IOException error) { return new Position(0, 0); }
+    }
+
+    void position(Saved entry, int x, int y) throws IOException {
+        File folder = directory(entry.id);
+        if (!child(folder, METADATA).isFile()) return; // A queued checkpoint cannot resurrect a deleted archive.
+        File file = child(folder, "reading.nwp"), staging = child(folder, ".reading.nwp.tmp");
+        try {
+            try (FileOutputStream stream = new FileOutputStream(staging); DataOutputStream output = new DataOutputStream(stream)) {
+                output.writeInt(POSITION_MAGIC); output.writeInt(Math.max(0, x)); output.writeInt(Math.max(0, y));
+                output.flush(); stream.getFD().sync();
+            }
+            if (!staging.renameTo(file)) throw new IOException("Could not remember the saved page position.");
+        } finally { if (staging.exists()) staging.delete(); }
     }
 
     Pending begin() throws IOException {

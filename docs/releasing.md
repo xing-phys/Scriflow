@@ -312,9 +312,9 @@ build unsigned release APKs without possessing the permanent key.
 
 ## Version numbers
 
-The current prerelease is **0.40.0-alpha.9**, Android `versionCode` **109**,
-combining browser and note controls in one window above notes, with a conditional
-writing row, 32 dp buttons, one grip and a 400 dp panel. It retains the
+The current prerelease is **0.40.0-alpha.10**, Android `versionCode` **110**,
+preserving live browser sessions on rotation, restoring saved reading positions,
+keeping the tab picker open after closes, and coordinating note/chat/tool layers. It retains the
 existing notebook/backup formats (8, or 9 for individually sized Markdown) and
 chat archive compatibility from 0.39. New website snapshots use self-contained HTML and NWS2 metadata, outside
 notebook backups; NWS1/MHTML archives remain readable. Versions 1–7 remain readable
@@ -390,16 +390,16 @@ and [Android versioning](https://developer.android.com/studio/publish/versioning
    The helper runs release lint and assembly, copies the candidate privately,
    verifies those exact bytes and the configured signing certificate, then
    stages a versioned APK and SHA-256 checksum under
-   `build/releases/`. For this release these are `scriflow-0.40.0-alpha.9.apk` and
-   `scriflow-0.40.0-alpha.9.apk.sha256`. Debugging is disabled, diagnostic screens are
+   `build/releases/`. For this release these are `scriflow-0.40.0-alpha.10.apk` and
+   `scriflow-0.40.0-alpha.10.apk.sha256`. Debugging is disabled, diagnostic screens are
    absent from the manifest, and the library is the only exported component.
 
 4. Compare the printed signer certificate SHA-256 with the intended permanent
    certificate. For later builds, pin that known digest during verification:
 
    ```bash
-   python3 scripts/verify-apk.py build/releases/scriflow-0.40.0-alpha.9.apk --certificate-sha256 YOUR_KNOWN_CERTIFICATE_SHA256
-   (cd build/releases && sha256sum -c scriflow-0.40.0-alpha.9.apk.sha256)
+   python3 scripts/verify-apk.py build/releases/scriflow-0.40.0-alpha.10.apk --certificate-sha256 YOUR_KNOWN_CERTIFICATE_SHA256
+   (cd build/releases && sha256sum -c scriflow-0.40.0-alpha.10.apk.sha256)
    ```
 
    Substitute the current version and the actual known digest. The APK file's
@@ -469,15 +469,19 @@ an APK over version-2 pages, or assume a signature change preserves app data.
 
 ## Publish only after acceptance
 
-For **0.40.0-alpha.9** (versionCode **109**), verify there is only one toolbox
-and grip. Before opening notes show browser actions; with floating or split notes
-show the writing row in the same panel; after minimizing/closing all notes hide
-that row. Place the toolbox over a floating note and use both browser and writing
-actions. Verify pen/eraser settings, native exclusions and pause/resume, address
-keyboard entry, collapse/drag, Zen, online/offline transfer and recreation on
-true 4:3 portrait/landscape screens. Run regressions and Android lint/builds;
-sign with the permanent key, verify downloaded APK/checksum bytes and publish
-an alpha for tablet testing. Physical Huawei pen/Eudic acceptance remains pending.
+For **0.40.0-alpha.10** (versionCode **110**), verify rotation preserves Activity,
+engine and document identity, unsent form text and tab history. Check background
+closing does not reactivate the current session, and that repeated closes keep
+the same list/thumbnail picker open. Verify the compact toolbox has no routine
+status row, remains above floating chats/notes after opening, focus and restore,
+and that closing/minimizing the last chat preserves the browser and notes.
+Exercise note/chat input, resizing, minimize/restore and keyboard use together.
+Test durable offline positions through close/reopen and process restart, top-of-
+page overwrite, legacy/HTML copies and safe handling of corrupted checkpoints.
+Run regressions and Android lint/builds; use native emulator layout/controller
+checks and disclose physical Huawei pen, rotation, Eudic and e-ink acceptance as
+pending. Sign with the permanent key, verify downloaded APK/checksum bytes and
+publish an alpha for tablet testing; keep 0.33.2 Latest stable.
 
 For **0.40.0-alpha.7** (versionCode **107**), verify settings popups above floating
 notes and independent native-ink exclusions for split-note corner controls.

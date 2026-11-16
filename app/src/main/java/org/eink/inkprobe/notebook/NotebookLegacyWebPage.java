@@ -25,6 +25,7 @@ final class NotebookLegacyWebPage extends NotebookBrowserEngine {
     NotebookLegacyWebPage(Context context, String archive, Listener listener) {
         super(context, listener); this.archive = NotebookBrowserAddress.withoutFragment(archive);
         view = new WebView(context); view.setBackgroundColor(Color.WHITE); view.setOverScrollMode(OVER_SCROLL_NEVER);
+        view.setOnScrollChangeListener((v, x, y, oldX, oldY) -> listener.onScrollChanged(this, x, y));
         WebSettings settings = view.getSettings();
         settings.setJavaScriptEnabled(false); settings.setDomStorageEnabled(false); settings.setBlockNetworkLoads(true);
         settings.setAllowFileAccess(true); settings.setAllowContentAccess(false); settings.setAllowFileAccessFromFileURLs(false);

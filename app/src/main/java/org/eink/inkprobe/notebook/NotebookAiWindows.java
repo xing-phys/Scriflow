@@ -13,6 +13,7 @@ final class NotebookAiWindows {
         boolean allowed();boolean contactStart();void contactEnd();void boundsChanged();void workspaceChanged();
         void attachNotebook(NotebookAiChat chat);void chatRaised();
         default boolean mainDismissed(){return false;}
+        default void overlaysRaised() { }
     }
     private final Activity activity;
     private final FrameLayout root;
@@ -140,6 +141,7 @@ final class NotebookAiWindows {
                 boolean raise=frontId!=id;frontId=id;listener.chatRaised();workspace.focus(state);persist();return raise;
             }
             public boolean mayRaise(){return frontId==id;}
+            public void raised(){listener.overlaysRaised();}
             public void attachNotebook(NotebookAiChat chat){listener.attachNotebook(chat);}
             public void minimized(){minimizeWindow(state);}
             public void options(){showMenu(state,owner[0]);}
@@ -173,14 +175,6 @@ final class NotebookAiWindows {
         frontId=state.pane.notebookId;listener.chatRaised();
     }
     void noteRaised(){frontId=0;}
-    void raiseFloatingAboveTools(){
-        if(suspended)return;
-        NotebookAiWorkspace.Window active=workspace.active();
-        for(NotebookAiWorkspace.Window state:workspace.windows())if(state!=active){
-            NotebookAiChat chat=windows.get(state.pane.notebookId);if(chat!=null)chat.raiseAboveTools();
-        }
-        if(active!=null){NotebookAiChat chat=windows.get(active.pane.notebookId);if(chat!=null)chat.raiseAboveTools();}
-    }
     private void restore(NotebookAiWorkspace.Window state){if(state==null)return;workspace.focus(state);show(state,true);persist();positionAll();listener.workspaceChanged();}
     private String windowName(NotebookAiWorkspace.Window state){if(state==null)return "Chat";String name=state.title;if(name.equals("New chat"))name+=" "+(state.pane.notebookId-1);return name+" · "+state.model;}
     private void positionAll(){if(suspended)return;for(NotebookAiChat chat:new ArrayList<>(windows.values()))chat.position();listener.boundsChanged();}
@@ -192,6 +186,17 @@ final class NotebookAiWindows {
         String encoded=workspace.encode();if(!encoded.equals(saved)){saved=encoded;if(!independent)prefs.edit().putString("aiWindows",encoded).apply();}
     }
     String snapshot(){persist();return workspace.encode();}
+    void appendDebug(org.json.JSONObject result) throws org.json.JSONException {
+        org.json.JSONArray chats = new org.json.JSONArray();
+        for (NotebookAiWorkspace.Window state : workspace.windows()) {
+            Rect rect = bounds.get(state.pane.notebookId);
+            chats.put(new org.json.JSONObject().put("id", state.pane.notebookId).put("position", state.pane.position.name())
+                .put("collapsed", state.pane.collapsed).put("visible", rect != null && !rect.isEmpty())
+                .put("x", rect == null ? 0 : rect.left).put("y", rect == null ? 0 : rect.top)
+                .put("width", rect == null ? 0 : rect.width()).put("height", rect == null ? 0 : rect.height()));
+        }
+        result.put("chats", chats);
+    }
     void suspend(){
         if(suspended)return;persist();suspended=true;frontId=0;tray.hide();if(menu!=null)menu.dismiss();if(history!=null)history.close();
         for(NotebookAiChat chat:new ArrayList<>(windows.values()))chat.close();windows.clear();bounds.clear();listener.boundsChanged();

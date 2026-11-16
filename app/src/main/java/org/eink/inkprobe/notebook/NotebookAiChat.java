@@ -19,6 +19,7 @@ final class NotebookAiChat {
         boolean activated();boolean mayRaise();void minimized();void options();void changed();
         void attachNotebook(NotebookAiChat chat);
         void open(NotebookAiConfig config,String sessionId,boolean rebind);
+        default void raised() { }
     }
     private final Activity activity;
     private final FrameLayout anchor;
@@ -147,6 +148,7 @@ final class NotebookAiChat {
     void show() {
         if(closed)return;hidden=false;ensureRenderer();anchor.removeOnLayoutChangeListener(layout);anchor.addOnLayoutChangeListener(layout);position();
         if(!NotebookPopupHost.show(popup,anchor,Gravity.TOP|Gravity.LEFT,bounds.left,bounds.top)){close();return;}
+        listener.raised();
         if(session==null){
             NotebookAiConfig config=new NotebookAiConfig(NotebookAiConfig.Provider.valueOf(window.provider),window.providerId,window.url,window.model,"",null);
             openSession(config,window.sessionId,window.rebind);
@@ -160,6 +162,7 @@ final class NotebookAiChat {
         if(closed)return;if(hidden){show();return;}
         hidden=true;popup.dismiss();hidden=false;position();
         if(!NotebookPopupHost.show(popup,anchor,Gravity.TOP|Gravity.LEFT,bounds.left,bounds.top)){close();return;}
+        listener.raised();
         if(focusComposer)composer.post(()->{if(!closed&&!hidden){composer.requestFocus();((InputMethodManager)activity.getSystemService(Activity.INPUT_METHOD_SERVICE)).showSoftInput(composer,InputMethodManager.SHOW_IMPLICIT);}});
     }
     private void ensureRenderer(){
@@ -340,7 +343,6 @@ final class NotebookAiChat {
         if(popup.isShowing())popup.update(x,y,box.width,box.height);else{popup.setWidth(box.width);popup.setHeight(box.height);}
         controls.presented();
     }
-    void raiseAboveTools(){if(!closed&&!hidden&&workspace.geometry.floating(window.pane)&&popup.isShowing())raise(composer.hasFocus());}
     void optionsFinished(){optionsOpen=false;finishContact();}
     void minimize(){
         if(closed||hidden)return;main.removeCallbacks(saveDraft);saveDraft();hidden=true;controls.cancel();

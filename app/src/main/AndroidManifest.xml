@@ -15,7 +15,8 @@
              back stack. Normal recreation rebuilds the native writing surface. -->
         <activity android:name=".notebook.NotebookActivity" android:exported="false" android:screenOrientation="behind" />
         <activity android:name=".notebook.NotebookAiActivity" android:exported="false" android:screenOrientation="behind" />
-        <activity android:name=".notebook.NotebookBrowserActivity" android:exported="false" android:screenOrientation="behind" />
+        <!-- Resize the browser and existing note surfaces without restarting live web documents. -->
+        <activity android:name=".notebook.NotebookBrowserActivity" android:exported="false" android:screenOrientation="behind" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden" />
         <activity android:name=".notebook.NotebookBrowserBookmarksActivity" android:exported="false" android:screenOrientation="behind" />
         <activity android:name=".notebook.NotebookBrowserHistoryActivity" android:exported="false" android:screenOrientation="behind" />
         <activity android:name=".notebook.NotebookBrowserDataActivity" android:exported="false" android:screenOrientation="behind" />

@@ -4,7 +4,7 @@ Scriflow is designed for Huawei MatePad Paper HMW-W09 on Android 10/API 29,
 firmware `HMW-W09 2.1.0.222(C00E170R1P8)`. Other devices and firmware have not
 been verified. See the [README](../README.md) for installation and current limits.
 
-This guide follows alpha prerelease **0.40.0-alpha.9**; the published stable release is
+This guide follows alpha prerelease **0.40.0-alpha.10**; the published stable release is
 **0.33.2**. This build reads older notes; ordinary edits use page format 8 and
 individually sized Markdown uses format 9. Older APKs cannot read formats they
 do not support. Physical checks of this exact APK remain pending.
@@ -45,7 +45,10 @@ keep their original coordinates and PDF printing scale.
 ## Browser and saved websites
 
 Fresh bookshelf entries open the pinned start page; use Tabs to resume an
-existing website. The browser has one movable toolbox above all notes. Opening
+existing website. Rotation resizes live pages without reloading forms or tabs.
+Saved offline copies reopen at their last reading position. Closing tabs leaves
+the tab picker open for more closures. The browser has one movable toolbox
+above notes and floating AI chats. Opening
 a note adds its writing buttons to this same panel; minimizing or closing all
 notes hides the writing row. Browser buttons stay in place, and one compact
 dotted grip collapses every tool. Time, battery and Wi-Fi stay at the top-right while controls
@@ -54,7 +57,8 @@ The toolbox's overlapping-window icon opens floating or split notes; use a note'
 corner menu → Position to dock it beside the browser. Online and saved pages share
 these open notes, their positions and minimized state, including across app
 restarts. Both split and floating editors keep their corner controls; width
-settings appear above notes. Eudic's floating lookup keeps browser notes visible. Copy ink or a figure,
+settings appear above notes. Eudic's floating lookup keeps browser notes visible. Closing or minimizing a
+browser chat keeps the browser and notes open. Copy ink or a figure,
 wait for **Copied as image**, then hold a website message field and choose Paste.
 The website must support pasted image attachments; send using its own controls.
 
@@ -265,8 +269,9 @@ sleep remain in control. Cover behavior still needs verification on the MatePad.
 All screens share the accepted direction. The bookshelf, note, Settings, and
 transfer screens keep the same orientation when you move between them;
 navigation does not wait for another sensor reading. The settling interval
-applies when physically turning the tablet. Screen rotation rebuilds the
-writing surface without changing stored page dimensions.
+applies when physically turning the tablet. Standalone note editors rebuild
+the writing surface on rotation; the browser resizes its existing page and note
+surfaces to keep live documents and forms. Stored page dimensions are unchanged.
 
 Finger navigation is ignored while the pen hovers nearby, during writing,
 and for **200 ms (0.2 seconds)** after the last pen contact/hover event, including

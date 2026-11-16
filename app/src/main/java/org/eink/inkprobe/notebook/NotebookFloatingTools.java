@@ -34,6 +34,7 @@ public final class NotebookFloatingTools {
         void onBoundsChanged(Rect screenBounds);
         void onPositionChanged(float horizontalFraction, float verticalFraction);
         default void onBrowserDismissed() { }
+        default void onBrowserContentSizeChanged() { }
     }
 
     private static final long MOVE_INTERVAL_MS = 32;
@@ -168,6 +169,9 @@ public final class NotebookFloatingTools {
         browserScroll.setVerticalScrollBarEnabled(false);
         browserScroll.setSmoothScrollingEnabled(false);
         browserScroll.addView(controls, new ScrollView.LayoutParams(-1, -2));
+        controls.addOnLayoutChangeListener((view,l,t,r,b,ol,ot,or,ob) -> {
+            if (b - t != ob - ot && popup.isShowing()) listener.onBrowserContentSizeChanged();
+        });
         controls.setFocusableInTouchMode(true);
         popup.setTouchModal(false);
         popup.setOutsideTouchable(true);
@@ -186,6 +190,9 @@ public final class NotebookFloatingTools {
     }
 
     boolean hasBrowserControls() { return browserControls != null; }
+    void reflowBrowserControls() {
+        if (hasBrowserControls() && isShowing()) { position(horizontalFraction, verticalFraction, true); rememberPosition(); }
+    }
 
     void hideKeyboard() {
         if (!hasBrowserControls()) return;

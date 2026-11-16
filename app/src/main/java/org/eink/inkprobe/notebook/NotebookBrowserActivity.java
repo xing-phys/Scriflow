@@ -2,6 +2,7 @@ package org.eink.inkprobe.notebook;
 
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.res.Configuration;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
@@ -40,13 +41,18 @@ public class NotebookBrowserActivity extends NotebookActivity {
     private long navigation, saveSequence;
     private Runnable archiveTimeout;
     private int restoreX, restoreY;
+    private boolean restoreScroll, readingPositionReady;
+    private Runnable scrollRestore;
+    private final Runnable saveReadingPosition = this::saveReadingPosition;
     private AlertDialog shownDialog;
+    private LinearLayout tabRows;
+    private android.widget.ScrollView tabScroll;
     private NotebookBrowserHome startPage;
     private boolean home, startupHome;
     private final NotebookBrowserTabs tabs = new NotebookBrowserTabs();
     private final java.util.Map<String, NotebookBrowserEngine> engines = new java.util.HashMap<>();
     private NotebookBrowserIconButton tabButton;
-    private static final class PageState { boolean loading, ready, failed; }
+    private static final class PageState { boolean loading, ready, failed; int starts; }
     private final java.util.Map<NotebookBrowserEngine, PageState> pageStates = new java.util.IdentityHashMap<>();
     private PageState pageState(NotebookBrowserEngine page) { PageState state = pageStates.get(page); if (state == null) { state = new PageState(); pageStates.put(page, state); } return state; }
     private static final int LINKS_RESULT = 6201;
@@ -123,14 +129,8 @@ public class NotebookBrowserActivity extends NotebookActivity {
         NotebookIconButton notes = workspaceToolButton(NotebookFloatingTools.Action.NOTES);
         notes.setContentDescription("Floating or split notes"); notes.setTooltipText("Floating or split notes"); tools.addView(notes);
         controls.addView(tools, new LinearLayout.LayoutParams(-1, -2));
-        View divider = new View(this); divider.setBackgroundColor(0xffbbbbbb);
-        LinearLayout.LayoutParams dividerSize = new LinearLayout.LayoutParams(-1, dp(1));
-        dividerSize.setMargins(0, dp(12), 0, dp(8)); controls.addView(divider, dividerSize);
-        LinearLayout details = new LinearLayout(this); details.setGravity(Gravity.CENTER_VERTICAL);
-        status = label(offline ? "Opening offline copy…" : "Enter an address to browse. Save keeps this page for offline reading.", 12);
-        status.setMaxLines(2); status.setEllipsize(TextUtils.TruncateAt.END);
-        details.addView(status, new LinearLayout.LayoutParams(0, dp(40), 1));
-        controls.addView(details);
+        status = label("", 12); status.setMaxLines(3); status.setVisibility(View.GONE);
+        status.setPadding(0, dp(8), 0, 0); controls.addView(status, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout writing = new LinearLayout(this); writing.setOrientation(LinearLayout.VERTICAL);
         writing.setVisibility(View.GONE);
         View writingDivider = new View(this); writingDivider.setBackgroundColor(0xffbbbbbb);
@@ -165,7 +165,7 @@ public class NotebookBrowserActivity extends NotebookActivity {
         saveShield.setContentDescription("Saving page"); content.addView(saveShield, new FrameLayout.LayoutParams(-1, -1));
         root.addView(content, new FrameLayout.LayoutParams(-1, -1));
         attachWorkspaceBackground(root); attachBrowserTools(controls, header, writing);
-        if (state != null) { restoreX = state.getInt("scrollX"); restoreY = state.getInt("scrollY"); }
+        if (state != null) { restoreX = state.getInt("scrollX"); restoreY = state.getInt("scrollY"); restoreScroll = true; }
         if (offline) loadSavedPage(getIntent().getStringExtra(SAVED_ID), state == null ? null : state.getBundle("browserHistory"));
         else {
             String url = state == null ? (clearedRestore ? null : getIntent().getStringExtra(INITIAL_URL)) : state.getString("currentUrl");
@@ -202,11 +202,15 @@ public class NotebookBrowserActivity extends NotebookActivity {
         NotebookWebsiteTasks.run(() -> {
             NotebookWebsites store = new NotebookWebsites(getFilesDir());
             NotebookWebsites.Saved entry = store.get(id);
-            return new Object[]{entry, store.archive(entry)};
+            return new Object[]{entry, store.archive(entry), store.position(entry)};
         }, (result, error) -> {
             if (isDestroyed() || isFinishing()) return;
             if (error != null) { fail(error.getMessage()); return; }
             savedPage = (NotebookWebsites.Saved) result[0];
+            if (!restoreScroll) {
+                NotebookWebsites.Position position = (NotebookWebsites.Position) result[2]; restoreX = position.x; restoreY = position.y;
+            }
+            restoreScroll = true;
             archiveUrl = Uri.fromFile((File) result[1]).toString();
             address.setText(savedPage.url); title.setText(savedPage.title);
             if (web == null) createWebView();
@@ -228,6 +232,27 @@ public class NotebookBrowserActivity extends NotebookActivity {
         hint.setVisibility(View.GONE); return true;
     }
 
+    private void saveReadingPosition() {
+        if (!offline || !readingPositionReady || savedPage == null || web == null || !pageReady || !isArchiveUrl(web.getUrl())) return;
+        NotebookWebsites.Saved page = savedPage; int x = web.pageScrollX(), y = web.pageScrollY();
+        NotebookWebsiteTasks.run(() -> { new NotebookWebsites(getFilesDir()).position(page, x, y); return null; }, (value, error) -> { });
+    }
+
+    private void restoreReadingPosition(NotebookBrowserEngine view, int attempt) {
+        if (!restoreScroll || web != view || isDestroyed()) return;
+        if ((attempt > 0 && Math.abs((long) view.pageScrollX() - restoreX) <= 2 && Math.abs((long) view.pageScrollY() - restoreY) <= 2) || attempt == 8) {
+            restoreScroll = false; readingPositionReady = true; scrollRestore = null; return;
+        }
+        view.scrollPageTo(restoreX, restoreY);
+        scrollRestore = () -> restoreReadingPosition(view, attempt + 1);
+        content.postDelayed(scrollRestore, 150);
+    }
+
+    private void cancelScrollRestore() {
+        if (scrollRestore != null) content.removeCallbacks(scrollRestore);
+        scrollRestore = null; restoreScroll = false;
+    }
+
     private void browse() {
         if (offline || saving) return;
         try { navigate(NotebookBrowserAddress.destination(address.getText().toString(), searchEngine())); }
@@ -236,6 +261,7 @@ public class NotebookBrowserActivity extends NotebookActivity {
 
     private void navigate(String url) {
         if (!NotebookBrowserAddress.isWebUrl(url) || saving) return;
+        if (scrollRestore != null) cancelScrollRestore();
         startupHome = false;
         if (web == null) createWebView();
         if (web == null) return;
@@ -246,6 +272,7 @@ public class NotebookBrowserActivity extends NotebookActivity {
         InputMethodManager keyboard = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
         if (keyboard != null) keyboard.hideSoftInputFromWindow(address.getWindowToken(), 0);
         pageReady = false; failed = false; loading = true; hint.setVisibility(View.GONE);
+        status.setVisibility(View.GONE);
         status.setText("Loading…"); web.loadUrl(url); updateControls();
     }
 
@@ -270,9 +297,14 @@ public class NotebookBrowserActivity extends NotebookActivity {
 
     private void reload() {
         if (saving) return;
+        if (scrollRestore != null) cancelScrollRestore();
+        status.setVisibility(View.GONE);
         if (web == null) createWebView();
         if (web == null) return;
-        if (offline && archiveUrl != null) web.loadUrl(archiveUrl);
+        if (offline && archiveUrl != null) {
+            if (pageReady) { restoreX = web.pageScrollX(); restoreY = web.pageScrollY(); restoreScroll = true; readingPositionReady = false; }
+            if (web.getUrl() == null) web.loadUrl(archiveUrl); else web.reload();
+        }
         else if (!offline && NotebookBrowserAddress.isWebUrl(currentUrl)) {
             if (currentUrl.equals(web.getUrl())) {
                 pageReady = false; failed = false; loading = true; status.setText("Loading…"); web.reload(); updateControls();
@@ -285,7 +317,7 @@ public class NotebookBrowserActivity extends NotebookActivity {
         final String url = web.getUrl(), pageTitle = web.getTitle();
         final long version = navigation;
         final long attempt = ++saveSequence;
-        saving = true; updateControls(); status.setText("Saving offline copy…");
+        saving = true; updateControls(); status.setVisibility(View.VISIBLE); status.setText("Saving offline copy…");
         archiveTimeout = () -> {
             if (attempt != saveSequence || !saving) return;
             NotebookWebsites.Pending pending = pendingSave;
@@ -340,6 +372,7 @@ public class NotebookBrowserActivity extends NotebookActivity {
         cancelArchiveTimeout(); pendingSave = null; saving = false;
         if (isDestroyed()) return;
         updateControls();
+        status.setVisibility(error != null || entry != null && entry.missing > 0 ? View.VISIBLE : View.GONE);
         if (error != null) { status.setText("Page was not saved · tap Save to retry"); if (resumed) message("Couldn’t save website", error.getMessage()); }
         else {
             status.setText("Saved to Saved websites · available offline" + (entry.missing > 0 ? " · " + entry.missing + " resources unavailable" : ""));
@@ -350,6 +383,13 @@ public class NotebookBrowserActivity extends NotebookActivity {
     private final class BrowserClient implements NotebookBrowserEngine.Listener {
         private final String owner;
         BrowserClient(String owner) { this.owner = owner; }
+        @Override public void onScrollChanged(NotebookBrowserEngine view, int x, int y) {
+            if (view != web || !offline || !readingPositionReady) return;
+            content.removeCallbacks(saveReadingPosition); content.postDelayed(saveReadingPosition, 800);
+        }
+        @Override public void onUserInteraction(NotebookBrowserEngine view) {
+            if (view == web && pageReady) { cancelScrollRestore(); readingPositionReady = true; }
+        }
         private void remember(NotebookBrowserEngine view, String url) {
             if (!offline) { NotebookBrowserTabs.Tab tab = tabs.find(owner); if (tab != null && NotebookBrowserAddress.isWebUrl(url)) { tab.url = url; if (view.getTitle() != null && !view.getTitle().isEmpty()) tab.title = view.getTitle(); rememberTabs(); } }
         }
@@ -381,8 +421,10 @@ public class NotebookBrowserActivity extends NotebookActivity {
         }
 
         @Override public void onPageStarted(NotebookBrowserEngine view, String url) {
-            remember(view, url); PageState state = pageState(view); state.loading = true; state.ready = false; state.failed = false;
+            remember(view, url); PageState state = pageState(view); state.loading = true; state.ready = false; state.failed = false; state.starts++;
             if (view != web || home) return;
+            if (scrollRestore != null) cancelScrollRestore();
+            readingPositionReady = false;
             ++navigation; loading = true; failed = false; pageReady = false;
             hint.setVisibility(View.GONE);
             if (!offline && NotebookBrowserAddress.isWebUrl(url)) { currentUrl = url; address.setText(url); }
@@ -406,10 +448,7 @@ public class NotebookBrowserActivity extends NotebookActivity {
                 ? "Offline copy · " + DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(new Date(savedPage.savedAt))
                     + (savedPage.missing > 0 ? " · " + savedPage.missing + " resources unavailable" : "")
                 : view.getTitle());
-            if (restoreX != 0 || restoreY != 0) {
-                final int x = restoreX, y = restoreY; restoreX = restoreY = 0;
-                view.post(() -> { if (web == view && !isDestroyed()) view.scrollPageTo(x, y); });
-            }
+            if (restoreScroll) restoreReadingPosition(view, 0); else if (offline) readingPositionReady = true;
             updateControls();
             if (pageReady) { schedulePreview(); onBrowserDocumentReady(); }
         }
@@ -447,6 +486,11 @@ public class NotebookBrowserActivity extends NotebookActivity {
 
     protected final View browserDebugRoot() { return shownDialog != null && shownDialog.isShowing() ? shownDialog.getWindow().getDecorView() : getWindow().getDecorView(); }
     protected void onBrowserDocumentReady() { }
+    protected final void browserDebugScrollTo(int x, int y) {
+        if ((getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0 && web != null) {
+            cancelScrollRestore(); readingPositionReady = true; web.scrollPageTo(x, y);
+        }
+    }
     protected final void probeBrowser(java.util.function.Consumer<org.json.JSONObject> callback) {
         if ((getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) == 0) { callback.accept(null); return; }
         java.util.function.Consumer<org.json.JSONObject> result = stats -> {
@@ -455,6 +499,9 @@ public class NotebookBrowserActivity extends NotebookActivity {
                 value.put("home", home).put("tabCount", tabs.items.size()).put("selectedTab", tabs.current().id);
                 org.json.JSONArray tabValues = new org.json.JSONArray(); for (NotebookBrowserTabs.Tab tab : tabs.items) tabValues.put(new org.json.JSONObject().put("id", tab.id).put("url", tab.url).put("title", tab.title).put("home", tab.home)); value.put("tabs", tabValues);
                 value.put("nativeUrl", web == null ? "" : web.getUrl()).put("offline", offline).put("pageReady", pageReady)
+                    .put("browserActivity", System.identityHashCode(this)).put("browserEngine", web == null ? 0 : System.identityHashCode(web))
+                    .put("pageStarts", web == null ? 0 : pageState(web).starts).put("readingPositionReady", readingPositionReady)
+                    .put("tabsDialogOpen", tabRows != null && shownDialog != null && shownDialog.isShowing())
                     .put("nativeLoading", loading).put("saveAvailable", save.isAvailable())
                     .put("canGoBack", canHistory(false)).put("canGoForward", canHistory(true));
                 if (web != null) value.put("nativeScrollY", web.pageScrollY()).put("pageWidth", web.getWidth()).put("pageHeight", web.getHeight());
@@ -524,9 +571,18 @@ public class NotebookBrowserActivity extends NotebookActivity {
         super.onResume(); resumed = true;
         if (offline && web == null && archiveUrl != null && !NotebookBrowserData.clearing()) { createWebView(); if (web != null) web.loadUrl(archiveUrl); }
         if (web != null && !home) web.onResume();
-        if (!offline && home) showHome(false);
+        if (!offline && home) refreshHome();
+    }
+
+    @Override public void onConfigurationChanged(Configuration configuration) {
+        super.onConfigurationChanged(configuration);
+        browserWorkspaceResized();
+        // Keep every live engine and document. The existing note/Gecko size callbacks relayout their surfaces.
+        if (tabRows != null && tabScroll != null) renderTabs();
+        if (shownDialog != null && tabRows != null) shownDialog.getWindow().setLayout(dp(tabDialogWidth()), -2);
     }
     @Override protected void onPause() {
+        content.removeCallbacks(saveReadingPosition); saveReadingPosition();
         if (!offline && !home && web != null && pageReady) NotebookBrowserPreviews.remember(this, web);
         resumed = false;
         // A dictionary bubble pauses this Activity while the page is still visible.
@@ -549,13 +605,14 @@ public class NotebookBrowserActivity extends NotebookActivity {
         state.putBoolean("startupHome", startupHome);
         if (!offline) { state.putBundle("tabs", saveTabs()); rememberTabs(); }
         if (web != null) {
-            state.putInt("scrollX", web.pageScrollX()); state.putInt("scrollY", web.pageScrollY());
+            state.putInt("scrollX", restoreScroll ? restoreX : web.pageScrollX()); state.putInt("scrollY", restoreScroll ? restoreY : web.pageScrollY());
             Bundle history = new Bundle(); web.saveState(history); state.putBundle("browserHistory", history);
         }
         super.onSaveInstanceState(state);
     }
 
     @Override protected void onDestroy() {
+        if (content != null) { content.removeCallbacks(saveReadingPosition); cancelScrollRestore(); }
         if (content != null && previewUpdate != null) content.removeCallbacks(previewUpdate);
         NotebookBrowserData.removeOwner(dataReset);
         ++saveSequence; cancelArchiveTimeout();
@@ -593,17 +650,21 @@ public class NotebookBrowserActivity extends NotebookActivity {
         if (offline || saving) return;
         if (web != null && !home) NotebookBrowserPreviews.remember(this, web);
         home = true; if (!startupHome) tabs.current().home = true; if (web != null) { web.onPause(); web.setVisibility(View.GONE); }
-        hint.setVisibility(View.GONE); startPage.setVisibility(View.VISIBLE); address.setText(""); title.setText("Browser"); status.setText("Start page · " + tabs.items.size() + " tabs");
+        hint.setVisibility(View.GONE); startPage.setVisibility(View.VISIBLE); address.setText(""); title.setText("Browser"); status.setVisibility(View.GONE);
         loading = false; pageReady = false; if (collapse) collapseWorkspaceTools(true); refreshHome(); updateControls(); updateTabButton();
     }
     private void showCurrentPage() {
         if (web == null) { navigate(tabs.current().url); return; }
         home = false; tabs.current().home = false; startPage.setVisibility(View.GONE); hint.setVisibility(View.GONE); web.setVisibility(View.VISIBLE);
-        currentUrl = web.getUrl(); address.setText(currentUrl); PageState state = pageState(web); pageReady = state.ready; loading = state.loading; failed = state.failed; status.setText(loading ? "Loading…" : failed ? "Couldn’t load this page. Tap Reload to retry." : web.getTitle()); if (resumed) web.onResume(); updateControls(); updateTabButton();
+        currentUrl = web.getUrl(); address.setText(currentUrl); PageState state = pageState(web); pageReady = state.ready; loading = state.loading; failed = state.failed; status.setVisibility(View.GONE); if (resumed) web.onResume(); updateControls(); updateTabButton();
     }
     private void updateTabButton() { if (tabButton != null) tabButton.setCount(tabs.items.size()); if (!offline) rememberTabs(); }
     private void activateTab(String id) {
         if (waitForSave()) return;
+        if (id.equals(tabs.current().id) && !startupHome && !home && !tabs.current().home
+                && web != null && engines.get(id) == web) {
+            updateTabButton(); return;
+        }
         startupHome = false;
         if (web != null && !home) NotebookBrowserPreviews.remember(this, web);
         if (web != null) { web.onPause(); web.setVisibility(View.GONE); }
@@ -614,19 +675,34 @@ public class NotebookBrowserActivity extends NotebookActivity {
     private void showTabs() {
         if (offline || waitForSave()) return;
         if (web != null && !home) NotebookBrowserPreviews.remember(this, web);
+        if (tabRows != null && shownDialog != null && shownDialog.isShowing()) { renderTabs(); return; }
+        if (shownDialog != null) shownDialog.dismiss();
+        tabRows = NotebookBrowserUi.column(this);
+        tabRows.setPadding(dp(16), dp(8), dp(16), dp(8));
+        tabScroll = new android.widget.ScrollView(this); tabScroll.setOverScrollMode(View.OVER_SCROLL_NEVER); tabScroll.addView(tabRows);
+        AlertDialog picker = new AlertDialog.Builder(this).setTitle("Tabs").setView(tabScroll).setNegativeButton("Done", null).create();
+        shownDialog = picker;
+        picker.setOnDismissListener(dialog -> { if (shownDialog == picker) { tabRows = null; tabScroll = null; shownDialog = null; } });
+        renderTabs(); NotebookUi.show(picker); picker.getWindow().setLayout(dp(tabDialogWidth()), -2);
+    }
+
+    private int tabDialogWidth() { return Math.max(1, Math.min(getResources().getConfiguration().screenWidthDp - 32, 760)); }
+
+    private void renderTabs() {
+        if (tabRows == null || tabScroll == null) return;
+        LinearLayout rows = tabRows; android.widget.ScrollView scroll = tabScroll;
+        int scrollY = scroll.getScrollY(); rows.removeAllViews();
         boolean thumbnails = getSharedPreferences("browser-ui", MODE_PRIVATE).getBoolean("tabsThumbnails", false);
-        int dialogWidth = Math.min(getResources().getConfiguration().screenWidthDp - 32, 760);
+        int dialogWidth = tabDialogWidth();
         int columns = Math.max(1, Math.min(3, (dialogWidth - 32) / 224)), at = 0;
         LinearLayout thumbnailRow = null;
-        LinearLayout rows = NotebookBrowserUi.column(this);
-        rows.setPadding(dp(16), dp(8), dp(16), dp(8));
         LinearLayout heading = new LinearLayout(this); heading.setGravity(Gravity.CENTER_VERTICAL);
         TextView count = label(tabs.items.size() + " of " + NotebookBrowserTabs.MAX + " open", 14);
         heading.addView(count, new LinearLayout.LayoutParams(0, dp(48), 1));
         heading.addView(icon(thumbnails ? NotebookIconDrawable.Icon.OUTLINE : NotebookIconDrawable.Icon.OVERVIEW,
             thumbnails ? "Show tabs as list" : "Show tab thumbnails", () -> {
                 getSharedPreferences("browser-ui", MODE_PRIVATE).edit().putBoolean("tabsThumbnails", !thumbnails).apply();
-                shownDialog.dismiss(); showTabs();
+                renderTabs();
             }), NotebookBrowserUi.beside(this, 48, 48));
         NotebookBrowserIconButton add = icon(NotebookIconDrawable.Icon.PLUS, "New tab", () -> { if (shownDialog != null) shownDialog.dismiss(); try { NotebookBrowserTabs.Tab tab = tabs.add(); activateTab(tab.id); } catch (IllegalStateException error) { message("Tabs", error.getMessage()); } });
         add.setAvailable(tabs.items.size() < NotebookBrowserTabs.MAX);
@@ -664,15 +740,17 @@ public class NotebookBrowserActivity extends NotebookActivity {
         if (thumbnails && thumbnailRow != null && at % columns != 0) for (int i = at % columns; i < columns; i++) {
             LinearLayout.LayoutParams size = new LinearLayout.LayoutParams(0, 1, 1); size.setMarginStart(dp(10)); thumbnailRow.addView(new View(this), size);
         }
-        android.widget.ScrollView scroll = new android.widget.ScrollView(this); scroll.setOverScrollMode(View.OVER_SCROLL_NEVER); scroll.addView(rows); shownDialog = new AlertDialog.Builder(this).setTitle("Tabs").setView(scroll).setNegativeButton("Done", null).create(); NotebookUi.show(shownDialog);
-        shownDialog.getWindow().setLayout(dp(dialogWidth), -2);
+        scroll.post(() -> { if (tabScroll == scroll) scroll.scrollTo(0, scrollY); });
     }
 
     private void closeTab(String id) {
-        if (shownDialog != null) shownDialog.dismiss();
+        if (tabs.find(id) == null) return;
+        boolean selected = id.equals(tabs.current().id);
         NotebookBrowserEngine page = engines.remove(id);
         if (page != null) { content.removeView(page); page.destroy(); pageStates.remove(page); if (web == page) web = null; }
-        tabs.close(id); activateTab(tabs.current().id);
+        tabs.close(id);
+        if (selected) activateTab(tabs.current().id); else updateTabButton();
+        renderTabs();
     }
     private Bundle saveTabs() {
         Bundle value = new Bundle(); java.util.ArrayList<String> ids = new java.util.ArrayList<>(), urls = new java.util.ArrayList<>(), titles = new java.util.ArrayList<>(); boolean[] starts = new boolean[tabs.items.size()];
