@@ -9,6 +9,8 @@ tablet. Installing a new signed Scriflow APK is how a new engine reaches it.
   `org.mozilla.geckoview:geckoview` dependency in Mozilla's Maven repository.
   Update PRs are assigned to `xing-phys`. Beta and Nightly use different artifact
   names and are not selected. Other dependencies are outside this configuration.
+  Mozilla's public Maven host is explicitly declared as an anonymous registry
+  for Dependabot's network allowlist; it does not need registry credentials.
 - **Daily at 08:23 Asia/Shanghai:** the **Browser security advisories** workflow
   checks Mozilla's advisory index. New Firefox or Firefox for Android fixes newer
   than the bundled engine's release version create assigned applicability-review

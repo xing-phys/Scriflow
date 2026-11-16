@@ -1,7 +1,13 @@
 version: 2
+registries:
+  mozilla:
+    type: maven-repository
+    url: https://maven.mozilla.org/maven2
 updates:
   - package-ecosystem: gradle
     directory: /
+    registries:
+      - mozilla
     schedule:
       interval: weekly
       day: monday
