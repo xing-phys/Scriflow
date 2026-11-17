@@ -4,10 +4,24 @@ Scriflow is designed for Huawei MatePad Paper HMW-W09 on Android 10/API 29,
 firmware `HMW-W09 2.1.0.222(C00E170R1P8)`. Other devices and firmware have not
 been verified. See the [README](../README.md) for installation and current limits.
 
-This guide follows alpha prerelease **0.40.0-alpha.11**; the published stable release is
+This guide follows alpha prerelease **0.43.0-alpha.1**; the published stable release is
 **0.33.2**. This build reads older notes; ordinary edits use page format 8 and
 individually sized Markdown uses format 9. Older APKs cannot read formats they
 do not support. Physical checks of this exact APK remain pending.
+
+## Cast to your Mac or another browser
+
+Connect the tablet and viewer to the same trusted Wi-Fi. Open **Settings →
+Screen cast → Screen cast to a browser…**, set or generate a password, and tap
+**Start casting**. Approve Android's capture prompt. Open the complete
+**http://IP:port/** address shown on the tablet in the other device's browser,
+then enter the password. Return to a note or reading page on the tablet to share.
+
+Multiple browsers can watch independently. The viewer is read-only. Settings
+and cast controls stay private; leaving Scriflow pauses the feed. Use **Stop
+casting** in the panel or notification to end all sessions. Turning the screen
+off or losing Wi-Fi stops casting. HTTP is not encrypted; use trusted Wi-Fi.
+See [Screen cast](screen-cast.md) for connection help and limits.
 
 ## Notebooks and pages
 

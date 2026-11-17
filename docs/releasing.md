@@ -46,6 +46,17 @@ it does not arbitrarily change the patch number or signing identity.
 
 ## Before publishing
 
+**0.43.0-alpha.1** (versionCode **117**) adds password-protected local Wi-Fi
+screen casting. Validate real-socket authentication, independent browser
+sessions, expiry, throttling, malformed requests and stale encoders; the
+bundled viewer in desktop/mobile Chromium; actual Android consent, capture,
+rotation, private Settings, background/focus pause, Stop, Wi-Fi loss and
+screen-off cleanup. Run host regressions and Android lint/builds, then use
+the permanent release key through `scripts/build-release.sh`. Commit/push and
+publish the verified signed APK/checksum as an alpha before owner testing;
+retain 0.33.2 Latest stable. Disclose trusted-Wi-Fi HTTP, view-only/IPv4 scope,
+and pending physical Huawei ink, performance, Safari and real LAN acceptance.
+
 **0.42.0-alpha.3** (versionCode **116**) puts ebooks on the main shelf and uses
 native floating corner bars plus the movable icon toolbox. Validate existing
 imports without reimport, list/thumbnail modes, mixed selection, name/folder/

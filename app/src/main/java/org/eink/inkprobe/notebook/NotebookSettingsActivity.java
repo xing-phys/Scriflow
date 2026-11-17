@@ -35,6 +35,12 @@ public final class NotebookSettingsActivity extends NotebookDisplayActivity {
         scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
         LinearLayout body = column();
 
+        section(body, "Screen cast");
+        body.addView(button("Screen cast to a browser…", () -> {
+            startActivity(new android.content.Intent(this, NotebookCastActivity.class)); overridePendingTransition(0, 0);
+        }), new LinearLayout.LayoutParams(-1, dp(40)));
+        hint(body, "Share Scriflow on the same Wi-Fi with a password. Open the tablet's address on your Mac, phone or tablet.");
+
         aiSettings=new NotebookAiSettingsSection(this, body);
 
         section(body, "Text size");
@@ -164,6 +170,7 @@ public final class NotebookSettingsActivity extends NotebookDisplayActivity {
     }
 
     @Override protected void onResume() { super.onResume(); updateChoices(); }
+    @Override protected boolean allowScreenCast() { return false; }
     @Override protected void onPause() { if (aiSettings!=null) aiSettings.cancelModels(); super.onPause(); }
 
     private void updateChoices() {

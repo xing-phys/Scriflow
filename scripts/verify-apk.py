@@ -39,6 +39,7 @@ DIAGNOSTICS = {PACKAGE + '.MainActivity', PACKAGE + '.notebook.NotebookSelfTestA
 # Microphone and Android-10 storage access are requested at runtime. The file
 # manager uses the special All files access setting on newer Android versions.
 PERMISSIONS = {'android.permission.ACCESS_NETWORK_STATE', 'android.permission.INTERNET',
+               'android.permission.FOREGROUND_SERVICE', 'android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION',
                'android.permission.RECORD_AUDIO',
                'android.permission.READ_EXTERNAL_STORAGE', 'android.permission.WRITE_EXTERNAL_STORAGE',
                'android.permission.MANAGE_EXTERNAL_STORAGE',
@@ -245,6 +246,14 @@ def verify_manifest(manifest, badging, variant, version):
     names = [component_name(component) for component in components]
     require(all(names) and len(names) == len(set(names)), 'Missing or duplicate component names.')
     require(NOTEBOOK_SCREENS <= set(names), 'Missing a production notebook screen.')
+    cast_service = next((item for item in components if component_name(item) == PACKAGE + '.notebook.NotebookCastService'), None)
+    require(cast_service is not None and cast_service.tag == 'service'
+            and cast_service.attributes.get('android:exported') == 0
+            and cast_service.attributes.get('android:foregroundServiceType') == 32,
+            'Screen capture requires an unexported mediaProjection foreground service.')
+    cast_screen = next((item for item in components if component_name(item) == PACKAGE + '.notebook.NotebookCastActivity'), None)
+    require(cast_screen is not None and cast_screen.tag == 'activity' and cast_screen.attributes.get('android:exported') == 0,
+            'Casting controls must be private to the app.')
     file_provider = next((item for item in components if component_name(item) == PACKAGE + '.notebook.NotebookFileProvider'), None)
     require(file_provider is not None and file_provider.tag == 'provider'
             and file_provider.attributes.get('android:exported') == 0
@@ -368,6 +377,9 @@ def main():
         verify_manifest(manifest, badging, args.variant, version)
         with zipfile.ZipFile(args.apk) as package:
             require('assets/LICENSE' in package.namelist(), 'APK is missing its MIT license notice.')
+            for name in ('index.html', 'viewer.js', 'viewer.css'):
+                require(package.read('assets/cast/' + name) == (ROOT / 'app/src/main/assets/cast' / name).read_bytes(),
+                        'APK cast viewer differs from its source: ' + name)
             require(package.read('assets/LICENSE') == (ROOT / 'LICENSE').read_bytes(),
                     'Packaged license differs from the project LICENSE.')
             require('assets/markdown-assets.sha256.json' in package.namelist(), 'APK is missing its offline Markdown assets.')

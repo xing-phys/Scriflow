@@ -62,15 +62,24 @@ public abstract class NotebookDisplayActivity extends Activity implements Notebo
         displayResumed = true; refreshDisplayOrientation();
         refreshScreenOn();
         if (headerStatus != null) headerStatus.start();
+        NotebookCastService.resumed(this);
     }
 
     @Override protected void onPause() {
+        NotebookCastService.paused(this);
         displayResumed = false;
         refreshScreenOn();
         if (headerStatus != null) headerStatus.stop();
         orientationSensor.disable(); rotationHandler.removeCallbacks(rotateWhenSettled); rotation.reset();
         super.onPause();
     }
+
+    @Override public void onWindowFocusChanged(boolean focused) {
+        super.onWindowFocusChanged(focused);
+        NotebookCastService.focusChanged(this);
+    }
+
+    protected boolean allowScreenCast() { return true; }
 
     @Override public void onTrimMemory(int level) {
         super.onTrimMemory(level);

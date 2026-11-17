@@ -16,6 +16,15 @@ optional worker, independently of the ink writer; screen-resolution PDF tiles
 apply contrast after rasterization. A transparent Eudic pause retains the
 paused native surface; a full stop releases it.
 
+Version 0.43 adds [local screen casting](screen-cast.md). An unexported
+MediaProjection foreground service captures only while a shareable Scriflow
+screen has app-owned window focus. It detaches the capture surface on pause,
+revokes asynchronous frame ownership, and performs JPEG encoding on a background
+thread. A Wi-Fi-bound, bounded HTTP server authenticates each browser using
+session cookies. Cast credentials and frames remain in memory; capture has no
+document-writing or remote-control path. Screen-off and network changes end
+the session. The local HTTP transport requires trusted Wi-Fi.
+
 ## Decisions and ownership
 
 - Keep Java 8 and Android Views. Live handwriting remains the validated Huawei native path.

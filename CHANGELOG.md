@@ -6,6 +6,22 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.43.0-alpha.1 — Password-protected Wi-Fi screen cast (2026-11-17)
+
+- Start a local, view-only screen cast from Settings and open the displayed
+  address in a Mac, phone or tablet browser on the same Wi-Fi.
+- Set or generate a session password. Each browser signs in independently;
+  Stop ends every session. No viewer app, cloud service or Internet is required.
+- Capture the composed app display with Android consent, background JPEG
+  encoding, portrait/landscape resizing and a persistent Stop notification.
+- Keep Settings/cast controls private, clear frames when leaving the app or
+  losing app focus, and stop on display off or Wi-Fi loss/address changes.
+- Bind only to Wi-Fi IPv4; bound HTTP requests, sessions and workers, throttle
+  password guessing, and reject foreign Host/Origin requests. HTTP is not
+  encrypted: use trusted Wi-Fi. Notebook and backup formats are unchanged.
+- VersionCode 117; physical Huawei native ink, e-ink performance, Safari and
+  cross-device Wi-Fi acceptance remain pending. See [Screen cast](docs/screen-cast.md).
+
 ## 0.42.0-alpha.3 — Unified shelf and floating ebook controls (2026-11-17)
 
 - Show existing/imported ebooks directly alongside notebooks and PDFs on the

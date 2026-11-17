@@ -6,6 +6,24 @@ uses Android's `INTERNET` permission to contact the provider you configure when
 you explicitly send/retry a chat message or fetch/add models. Ordinary notebook editing and
 Markdown rendering do not make network requests. The optional
 [Browser](browser.md) contacts the websites and resources you visit.
+Optional [Screen cast](screen-cast.md) serves the visible Scriflow screen to
+password-authorized browsers on the connected Wi-Fi while casting is on.
+
+## Local screen casting
+
+Casting starts only from its controls after Android capture consent, with a
+persistent notification and Stop action. It uses the tablet's Wi-Fi IPv4
+address and a local HTTP server. The password is an access gate; **HTTP does
+not encrypt passwords, session cookies or screen images against traffic
+interception**. Use a trusted network. No cast data is sent to a cloud service.
+
+Passwords, random browser sessions and the latest JPEG remain in memory only.
+Settings and cast controls are excluded. Leaving the app or losing app window
+focus clears the feed; returning resumes. Display off/lock, Wi-Fi loss/address
+changes and Stop close the session. Other visible app content, including
+private notes, AI replies or signed-in websites, is shared with authorized
+viewers. The viewer is read-only and does not receive notebook files or remote
+control. Each new cast requires fresh authorization. See the [cast guide](screen-cast.md).
 
 ## Notes and settings
 
