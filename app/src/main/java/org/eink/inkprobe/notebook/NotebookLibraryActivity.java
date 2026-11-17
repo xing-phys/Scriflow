@@ -92,6 +92,10 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         addShortcut(shortcuts, "Restore backup", NotebookIconDrawable.Icon.RETRY, () -> transfer(true, 0));
         addShortcut(shortcuts, "AI chat", NotebookIconDrawable.Icon.AI_CHAT, this::openAiChat);
         addShortcut(shortcuts, "Browser", NotebookIconDrawable.Icon.BROWSER, this::openBrowser);
+        addShortcut(shortcuts, "Files", NotebookIconDrawable.Icon.FOLDER, () -> {
+            if (!canAct()) return;
+            startActivity(new Intent(this, NotebookFilesActivity.class)); overridePendingTransition(0, 0);
+        });
         root.addView(shortcuts);
         LinearLayout navigation = new LinearLayout(this); navigation.setGravity(Gravity.CENTER_VERTICAL);
         NotebookButton home = button("Bookshelf", () -> navigate(0, false));

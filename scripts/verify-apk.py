@@ -28,15 +28,18 @@ PDF_IMPORT = PACKAGE + '.notebook.NotebookPdfImportActivity'
 NOTEBOOK_SCREENS = {PACKAGE + '.notebook.' + name for name in (
     'NotebookLibraryActivity', 'NotebookActivity', 'NotebookAiActivity', 'NotebookSettingsActivity',
     'NotebookBrowserActivity', 'NotebookWebsitesActivity', 'NotebookBrowserBookmarksActivity',
-    'NotebookBrowserHistoryActivity', 'NotebookBrowserDataActivity',
+    'NotebookBrowserHistoryActivity', 'NotebookBrowserDataActivity', 'NotebookFilesActivity',
     'NotebookTransferActivity', 'NotebookPdfExportActivity', 'NotebookPdfImportActivity')}
 DIAGNOSTICS = {PACKAGE + '.MainActivity', PACKAGE + '.notebook.NotebookSelfTestActivity',
                PACKAGE + '.notebook.NotebookBrowserSelfTestActivity', PACKAGE + '.notebook.NotebookBrowserDataSelfTestActivity',
                PACKAGE + '.notebook.NotebookBrowserOverlaySelfTestActivity'}
 # Gecko's standard runtime permissions support media/audio and its process services.
-# Microphone access is requested at runtime; camera, location and external storage remain undeclared.
+# Microphone and Android-10 storage access are requested at runtime. The file
+# manager uses the special All files access setting on newer Android versions.
 PERMISSIONS = {'android.permission.ACCESS_NETWORK_STATE', 'android.permission.INTERNET',
                'android.permission.RECORD_AUDIO',
+               'android.permission.READ_EXTERNAL_STORAGE', 'android.permission.WRITE_EXTERNAL_STORAGE',
+               'android.permission.MANAGE_EXTERNAL_STORAGE',
                'android.permission.WAKE_LOCK', 'android.permission.MODIFY_AUDIO_SETTINGS',
                PACKAGE + '.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION'}
 COMPONENTS = {'activity', 'activity-alias', 'service', 'receiver', 'provider'}
@@ -215,6 +218,8 @@ def verify_manifest(manifest, badging, variant, version):
     require(bool(application.attributes.get('android:debuggable', 0)) == (variant == 'debug'),
             f'Expected debuggable={str(variant == "debug").lower()} for {variant}.')
     require(application.attributes.get('android:allowBackup') == 0, 'Automatic Android backup must remain disabled.')
+    require(bool(application.attributes.get('android:requestLegacyExternalStorage', 0)),
+            'Android 10 file management requires legacy shared storage access.')
     require(application.attributes.get('android:usesCleartextTraffic') == 0, 'AI credentials must use HTTPS; cleartext traffic must be disabled.')
     require('android:icon' in application.attributes, 'Missing launcher icon.')
     labels = re.findall(r"^application-label(?:-[^:]+)?:'([^']*)'$", badging, re.MULTILINE)
@@ -225,6 +230,11 @@ def verify_manifest(manifest, badging, variant, version):
     permissions = {element.attributes.get('android:name') for element in manifest.walk()
                    if element.tag.startswith('uses-permission')}
     require(permissions == PERMISSIONS, f'Unexpected permissions: {sorted(permissions, key=str)}; expected {sorted(PERMISSIONS)}.')
+    for element in manifest.walk():
+        if element.tag == 'uses-permission' and element.attributes.get('android:name') in {
+                'android.permission.READ_EXTERNAL_STORAGE', 'android.permission.WRITE_EXTERNAL_STORAGE'}:
+            require(element.attributes.get('android:maxSdkVersion') == 29,
+                    'Legacy file permissions must apply only to Android 10; newer systems use All files access.')
     microphones = [child for child in manifest.children if child.tag == 'uses-feature'
                    and child.attributes.get('android:name') == 'android.hardware.microphone']
     require(len(microphones) == 1 and microphones[0].attributes.get('android:required') == 0,
@@ -233,6 +243,12 @@ def verify_manifest(manifest, badging, variant, version):
     names = [component_name(component) for component in components]
     require(all(names) and len(names) == len(set(names)), 'Missing or duplicate component names.')
     require(NOTEBOOK_SCREENS <= set(names), 'Missing a production notebook screen.')
+    file_provider = next((item for item in components if component_name(item) == PACKAGE + '.notebook.NotebookFileProvider'), None)
+    require(file_provider is not None and file_provider.tag == 'provider'
+            and file_provider.attributes.get('android:exported') == 0
+            and bool(file_provider.attributes.get('android:grantUriPermissions'))
+            and file_provider.attributes.get('android:authorities') == PACKAGE + '.tabletfiles',
+            'Shared files must use an unexported provider with individual URI grants.')
     for component in components:
         if component_name(component) in NOTEBOOK_SCREENS:
             # ActivityInfo.SCREEN_ORIENTATION_BEHIND is 3: preserve direction while launching.

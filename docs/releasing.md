@@ -46,6 +46,15 @@ it does not arbitrarily change the patch number or signing identity.
 
 ## Before publishing
 
+**0.41.0-alpha.1** (versionCode **113**) adds a shared-storage file manager.
+Validate real-file copy/move/rename/delete, collision preflight, cancellation,
+Unicode and hidden files, root boundaries and symbolic links, plus Android 10
+permission denial/grant, navigation, selection, rotation and open/share flows.
+Build with the permanent key through `scripts/build-release.sh`, verify the
+pinned certificate, and publish the signed APK/checksum as an alpha before
+owner testing. Keep 0.33.2 Latest stable. Physical Huawei storage permissions,
+removable storage and e-ink acceptance remain pending. See [Tablet files](file-manager.md).
+
 **0.37.0-alpha.3** (versionCode **91**) protects native handwriting across rapid
 strokes and pending native completions. Hold optional paper/history/chat/clock/
 inactive-note updates until a 300 ms quiet interval, coalesce obsolete notices,
@@ -312,9 +321,9 @@ build unsigned release APKs without possessing the permanent key.
 
 ## Version numbers
 
-The current prerelease is **0.40.0-alpha.10**, Android `versionCode` **110**,
-preserving live browser sessions on rotation, restoring saved reading positions,
-keeping the tab picker open after closes, and coordinating note/chat/tool layers. It retains the
+The current prerelease is **0.41.0-alpha.1**, Android `versionCode` **113**,
+adding shared tablet file management while preserving the PDF import, browser
+continuity, saved reading positions and coordinated note/chat/tool layers. It retains the
 existing notebook/backup formats (8, or 9 for individually sized Markdown) and
 chat archive compatibility from 0.39. New website snapshots use self-contained HTML and NWS2 metadata, outside
 notebook backups; NWS1/MHTML archives remain readable. Versions 1–7 remain readable
@@ -390,16 +399,16 @@ and [Android versioning](https://developer.android.com/studio/publish/versioning
    The helper runs release lint and assembly, copies the candidate privately,
    verifies those exact bytes and the configured signing certificate, then
    stages a versioned APK and SHA-256 checksum under
-   `build/releases/`. For this release these are `scriflow-0.40.0-alpha.10.apk` and
-   `scriflow-0.40.0-alpha.10.apk.sha256`. Debugging is disabled, diagnostic screens are
-   absent from the manifest, and the library is the only exported component.
+   `build/releases/`. For this release these are `scriflow-0.41.0-alpha.1.apk` and
+   `scriflow-0.41.0-alpha.1.apk.sha256`. Debugging is disabled, diagnostic screens are
+   absent from the manifest, and only the library and PDF import are exported.
 
 4. Compare the printed signer certificate SHA-256 with the intended permanent
    certificate. For later builds, pin that known digest during verification:
 
    ```bash
-   python3 scripts/verify-apk.py build/releases/scriflow-0.40.0-alpha.10.apk --certificate-sha256 YOUR_KNOWN_CERTIFICATE_SHA256
-   (cd build/releases && sha256sum -c scriflow-0.40.0-alpha.10.apk.sha256)
+   python3 scripts/verify-apk.py build/releases/scriflow-0.41.0-alpha.1.apk --certificate-sha256 YOUR_KNOWN_CERTIFICATE_SHA256
+   (cd build/releases && sha256sum -c scriflow-0.41.0-alpha.1.apk.sha256)
    ```
 
    Substitute the current version and the actual known digest. The APK file's
@@ -407,7 +416,7 @@ and [Android versioning](https://developer.android.com/studio/publish/versioning
    things; publish both clearly in the release notes.
 
 The verifier checks version, application ID, API 29, Scriflow label/icon,
-the exact networking/Gecko/AndroidX permission set, disabled cleartext traffic
+the exact networking/storage/Gecko/AndroidX permission set, disabled cleartext traffic
 and automatic backup, bundled engine and capture assets,
 component exposure, debugging state, and cryptographic signature validity.
 Those checks do not establish the tablet behaviors below.

@@ -26,8 +26,15 @@ pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
 stays in front, window operations retain the main editor, and PDF import opens
 the file picker directly before opening the imported note.
 
-The **[0.40.0-alpha.12 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.40.0-alpha.12)**
-opens PDFs from Android's **Open with** and **Share** menus, accepts readable
+The **[0.41.0-alpha.1 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.41.0-alpha.1)**
+adds **Files** on the bookshelf to browse and manage shared tablet storage.
+Open internal storage, available SD/USB drives or common folders; search, sort,
+multi-select, copy, move, rename, create folders, delete with confirmation,
+and open/share files with installed apps. Storage access is requested when
+opening Files. PDFs open directly in Scriflow. See [Tablet files](docs/file-manager.md)
+for controls and limits. Physical tablet acceptance remains pending.
+
+It retains opening PDFs from Android's **Open with** and **Share** menus, accepts readable
 owner-encrypted PDFs, and imports files up to 2 GiB with copy progress and free
 storage checks. Geometry, outline, links and selected-page text no longer load
 every image, font and attachment before reading. The one-time private copy keeps

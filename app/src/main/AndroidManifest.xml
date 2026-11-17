@@ -3,9 +3,16 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+    <!-- Files is a user-initiated shared-storage file manager. Newer Android
+         versions grant this through their dedicated All files access setting. -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:ignore="ScopedStorage" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
-    <application android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:theme="@style/ScriflowTheme" android:allowBackup="false" android:usesCleartextTraffic="false" android:supportsRtl="true">
+    <application android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:theme="@style/ScriflowTheme" android:allowBackup="false" android:usesCleartextTraffic="false" android:supportsRtl="true" android:requestLegacyExternalStorage="true">
         <provider android:name=".notebook.NotebookClipboardProvider" android:authorities="${applicationId}.noteclipboard"
+            android:exported="false" android:grantUriPermissions="true" />
+        <provider android:name=".notebook.NotebookFileProvider" android:authorities="${applicationId}.tabletfiles"
             android:exported="false" android:grantUriPermissions="true" />
         <!-- This optional dependency entry is removed, never instantiated. -->
         <receiver android:name="androidx.profileinstaller.ProfileInstallReceiver" tools:node="remove" tools:ignore="MissingClass" />
@@ -23,6 +30,7 @@
         <activity android:name=".notebook.NotebookBrowserHistoryActivity" android:exported="false" android:screenOrientation="behind" />
         <activity android:name=".notebook.NotebookBrowserDataActivity" android:exported="false" android:screenOrientation="behind" />
         <activity android:name=".notebook.NotebookWebsitesActivity" android:exported="false" android:screenOrientation="behind" />
+        <activity android:name=".notebook.NotebookFilesActivity" android:exported="false" android:screenOrientation="behind" />
         <!-- File pickers can temporarily force a different orientation. Keep the
              transfer owner and its outstanding result intact across that change. -->
         <activity android:name=".notebook.NotebookMediaActivity" android:exported="false" android:screenOrientation="behind" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden" />

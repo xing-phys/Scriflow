@@ -10,6 +10,7 @@ rm -rf build/host-tests
 mkdir -p build/host-tests
 python3 -m unittest discover -s tests -p 'test_browser_maintenance.py'
 javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookFiles.java tests/NotebookFilesTest.java \
   app/src/main/java/org/eink/inkprobe/CallbackTiming.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookBackup.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookRestore.java \
@@ -113,6 +114,7 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   tests/NotebookPenConfigTest.java tests/NotebookPenSliderTest.java tests/NotebookToolSettingsTest.java tests/NotebookBrowserMediaTest.java \
   tests/NotebookPenSliderCloseTest.java tests/NotebookRegionEraserTest.java tests/NotebookRegionEraserInteractionTest.java tests/NotebookEraserTest.java tests/NotebookEraserCommitTest.java tests/NotebookFoundationTest.java \
   tests/NotebookStrokeScaleTest.java tests/NotebookViewportSaveTest.java
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookFilesTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookWritingGateTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookWritingPresentationTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookPdfReadingInteractionTest

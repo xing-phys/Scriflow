@@ -6,6 +6,22 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.41.0-alpha.1 — Tablet file manager (2026-11-17)
+
+- Add Files on the bookshelf for internal storage, available SD/USB volumes,
+  Downloads and other common folders, with ancestor navigation and storage space.
+- Browse, search subfolders, sort, show hidden files and select multiple entries.
+- Copy/move folders and files, create folders, rename, view details and confirm
+  permanent deletion. Stage copies, refuse collisions and recursive destinations,
+  preserve originals on cancelled copies, and retain jobs across screen rotation.
+- Open PDFs directly in Scriflow; open/share other files with installed apps
+  using individual read-only URI grants from an unexported provider.
+- Request storage access from Files only: runtime permissions with legacy shared
+  storage on Android 10, All files access settings on newer Android versions.
+- Validate 45 filesystem assertions on the host and Android 10, 16 emulator UI
+  checks, the full host regressions, Android lint/builds and the pinned signer.
+- VersionCode 113; physical Huawei storage, SD/USB and e-ink acceptance pending.
+
 ## 0.40.0-alpha.12 — PDF import and Android file opening (2026-11-17)
 
 - Open PDFs directly from file managers' Open with list and the PDF Share menu.
