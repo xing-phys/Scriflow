@@ -74,7 +74,7 @@ public final class NotebookEbookImportActivity extends NotebookDisplayActivity {
         TextView title = new TextView(this); title.setText("Open ebook"); title.setTextColor(Color.BLACK); title.setTextSize(20); addScreenHeader(root, title);
         status = new TextView(this); status.setTextColor(Color.BLACK); status.setTextSize(16); root.addView(status, new LinearLayout.LayoutParams(-1, 0, 1));
         choose = new NotebookButton(this); choose.setText("Choose book"); choose.setOnClickListener(v -> pick()); root.addView(choose, new LinearLayout.LayoutParams(-1, 88));
-        back = new NotebookButton(this); back.setText("Back to Books"); back.setOnClickListener(v -> finish()); root.addView(back, new LinearLayout.LayoutParams(-1, 88)); setContentView(root);
+        back = new NotebookButton(this); back.setText("Back to bookshelf"); back.setOnClickListener(v -> finish()); root.addView(back, new LinearLayout.LayoutParams(-1, 88)); setContentView(root);
     }
     @Override protected void onResume() { super.onResume(); resumed = true; job.observer = this::render; render(); }
     @Override protected void onPostResume() { super.onPostResume(); status.post(advance); }

@@ -73,8 +73,8 @@ const check=(condition,message)=>{assert(condition,message);assertions++;console
     await epub.page.close();
     const restored=await open('quantum.epub','epub',saved);probe=await restored.probe();
     check(probe.annotations[0].value===anchor&&probe.settings.size===34&&probe.fraction>0,'A new reader restores annotations, settings and reading progress');
-    await restored.page.click('#contents');check((await restored.page.$$('#panel-content button')).length===2,'Contents lists both EPUB chapters');await restored.page.click('#close-panel');
-    await restored.page.click('#search');await restored.page.type('input[aria-label="Search book text"]','entanglement');await restored.page.evaluate(()=>[...document.querySelectorAll('#panel-content button')].find(b=>b.textContent==='Find').click());
+    await restored.reply({type:'command',action:'contents'});await restored.page.waitForSelector('#panel[open]');check((await restored.page.$$('#panel-content button')).length===2,'Contents lists both EPUB chapters');await restored.page.click('#close-panel');
+    await restored.reply({type:'command',action:'search'});await restored.page.waitForSelector('input[aria-label="Search book text"]');await restored.page.type('input[aria-label="Search book text"]','entanglement');await restored.page.evaluate(()=>[...document.querySelectorAll('#panel-content button')].find(b=>b.textContent==='Find').click());
     await restored.page.waitForFunction(()=>document.querySelectorAll('#panel-content div button').length>0,{timeout:30000});check(true,'Full-book search returns actual text locations');await restored.page.click('#close-panel');
     await restored.page.screenshot({path:path.join(root,'build/ebook-reader.png')});await restored.page.close();
     for(const [name,format] of [['quantum.fb2','fb2'],['quantum.fb2.zip','fbz'],['quantum.txt','txt'],['quantum.html','html'],['comic.cbz','cbz'],['sample-cp1252.mobi','mobi'],['sample-ncx.mobi','mobi'],['sample-obfuscated-fonts.mobi','mobi'],...(fs.existsSync(path.join(fixtures,'sample-kf8.azw3'))?[['sample-kf8.azw3','azw3']]:[]),['chicken.djvu','djvu'],['DjVu3Spec_bundled.djvu','djvu'],['large-bundled.djvu','djvu']]){
@@ -82,7 +82,7 @@ const check=(condition,message)=>{assert(condition,message);assertions++;console
       if(format==='djvu'){
         for(let n=0;n<60&&!p.documents.some(d=>d.canvases.some(c=>c.ink>0));n++){await new Promise(r=>setTimeout(r,100));p=await value.probe();}
         check(p.documents.some(d=>d.canvases.some(c=>c.width>0&&c.height>0&&c.ink>0)),name+' decodes and paints real DjVu pixels');
-        if(name==='large-bundled.djvu'){await value.page.click('#search');check((await value.page.$eval('#panel-content',e=>e.textContent)).includes('loaded page by page'),'Large DjVu uses random-access mode and explains its text-search limit');}
+        if(name==='large-bundled.djvu'){await value.reply({type:'command',action:'search'});await value.page.waitForSelector('#panel[open]');check((await value.page.$eval('#panel-content',e=>e.textContent)).includes('loaded page by page'),'Large DjVu uses random-access mode and explains its text-search limit');}
       }else check(value.ready.sections>0&&p.documents.some(d=>d.text?.trim()||d.images.some(i=>i.width>0)),name+' opens through its actual format parser and renders content');
       if(format==='html')check(p.documents.every(d=>d.scripts===0),'HTML script elements are removed before rendering');
       if(format==='cbz')check(value.ready.title==='comic','CBZ metadata keeps the parser extension out of the saved shelf title');

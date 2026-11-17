@@ -46,6 +46,14 @@ it does not arbitrarily change the patch number or signing identity.
 
 ## Before publishing
 
+**0.42.0-alpha.3** (versionCode **116**) puts ebooks on the main shelf and uses
+native floating corner bars plus the movable icon toolbox. Validate existing
+imports without reimport, list/thumbnail modes, mixed selection, name/folder/
+Trash persistence and original/state preservation, plus the full-screen reader,
+actual toolbox movement and font menus, reflow and native handwriting/PDF-copy
+workflows. Publish the permanently signed APK/checksum as an alpha before owner
+testing and retain 0.33.2 Latest stable. Preserve existing release tags.
+
 **0.42.0-alpha.2** (versionCode **115**) fixes CBZ title suffix accumulation
 and connects native font/layout choice dialogs. Keep the alpha.1 source tag immutable;
 publish alpha.2 as the first ebook APK, with the permanent key and checksum.

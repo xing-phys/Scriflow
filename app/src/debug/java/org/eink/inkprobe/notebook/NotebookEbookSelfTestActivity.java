@@ -13,6 +13,13 @@ public final class NotebookEbookSelfTestActivity extends NotebookEbookActivity {
     private String identity,mode,anchor;
     private boolean waitingNotebook,finished;
     private int paints;
+    private boolean uiActive;
+    private final Runnable uiTick=new Runnable(){public void run(){
+        if(!uiActive||isDestroyed())return;
+        try(FileOutputStream output=new FileOutputStream(new File(getCacheDir(),"ebook-chrome-check.json"))){output.write(readerUi().toString().getBytes(StandardCharsets.UTF_8));}catch(Exception ignored){}
+        handler.postDelayed(this,400);
+    }};
+    @Override protected void onResume(){super.onResume();uiActive=true;handler.post(uiTick);}
     @Override public void onCreate(Bundle saved){
         mode=getIntent().getStringExtra("mode");if(mode==null)mode="read";
         try{
@@ -21,7 +28,9 @@ public final class NotebookEbookSelfTestActivity extends NotebookEbookActivity {
             File file=new File(new File(getCacheDir(),"ebook-check-input"),name);
             NotebookEbookStore store=new NotebookEbookStore(getFilesDir());
             try(InputStream input=new FileInputStream(file)){identity=store.importBook(input,name,n->{});}
-            if(!mode.equals("restore")&&!mode.equals("reopen-title")){store.state(identity,"{}");store.metadata(identity,NotebookEbookStore.title(name),"");}getIntent().putExtra("book",identity);
+            if(!mode.equals("restore")&&!mode.equals("reopen-title")){store.state(identity,"{}");store.metadata(identity,NotebookEbookStore.title(name),"");}
+            String label=getIntent().getStringExtra("label");if(label!=null)store.rename(identity,label);
+            getIntent().putExtra("book",identity);
         }catch(Exception error){writeError(error);}
         super.onCreate(saved);
         handler.postDelayed(()->{if(!finished)try{probe("diagnostic");}catch(Exception e){writeError(e);}},8000);
@@ -91,6 +100,7 @@ public final class NotebookEbookSelfTestActivity extends NotebookEbookActivity {
         }catch(Exception error){writeError(error);}
     }
     @Override protected void onPause(){
+        uiActive=false;handler.removeCallbacks(uiTick);
         super.onPause();
         if(waitingNotebook&&!finished)handler.postDelayed(()->{
             try{

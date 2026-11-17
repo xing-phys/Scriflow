@@ -1,10 +1,16 @@
 # Books and adjustable text
 
-Scriflow 0.42.0-alpha.2 adds an offline **Books** shelf alongside the existing
-PDF notebooks. Open **Books → Open / import book**, open a supported file from
-**Files**, or use Android's **Open with** / **Share** menu. Import copies the
-original into private app storage; moving or deleting the original tablet file
-does not break the imported book. Identical imports reuse the same reading data.
+Scriflow 0.42.0-alpha.3 shows ebooks directly on the homepage alongside PDF
+notebooks and handwritten notes, in the same list or thumbnail layout. Existing
+imports appear automatically; there is no separate Books folder and no reimport
+is needed. Use the **Import book** homepage icon, open a supported file from
+**Files**, or use Android's **Open with** / **Share** menu.
+
+Import copies the original into private storage. Moving or deleting the tablet
+file does not break the imported book. Identical imports reuse its reading data.
+The item's **⋮** menu renames it, moves it to a normal folder, or moves it to
+**Trash**. Hold to select ebooks and notebooks together. Restore from Trash, or
+confirm permanent deletion. Removing a folder keeps its items on the homepage.
 
 | Files | Reading behavior |
 | --- | --- |
@@ -24,23 +30,31 @@ KOReader compatibility.
 
 ## Reading controls
 
-- **Aa:** choose the book font, serif, sans serif, monospace or an imported
-  TTF/OTF font; change size, weight, line spacing, margins, alignment, columns,
-  and page turns / continuous scrolling. Fixed books offer page and width fit
-  plus explicit zoom levels. Settings are remembered separately for each book.
-- **Contents:** navigate the book's chapter hierarchy or fixed-page list.
-- **Search:** find text throughout the book and jump to a result. Scans need an
-  existing text layer; Scriflow does not perform OCR.
-- **Bookmark:** mark the current reading position. **Notes** lists bookmarks,
-  highlights, text notes and handwritten-note links, with actions to return to
-  the passage, edit a text note, open handwriting or remove an annotation.
-- Select text with a finger to **Highlight**, add a **Text note**, **Handwrite**,
-  **Copy** or look up a word in the installed **Eudic** dictionary.
-- Bottom arrows turn pages; the curved arrows return from internal links.
-  Tap the reading percentage to jump through the book. Page-turn gestures and
-  arrow keys are also available. Use the buttons while panning a zoomed fixed page.
-- **More → Focus reading** hides controls. Android Back restores them; it also
-  dismisses a selection or panel before leaving the book.
+Reading fills the screen. The same floating corner islands and movable icon
+toolbox used by notebooks sit above the page, without reserving header/footer rows.
+
+- The **top-left bar** holds the book title, previous/next page icons, the reading
+  percentage and the more icon. Tap the title to return to the homepage, or the
+  percentage to jump through the book.
+- The **top-right bar** shows the clock, battery and Wi-Fi. Link history icons
+  appear there when a return/forward destination exists.
+- Tap the **toolbox grip** to expand/collapse its icons, or drag the grip to move
+  it. The layout icon switches between a horizontal and vertical toolbox.
+  Position and collapsed state are remembered. A new reader starts collapsed.
+- The **text/layout icon** opens book/serif/sans/monospace or imported TTF/OTF
+  fonts, size, weight, spacing, margins, alignment, columns and page/scroll mode.
+  Fixed books offer fit and zoom. These settings are remembered per book.
+- Use the **contents**, **search**, **bookmark** and **notes** icons for navigation,
+  highlights, text notes and handwritten-note links. Scans need an existing text
+  layer for search; Scriflow does not perform OCR.
+- Selecting text reveals contextual **highlight**, **text note**, **copy**,
+  **dictionary** and **clear selection** icons in the toolbox. The pen icon opens
+  a handwritten note linked to the selection or current position.
+- The **focus icon** hides controls. Android Back or the small clock restores
+  them; Back also dismisses a selection or panel before leaving the book.
+- Page-turn gestures and arrow keys remain available. Use page buttons while
+  panning a zoomed fixed page. Icons have accessible names and explanatory labels
+  in their menus; text labels remain for chapter titles and settings choices.
 
 Progress and annotations use text locations, so adjusting the font or rotating
 the tablet does not depend on a screen page number. Book images and MathML are
@@ -49,9 +63,9 @@ which glyphs and layouts are available.
 
 ## Handwriting with adjustable text
 
-Select a passage and tap **Handwrite**, or choose **More → Handwritten note at
-this position**. Scriflow creates an ordinary native handwritten notebook and
-links it to that text location. All existing notebook pen, eraser, lasso and
+Select a passage and tap the **pen icon**, or use it without a selection to
+link a note to the current reading position. Scriflow creates an ordinary native
+handwritten notebook and links it to that text location. All existing notebook pen, eraser, lasso and
 page tools remain available there. Android Back returns to the book.
 **Notes → Go to text** follows the passage after a font/layout change;
 **Open handwriting** reopens the linked notebook. Repeating Handwrite at the
@@ -85,9 +99,11 @@ backed up as `.inkbook` files from the bookshelf. Those backups do not include
 the original ebook or its reading state. Keep original books and exported
 annotations outside private app storage before uninstalling or clearing data.
 
-Removing a book asks for confirmation and removes its private original, font
-and reading data. It keeps the tablet's original file and linked handwritten
-notebooks. Removing an annotation also keeps its handwritten notebook.
+Moving an ebook to Trash retains its private original, custom font and reading
+data. Confirmed permanent deletion removes those private files, while keeping
+the tablet's original file and linked handwritten notebooks. Removing an
+annotation also keeps its handwritten notebook. Custom shelf names remain after
+reopening a book; publisher metadata does not overwrite them.
 
 Imports are limited to 2 GiB, custom fonts to 16 MiB, saved reading state to
 2 MiB and annotations to 2,000 per book. ZIP entries are limited to 32 MiB before
@@ -120,8 +136,10 @@ Run `./scripts/test.sh` for host regressions, `node scripts/test-ebooks.cjs` for
 real format parsing/layout/security checks in Chromium, and
 `python3 scripts/check-ebooks.py` with the debug APK on an Android emulator for
 the real Gecko reader, reflow/reopen, custom font and native notebook workflows.
-`python3 scripts/check-ebook-controls.py` verifies actual touch selection of font
-and size through Android choice dialogs and persistence after leaving the book.
+`python3 scripts/check-ebook-controls.py` verifies full-screen reading, floating
+controls, toolbox movement and actual font/size selection.
+`python3 scripts/check-ebook-home.py` checks direct opening, rename, selection,
+folders and Trash through the Android UI while preserving original/state bytes.
 Binary fixtures are downloaded from pinned upstream commits and checksum
 verified; they are excluded from the APK. Physical Huawei stylus, e-ink refresh,
 large personal libraries and representative owner books still need acceptance.

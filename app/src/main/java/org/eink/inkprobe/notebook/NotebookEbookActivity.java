@@ -10,7 +10,7 @@ import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
-import android.widget.LinearLayout;
+import android.widget.FrameLayout;
 import android.widget.TextView;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -24,8 +24,8 @@ public class NotebookEbookActivity extends NotebookDisplayActivity {
     private NotebookEbookStore store;
     private NotebookEbookPage page;
     private String book, title = "Book", pendingExport;
-    private LinearLayout header;
-    private TextView name, status;
+    private NotebookEbookChrome chrome;
+    private TextView status;
     private boolean resumed, busy;
     private AlertDialog dialog;
     private NotebookPdfImport snapshotImport;
@@ -35,35 +35,30 @@ public class NotebookEbookActivity extends NotebookDisplayActivity {
         super.onCreate(saved); book = getIntent().getStringExtra("book"); store = new NotebookEbookStore(getFilesDir());
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN); getWindow().setWindowAnimations(0);
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-        LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(Color.WHITE);
-        header = new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL); header.setPadding(dp(8), dp(5), dp(8), 0);
-        NotebookButton books = new NotebookButton(this); books.setText("Books"); books.setTextSize(12); NotebookUi.action(books, NotebookIconDrawable.Icon.LIBRARY);
-        books.setOnClickListener(v -> { if (!busy) { if (page != null) page.command("close"); else leave(); } });
-        header.addView(books, new LinearLayout.LayoutParams(dp(88), dp(38)));
-        name = new TextView(this); name.setText("Opening book…"); name.setTextColor(Color.BLACK); name.setTextSize(16); name.setSingleLine(true);
-        name.setEllipsize(android.text.TextUtils.TruncateAt.END); name.setPadding(dp(10),0,dp(8),0); header.addView(name,new LinearLayout.LayoutParams(0,dp(40),1));
-        header.addView(deviceSettingsIsland()); root.addView(header);
-        status = new TextView(this); status.setTextColor(Color.BLACK); status.setTextSize(13); status.setPadding(dp(12),dp(4),dp(12),dp(4));
-        status.setVisibility(View.GONE); root.addView(status);
+        FrameLayout root=new FrameLayout(this);root.setBackgroundColor(Color.WHITE);
+        status=new TextView(this);status.setTextColor(Color.BLACK);status.setTextSize(13);status.setPadding(dp(12),dp(5),dp(12),dp(5));status.setVisibility(View.GONE);
         try {
             // Validate identities before creating any web/native bridge.
-            if (book == null || !book.matches("[a-f0-9]{64}")) throw new IOException("Choose a book from Books.");
-            page = new NotebookEbookPage(this, store, book, this::message); root.addView(page, new LinearLayout.LayoutParams(-1,0,1));
-            NotebookEbookTasks.run(() -> store.book(book), (entry,error) -> { if (!isDestroyed() && error == null) { title=entry.title;name.setText(title); } });
+            if (book == null || !book.matches("[a-f0-9]{64}")) throw new IOException("Choose a book from the bookshelf.");
+            page = new NotebookEbookPage(this, store, book, this::message); root.addView(page,new FrameLayout.LayoutParams(-1,-1));
+            NotebookEbookTasks.run(() -> store.book(book), (entry,error) -> { if (!isDestroyed() && error == null) { title=entry.title;if(chrome!=null)chrome.title(title); } });
         } catch (Exception error) { problem(error.getMessage()); }
+        chrome=new NotebookEbookChrome(this,root,()->resumed&&!busy,this::action);
+        FrameLayout.LayoutParams notice=new FrameLayout.LayoutParams(-2,-2,Gravity.BOTTOM|Gravity.CENTER_HORIZONTAL);notice.setMargins(dp(12),0,dp(12),dp(10));
+        status.setBackground(NotebookUi.statusIsland(this).getBackground());root.addView(status,notice);
         setContentView(root);
     }
-    @Override protected void onResume() { super.onResume(); resumed=true; if(page!=null)page.active(true); }
-    @Override protected void onPause() { resumed=false;if(page!=null)page.active(false);if(dialog!=null){dialog.dismiss();dialog=null;}super.onPause(); }
+    @Override protected void onResume() { super.onResume(); resumed=true; if(page!=null)page.active(true);if(chrome!=null)chrome.active(true); }
+    @Override protected void onPause() { resumed=false;if(chrome!=null)chrome.active(false);if(page!=null)page.active(false);if(dialog!=null){dialog.dismiss();dialog=null;}super.onPause(); }
     @Override public void onConfigurationChanged(android.content.res.Configuration configuration) { super.onConfigurationChanged(configuration); }
-    @Override protected void onDestroy() { if(snapshotImport!=null)snapshotImport.detach();if(page!=null)page.close();super.onDestroy(); }
+    @Override protected void onDestroy() { if(snapshotImport!=null)snapshotImport.detach();if(chrome!=null)chrome.close();if(page!=null)page.close();super.onDestroy(); }
     @Override public void onBackPressed() { if(busy)return;if(page!=null)page.command("back");else super.onBackPressed(); }
     private void message(JSONObject message) {
         try {
             switch(message.optString("type")) {
                 case "ready":
-                    title=message.optString("title",title);name.setText(title);status.setVisibility(View.GONE);
-                    String author=message.optString("author","");NotebookEbookTasks.run(()->{store.metadata(book,title,author);return null;},(value,error)->{if(error!=null)problem(error.getMessage());});
+                    title=message.optString("title",title);chrome.title(title);status.setVisibility(View.GONE);
+                    String author=message.optString("author","");NotebookEbookTasks.run(()->{store.metadata(book,message.optString("documentTitle",title),author);return null;},(value,error)->{if(error!=null)problem(error.getMessage());});
                     onReaderMessage(message);break;
                 case "error":problem(message.optString("message","Could not read this book."));onReaderMessage(message);break;
                 case "copy":
@@ -74,7 +69,10 @@ public class NotebookEbookActivity extends NotebookDisplayActivity {
                 case "snapshot":if(!busy)snapshot(message);break;
                 case "export":if(!busy)export(message);break;
                 case "import-font":if(!busy)pickFont();break;
-                case "zen":header.setVisibility(message.optBoolean("enabled")?View.GONE:View.VISIBLE);break;
+                case "zen":chrome.zen(message.optBoolean("enabled"));break;
+                case "selection":chrome.selection(message.optBoolean("enabled"));break;
+                case "panel":chrome.panel(message.optBoolean("open"));break;
+                case "reading-state":chrome.progress(message.optInt("percentage"));chrome.bookmark(message.optBoolean("bookmarked"));chrome.history(message.optBoolean("back"),message.optBoolean("forward"));break;
                 case "external-link":externalLink(message.optString("url"));break;
                 case "exit":leave();break;
                 default:onReaderMessage(message);
@@ -84,6 +82,7 @@ public class NotebookEbookActivity extends NotebookDisplayActivity {
     /** Debug-only fixture activities can observe real engine replies without exposing reader state. */
     protected void onReaderMessage(JSONObject message) { }
     protected final void readerCommand(JSONObject command) { if(page!=null)page.send(command); }
+    protected final JSONObject readerUi()throws org.json.JSONException{return chrome==null?new JSONObject():chrome.debug();}
     private void lookup(String text) {
         if(text.isEmpty())return;String term=text.substring(0,Math.min(200,text.length()));
         try { startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse("eudic://peek/"+Uri.encode(term)))); }
@@ -187,8 +186,12 @@ public class NotebookEbookActivity extends NotebookDisplayActivity {
             });
         }
     }
+    private void action(String action){
+        if(busy)return;try{if(page!=null)page.send(new JSONObject().put("type","command").put("action",action));else if(action.equals("close"))leave();}
+        catch(Exception error){problem(error.getMessage());}
+    }
     private void leave() {
-        if(busy)return;startActivity(new Intent(this,NotebookEbookLibraryActivity.class).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP));finish();overridePendingTransition(0,0);
+        if(busy)return;startActivity(new Intent(this,NotebookLibraryActivity.class).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP));finish();overridePendingTransition(0,0);
     }
     private void showStatus(String message) { if(isDestroyed())return;status.setText(message);status.setVisibility(View.VISIBLE); }
     private void working(boolean value){try{if(page!=null)page.send(new JSONObject().put("type","busy").put("enabled",value));}catch(Exception impossible){throw new AssertionError(impossible);}}

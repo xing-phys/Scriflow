@@ -21,6 +21,14 @@ public final class NotebookShelfSelectionTest {
         NotebookShelfSelection restored = new NotebookShelfSelection(); restored.restore(selection.snapshot());
         restored.retain(Arrays.asList(second)); check(restored.size() == 1 && restored.contains(second), "rotation restores selection and removes items no longer visible");
         restored.clear(); check(!restored.active() && restored.size() == 0, "cancel leaves selection mode");
+        java.util.Properties bookData=new java.util.Properties();bookData.setProperty("title","EPUB");
+        NotebookEbookStore.Book ebook=new NotebookEbookStore.Book(String.join("",java.util.Collections.nCopies(64,"b")),bookData,1024);
+        restored.selectAll(Arrays.asList(folder,first,ebook));
+        check(restored.size()==2&&restored.contains(ebook)&&restored.notebooks().equals(Arrays.asList(1)),"Mixed selection keeps ebook hashes separate from notebook IDs");
+        NotebookShelfSelection mixed=new NotebookShelfSelection();mixed.restore(restored.snapshot());mixed.restoreBooks(restored.bookSnapshot());
+        check(mixed.size()==2&&mixed.contains(first)&&mixed.contains(ebook),"Rotation restores both ebook and notebook selection");
+        mixed.retain(Arrays.asList(ebook));check(mixed.size()==1&&mixed.ebooks().equals(Arrays.asList(ebook.id)),"Folder navigation drops invisible notebooks while retaining visible ebooks");
+        mixed.toggle(ebook);check(mixed.size()==0,"Toggling an ebook never affects a notebook with a similar identity");
 
         File root = Files.createTempDirectory("shelf-selection-").toFile();
         try {

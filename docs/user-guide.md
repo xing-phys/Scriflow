@@ -42,15 +42,18 @@ inherit the source page's dimensions. PDF export uses the chosen physical size;
 changing screen orientation or zoom does not change the paper. Existing notes
 keep their original coordinates and PDF printing scale.
 
-## Books and adjustable text
+## Ebooks and adjustable text
 
-Open **Books** on the bookshelf to import DRM-free EPUB, MOBI/AZW3, DjVu, FB2,
+Use the **Import book** homepage icon to import DRM-free EPUB, MOBI/AZW3, DjVu, FB2,
 zipped FB2, CBZ, HTML or TXT. Supported files also open from **Files** and
-Android's Open with / Share menus. **Aa** changes fonts and layout; Contents,
-Search, Bookmark and Notes support navigation and annotation. Select text to
+Android's Open with / Share menus. Ebooks appear beside PDFs and notes, with
+shared folders, selection and Trash.
+The movable icon toolbox provides text/layout settings, contents, search,
+bookmarks and notes; floating corner bars provide page navigation and status.
+Select text to
 highlight, add a note, copy or use Eudic. Progress follows text locations.
 
-**Handwrite** opens an ordinary native notebook linked to the selected passage.
+The **pen icon** opens an ordinary native notebook linked to the selected passage.
 Use Android Back to return, or Notes to reopen handwriting and return to its
 text. **More → Write on a fixed copy of this view** creates a one-page PDF for
 direct writing on the current layout. This captures only the visible view.

@@ -49,9 +49,19 @@ public final class NotebookEbookStoreTest {
             fails(()->store.font(html,new ByteArrayInputStream(new byte[]{1,2,3,4,5})),"Nonfont files are rejected");
             check(Arrays.equals(font,Files.readAllBytes(store.font(html).toPath())),"Rejected font imports keep the previous font");
             store.metadata(html,"Updated title","Test author");check(store.book(html).title.equals("Updated title")&&store.book(html).author.equals("Test author"),"Parsed metadata updates the shelf independently of the original bytes");
+            store.rename(html,"Personal reading name");store.move(html,7);store.trash(html,true);
+            NotebookEbookStore reopened=new NotebookEbookStore(directory);
+            check(reopened.book(html).title.equals("Personal reading name")&&reopened.book(html).folderId==7&&reopened.book(html).trashed,"Shared-shelf name, folder and Trash survive restart");
+            reopened.metadata(html,"Publisher metadata","Author");
+            check(reopened.book(html).title.equals("Personal reading name")&&reopened.book(html).documentTitle.equals("Publisher metadata"),"Reopening a book cannot replace the owner's shelf name with publisher metadata");
+            check(reopened.state(html).equals(first)&&Arrays.equals(source,Files.readAllBytes(reopened.source(html).toPath())),"Shelf changes preserve the original bytes and reading annotations");
+            check(reopened.importBook(new ByteArrayInputStream(source),"Book.html",n->{}).equals(html)&&!reopened.book(html).trashed,"Importing the same original from Trash restores the existing book without duplicating its state");
+            reopened.move(html,0);check(reopened.book(html).folderId==0&&reopened.book(html).title.equals("Personal reading name"),"Moving to the homepage preserves the book identity and custom name");
             check(NotebookEbookStore.format("Book.AZW3").equals("azw3")&&NotebookEbookStore.format("Book.FB2.ZIP").equals("fbz")&&NotebookEbookStore.format("scan.DJV").equals("djvu"),"Named ebook variants route to their correct format readers");
             File notebook=new File(directory,"notebook-19");Files.createDirectory(notebook.toPath());
-            store.remove(html);check(notebook.isDirectory()&&store.source(id).isFile(),"Removing one book cannot delete linked notebooks or other originals");
+            fails(()->store.purge(html),"A stale Trash action cannot permanently delete an active ebook");
+            check(store.state(html).equals(first)&&store.source(html).isFile(),"Refusing active-book deletion preserves reading state and the original");
+            store.trash(html,true);store.purge(html);check(notebook.isDirectory()&&store.source(id).isFile(),"Removing one book cannot delete linked notebooks or other originals");
             System.out.println("NotebookEbookStore: "+assertions+" assertions passed.");
         }finally{delete(directory);}
     }

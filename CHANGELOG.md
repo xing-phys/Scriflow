@@ -6,6 +6,17 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.42.0-alpha.3 — Unified shelf and floating ebook controls (2026-11-17)
+
+- Show existing/imported ebooks directly alongside notebooks and PDFs on the
+  homepage, with shared list/thumbnail layouts, folders, selection and Trash.
+  Keep custom names when publisher metadata is refreshed; retain reading data.
+- Replace full-width ebook button rows with the native notebook corner islands
+  and a movable, collapsible icon toolbox. Reading fills the entire viewport.
+- Use contextual selection icons, compact page/history controls and icon-only
+  homepage shortcuts. Preserve reading, search, typography and handwriting.
+- VersionCode 116; physical Huawei pen, e-ink and owner acceptance pending.
+
 ## 0.42.0-alpha.2 — Comic titles and reading controls (2026-11-17)
 
 - Keep the CBZ parser extension out of saved shelf titles, preventing repeated

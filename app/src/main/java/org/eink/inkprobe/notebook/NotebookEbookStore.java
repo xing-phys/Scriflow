@@ -14,10 +14,15 @@ final class NotebookEbookStore {
     private static final int MAGIC = 0x45424b31;
     private final File root;
     static final class Book {
-        final String id, title, format, author;
+        final String id, title, documentTitle, label, format, author;
+        final int folderId;
+        final boolean trashed;
         final long bytes, opened;
         Book(String id, Properties p, long bytes) {
-            this.id = id; title = p.getProperty("title", "Book"); format = p.getProperty("format", "");
+            this.id = id; documentTitle=p.getProperty("title", "Book");label=p.getProperty("label");
+            title=label==null?documentTitle:label;format = p.getProperty("format", "");
+            int folder;try{folder=Integer.parseInt(p.getProperty("folder","0"));}catch(NumberFormatException ignored){folder=0;}
+            folderId=Math.max(0,folder);trashed=Boolean.parseBoolean(p.getProperty("trashed","false"));
             author = p.getProperty("author", ""); this.bytes = bytes;
             long date; try { date = Long.parseLong(p.getProperty("opened", "0")); } catch (NumberFormatException ignored) { date = 0; }
             opened = date;
@@ -99,7 +104,7 @@ final class NotebookEbookStore {
             // Include the format: the same raw text can intentionally be read as HTML or TXT.
             digest.update(type.getBytes(StandardCharsets.UTF_8)); String id = hex(digest.digest());
             File destination = directory(id);
-            if (destination.exists()) { book(id); return id; }
+            if (destination.exists()) { if(book(id).trashed)trash(id,false); return id; }
             Properties metadata = new Properties(); metadata.setProperty("title", title(filename)); metadata.setProperty("format", type);
             metadata.setProperty("opened", Long.toString(System.currentTimeMillis())); writeProperties(new File(stage, "metadata"), metadata);
             if (!stage.renameTo(destination)) throw new IOException("Cannot publish the imported book.");
@@ -120,7 +125,25 @@ final class NotebookEbookStore {
         if (author != null) p.setProperty("author", clean(author, 240));
         p.setProperty("opened", Long.toString(System.currentTimeMillis())); writeProperties(file, p);
     }
+    synchronized void rename(String id,String title)throws IOException {
+        if(title==null||title.trim().isEmpty())throw new IOException("Enter a book name.");
+        Properties p=properties(new File(directory(id),"metadata"));p.setProperty("label",clean(title,240));
+        writeProperties(new File(directory(id),"metadata"),p);
+    }
+    synchronized void move(String id,int folder)throws IOException {
+        if(folder<0)throw new IOException("Invalid book folder.");
+        Properties p=properties(new File(directory(id),"metadata"));p.setProperty("folder",Integer.toString(folder));
+        writeProperties(new File(directory(id),"metadata"),p);
+    }
+    synchronized void trash(String id,boolean value)throws IOException {
+        Properties p=properties(new File(directory(id),"metadata"));p.setProperty("trashed",Boolean.toString(value));
+        writeProperties(new File(directory(id),"metadata"),p);
+    }
     void remove(String id) throws IOException { File dir = directory(id); if (dir.exists()) deleteTree(dir); }
+    synchronized void purge(String id)throws IOException{
+        if(!book(id).trashed)throw new IOException("Only ebooks in Trash can be deleted permanently.");
+        remove(id);
+    }
     static String title(String name) {
         if (name == null) return "Book";
         String value = new File(name).getName(); int dot = value.lastIndexOf('.');

@@ -26,9 +26,11 @@ pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
 stays in front, window operations retain the main editor, and PDF import opens
 the file picker directly before opening the imported note.
 
-The **[0.42.0-alpha.2 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.42.0-alpha.2)**
-adds offline **Books** for EPUB, MOBI/AZW3, DjVu, FB2, zipped FB2, CBZ, HTML and
-TXT. Adjust fonts and layout, navigate contents, search, bookmark, highlight,
+The **[0.42.0-alpha.3 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.42.0-alpha.3)**
+shows offline ebooks directly on the homepage alongside PDFs and notes: EPUB,
+MOBI/AZW3, DjVu, FB2, zipped FB2, CBZ, HTML and TXT. Reading uses the existing
+floating corner bars and a movable icon toolbox, with full-screen page content.
+Adjust fonts and layout, navigate contents, search, bookmark, highlight,
 take text notes, use Eudic, and resume reading. Handwriting opens a native
 notebook linked to the passage; an optional one-page PDF copy of the visible
 view supports direct writing. See [Books and adjustable text](docs/ebook-reading.md)

@@ -117,7 +117,8 @@ final class NotebookEbookPage extends FrameLayout {
         if (pendingConfig != null) { send(pendingConfig); return; }
         NotebookEbookTasks.run(() -> {
             NotebookEbookStore.Book entry = store.book(book);
-            return new JSONObject().put("type", "open").put("id", book).put("name", entry.title + "." + entry.format)
+            return new JSONObject().put("type", "open").put("id", book).put("name", entry.documentTitle + "." + entry.format)
+                .put("displayTitle",entry.label==null?"":entry.title)
                 .put("format", entry.format).put("size", entry.bytes).put("fontSize", store.font(book).isFile() ? store.font(book).length() : 0)
                 .put("debug",debug).put("state", new JSONObject(store.state(book)));
         }, (value, error) -> { if (!closed) { if (error != null) fail(error.getMessage()); else {

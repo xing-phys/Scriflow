@@ -18,7 +18,8 @@ function read(offset, length, channel = 'book') {
 function flush() { if (state) send('state',{state}); }
 // Native IO coalesces writes. Send changes immediately so a quick Activity close
 // can save the latest state without waiting for a JavaScript debounce timer.
-function changed() { state.modified=Math.max(Date.now(),(state.modified||0)+1); flush(); }
+function changed() { state.modified=Math.max(Date.now(),(state.modified||0)+1); flush();readingState(); }
+function readingState(){send('reading-state',{percentage:Math.round((state?.fraction||0)*100),bookmarked:annotations().some(a=>a.bookmark&&a.value===state?.location),back:!!view?.history.canGoBack,forward:!!view?.history.canGoForward});}
 function normalize(input) {
   const value = input && typeof input === 'object' ? input : {};
   return {version:1, ...value, settings:{...defaults,...value.settings}, annotations:Array.isArray(value.annotations)?value.annotations:[], location:typeof value.location==='string'?value.location:'', fraction:Number(value.fraction)||0};
@@ -29,7 +30,7 @@ function text(value) {
   if (value?.name) return text(value.name);
   return value && typeof value==='object' ? text(Object.values(value)[0]) : '';
 }
-function panel(title) { $('panel-title').textContent=title; $('panel-content').replaceChildren(); if (!$('panel').open) $('panel').showModal(); return $('panel-content'); }
+function panel(title) { $('panel-title').textContent=title; $('panel-content').replaceChildren(); if (!$('panel').open) $('panel').showModal();send('panel',{open:true}); return $('panel-content'); }
 function closePanel() { $('panel').close(); }
 function button(parent,label,action) {
   const node=document.createElement('button');node.textContent=label;node.onclick=()=>attempt(action);parent.append(node);return node;
@@ -90,10 +91,10 @@ function rangeTarget(doc,index) {
   return {value:view.getCFI(index,selection.getRangeAt(0)),text:selection.toString().trim().slice(0,4000),mark:true};
 }
 function selectionChanged(doc,index) {
-  const value=rangeTarget(doc,index);if(!value)return;
-  selected=value;$('selection').hidden=false;
+  const value=rangeTarget(doc,index);if(!value){if(selected)clearSelection();return;}
+  selected=value;send('selection',{enabled:true});
 }
-function clearSelection() { selected=null;$('selection').hidden=true;view?.deselect(); }
+function clearSelection() { selected=null;send('selection',{enabled:false});view?.deselect(); }
 function loaded({detail:{doc,index}}) {
   if(customFont)doc.fonts.add(customFont);
   doc.addEventListener('selectionchange',()=>selectionChanged(doc,index));
@@ -125,16 +126,15 @@ async function open(message) {
   view.addEventListener('load',loaded);
   view.addEventListener('relocate',({detail})=>{
     if(!detail.cfi)return;state.location=detail.cfi;state.fraction=Number(detail.fraction)||0;changed();
-    const percentage=Math.round(state.fraction*100),label=detail.tocItem?.label||'';
-    $('position').textContent=percentage+'%'+(label?' · '+label:'');
-    $('bookmark').setAttribute('aria-pressed',String(annotations().some(a=>a.bookmark&&a.value===detail.cfi)));
+    readingState();
   });
+  view.history.addEventListener('index-change',readingState);
   view.addEventListener('external-link',e=>{e.preventDefault();send('external-link',{url:e.detail.href_});});
   view.addEventListener('create-overlay',()=>{for(const item of annotations())draw(item);});
   view.addEventListener('draw-annotation',({detail:{draw,annotation}})=>draw(annotation.highlight?Overlayer.highlight:Overlayer.underline,{color:annotation.highlight?'#cccccc':'#777777'}));
   view.addEventListener('show-annotation',({detail})=>{const item=at(detail.value);if(item)showAnnotation(item);});
   await view.open(book);await restyle();await view.init({lastLocation:state.location,showTextStart:true});
-  notice('');send('ready',{title:text(book.metadata?.title)||config.name,author:text(book.metadata?.author),format:config.format,sections:book.sections.length});
+  notice('');readingState();send('ready',{title:config.displayTitle||text(book.metadata?.title)||config.name,documentTitle:text(book.metadata?.title)||config.name,author:text(book.metadata?.author),format:config.format,sections:book.sections.length});
 }
 
 function typography() {
@@ -212,7 +212,7 @@ function editNote(item) {
     changed();await draw(item,!item.note&&!item.highlight&&!item.notebook);closePanel();clearSelection();
   });
 }
-function bookmark(){if(!view)return;const item=ensureAnnotation(target());item.bookmark=!item.bookmark;if(!item.bookmark&&!item.highlight&&!item.note&&!item.notebook)state.annotations=annotations().filter(a=>a!==item);changed();$('bookmark').setAttribute('aria-pressed',String(item.bookmark));notice(item.bookmark?'Bookmarked.':'Bookmark removed.');}
+function bookmark(){if(!view)return;const item=ensureAnnotation(target());item.bookmark=!item.bookmark;if(!item.bookmark&&!item.highlight&&!item.note&&!item.notebook)state.annotations=annotations().filter(a=>a!==item);changed();readingState();notice(item.bookmark?'Bookmarked.':'Bookmark removed.');}
 function handwrite(){if(!view)return;const current=target();clearSelection();flush();send('handwrite',{...current,state});}
 function fixedCopy(){
   if(!view)return;const body=panel('Write on a fixed copy');
@@ -238,7 +238,7 @@ function more(){if(!view)return;const body=panel('Reading tools');
   button(body,'Write on a fixed copy of this view',fixedCopy);
   button(body,'Export reading notes',exports);
   button(body,'Focus reading / show controls',()=>{closePanel();document.body.classList.toggle('zen');send('zen',{enabled:document.body.classList.contains('zen')});});
-  para(body,'Open the toolbox with Android Back while focus reading is active. Reading positions and annotations are stored with this book.','muted');
+  para(body,'Press Android Back to show reading controls while focus reading is active. Reading positions and annotations are stored with this book.','muted');
 }
 function jump(){if(!view)return;const body=panel('Reading position'),input=document.createElement('input');input.type='range';input.min='0';input.max='100';input.value=String(Math.round(state.fraction*100));input.setAttribute('aria-label','Book progress');input.style.width='100%';body.append(input);
   const value=para(body,input.value+'%');input.oninput=()=>value.textContent=input.value+'%';
@@ -246,14 +246,17 @@ function jump(){if(!view)return;const body=panel('Reading position'),input=docum
   para(body,'The percentage follows the text. Screen page counts can change when font size, spacing or orientation changes.','muted');
 }
 
-for(const [id,handler] of Object.entries({type:typography,contents,search:find,bookmark,notes:listNotes,more,position:jump,
+const actions={type:typography,contents,search:find,bookmark,notes:listNotes,more,position:jump,
   previous:()=>{clearSelection();return view?.prev();},next:()=>{clearSelection();return view?.next();},
   'history-back':()=>view?.history.back(),'history-forward':()=>view?.history.forward(),
   highlight:async()=>{const item=ensureAnnotation(target());item.highlight=true;changed();await draw(item);clearSelection();},
   'text-note':()=>editNote(ensureAnnotation(target(),false)),handwrite,
   copy:()=>{if(selected)send('copy',{text:selected.text});clearSelection();},lookup:()=>{if(selected)send('lookup',{text:selected.text});},'clear-selection':clearSelection,
-  'close-panel':closePanel}))$(id).onclick=()=>attempt(handler);
-$('panel').addEventListener('close',()=>{searchGeneration++;});
+  focus:()=>{closePanel();clearSelection();document.body.classList.toggle('zen');send('zen',{enabled:document.body.classList.contains('zen')});},
+  close:()=>{flush();send('exit');},snapshot:fixedCopy,exports,
+  'close-panel':closePanel};
+$('close-panel').onclick=closePanel;
+$('panel').addEventListener('close',()=>{if(!$('panel').open){searchGeneration++;send('panel',{open:false});}});
 addEventListener('pagehide',flush);addEventListener('visibilitychange',()=>{if(document.hidden)flush();});
 port.onMessage.addListener(message=>attempt(async()=>{
   if(message.type==='read-result'){
@@ -261,6 +264,7 @@ port.onMessage.addListener(message=>attempt(async()=>{
     if(message.error){request.reject(Error(message.error));return;}
     const binary=atob(message.data),bytes=new Uint8Array(binary.length);for(let i=0;i<bytes.length;i++)bytes[i]=binary.charCodeAt(i);request.resolve(bytes);
   }else if(message.type==='open')await open(message);
+  else if(message.type==='command'){const action=actions[message.action];if(action)await action();}
   else if(message.type==='flush')flush();
   else if(message.type==='close'){flush();send('exit');}
   else if(message.type==='state-updated'){state=normalize(message.state);for(const item of annotations())await draw(item);}

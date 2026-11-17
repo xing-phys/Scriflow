@@ -38,7 +38,9 @@ import org.eink.inkprobe.R;
 
 /** Notebook home. All file/catalog work goes through the process-wide serialized writer. */
 public final class NotebookLibraryActivity extends NotebookDisplayActivity {
-    private enum ShelfFolder { SAVED_WEBSITES, BOOKS }
+    private enum ShelfFolder { SAVED_WEBSITES }
+    private final List<NotebookEbookStore.Book> ebooks=new ArrayList<>();
+    private NotebookEbookStore ebookStore;
     private NotebookSession session;
     private GridView rows;
     private TextView path;
@@ -72,6 +74,8 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         inTrash = saved != null && saved.getBoolean("trash", false);
         if (saved != null && saved.getBoolean("selecting", false)) selection.restore(saved.getIntArray("selectedNotebooks"));
         session = NotebookSession.get(this);
+        ebookStore=new NotebookEbookStore(getFilesDir());
+        if(saved!=null&&saved.getBoolean("selecting",false))selection.restoreBooks(saved.getStringArray("selectedEbooks"));
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
         getWindow().setWindowAnimations(0);
         LinearLayout root = new LinearLayout(this);
@@ -88,6 +92,9 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         addShortcut(shortcuts, "Import PDF", NotebookIconDrawable.Icon.READING, () -> {
             if (!canAct()) return;
             startActivity(new Intent(this, NotebookPdfImportActivity.class)); overridePendingTransition(0, 0);
+        });
+        addShortcut(shortcuts,"Import book",NotebookIconDrawable.Icon.FONT_SIZE,()->{
+            if(canAct())startActivity(new Intent(this,NotebookEbookImportActivity.class));
         });
         addShortcut(shortcuts, "Restore backup", NotebookIconDrawable.Icon.RETRY, () -> transfer(true, 0));
         addShortcut(shortcuts, "AI chat", NotebookIconDrawable.Icon.AI_CHAT, this::openAiChat);
@@ -177,7 +184,7 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         captureDialogDraft();
         saved.putInt("folder", currentFolder); saved.putBoolean("trash", inTrash);
         saved.putBoolean("selecting", selection.active());
-        if (selection.active()) saved.putIntArray("selectedNotebooks", selection.snapshot());
+        if (selection.active()){saved.putIntArray("selectedNotebooks", selection.snapshot());saved.putStringArray("selectedEbooks",selection.bookSnapshot());}
         if (dialogDraft != null) saved.putBundle("notebookDialog", dialogDraft);
         super.onSaveInstanceState(saved);
     }
@@ -187,9 +194,17 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         final int request = ++generation;
         session.list((page, error) -> {
             if (!active || request != generation) return;
-            busy = false; render();
-            if (error != null) showProblem(error);
-            else restoreDialogDraft();
+            Set<Integer> folders=new HashSet<>();for(NotebookCatalog.Folder folder:session.folders())folders.add(folder.id);
+            NotebookEbookTasks.run(()->{
+                List<NotebookEbookStore.Book> books=ebookStore.list();
+                for(NotebookEbookStore.Book book:books)if(book.folderId!=0&&!folders.contains(book.folderId))ebookStore.move(book.id,0);
+                return ebookStore.list();
+            },(books,bookError)->{
+                if(!active||request!=generation)return;
+                ebooks.clear();if(books!=null)ebooks.addAll(books);
+                busy=false;render();
+                if(error!=null)showProblem(error);else if(bookError!=null)showProblem(bookError);else restoreDialogDraft();
+            });
         });
     }
 
@@ -202,7 +217,6 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         rows.setNumColumns(columns); rows.setVerticalSpacing(dp(thumbnails ? 4 : 6));
         if (!inTrash && currentFolder == 0) {
             items.add(ShelfFolder.SAVED_WEBSITES);
-            items.add(ShelfFolder.BOOKS);
             items.addAll(session.folders());
         }
         int trashed = 0, count = 0;
@@ -211,6 +225,12 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
             if (inTrash ? entry.status == NotebookCatalog.TRASH || entry.status == NotebookCatalog.PURGING
                 : entry.status == NotebookCatalog.ACTIVE && entry.folderId == currentFolder) { items.add(entry); count++; }
         }
+        int bookCount=0;
+        for(NotebookEbookStore.Book book:ebooks){
+            if(book.trashed)trashed++;
+            int folder=hasFolder(book.folderId)?book.folderId:0;
+            if(inTrash?book.trashed:!book.trashed&&folder==currentFolder){items.add(book);bookCount++;}
+        }
         selection.retain(items); updateSelectionBar();
         path.setText(inTrash ? "Trash" : currentFolder == 0 ? "" : folderName(currentFolder));
         path.setVisibility(inTrash || currentFolder != 0 ? View.VISIBLE : View.GONE);
@@ -218,8 +238,8 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         trashButton.setVisibility(inTrash ? View.GONE : View.VISIBLE);
         folderButton.setVisibility(inTrash || currentFolder != 0 ? View.GONE : View.VISIBLE);
         status.setOnClickListener(null);
-        status.setText(inTrash ? count + " deleted notebooks · Restore or delete permanently from ⋮"
-            : count + " notebooks" + (items.isEmpty() ? " · Create a notebook or folder to begin." : " · ⋮ for actions · Hold to select"));
+        status.setText(inTrash ? (count+bookCount) + " deleted items · Restore or delete permanently from ⋮"
+            : count + " notebooks · "+bookCount+" ebooks" + (items.isEmpty() ? " · Create a notebook or import a book." : " · ⋮ for actions · Hold to select"));
         adapter.notifyDataSetChanged(); schedulePreviews();
     }
 
@@ -255,13 +275,13 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
     private void selectionActions() {
         if (!canAct() || selection.size() == 0) return;
         if (inTrash) {
-            AlertDialog menu = new AlertDialog.Builder(this).setTitle("Selected notebooks")
-                .setItems(new String[]{"Restore selected notebooks", "Delete selected permanently"}, (dialog, which) -> {
+            AlertDialog menu = new AlertDialog.Builder(this).setTitle("Selected items")
+                .setItems(new String[]{"Restore selected items", "Delete selected permanently"}, (dialog, which) -> {
                     if (which == 0) performSelection(NotebookLibrary.BulkAction.RESTORE, 0); else confirmPermanentSelection();
                 })
                 .setNegativeButton("Cancel", null).create(); showStaticDialog(menu);
         } else {
-            AlertDialog menu = new AlertDialog.Builder(this).setTitle("Selected notebooks")
+            AlertDialog menu = new AlertDialog.Builder(this).setTitle("Selected items")
                 .setItems(new String[]{"Move to folder…", "Move to Trash"}, (dialog, which) -> {
                     if (which == 0) moveSelection(); else performSelection(NotebookLibrary.BulkAction.TRASH, 0);
                 }).setNegativeButton("Cancel", null).create(); showStaticDialog(menu);
@@ -269,37 +289,36 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
     }
     private void confirmPermanentSelection() {
         if (!canAct() || selection.size() == 0 || !inTrash) return;
-        final List<Integer> ids = selection.notebooks();
-        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Permanently delete " + ids.size() + " selected notebooks?")
-            .setMessage("All pages and imported PDFs in these notebooks will be removed from this tablet. This cannot be undone.")
-            .setNegativeButton("Cancel", null).setPositiveButton("Delete permanently", (choice, which) -> {
-                if (!canAct() || !inTrash) return;
-                busy = true; clearPreviews(); updateSelectionBar(); final int request = generation;
-                session.permanentlyDeleteNotebooks(ids, (page, error) -> {
-                    if (!active || request != generation) return;
-                    busy = false; if (error == null) selection.clear(); render();
-                    if (error != null) showProblem(error);
-                });
-            }).create(); showStaticDialog(dialog);
+        final List<Integer> ids=selection.notebooks();final List<String> books=selection.ebooks();
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Permanently delete "+selection.size()+" selected items?")
+            .setMessage("Delete selected notebooks and ebook reading data permanently? The original tablet ebook files and linked handwritten notebooks are kept unless those notebooks are also selected. This cannot be undone.")
+            .setNegativeButton("Cancel",null).setPositiveButton("Delete permanently",(choice,which)->manageSelection(ids,books,null,0)).create();showStaticDialog(dialog);
     }
     private void moveSelection() {
         if (!canAct() || selection.size() == 0) return;
         List<NotebookCatalog.Folder> folders = session.folders();
         String[] names = new String[folders.size() + 1]; names[0] = "Bookshelf (no folder)";
         for (int i = 0; i < folders.size(); i++) names[i + 1] = folders.get(i).name;
-        AlertDialog menu = new AlertDialog.Builder(this).setTitle("Move selected notebooks")
+        AlertDialog menu = new AlertDialog.Builder(this).setTitle("Move selected items")
             .setItems(names, (dialog, which) -> performSelection(NotebookLibrary.BulkAction.MOVE, which == 0 ? 0 : folders.get(which - 1).id))
             .setNegativeButton("Cancel", null).create(); showStaticDialog(menu);
     }
     private void performSelection(NotebookLibrary.BulkAction action, int folder) {
         if (!canAct() || selection.size() == 0) return;
-        List<Integer> ids = selection.notebooks(); busy = true; clearPreviews(); updateSelectionBar();
-        final int request = generation;
-        session.manageNotebooks(ids, action, folder, (page, error) -> {
-            if (!active || request != generation) return;
-            busy = false; if (error == null) selection.clear(); render();
-            if (error != null) showProblem(error);
-        });
+        manageSelection(selection.notebooks(),selection.ebooks(),action,folder);
+    }
+    private void manageSelection(List<Integer> ids,List<String> books,NotebookLibrary.BulkAction action,int folder){
+        if(!canAct())return;busy=true;clearPreviews();updateSelectionBar();final int request=generation;
+        Consumer<Exception> afterNotes=error->{
+            if(error!=null){if(active&&request==generation){busy=false;render();showProblem(error);}return;}
+            NotebookEbookTasks.run(()->{
+                for(String id:books){if(action==null)ebookStore.purge(id);else if(action==NotebookLibrary.BulkAction.MOVE)ebookStore.move(id,folder);else ebookStore.trash(id,action==NotebookLibrary.BulkAction.TRASH);}
+                return null;
+            },(ignored,failure)->{if(active&&request==generation){busy=false;if(failure==null)selection.clear();refresh();if(failure!=null)message("Some items could not be changed",failure.getMessage());}});
+        };
+        if(ids.isEmpty())afterNotes.accept(null);
+        else if(action==null)session.permanentlyDeleteNotebooks(ids,(page,error)->afterNotes.accept(error));
+        else session.manageNotebooks(ids,action,folder,(page,error)->afterNotes.accept(error));
     }
 
     private void change(Consumer<NotebookSession.Callback> operation) {
@@ -307,7 +326,7 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         busy = true; clearPreviews(); final int request = generation;
         operation.accept((page, error) -> {
             if (!active || request != generation) return;
-            busy = false; render(); if (error != null) showProblem(error);
+            busy = false; if(error==null)refresh();else{render();showProblem(error);}
         });
     }
     private void notebookActions(NotebookCatalog.Entry entry) {
@@ -328,6 +347,34 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
             else change(callback -> session.trashNotebook(entry.id, callback));
         }).setNegativeButton("Close", null).create();
         showStaticDialog(menu);
+    }
+    private interface BookEdit{void run()throws IOException;}
+    private void changeBook(BookEdit edit){
+        if(!canAct())return;busy=true;final int request=generation;
+        NotebookEbookTasks.run(()->{edit.run();return null;},(ignored,error)->{
+            if(!active||request!=generation)return;busy=false;refresh();
+            if(error!=null)message("Could not change ebook",error.getMessage());
+        });
+    }
+    private void ebookActions(NotebookEbookStore.Book book){
+        if(!canAct())return;
+        String[] actions=book.trashed?new String[]{"Restore ebook","Delete permanently"}:new String[]{"Rename","Move to folder","Move to Trash"};
+        AlertDialog menu=new AlertDialog.Builder(this).setTitle(book.title).setItems(actions,(dialog,which)->{
+            if(book.trashed){
+                if(which==0)changeBook(()->ebookStore.trash(book.id,false));
+                else{AlertDialog confirm=new AlertDialog.Builder(this).setTitle("Permanently delete “"+book.title+"”?")
+                    .setMessage("The private ebook and its reading data will be deleted. The original tablet file and linked handwritten notebooks are kept.")
+                    .setNegativeButton("Cancel",null).setPositiveButton("Delete permanently",(d,n)->changeBook(()->ebookStore.purge(book.id))).create();showStaticDialog(confirm);}
+            }else if(which==0){
+                EditText input=new EditText(this);input.setSingleLine(true);input.setText(book.title);input.selectAll();
+                AlertDialog rename=new AlertDialog.Builder(this).setTitle("Rename ebook").setView(input).setNegativeButton("Cancel",null)
+                    .setPositiveButton("Rename",(d,n)->{String label=input.getText().toString();changeBook(()->ebookStore.rename(book.id,label));}).create();showStaticDialog(rename);
+            }else if(which==1){
+                List<NotebookCatalog.Folder> folders=session.folders();String[] names=new String[folders.size()+1];names[0]="Bookshelf (no folder)";
+                for(int i=0;i<folders.size();i++)names[i+1]=folders.get(i).name;
+                AlertDialog move=new AlertDialog.Builder(this).setTitle("Move ebook").setItems(names,(d,n)->changeBook(()->ebookStore.move(book.id,n==0?0:folders.get(n-1).id))).setNegativeButton("Cancel",null).create();showStaticDialog(move);
+            }else changeBook(()->ebookStore.trash(book.id,true));
+        }).setNegativeButton("Close",null).create();showStaticDialog(menu);
     }
     private void confirmPermanentDelete(NotebookCatalog.Entry entry) {
         AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Permanently delete “" + entry.name + "”?")
@@ -352,7 +399,7 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
     private void folderActions(NotebookCatalog.Folder folder) {
         if (!canAct()) return;
         AlertDialog dialog = new AlertDialog.Builder(this).setTitle(folder.name)
-            .setItems(new String[]{"Rename folder", "Remove folder (keep notebooks)"}, (choice, which) -> {
+            .setItems(new String[]{"Rename folder", "Remove folder (keep items)"}, (choice, which) -> {
                 if (which == 0) nameDialog("Rename folder", folder.name, folder.id,
                     name -> change(callback -> session.renameFolder(folder.id, name, callback)));
                 else change(callback -> session.deleteFolder(folder.id, callback));
@@ -413,8 +460,9 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         }
         if (item == ShelfFolder.SAVED_WEBSITES) {
             startActivity(new Intent(this, NotebookWebsitesActivity.class)); overridePendingTransition(0, 0);
-        } else if (item == ShelfFolder.BOOKS) {
-            startActivity(new Intent(this, NotebookEbookLibraryActivity.class)); overridePendingTransition(0, 0);
+        } else if(item instanceof NotebookEbookStore.Book){
+            NotebookEbookStore.Book book=(NotebookEbookStore.Book)item;
+            if(book.trashed)ebookActions(book);else{startActivity(new Intent(this,NotebookEbookActivity.class).putExtra("book",book.id));overridePendingTransition(0,0);}
         } else if (item instanceof NotebookCatalog.Folder) navigate(((NotebookCatalog.Folder) item).id, false);
         else if (item instanceof NotebookCatalog.Entry) {
             NotebookCatalog.Entry entry = (NotebookCatalog.Entry) item;
@@ -425,6 +473,7 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
     private void manageShelfItem(Object item) {
         if (!canAct()) return;
         if (item instanceof NotebookCatalog.Folder) folderActions((NotebookCatalog.Folder) item);
+        else if(item instanceof NotebookEbookStore.Book)ebookActions((NotebookEbookStore.Book)item);
         else if (item instanceof NotebookCatalog.Entry) notebookActions((NotebookCatalog.Entry) item);
     }
 
@@ -442,7 +491,7 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
             this.type = type;
             setOrientation(LinearLayout.VERTICAL); setBackgroundColor(Color.WHITE);
             setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
-            if (type == 1) {
+            if (type == 1 || type == 3) {
                 TextView image = label("", 13); image.setGravity(Gravity.CENTER);
                 image.setBackground(NotebookUi.border(getResources().getDisplayMetrics().density)); preview = image;
             } else if (type == 2) {
@@ -483,32 +532,37 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
             if (parameters == null) setLayoutParams(new AbsListView.LayoutParams(-1, height));
             else if (parameters.height != height) { parameters.height = height; setLayoutParams(parameters); }
             boolean websites = item == ShelfFolder.SAVED_WEBSITES;
-            boolean books = item == ShelfFolder.BOOKS;
-            boolean folder = websites || books || item instanceof NotebookCatalog.Folder;
+            boolean book=item instanceof NotebookEbookStore.Book;
+            boolean folder = websites || item instanceof NotebookCatalog.Folder;
             selected.setVisibility(selection.active() && NotebookShelfSelection.selectable(item) ? View.VISIBLE : View.GONE);
-            selected.setChecked(selection.contains(item)); menu.setVisibility(selection.active() || websites || books ? View.GONE : View.VISIBLE);
-            String name = websites ? "Saved websites" : books ? "Books" : folder ? ((NotebookCatalog.Folder) item).name : ((NotebookCatalog.Entry) item).name;
+            selected.setChecked(selection.contains(item)); menu.setVisibility(selection.active() || websites ? View.GONE : View.VISIBLE);
+            String name = websites ? "Saved websites" :book?((NotebookEbookStore.Book)item).title: folder ? ((NotebookCatalog.Folder) item).name : ((NotebookCatalog.Entry) item).name;
             String shown = name;
             if (!shown.contentEquals(nameButton.getText())) nameButton.setText(shown);
             if (type == 0) {
-                NotebookIconDrawable icon = new NotebookIconDrawable(folder ? NotebookIconDrawable.Icon.FOLDER : NotebookIconDrawable.Icon.NOTES);
+                NotebookIconDrawable icon = new NotebookIconDrawable(folder ? NotebookIconDrawable.Icon.FOLDER :book?NotebookIconDrawable.Icon.READING: NotebookIconDrawable.Icon.NOTES);
                 int size = dp(18); icon.setBounds(0, 0, size, size);
                 nameButton.setCompoundDrawablesRelative(icon, null, null, null); nameButton.setCompoundDrawablePadding(dp(9));
             }
             nameButton.setContentDescription(selection.active() && !folder
                 ? (selection.contains(item) ? "Selected " : "Not selected ") + name
-                : (folder ? "Open folder " : inTrash ? "Manage deleted notebook " : "Open notebook ") + name);
-            menu.setContentDescription("Manage " + (folder ? "folder " : "notebook ") + name);
+                : (folder ? "Open folder " :inTrash?"Manage deleted item ":book?"Open ebook ": "Open notebook ") + name);
+            menu.setContentDescription("Manage " + (folder ? "folder " :book?"ebook ": "notebook ") + name);
             if (type != 0) {
                 LinearLayout.LayoutParams titleLayout = (LinearLayout.LayoutParams) title.getLayoutParams();
                 int titleHeight = Math.min(dp(28), Math.max(1, height / 3));
                 if (titleLayout.height != titleHeight) { titleLayout.height = titleHeight; title.setLayoutParams(titleLayout); }
-                if (folder) {
+                if(book){
+                    NotebookEbookStore.Book entry=(NotebookEbookStore.Book)item;
+                    TextView image=(TextView)preview;image.setText(entry.format.toUpperCase(java.util.Locale.ROOT)+"\n"+entry.title);
+                    image.setContentDescription("Open ebook "+entry.title);
+                }else if (folder) {
                     int count = 0;
-                    if (!websites && !books) for (NotebookCatalog.Entry entry : session.entries())
+                    if (!websites) for (NotebookCatalog.Entry entry : session.entries())
                         if (entry.folderId == ((NotebookCatalog.Folder) item).id && entry.status == NotebookCatalog.ACTIVE) count++;
                     TextView image = (TextView) preview;
-                    String summary = websites ? "Websites\nRead offline" : books ? "Books\nRead offline" : "Folder\n" + count + " notebooks";
+                    int books=0;if(!websites)for(NotebookEbookStore.Book entry:ebooks)if(!entry.trashed&&entry.folderId==((NotebookCatalog.Folder)item).id)books++;
+                    String summary = websites ? "Websites\nRead offline" : "Folder\n" + count + " notebooks · "+books+" ebooks";
                     if (!summary.contentEquals(image.getText())) image.setText(summary);
                     image.setContentDescription("Open folder " + name);
                 } else bindPreview((NotebookPageThumbnail) preview, (NotebookCatalog.Entry) item);
@@ -523,12 +577,13 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         @Override public long getItemId(int position) {
             Object item = items.get(position);
             if (item == ShelfFolder.SAVED_WEBSITES) return 1L; // Catalog item IDs start at 2; avoid AdapterView's invalid-ID sentinel.
-            if (item == ShelfFolder.BOOKS) return 0L;
+            if(item instanceof NotebookEbookStore.Book)return -2L-Long.parseLong(((NotebookEbookStore.Book)item).id.substring(0,15),16);
             return item instanceof NotebookCatalog.Folder ? 2L * ((NotebookCatalog.Folder) item).id + 1
                 : 2L * ((NotebookCatalog.Entry) item).id;
         }
-        @Override public int getViewTypeCount() { return 3; }
+        @Override public int getViewTypeCount() { return 4; }
         @Override public int getItemViewType(int position) {
+            if(thumbnails&&items.get(position) instanceof NotebookEbookStore.Book)return 3;
             return !thumbnails ? 0 : items.get(position) instanceof NotebookCatalog.Folder
                 || items.get(position) instanceof ShelfFolder ? 1 : 2;
         }
@@ -793,7 +848,7 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         draftKind = null; draftName = draftWidth = draftHeight = null; draftSizes = null; draftNotebookId = 0;
     }
 
-    private void showProblem(IOException error) {
+    private void showProblem(Exception error) {
         status.setText("Couldn’t complete the last action · tap to retry");
         status.setOnClickListener(v -> {
             if (!canAct()) return;
@@ -801,7 +856,7 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
             final int request = generation;
             session.retry((page, failure) -> {
                 if (!active || request != generation) return;
-                busy = false; render();
+                busy = false;if(failure==null)refresh();else render();
                 if (failure != null) {
                     showProblem(failure);
                     message("Couldn’t complete the action", failure.getMessage());
@@ -829,8 +884,8 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         return button;
     }
     private void addShortcut(LinearLayout row, String text, NotebookIconDrawable.Icon icon, Runnable action) {
-        NotebookButton control = button(text, action); control.setTextSize(12); NotebookUi.action(control, icon);
-        LinearLayout.LayoutParams item = new LinearLayout.LayoutParams(0, dp(44), 1);
+        NotebookIconButton control=new NotebookIconButton(this,icon,text);control.setTooltipText(text);control.setOnClickListener(v->action.run());
+        LinearLayout.LayoutParams item = new LinearLayout.LayoutParams(dp(44), dp(44));
         if (row.getChildCount() > 0) item.leftMargin = dp(7);
         row.addView(control, item);
     }

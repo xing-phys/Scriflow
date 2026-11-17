@@ -22,7 +22,8 @@ import java.util.EnumMap;
 /** A separate, static window above the native ink surface, moved only by its grip. */
 public final class NotebookFloatingTools {
     public enum Action {
-        NOTES, ADD_PAGE, PEN, ERASER, LASSO, MORE, OUTLINE, ZEN, ORIENTATION, COLLAPSE, AI_CHAT
+        NOTES, ADD_PAGE, PEN, ERASER, LASSO, MORE, OUTLINE, ZEN, ORIENTATION, COLLAPSE, AI_CHAT,
+        TEXT_STYLE, SEARCH_BOOK, BOOKMARK, HANDWRITE, HIGHLIGHT, TEXT_NOTE, COPY_TEXT, LOOKUP, CLEAR_SELECTION
     }
 
     public interface Listener {
@@ -71,6 +72,10 @@ public final class NotebookFloatingTools {
             };
 
     public NotebookFloatingTools(Activity activity, Listener listener) {
+        this(activity,listener,false);
+    }
+    static NotebookFloatingTools reading(Activity activity,Listener listener){return new NotebookFloatingTools(activity,listener,true);}
+    private NotebookFloatingTools(Activity activity, Listener listener,boolean reading) {
         this.activity = activity;
         this.listener = listener;
         content = new ContactLayout(activity);
@@ -93,17 +98,31 @@ public final class NotebookFloatingTools {
                 view.getParent().requestDisallowInterceptTouchEvent(false);
             return consumed;
         });
-        add(Action.NOTES, NotebookIconDrawable.Icon.NOTES, "Open notes and minimized windows");
-        add(Action.AI_CHAT, NotebookIconDrawable.Icon.AI_CHAT, "Open chats and minimized chat windows");
+        add(Action.NOTES, NotebookIconDrawable.Icon.NOTES, reading?"Bookmarks and reading notes":"Open notes and minimized windows");
         add(Action.ZEN, NotebookIconDrawable.Icon.FULLSCREEN, "Enter Zen mode");
-        add(Action.ADD_PAGE, NotebookIconDrawable.Icon.ADD_PAGE, "Add page");
-        add(Action.PEN, NotebookIconDrawable.Icon.PEN, "Pen");
-        add(Action.ERASER, NotebookIconDrawable.Icon.ERASER, "Eraser");
-        add(Action.LASSO, NotebookIconDrawable.Icon.LASSO, "Lasso: select and move ink");
-        add(Action.OUTLINE, NotebookIconDrawable.Icon.OUTLINE, "Table of contents; add and edit outline");
+        add(Action.OUTLINE, NotebookIconDrawable.Icon.OUTLINE, reading?"Contents":"Table of contents; add and edit outline");
         add(Action.ORIENTATION, NotebookIconDrawable.Icon.LAYOUT_VERTICAL, "Switch to vertical tools");
-        order = new View[] {grip, button(Action.ORIENTATION), button(Action.PEN), button(Action.ERASER), button(Action.LASSO),
-            button(Action.ADD_PAGE), button(Action.OUTLINE), button(Action.AI_CHAT), button(Action.ZEN), button(Action.NOTES)};
+        if(reading){
+            add(Action.TEXT_STYLE,NotebookIconDrawable.Icon.FONT_SIZE,"Text and layout");
+            add(Action.SEARCH_BOOK,NotebookIconDrawable.Icon.SEARCH,"Search book");
+            add(Action.BOOKMARK,NotebookIconDrawable.Icon.BOOKMARK,"Bookmark this position");
+            add(Action.HANDWRITE,NotebookIconDrawable.Icon.PEN,"Handwritten note");
+            add(Action.HIGHLIGHT,NotebookIconDrawable.Icon.READING,"Highlight selected text");
+            add(Action.TEXT_NOTE,NotebookIconDrawable.Icon.ADD_PAGE,"Text note on selection");
+            add(Action.COPY_TEXT,NotebookIconDrawable.Icon.COPY,"Copy selected text");
+            add(Action.LOOKUP,NotebookIconDrawable.Icon.DICTIONARY,"Look up selected text");
+            add(Action.CLEAR_SELECTION,NotebookIconDrawable.Icon.CLOSE,"Clear text selection");
+            order=new View[]{grip,button(Action.ORIENTATION),button(Action.TEXT_STYLE),button(Action.OUTLINE),button(Action.SEARCH_BOOK),button(Action.BOOKMARK),button(Action.NOTES),button(Action.HANDWRITE),button(Action.ZEN),
+                button(Action.HIGHLIGHT),button(Action.TEXT_NOTE),button(Action.COPY_TEXT),button(Action.LOOKUP),button(Action.CLEAR_SELECTION)};
+        }else{
+            add(Action.AI_CHAT, NotebookIconDrawable.Icon.AI_CHAT, "Open chats and minimized chat windows");
+            add(Action.ADD_PAGE, NotebookIconDrawable.Icon.ADD_PAGE, "Add page");
+            add(Action.PEN, NotebookIconDrawable.Icon.PEN, "Pen");
+            add(Action.ERASER, NotebookIconDrawable.Icon.ERASER, "Eraser");
+            add(Action.LASSO, NotebookIconDrawable.Icon.LASSO, "Lasso: select and move ink");
+            order = new View[] {grip, button(Action.ORIENTATION), button(Action.PEN), button(Action.ERASER), button(Action.LASSO),
+                button(Action.ADD_PAGE), button(Action.OUTLINE), button(Action.AI_CHAT), button(Action.ZEN), button(Action.NOTES)};
+        }
         popup = new PopupWindow(content, 0, 0, false);
         // A dedicated higher application sublayer keeps tools above notes, status and selection panels regardless of show order.
         popup.setWindowLayoutType(WindowManager.LayoutParams.TYPE_APPLICATION_SUB_PANEL);
@@ -355,7 +374,8 @@ public final class NotebookFloatingTools {
         updateAllowedBounds();
         if (hasBrowserControls()) measureBrowser();
         else {
-            NotebookToolStrip.Layout layout = NotebookToolStrip.measure(this.vertical, collapsed ? 1 : order.length,
+            int count=0;for(View view:order)if(view.getVisibility()!=View.GONE)count++;
+            NotebookToolStrip.Layout layout = NotebookToolStrip.measure(this.vertical, collapsed ? 1 : count,
                     Math.max(1, allowedBounds.width()), Math.max(1, allowedBounds.height()),
                     dp(32), dp(28), dp(6), dp(4));
             width = layout.width; height = layout.height;
@@ -427,12 +447,15 @@ public final class NotebookFloatingTools {
         }
         LinearLayout strip = new LinearLayout(activity);
         strip.setOrientation(vertical ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
-        for (int index = 0; index < (collapsed ? 1 : order.length); index++) {
+        int index=0;
+        for (View control:order) {
+            if(control.getVisibility()==View.GONE)continue;
+            if(collapsed&&index>0)break;
             LinearLayout.LayoutParams item = new LinearLayout.LayoutParams(layout.button, layout.button);
             if (index != 0) {
                 if (vertical) item.topMargin = dp(6); else item.leftMargin = dp(6);
             }
-            strip.addView(order[index], item);
+            strip.addView(control, item);index++;
         }
         if (vertical) {
             ScrollView scroll = new ScrollView(activity);
