@@ -15,13 +15,15 @@ import org.mozilla.geckoview.GeckoSession.PromptDelegate;
 final class NotebookBrowserPrompts implements PromptDelegate {
     private final Context context;
     private final Supplier<String> address;
+    private final String fallbackTitle;
     private AlertDialog shown;
-    NotebookBrowserPrompts(Context context, Supplier<String> address) { this.context = context; this.address = address; }
+    NotebookBrowserPrompts(Context context, Supplier<String> address) { this(context,address,"Website"); }
+    NotebookBrowserPrompts(Context context, Supplier<String> address, String title) { this.context = context; this.address = address; fallbackTitle=title; }
 
     private AlertDialog.Builder builder() {
         String url = address.get();
         String host = url == null ? null : Uri.parse(url).getHost();
-        return new AlertDialog.Builder(context).setTitle(host == null ? "Website" : host);
+        return new AlertDialog.Builder(context).setTitle(host == null ? fallbackTitle : host);
     }
 
     private GeckoResult<PromptResponse> show(BasePrompt prompt, AlertDialog.Builder builder,

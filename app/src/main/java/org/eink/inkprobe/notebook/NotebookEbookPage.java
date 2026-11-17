@@ -19,6 +19,12 @@ final class NotebookEbookPage extends FrameLayout {
     private static final String ID = "ebooks@scriflow.local", CHANNEL = "scriflowEbooks";
     private static GeckoResult<WebExtension> installed;
     private static final Map<GeckoSession, Consumer<WebExtension.Port>> OWNERS = new IdentityHashMap<>();
+    private static final WebExtension.MessageDelegate ROUTER = new WebExtension.MessageDelegate() {
+        @Override public void onConnect(WebExtension.Port sender) {
+            Consumer<WebExtension.Port> owner=OWNERS.get(sender.sender.session);
+            if(owner==null)sender.disconnect();else owner.accept(sender);
+        }
+    };
     private final GeckoSession session;
     private final GeckoRuntime runtime;
     private final GeckoView surface;
@@ -26,6 +32,7 @@ final class NotebookEbookPage extends FrameLayout {
     private final String book;
     private final Consumer<JSONObject> listener;
     private final boolean debug;
+    private final NotebookBrowserPrompts prompts;
     private WebExtension.Port port;
     private String page, origin;
     private boolean closed;
@@ -38,6 +45,7 @@ final class NotebookEbookPage extends FrameLayout {
         super(context); this.store = store; this.book = book; this.listener = listener;
         debug=(context.getApplicationInfo().flags&android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE)!=0;
         session = new GeckoSession(new GeckoSessionSettings.Builder().allowJavascript(true).suspendMediaWhenInactive(true).build());
+        prompts=new NotebookBrowserPrompts(context,()->null,"Reading options");session.setPromptDelegate(prompts);
         surface = new GeckoView(context); addView(surface, new LayoutParams(-1, -1));
         session.setContentDelegate(new GeckoSession.ContentDelegate() { });
         session.setPermissionDelegate(new GeckoSession.PermissionDelegate() { });
@@ -67,12 +75,7 @@ final class NotebookEbookPage extends FrameLayout {
         installed.accept(extension -> {
             if (closed) return;
             page = extension.metaData.optionsPageUrl; origin = Uri.parse(page).buildUpon().path("/").build().toString();
-            extension.setMessageDelegate(new WebExtension.MessageDelegate() {
-                @Override public void onConnect(WebExtension.Port sender) {
-                    Consumer<WebExtension.Port> owner = OWNERS.get(sender.sender.session);
-                    if (owner == null) sender.disconnect(); else owner.accept(sender);
-                }
-            }, CHANNEL);
+            extension.setMessageDelegate(ROUTER, CHANNEL);
             session.getWebExtensionController().setMessageDelegate(extension, new WebExtension.MessageDelegate() {
                 @Override public void onConnect(WebExtension.Port sender) { connect(sender); }
             }, CHANNEL);
@@ -157,13 +160,13 @@ final class NotebookEbookPage extends FrameLayout {
     }
     void active(boolean value) {
         if (closed) return;
-        if (!value) { command("flush"); removeCallbacks(saveState); writeState(); }
+        if (!value) { prompts.close();command("flush"); removeCallbacks(saveState); writeState(); }
         session.setActive(value);
         runtime.getWebExtensionController().setTabActive(session,value);
     }
     void snapshot(Consumer<Bitmap> callback) { if (closed) callback.accept(null); else surface.capturePixels().accept(callback::accept, error -> callback.accept(null)); }
     void close() {
-        if (closed) return; removeCallbacks(saveState); writeState(); closed = true;
+        if (closed) return; prompts.close();removeCallbacks(saveState); writeState(); closed = true;
         OWNERS.remove(session); if (port != null) port.disconnect(); port = null; surface.releaseSession(); session.close();
     }
     private void fail(String message) {

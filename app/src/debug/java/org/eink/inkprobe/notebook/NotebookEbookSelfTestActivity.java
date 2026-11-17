@@ -21,7 +21,7 @@ public final class NotebookEbookSelfTestActivity extends NotebookEbookActivity {
             File file=new File(new File(getCacheDir(),"ebook-check-input"),name);
             NotebookEbookStore store=new NotebookEbookStore(getFilesDir());
             try(InputStream input=new FileInputStream(file)){identity=store.importBook(input,name,n->{});}
-            if(!mode.equals("restore"))store.state(identity,"{}");getIntent().putExtra("book",identity);
+            if(!mode.equals("restore")&&!mode.equals("reopen-title")){store.state(identity,"{}");store.metadata(identity,NotebookEbookStore.title(name),"");}getIntent().putExtra("book",identity);
         }catch(Exception error){writeError(error);}
         super.onCreate(saved);
         handler.postDelayed(()->{if(!finished)try{probe("diagnostic");}catch(Exception e){writeError(e);}},8000);
@@ -55,7 +55,10 @@ public final class NotebookEbookSelfTestActivity extends NotebookEbookActivity {
                 if(canvas&&!painted){if(++paints>30)throw new IOException("DjVu did not paint pixels.");handler.postDelayed(()->{try{probe("initial");}catch(Exception e){writeError(e);}},1000);return;}
                 if(!content&&!painted)throw new IOException("The book opened a blank frame.");
                 if(mode.equals("reject"))throw new IOException("An encrypted book was accepted.");
-                if(mode.equals("read")){writeResult(message);return;}
+                if(mode.equals("read")||mode.equals("reopen-title")){
+                    if(getIntent().getStringExtra("fixture").endsWith(".cbz")&&!message.optString("title").equals("comic"))throw new IOException("The CBZ shelf title changed on reopening.");
+                    writeResult(message);return;
+                }
                 if(mode.equals("restore")){
                     if(message.getJSONObject("settings").optInt("size")!=34||message.getJSONArray("annotations").length()!=1)throw new IOException("Saved reflow settings or annotations were lost.");
                     writeResult(message);return;

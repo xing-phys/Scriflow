@@ -1,6 +1,6 @@
 # Books and adjustable text
 
-Scriflow 0.42.0-alpha.1 adds an offline **Books** shelf alongside the existing
+Scriflow 0.42.0-alpha.2 adds an offline **Books** shelf alongside the existing
 PDF notebooks. Open **Books → Open / import book**, open a supported file from
 **Files**, or use Android's **Open with** / **Share** menu. Import copies the
 original into private app storage; moving or deleting the original tablet file
@@ -120,6 +120,8 @@ Run `./scripts/test.sh` for host regressions, `node scripts/test-ebooks.cjs` for
 real format parsing/layout/security checks in Chromium, and
 `python3 scripts/check-ebooks.py` with the debug APK on an Android emulator for
 the real Gecko reader, reflow/reopen, custom font and native notebook workflows.
+`python3 scripts/check-ebook-controls.py` verifies actual touch selection of font
+and size through Android choice dialogs and persistence after leaving the book.
 Binary fixtures are downloaded from pinned upstream commits and checksum
 verified; they are excluded from the APK. Physical Huawei stylus, e-ink refresh,
 large personal libraries and representative owner books still need acceptance.

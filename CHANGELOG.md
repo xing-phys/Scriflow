@@ -6,6 +6,16 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.42.0-alpha.2 — Comic titles and reading controls (2026-11-17)
+
+- Keep the CBZ parser extension out of saved shelf titles, preventing repeated
+  suffixes when a comic is reopened.
+- Add a title regression check in the real reader; versionCode 115.
+- Connect native choice dialogs for the reading menus and validate actual touch
+  selection of font family/size, including saved settings after leaving a book.
+- This is the first published APK in the ebook alpha cycle. The alpha.1 source
+  tag is retained unchanged.
+
 ## 0.42.0-alpha.1 — Offline books and adjustable reading (2026-11-17)
 
 - Add Books and direct file opening for DRM-free EPUB, MOBI/AZW3, FB2 and zipped

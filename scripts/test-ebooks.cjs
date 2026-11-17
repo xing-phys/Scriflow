@@ -85,6 +85,7 @@ const check=(condition,message)=>{assert(condition,message);assertions++;console
         if(name==='large-bundled.djvu'){await value.page.click('#search');check((await value.page.$eval('#panel-content',e=>e.textContent)).includes('loaded page by page'),'Large DjVu uses random-access mode and explains its text-search limit');}
       }else check(value.ready.sections>0&&p.documents.some(d=>d.text?.trim()||d.images.some(i=>i.width>0)),name+' opens through its actual format parser and renders content');
       if(format==='html')check(p.documents.every(d=>d.scripts===0),'HTML script elements are removed before rendering');
+      if(format==='cbz')check(value.ready.title==='comic','CBZ metadata keeps the parser extension out of the saved shelf title');
       await value.page.close();
     }
     for(const [name,format] of [['sample-drm-v1.mobi','mobi'],['encrypted.epub','epub']]){const rejected=await open(name,format,{},true);await rejected.page.close();}

@@ -32,7 +32,7 @@ adb('shell','run-as',PACKAGE,'cp',remote+'/custom.ttf','cache/ebook-check-input/
 results=[]
 try:
     adb('shell','am','force-stop',PACKAGE)
-    for name,mode in [(name,'read') for name in names]+[('sample-drm-v1.mobi','reject'),('encrypted.epub','reject')]+[('quantum.epub','reflow'),('quantum.epub','restore'),('quantum.epub','font'),('quantum.epub','ink'),('quantum.epub','snapshot')]:
+    for name,mode in [(name,'read') for name in names]+[('comic.cbz','reopen-title'),('sample-drm-v1.mobi','reject'),('encrypted.epub','reject')]+[('quantum.epub','reflow'),('quantum.epub','restore'),('quantum.epub','font'),('quantum.epub','ink'),('quantum.epub','snapshot')]:
         # Opening another book closes the previous activity but keeps the shared
         # engine, as the real shelf does. Restore deliberately kills the process.
         if mode=='restore':

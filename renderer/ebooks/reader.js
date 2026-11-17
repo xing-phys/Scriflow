@@ -118,6 +118,9 @@ async function open(message) {
   if(message.format==='mobi'||message.format==='azw3')await checkMobiEncryption(file);
   if(message.format==='djvu'){const {djvuBook}=await import('./djvu.js');book=await djvuBook(file);}
   else book=protectBook(message.format==='txt'||message.format==='html'?await textBook(file,message.format==='html'):await makeBook(file));
+  // Comic metadata comes from the parser filename. The native shelf supplies
+  // that name from the saved title, so keep the extension out of the title.
+  if(message.format==='cbz')book.metadata.title=file.name.replace(/\.cbz$/i,'');
   view=document.createElement('foliate-view');$('reader').replaceChildren(view);
   view.addEventListener('load',loaded);
   view.addEventListener('relocate',({detail})=>{

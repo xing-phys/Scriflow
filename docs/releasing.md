@@ -46,6 +46,13 @@ it does not arbitrarily change the patch number or signing identity.
 
 ## Before publishing
 
+**0.42.0-alpha.2** (versionCode **115**) fixes CBZ title suffix accumulation
+and connects native font/layout choice dialogs. Keep the alpha.1 source tag immutable;
+publish alpha.2 as the first ebook APK, with the permanent key and checksum.
+Verify a comic title across repeated openings, touch-selected font/size settings
+and saved state, the format/layout/security regressions and signed APK.
+Keep 0.33.2 Latest stable.
+
 **0.42.0-alpha.1** (versionCode **114**) adds offline ebook reading and
 passage-linked native handwriting, plus fixed-view PDF copies. Validate EPUB,
 MOBI/KF8/AZW3, FB2/FBZ, CBZ, HTML/TXT and bundled DjVu in the actual Gecko reader;

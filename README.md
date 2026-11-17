@@ -26,7 +26,7 @@ pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
 stays in front, window operations retain the main editor, and PDF import opens
 the file picker directly before opening the imported note.
 
-The **[0.42.0-alpha.1 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.42.0-alpha.1)**
+The **[0.42.0-alpha.2 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.42.0-alpha.2)**
 adds offline **Books** for EPUB, MOBI/AZW3, DjVu, FB2, zipped FB2, CBZ, HTML and
 TXT. Adjust fonts and layout, navigate contents, search, bookmark, highlight,
 take text notes, use Eudic, and resume reading. Handwriting opens a native
