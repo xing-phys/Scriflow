@@ -85,7 +85,7 @@ final class NotebookReader extends View {
             @Override public boolean onScale(ScaleGestureDetector detector) {
                 if (viewport == null) return false;
                 float x = detector.getFocusX(), y = detector.getFocusY();
-                int page = viewport.nearestPage(y, scrollY);
+                int page = viewport.pageAt(x,y,scrollY);if(page==0)page=viewport.nearestPage(y, scrollY);
                 float logicalX = (x - viewport.pageLeft(page)) / viewport.scale(page);
                 float logicalY = (y - viewport.pageTop(page, scrollY)) / viewport.scale(page);
                 float minimum = Math.min(.1f, viewport.fittedZoom(NotebookViewport.Fit.PAGE, page));
@@ -131,10 +131,10 @@ final class NotebookReader extends View {
         if (sizes.isEmpty() || getWidth() < 1 || getHeight() < 1) return;
         NotebookReadingSettings settings=session.readingSettings(pane.notebookId);
         boolean fitted=viewport!=null&&viewport.singlePage!=0&&Math.abs(viewport.zoom-viewport.fittedZoom(NotebookViewport.Fit.PAGE,pane.page))<.0001;
-        boolean changedFlow=readingSettings!=null&&readingSettings.singlePage!=settings.singlePage;
+        boolean changedFlow=readingSettings!=null&&(readingSettings.singlePage!=settings.singlePage||readingSettings.doublePage!=settings.doublePage);
         readingSettings=settings;
-        viewport = new NotebookViewport(NotebookPdfReading.layout(sizes,source,settings), getWidth(), getHeight(), dp(12), pane.hasView ? pane.zoom : 1, 0)
-            .withSinglePage(settings.singlePage?pane.page:0);
+        viewport = new NotebookViewport(NotebookPdfReading.layout(sizes,source,settings), getWidth(), getHeight(), dp(12), pane.hasView ? pane.zoom : 1, 0);
+        viewport = settings.doublePage?viewport.withSpreadPage(pane.page):viewport.withSinglePage(settings.singlePage?pane.page:0);
         if(settings.singlePage&&(!pane.hasView||changedFlow||fitted))viewport=viewport.withView(viewport.fittedZoom(NotebookViewport.Fit.PAGE,pane.page),0);
         if(changedFlow&&!settings.singlePage)viewport=viewport.withView(1,0);
         if (pane.hasView) {

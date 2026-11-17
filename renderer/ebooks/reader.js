@@ -22,7 +22,10 @@ function changed() { state.modified=Math.max(Date.now(),(state.modified||0)+1); 
 function readingState(){send('reading-state',{percentage:Math.round((state?.fraction||0)*100),bookmarked:annotations().some(a=>a.bookmark&&a.value===state?.location),back:!!view?.history.canGoBack,forward:!!view?.history.canGoForward});}
 function normalize(input) {
   const value = input && typeof input === 'object' ? input : {};
-  return {version:1, ...value, settings:{...defaults,...value.settings}, annotations:Array.isArray(value.annotations)?value.annotations:[], location:typeof value.location==='string'?value.location:'', fraction:Number(value.fraction)||0};
+  const settings={...defaults,...value.settings};
+  // A continuously scrolling book is a single flowing column, not a page spread.
+  if(settings.flow==='scrolled')settings.columns=1;
+  return {version:1, ...value, settings, annotations:Array.isArray(value.annotations)?value.annotations:[], location:typeof value.location==='string'?value.location:'', fraction:Number(value.fraction)||0};
 }
 function text(value) {
   if (typeof value === 'string') return value;
@@ -68,9 +71,10 @@ async function restyle() {
   const margin=Math.min(80,Math.max(0,Number(s.margin)||0));
   view.renderer.setAttribute('margin',margin+'px');
   view.renderer.setAttribute('gap',Math.min(30,200*margin/Math.max(320,$('reader').clientWidth))+'%');
-  view.renderer.setAttribute('max-inline-size',s.columns===2?'300px':'900px');
+  view.renderer.setAttribute('max-inline-size','900px');
   view.renderer.setAttribute('max-column-count',s.columns===2?'2':'1');
   view.renderer.setAttribute('max-column-count-portrait',s.columns===2?'2':'1');
+  view.renderer.setAttribute('column-count',s.columns===2?'2':'1');
   let family='';
   if (s.font==='custom' && config.fontSize>0) { await loadFont(); family='"ScriflowBookFont"'; }
   else if (s.font!=='publisher') family={serif:'serif',sans:'sans-serif',mono:'monospace'}[s.font]||'serif';
@@ -95,8 +99,32 @@ function selectionChanged(doc,index) {
   selected=value;send('selection',{enabled:true});
 }
 function clearSelection() { selected=null;send('selection',{enabled:false});view?.deselect(); }
+function installPageTaps(target,doc=null) {
+  let down=null, multi=false;
+  const interactive=e=>e.target?.closest?.('a,button,input,select,textarea,video,audio,[contenteditable]');
+  const hasSelection=()=>!!selected||!!view?.renderer.getContents().some(({doc:d})=>!d.defaultView.getSelection()?.isCollapsed);
+  target.addEventListener('pointerdown',e=>{
+    if(e.pointerType!=='touch')return;
+    if(down || !e.isPrimary){down=null;multi=true;return;}
+    multi=false;down={id:e.pointerId,x:e.clientX,y:e.clientY,t:Date.now(),interactive:!!interactive(e),selection:hasSelection()};
+  });
+  target.addEventListener('pointercancel',()=>{down=null;multi=false;});
+  target.addEventListener('pointerup',e=>{
+    if(e.pointerType!=='touch')return;
+    const start=down;down=null;
+    if(multi || !start || start.id!==e.pointerId || start.interactive || start.selection || interactive(e)
+        || Date.now()-start.t>500 || Math.hypot(e.clientX-start.x,e.clientY-start.y)>12
+        || hasSelection())return;
+    if(view.isFixedLayout ? state.settings.zoom!=='fit-page' : state.settings.flow==='scrolled')return;
+    const frame=doc?.defaultView.frameElement?.getBoundingClientRect(), area=$('reader').getBoundingClientRect();
+    const x=e.clientX+(frame?.left||0)-area.left, y=e.clientY+(frame?.top||0)-area.top;
+    if(x<0||y<0||x>area.width||y>area.height)return;
+    attempt(()=>x>=area.width/2||y>=area.height/2?view.next():view.prev());
+  });
+}
 function loaded({detail:{doc,index}}) {
   if(customFont)doc.fonts.add(customFont);
+  installPageTaps(doc,doc);
   doc.addEventListener('selectionchange',()=>selectionChanged(doc,index));
   doc.addEventListener('pointerup',()=>setTimeout(()=>selectionChanged(doc,index),60));
   // Reflowable books already have paginator touch handling. Fixed pages need
@@ -144,7 +172,10 @@ function typography() {
     const row=document.createElement('label'),name=document.createElement('span');name.textContent=label;row.append(name);
     const select=document.createElement('select');select.setAttribute('aria-label',label);
     for(const [title,value] of values){const option=new Option(title,String(value));select.add(option);}select.value=String(s[key]);
-    select.onchange=()=>attempt(async()=>{s[key]=typeof s[key]==='number'?Number(select.value):select.value;await restyle();changed();});row.append(select);body.append(row);return select;
+    select.onchange=()=>attempt(async()=>{s[key]=typeof s[key]==='number'?Number(select.value):select.value;
+      if(key==='columns'&&s.columns===2)s.flow='paginated';
+      if(key==='flow'&&s.flow==='scrolled')s.columns=1;
+      await restyle();changed();if(key==='columns'||key==='flow')typography();});row.append(select);body.append(row);return select;
   }
   if(view.isFixedLayout){choice('Zoom','zoom',[['Fit page','fit-page'],['Fit width','fit-width'],['100%','1'],['150%','1.5'],['200%','2']]);return;}
   choice('Font','font',[['Book font','publisher'],['Serif','serif'],['Sans serif','sans'],['Monospace','mono'],...(config.fontSize>0?[['Imported font','custom']]:[])]);
@@ -156,13 +187,31 @@ function typography() {
   choice('Alignment','align',[['Start','start'],['Justified','justify']]);
   choice('Columns','columns',[['One',1],['Two',2]]);
   choice('Reading','flow',[['Page turns','paginated'],['Continuous scroll','scrolled']]);
+  para(body,'Two columns use page turns. Continuous scroll uses one column.','muted');
   para(body,'Settings apply to this book. Bookmarks, highlights and handwritten-note links follow the text.','muted');
   button(body,'Reset text settings',async()=>{state.settings={...defaults};await restyle();changed();typography();});
 }
 function contents() {
   if(!view)return;const body=panel('Contents');
-  function add(entries,depth=0){for(const entry of entries??[]){const node=button(body,entry.label||'Section',async()=>{closePanel();clearSelection();await view.goTo(entry.href);});node.style.paddingInlineStart=(12+depth*16)+'px';add(entry.subitems,depth+1);}}
-  add(book.toc);if(!body.children.length)para(body,'This book has no table of contents. Use the reading progress control to jump.');
+  const entries=book.toc??[],current=view.lastLocation?.tocItem,expanded=new Set();
+  function reveal(items,path=[]){for(const item of items){if(item===current || item.id!=null&&item.id===current?.id){for(const ancestor of [...path,item])expanded.add(ancestor);return true;}
+    if(reveal(item.subitems??[],[...path,item]))return true;}return false;}
+  reveal(entries);
+  if(!entries.length){para(body,'This book has no table of contents. Use the reading progress control to jump.');return;}
+  const list=document.createElement('div');list.className='contents';body.append(list);
+  function render(){list.replaceChildren();
+    function add(items,depth=0){for(const entry of items){const row=document.createElement('div');row.className='contents-row';row.style.paddingInlineStart=Math.min(depth,8)*16+'px';
+      const children=entry.subitems?.length>0, disclosure=document.createElement('button');disclosure.className='contents-disclosure';
+      if(children){disclosure.textContent=expanded.has(entry)?'▾':'▸';disclosure.setAttribute('aria-label',(expanded.has(entry)?'Collapse ':'Expand ')+(entry.label||'Section'));
+        disclosure.setAttribute('aria-expanded',String(expanded.has(entry)));disclosure.onclick=()=>{expanded.has(entry)?expanded.delete(entry):expanded.add(entry);render();};}
+      else {disclosure.disabled=true;disclosure.setAttribute('aria-hidden','true');}
+      row.append(disclosure);const title=button(row,entry.label||'Section',async()=>{closePanel();clearSelection();await view.goTo(entry.href);});
+      title.className='contents-title';title.disabled=!entry.href;
+      if(entry===current || entry.id!=null&&entry.id===current?.id){title.classList.add('current');title.setAttribute('aria-current','location');}
+      list.append(row);if(children&&expanded.has(entry))add(entry.subitems,depth+1);}}
+    add(entries);
+  }
+  render();list.querySelector('[aria-current]')?.scrollIntoView({block:'nearest'});
 }
 async function find() {
   if(!view)return;const generation=++searchGeneration,body=panel('Search book');
@@ -256,6 +305,7 @@ const actions={type:typography,contents,search:find,bookmark,notes:listNotes,mor
   close:()=>{flush();send('exit');},snapshot:fixedCopy,exports,
   'close-panel':closePanel};
 $('close-panel').onclick=closePanel;
+installPageTaps($('reader'));
 $('panel').addEventListener('close',()=>{if(!$('panel').open){searchGeneration++;send('panel',{open:false});}});
 addEventListener('pagehide',flush);addEventListener('visibilitychange',()=>{if(document.hidden)flush();});
 port.onMessage.addListener(message=>attempt(async()=>{

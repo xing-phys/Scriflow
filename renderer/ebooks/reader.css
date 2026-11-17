@@ -25,6 +25,11 @@ dialog label input, dialog label select { flex: 1; min-width: 0; }
 .annotation { border: 1px solid #000; border-radius: 6px; padding: 10px; margin: 8px 0; }
 .annotation p { white-space: pre-wrap; overflow-wrap: anywhere; }
 .annotation div { display: flex; flex-wrap: wrap; gap: 6px; }
+.contents-row { display: flex; align-items: center; min-width: 0; }
+.contents-row .contents-disclosure { flex: 0 0 40px; min-width: 40px; padding: 0; border: 0; font-size: 20px; }
+.contents-row .contents-disclosure:disabled { background: transparent; }
+.contents-row .contents-title { flex: 1; min-width: 0; border: 0; text-align: left; white-space: normal; }
+.contents-row .contents-title.current { font-weight: bold; }
 .muted { font-size: 13px; color: #444; }
 .snapshot #notice { visibility: hidden; }
 .snapshot, .working { pointer-events: none; }

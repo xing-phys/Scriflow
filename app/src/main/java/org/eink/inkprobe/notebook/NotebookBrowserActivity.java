@@ -51,6 +51,7 @@ public class NotebookBrowserActivity extends NotebookActivity {
     private boolean home, startupHome;
     private final NotebookBrowserTabs tabs = new NotebookBrowserTabs();
     private final java.util.Map<String, NotebookBrowserEngine> engines = new java.util.HashMap<>();
+    private final java.util.Map<String, String> popupParents = new java.util.HashMap<>();
     private NotebookBrowserIconButton tabButton;
     private static final class PageState { boolean loading, ready, failed; int starts; }
     private final java.util.Map<NotebookBrowserEngine, PageState> pageStates = new java.util.IdentityHashMap<>();
@@ -477,6 +478,31 @@ public class NotebookBrowserActivity extends NotebookActivity {
             try { NotebookBrowserTabs.Tab tab = tabs.add(); activateTab(tab.id); navigate(url); }
             catch (IllegalStateException error) { message("Tabs", error.getMessage()); }
         }
+        @Override public NotebookBrowserEngine onNewWindow(NotebookBrowserEngine view, String url) {
+            if(offline||view!=web||saving||!(view instanceof NotebookGeckoPage)||NotebookBrowserData.clearing())return null;
+            NotebookBrowserTabs.Tab tab=null;
+            NotebookGeckoPage child=null;
+            try {
+                tab=tabs.add();tab.home=false;tab.url=NotebookBrowserAddress.isWebUrl(url)?url:view.getUrl();tab.title="New window";
+                child=((NotebookGeckoPage)view).newPopup(NotebookBrowserActivity.this,new BrowserClient(tab.id),microphone,()->resumed,url);
+                if(child==null){tabs.close(tab.id);if(tabs.find(owner)!=null)tabs.select(owner);return null;}
+                engines.put(tab.id,child);popupParents.put(tab.id,owner);child.setVisibility(View.GONE);
+                content.addView(child,0,new FrameLayout.LayoutParams(-1,-1));
+                final String id=tab.id;final NotebookGeckoPage attached=child;
+                content.post(()->{if(engines.get(id)==attached)activateTab(id);});
+                return child;
+            }catch(RuntimeException error){
+                if(child!=null){content.removeView(child);child.destroy();}
+                if(tab!=null){engines.remove(tab.id);popupParents.remove(tab.id);tabs.close(tab.id);if(tabs.find(owner)!=null)tabs.select(owner);}
+                message("Tabs","Could not open the requested window.");return null;
+            }
+        }
+        @Override public void onWindowClose(NotebookBrowserEngine view) {
+            final String parent=popupParents.get(owner);content.post(()->{
+                if(engines.get(owner)!=view)return;boolean selected=tabs.current().id.equals(owner);
+                closeTab(owner);if(selected&&parent!=null&&tabs.find(parent)!=null)activateTab(parent);
+            });
+        }
         @Override public void onDataCleared(NotebookBrowserEngine view) {
             content.removeView(view); engines.remove(owner); pageStates.remove(view); if (web == view) web = null;
             if (!offline) { tabs.clear(); home = true; currentUrl = null; pageReady = false; loading = false; if (startPage != null) startPage.setVisibility(View.VISIBLE); }
@@ -757,6 +783,7 @@ public class NotebookBrowserActivity extends NotebookActivity {
 
     private void closeTab(String id) {
         if (tabs.find(id) == null) return;
+        popupParents.remove(id);
         boolean selected = id.equals(tabs.current().id);
         NotebookBrowserEngine page = engines.remove(id);
         if (page != null) { content.removeView(page); page.destroy(); pageStates.remove(page); if (web == page) web = null; }

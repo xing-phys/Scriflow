@@ -433,7 +433,7 @@ class View {
 export class Paginator extends HTMLElement {
     static observedAttributes = [
         'flow', 'gap', 'margin',
-        'max-inline-size', 'max-block-size', 'max-column-count',
+        'max-inline-size', 'max-block-size', 'max-column-count', 'max-column-count-portrait', 'column-count',
     ]
     #root = this.attachShadow({ mode: 'closed' })
     #observer = new ResizeObserver(() => this.render())
@@ -643,7 +643,12 @@ export class Paginator extends HTMLElement {
             case 'margin':
             case 'max-block-size':
             case 'max-column-count':
+            case 'max-column-count-portrait':
                 this.#top.style.setProperty('--_' + name, value)
+                this.render()
+                break
+            case 'column-count':
+                this.render()
                 break
             case 'max-inline-size':
                 // needs explicit `render()` as it doesn't necessarily resize
@@ -737,7 +742,9 @@ export class Paginator extends HTMLElement {
             return { flow, margin, gap, columnWidth }
         }
 
-        const divisor = Math.min(maxColumnCount, Math.ceil(size / maxInlineSize))
+        const requestedColumns = parseInt(this.getAttribute('column-count'))
+        const divisor = requestedColumns > 0 ? Math.min(maxColumnCount, requestedColumns)
+            : Math.min(maxColumnCount, Math.ceil(size / maxInlineSize))
         const columnWidth = (size / divisor) - gap
         this.setAttribute('dir', rtl ? 'rtl' : 'ltr')
 

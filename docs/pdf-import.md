@@ -92,7 +92,7 @@ The renderer and current page stay open between tiles; this display cache never
 replaces or rasterizes the original source PDF. A bitmap-only source page still
 has the resolution of its original image. Long-press word selection reads the
 PDF text layer and opens Eudic floating lookup. Scans need a text layer.
-[Reading controls](pdf-reading.md) add crop, contrast and single-page mode;
+[Reading controls](pdf-reading.md) add crop, contrast and paged viewing modes;
 these preferences do not change the original PDF, annotations or exports.
 The immutable `source.pdf`
 is stored with each PDF notebook, and page snapshots reference its one-based

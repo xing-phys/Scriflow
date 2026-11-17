@@ -247,13 +247,13 @@ waiting for a hold. A boundary follows resizing; the note refits after release.
 See [figures and workspace](figures-and-workspace.md) for controls, limits,
 storage compatibility, and remaining hardware checks.
 
-## PDF crop, single-page reading, contrast and dictionary
+## PDF crop, page views, contrast and dictionary
 
 Open **⋮ → Reading view** (the page-with-lines icon) in the top-left bar.
-Choose Continuous or Single page. Continuous defaults to Fit width; Single page
-defaults to Fit page. Use the page arrows or a horizontal swipe at whole-page
-size to turn one page. You can still pinch and pan within a single page; zoomed
-horizontal drags pan rather than turn pages.
+Choose Continuous, Single page or Two pages. Continuous defaults to Fit width;
+the paged views default to Fit page. Use the page arrows or a horizontal swipe
+at whole-page size to turn a page or a two-page spread. You can still pinch and
+pan; zoomed horizontal drags pan rather than turn pages.
 
 PDF pages offer crop Off, Auto, Semi-auto and Manual. Auto finds the content;
 Manual uses your exact area; Semi-auto finds content inside your area. Tap two

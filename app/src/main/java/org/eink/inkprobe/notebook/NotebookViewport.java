@@ -45,8 +45,10 @@ public final class NotebookViewport {
     public final int width, height, pageCount;
     public final float gap;
     public final float zoom, pan;
-    /** Zero means continuous; otherwise exactly this one-based page is visible. */
+    /** Zero means continuous; otherwise the one-based first page of the paged view. */
     public final int singlePage;
+    /** A paged spread starts at singlePage and includes its following page. */
+    public final boolean spread;
     private final List<Size> sizes;
     private final float[] tops, scales, heights;
     private final float totalHeight;
@@ -66,11 +68,11 @@ public final class NotebookViewport {
     }
 
     public NotebookViewport(List<Size> sizes, int viewportWidth, int viewportHeight, float gap, float zoom, float pan) {
-        this(sizes, viewportWidth, viewportHeight, gap, zoom, pan, false,0);
+        this(sizes, viewportWidth, viewportHeight, gap, zoom, pan, false,0,false);
     }
 
     private NotebookViewport(List<Size> sizes, int viewportWidth, int viewportHeight, float gap,
-                             float zoom, float pan, boolean ownedSizes,int singlePage) {
+                             float zoom, float pan, boolean ownedSizes,int singlePage,boolean spread) {
         if (sizes == null || sizes.isEmpty() || sizes.size() > NotebookIndex.MAX_PAGES
                 || viewportWidth <= 0 || viewportHeight <= 0 || !NotebookPage.finite(gap) || gap < 0
                 || !NotebookPage.finite(zoom) || zoom <= 0 || !NotebookPage.finite(pan)) {
@@ -83,22 +85,34 @@ public final class NotebookViewport {
         pageCount = sizes.size();
         if(singlePage<0||singlePage>pageCount)throw new IllegalArgumentException("Invalid single page");
         this.singlePage=singlePage;
+        this.spread=spread && singlePage!=0;
         tops = new float[pageCount]; scales = new float[pageCount]; heights = new float[pageCount];
         float top = 0;
         for (int i = 0; i < pageCount; i++) {
             Size size = this.sizes.get(i);
             if (size == null) throw new IllegalArgumentException("Missing page dimensions");
-            scales[i] = width / (size.width*size.crop.width()) * zoom;
+            scales[i] = pageSlotWidth() / (size.width*size.crop.width()) * zoom;
             heights[i] = size.height * size.crop.height() * scales[i];
-            tops[i] = top;
-            top += heights[i] + (i + 1 < pageCount ? gap : 0);
+            if (!this.spread) {
+                tops[i] = top;
+                top += heights[i] + (i + 1 < pageCount ? gap : 0);
+            } else if ((i & 1) == 1) {
+                tops[i] = tops[i-1];
+                top += Math.max(heights[i-1],heights[i]) + (i + 1 < pageCount ? gap : 0);
+            } else {
+                tops[i] = top;
+                if (i + 1 == pageCount) top += heights[i];
+            }
             if (!NotebookPage.finite(top)) throw new IllegalArgumentException("Notebook geometry is too large");
         }
         totalHeight = top;
     }
 
     private float minScroll(){return singlePage==0?0:tops[singlePage-1];}
-    public float maxScroll() { return singlePage==0?Math.max(0,totalHeight-height):minScroll()+Math.max(0,heights[singlePage-1]-height); }
+    private float spreadHeight(){return spread && singlePage<pageCount?Math.max(heights[singlePage-1],heights[singlePage]):heights[singlePage-1];}
+    private float spreadGap(){return Math.min(gap,Math.max(0,width-2));}
+    private float pageSlotWidth(){return spread?(width-spreadGap())/2:width;}
+    public float maxScroll() { return singlePage==0?Math.max(0,totalHeight-height):minScroll()+Math.max(0,spreadHeight()-height); }
     public float clampScroll(float scroll) {
         if (!NotebookPage.finite(scroll)) throw new IllegalArgumentException("Invalid scroll position");
         return Math.max(minScroll(), Math.min(maxScroll(), scroll));
@@ -109,9 +123,10 @@ public final class NotebookViewport {
     public NotebookCropBox crop(int pageId){return sizes.get(index(pageId)).crop;}
     public float cropLeft(int pageId){return crop(pageId).left*pageWidth(pageId);}
     public float cropTop(int pageId){return crop(pageId).top*pageHeight(pageId);}
-    public float viewLeft(int pageId){index(pageId);return zoom<=1?width*(1-zoom)/2:-pan;}
-    public float viewRight(int pageId){return viewLeft(pageId)+width*zoom;}
-    private float verticalPadding(int pageId){return singlePage==pageId?Math.max(0,(height-heights[index(pageId)])/2):0;}
+    public float viewLeft(int pageId){index(pageId);return (zoom<=1?width*(1-zoom)/2:-pan)
+        +(spread && pageId%2==0?(pageSlotWidth()+spreadGap())*zoom:0);}
+    public float viewRight(int pageId){return viewLeft(pageId)+pageSlotWidth()*zoom;}
+    private float verticalPadding(int pageId){return singlePage==pageId||spread&&singlePage+1==pageId?Math.max(0,(height-heights[index(pageId)])/2):0;}
     public float viewTop(int pageId,float scroll){return tops[index(pageId)]-clampScroll(scroll)+verticalPadding(pageId);}
     public float viewBottom(int pageId,float scroll){return viewTop(pageId,scroll)+heights[index(pageId)];}
     public NotebookFigure fitFigure(int pageId,NotebookFigure figure){
@@ -129,19 +144,24 @@ public final class NotebookViewport {
     public NotebookViewport withView(float zoom, float pan) {
         if (!NotebookPage.finite(zoom) || zoom <= 0 || !NotebookPage.finite(pan))
             throw new IllegalArgumentException("Invalid notebook viewport");
-        if (zoom != this.zoom) return new NotebookViewport(sizes, width, height, gap, zoom, pan, true,singlePage);
+        if (zoom != this.zoom) return new NotebookViewport(sizes, width, height, gap, zoom, pan, true,singlePage,spread);
         float nextPan = clampPan(pan);
         return nextPan == this.pan ? this : new NotebookViewport(this, nextPan);
     }
     public NotebookViewport withSinglePage(int pageId){
-        return pageId==singlePage?this:new NotebookViewport(sizes,width,height,gap,zoom,pan,true,pageId);
+        return pageId==singlePage&&!spread?this:new NotebookViewport(sizes,width,height,gap,zoom,pan,true,pageId,false);
     }
-    public NotebookViewport forPage(int pageId){index(pageId);return singlePage==0?this:withSinglePage(pageId);}
+    public NotebookViewport withSpreadPage(int pageId){
+        index(pageId);int first=pageId-(pageId+1)%2;
+        return spread&&first==singlePage?this:new NotebookViewport(sizes,width,height,gap,zoom,pan,true,first,true);
+    }
+    public NotebookViewport forPage(int pageId){index(pageId);return singlePage==0?this:spread?withSpreadPage(pageId):withSinglePage(pageId);}
 
     private NotebookViewport(NotebookViewport layout, float pan) {
         width = layout.width; height = layout.height; pageCount = layout.pageCount;
         gap = layout.gap; zoom = layout.zoom; this.pan = pan;
         singlePage=layout.singlePage;
+        spread=layout.spread;
         sizes = layout.sizes; tops = layout.tops; scales = layout.scales; heights = layout.heights;
         totalHeight = layout.totalHeight;
     }
@@ -158,7 +178,12 @@ public final class NotebookViewport {
     }
 
     public float fittedZoom(Fit fit, int pageId) {
-        float heightFit = (float)height * pageWidth(pageId)*crop(pageId).width() / (width * (float)pageHeight(pageId)*crop(pageId).height());
+        float heightFit = (float)height * pageWidth(pageId)*crop(pageId).width() / (pageSlotWidth() * (float)pageHeight(pageId)*crop(pageId).height());
+        if(spread){int first=pageId-(pageId+1)%2,second=first+1;
+            float firstFit=(float)height*pageWidth(first)*crop(first).width()/(pageSlotWidth()*pageHeight(first)*crop(first).height());
+            heightFit=firstFit;
+            if(second<=pageCount)heightFit=Math.min(heightFit,(float)height*pageWidth(second)*crop(second).width()/(pageSlotWidth()*pageHeight(second)*crop(second).height()));
+        }
         if (fit == Fit.WIDTH) return 1;
         if (fit == Fit.HEIGHT) return heightFit;
         if (fit == Fit.PAGE) return Math.min(1, heightFit);
@@ -172,7 +197,8 @@ public final class NotebookViewport {
     }
     public float panForPoint(int pageId, float logicalX, float screenX) {
         if (!NotebookPage.finite(logicalX) || !NotebookPage.finite(screenX)) throw new IllegalArgumentException("Invalid zoom anchor");
-        return clampPan((logicalX-cropLeft(pageId)) * scale(pageId) - screenX);
+        return clampPan((logicalX-cropLeft(pageId)) * scale(pageId)
+            +(spread&&pageId%2==0?(pageSlotWidth()+spreadGap())*zoom:0)-screenX);
     }
     public int pageWidth(int pageId) { return sizes.get(index(pageId)).width; }
     public int pageHeight(int pageId) { return sizes.get(index(pageId)).height; }
@@ -194,7 +220,7 @@ public final class NotebookViewport {
     public double anchorFraction(float scroll) {
         float offset = clampScroll(scroll);
         int i = anchorPage(offset) - 1;
-        return ((double) offset - tops[i]) / (heights[i] + (i + 1 < pageCount ? gap : 0));
+        return ((double) offset - tops[i]) / (spread?spreadHeight():heights[i] + (i + 1 < pageCount ? gap : 0));
     }
 
     public float scrollForAnchor(int pageId, double fraction) {
@@ -202,12 +228,12 @@ public final class NotebookViewport {
         if (Double.isNaN(fraction) || Double.isInfinite(fraction) || fraction < 0 || fraction > 1) {
             throw new IllegalArgumentException("Invalid scroll anchor");
         }
-        double span = heights[i] + (i + 1 < pageCount ? gap : 0);
+        double span = spread?spreadHeight():heights[i] + (i + 1 < pageCount ? gap : 0);
         return clampScroll((float) (tops[i] + fraction * span));
     }
 
     public List<Integer> visiblePages(float scroll) {
-        if(singlePage!=0)return Collections.singletonList(singlePage);
+        if(singlePage!=0){if(spread&&singlePage<pageCount)return java.util.Arrays.asList(singlePage,singlePage+1);return Collections.singletonList(singlePage);}
         float offset = clampScroll(scroll);
         List<Integer> visible = new ArrayList<>();
         for (int i = firstEnding(offset, true); i < pageCount && tops[i] < offset + height; i++)
@@ -218,7 +244,7 @@ public final class NotebookViewport {
     /** Zero means the point is outside the viewport or in a page gap. */
     public int pageAt(float x, float y, float scroll) {
         if (!NotebookPage.finite(x) || !NotebookPage.finite(y) || x < 0 || x > width || y < 0 || y > height) return 0;
-        if(singlePage!=0)return x>=viewLeft(singlePage)&&x<=viewRight(singlePage)&&y>=viewTop(singlePage,scroll)&&y<=viewBottom(singlePage,scroll)?singlePage:0;
+        if(singlePage!=0){for(int id:visiblePages(scroll))if(x>=viewLeft(id)&&x<=viewRight(id)&&y>=viewTop(id,scroll)&&y<=viewBottom(id,scroll))return id;return 0;}
         float position = y + clampScroll(scroll);
         for (int i = firstEnding(position, false); i < pageCount && tops[i] <= position; i++) {
             if (x >= viewLeft(i + 1) && x <= viewRight(i + 1)) return i + 1;

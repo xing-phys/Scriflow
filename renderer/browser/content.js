@@ -55,6 +55,11 @@ async function receive(owner, message) {
   if (message.type === 'ack') { if (message.id === active) { acknowledgements.get(message.sequence)?.(); acknowledgements.delete(message.sequence); } return; }
   if (message.type === 'cancel') { if (message.id === active) retire(); return; }
   if (message.type === 'hello') { retryDelay = 250; announce(); return; }
+  if (message.type === 'authorize-popup') {
+    try { await browser.runtime.sendMessage({type:'authorize-popup',url:message.url});owner.postMessage({type:'popup-authorized',id:message.id,ok:true}); }
+    catch { owner.postMessage({type:'popup-authorized',id:message.id,ok:false}); }
+    return;
+  }
   if (message.type === 'stats') { owner.postMessage({ type: 'stats', id: message.id, ...pageStats(document) }); return; }
   if (message.type !== 'capture' || active) return;
   const id = active = message.id;

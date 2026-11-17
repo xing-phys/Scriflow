@@ -16,7 +16,7 @@ final class NotebookBrowserTestInk implements NotebookInkBackend {
     private final Listener listener;
     private NotebookPage page;
     private PaperRenderer paper;
-    private boolean alive = true, wanted, ready, viewPaper;
+    private boolean alive = true, wanted, ready, viewPaper, fingerStream;
     private int width, height;
     NotebookBrowserTestInk(Context context, NotebookPage initial, Listener listener) {
         this.listener = listener; page = initial;
@@ -34,7 +34,26 @@ final class NotebookBrowserTestInk implements NotebookInkBackend {
                 paint.setColor(Color.DKGRAY);paint.setTextSize(24*getResources().getDisplayMetrics().scaledDensity);
                 canvas.drawText("Note surface fixture",24,180,paint);
             }
-            @Override public boolean onTouchEvent(MotionEvent event) { if (alive && ready) listener.onFingerEvent(event); return true; }
+            @Override public boolean onTouchEvent(MotionEvent event) {
+                if(event.getActionMasked()==MotionEvent.ACTION_DOWN)fingerStream=alive&&ready;
+                if(alive&&fingerStream){
+                    // Android's adb input swipe reports TOOL_TYPE_UNKNOWN; map that
+                    // emulator-only injection to the finger tool used on a tablet.
+                    MotionEvent delivered=event;
+                    if(event.getToolType(0)==MotionEvent.TOOL_TYPE_UNKNOWN){
+                        int count=event.getPointerCount();MotionEvent.PointerProperties[] properties=new MotionEvent.PointerProperties[count];
+                        MotionEvent.PointerCoords[] coordinates=new MotionEvent.PointerCoords[count];
+                        for(int i=0;i<count;i++){properties[i]=new MotionEvent.PointerProperties();event.getPointerProperties(i,properties[i]);
+                            if(properties[i].toolType==MotionEvent.TOOL_TYPE_UNKNOWN)properties[i].toolType=MotionEvent.TOOL_TYPE_FINGER;
+                            coordinates[i]=new MotionEvent.PointerCoords();event.getPointerCoords(i,coordinates[i]);}
+                        delivered=MotionEvent.obtain(event.getDownTime(),event.getEventTime(),event.getAction(),count,properties,coordinates,
+                            event.getMetaState(),event.getButtonState(),event.getXPrecision(),event.getYPrecision(),event.getDeviceId(),event.getEdgeFlags(),event.getSource(),event.getFlags());
+                    }
+                    try{listener.onFingerEvent(delivered);}finally{if(delivered!=event)delivered.recycle();}
+                }
+                if(event.getActionMasked()==MotionEvent.ACTION_UP||event.getActionMasked()==MotionEvent.ACTION_CANCEL)fingerStream=false;
+                return true;
+            }
         };
     }
     private void publish() {

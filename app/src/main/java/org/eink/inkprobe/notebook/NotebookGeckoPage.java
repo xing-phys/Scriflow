@@ -36,6 +36,9 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
     private final NotebookBrowserPrompts prompts;
     private final NotebookBrowserMedia media;
     private final boolean offline;
+    private final boolean popup;
+    private final NotebookGeckoPage popupParent;
+    private boolean popupNeedsAuthorization;
     private final String archive;
     private WebExtension extension;
     private WebExtension.Port pagePort;
@@ -49,11 +52,18 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
     private String captureFailure = "The capture connection is not available. Please retry.";
     private boolean painted, readable, notified;
     private final Map<String, Consumer<JSONObject>> probes = new HashMap<>();
+    private final Map<String, Consumer<Boolean>> popupRequests = new HashMap<>();
     private final Runnable flushState;
 
     NotebookGeckoPage(android.app.Activity context, boolean offline, String archive, Listener listener,
                      NotebookMicrophone microphone, java.util.function.BooleanSupplier foreground) {
+        this(context,offline,archive,listener,microphone,foreground,null,false);
+    }
+    private NotebookGeckoPage(android.app.Activity context, boolean offline, String archive, Listener listener,
+                     NotebookMicrophone microphone, java.util.function.BooleanSupplier foreground, NotebookGeckoPage parent, boolean authorizeLater) {
         super(context, listener); this.offline = offline; this.archive = archive == null ? "" : NotebookBrowserAddress.withoutFragment(archive);
+        popupParent=parent;popup=parent!=null;popupNeedsAuthorization=authorizeLater;
+        WebExtension inherited=popup?parent.extension:null;
         runtime = NotebookBrowserRuntime.get(context);
         session = new GeckoSession(new GeckoSessionSettings.Builder().allowJavascript(true).suspendMediaWhenInactive(true).build());
         flushState = () -> { if (!closed) session.flushSessionState(); };
@@ -74,6 +84,18 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
             }
             @Override public GeckoResult<AllowOrDeny> onSubframeLoadRequest(GeckoSession owner, LoadRequest request) {
                 return navigation(request, false);
+            }
+            @Override public GeckoResult<GeckoSession> onNewSession(GeckoSession owner, String target) {
+                if(closed||offline||!ready||extension==null)return null;
+                if(target!=null&&!target.isEmpty()&&!target.equals("about:blank")&&!NotebookBrowserAddress.isWebUrl(target))return null;
+                GeckoResult<GeckoSession> result=new GeckoResult<>();
+                Consumer<Boolean> create=authorized->{
+                    if(!authorized||closed){result.complete(null);return;}
+                    NotebookBrowserEngine child=listener.onNewWindow(NotebookGeckoPage.this,target);
+                    result.complete(child instanceof NotebookGeckoPage?((NotebookGeckoPage)child).session:null);
+                };
+                if(NotebookBrowserAddress.isWebUrl(target))authorizePopup(target,create);else create.accept(true);
+                return result;
             }
             @Override public void onLocationChange(GeckoSession owner, String value,
                     List<GeckoSession.PermissionDelegate.ContentPermission> permissions, Boolean gesture) {
@@ -122,22 +144,44 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
             }
             @Override public void onCrash(GeckoSession owner) { if (!closed) listener.onRendererGone(NotebookGeckoPage.this); }
             @Override public void onKill(GeckoSession owner) { if (!closed) listener.onRendererGone(NotebookGeckoPage.this); }
+            @Override public void onCloseRequest(GeckoSession owner) { if(!closed&&popup)listener.onWindowClose(NotebookGeckoPage.this); }
             @Override public void onExternalResponse(GeckoSession owner, WebResponse response) {
                 if (response.body != null) try { response.body.close(); } catch (IOException ignored) { }
                 if (!closed) listener.onDownload(NotebookGeckoPage.this);
             }
         });
         session.setPermissionDelegate(media);
+        if(popup){
+            extension=inherited;bootstrap=inherited.metaData.optionsPageUrl;ready=true;
+            bindExtension(inherited);surface.setSession(session);NotebookBrowserData.register(this);
+            return; // Gecko opens this new session with its opener after onNewSession returns.
+        }
         session.open(runtime); surface.setSession(session); NotebookBrowserData.register(this);
         NotebookBrowserRuntime.extension(context).accept(value -> {
             if (closed) return;
             extension = value; bootstrap = value.metaData.optionsPageUrl;
-            NotebookBrowserRuntime.bind(value, session, this::connect);
-            session.getWebExtensionController().setMessageDelegate(value, new WebExtension.MessageDelegate() {
-                @Override public void onConnect(WebExtension.Port port) { connect(port); }
-            }, "scriflow");
+            bindExtension(value);
             session.loadUri(bootstrap);
         }, error -> { if (!closed) listener.onError(this, "Could not start the browser’s archive and offline protection component."); });
+    }
+
+    private void bindExtension(WebExtension value) {
+        NotebookBrowserRuntime.bind(value, session, this::connect);
+        session.getWebExtensionController().setMessageDelegate(value, new WebExtension.MessageDelegate() {
+            @Override public void onConnect(WebExtension.Port port) { connect(port); }
+        }, "scriflow");
+    }
+    NotebookGeckoPage newPopup(android.app.Activity context, Listener owner, NotebookMicrophone microphone,
+            java.util.function.BooleanSupplier foreground, String target) {
+        if(closed||offline||!ready||extension==null)return null;
+        return new NotebookGeckoPage(context,false,"",owner,microphone,foreground,this,!NotebookBrowserAddress.isWebUrl(target));
+    }
+    private void authorizePopup(String target,Consumer<Boolean> callback) {
+        if(closed||offline||pagePort==null||!NotebookBrowserAddress.isWebUrl(target)){callback.accept(false);return;}
+        String id=UUID.randomUUID().toString();popupRequests.put(id,callback);
+        try{pagePort.postMessage(json("type","authorize-popup","id",id,"url",target));}
+        catch(RuntimeException disconnected){popupRequests.remove(id);callback.accept(false);return;}
+        postDelayed(()->{Consumer<Boolean> pending=popupRequests.remove(id);if(pending!=null)pending.accept(false);},5000);
     }
 
     private boolean internal(String value) { return value == null || value.equals("about:blank") || value.equals(bootstrap); }
@@ -150,14 +194,19 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
     private GeckoResult<AllowOrDeny> navigation(GeckoSession.NavigationDelegate.LoadRequest request, boolean main) {
         if (closed) return GeckoResult.deny();
         if (!ready && request.uri.equals(bootstrap)) return GeckoResult.allow();
+        if(ready && main && request.uri.equals("about:blank"))return request.target!=GeckoSession.NavigationDelegate.TARGET_WINDOW_NEW||request.hasUserGesture?GeckoResult.allow():GeckoResult.deny();
         if (!ready || !allowed(request.uri, main)) {
             if (ready && main) listener.overrideNavigation(this, request.uri, true, request.hasUserGesture);
             return GeckoResult.deny();
         }
         if (listener.overrideNavigation(this, request.uri, main, request.hasUserGesture)) return GeckoResult.deny();
         if (request.target == GeckoSession.NavigationDelegate.TARGET_WINDOW_NEW) {
-            if (request.hasUserGesture) post(() -> { if (!closed) listener.onNewTab(this, request.uri); });
-            return GeckoResult.deny();
+            return !offline&&request.hasUserGesture?GeckoResult.allow():GeckoResult.deny();
+        }
+        if(popup&&main&&popupNeedsAuthorization){
+            GeckoResult<AllowOrDeny> result=new GeckoResult<>();
+            popupParent.authorizePopup(request.uri,allowed->{if(allowed)popupNeedsAuthorization=false;result.complete(allowed&&!closed?AllowOrDeny.ALLOW:AllowOrDeny.DENY);});
+            return result;
         }
         return GeckoResult.allow();
     }
@@ -186,6 +235,7 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
             @Override public void onDisconnect(WebExtension.Port owner) {
                 if (pagePort == owner) {
                     pagePort = null; cancelCapture();
+                    for(Consumer<Boolean> callback:new ArrayList<>(popupRequests.values()))callback.accept(false);popupRequests.clear();
                     for (Consumer<JSONObject> callback : probes.values()) callback.accept(null);
                     probes.clear();
                 }
@@ -208,6 +258,7 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
         }
         if (port != pagePort) return;
         String type = message.optString("type"), id = message.optString("id");
+        if(type.equals("popup-authorized")){Consumer<Boolean> callback=popupRequests.remove(id);if(callback!=null)callback.accept(message.optBoolean("ok"));return;}
         if (type.equals("stats")) { Consumer<JSONObject> callback = probes.remove(id); if (callback != null) callback.accept(message); return; }
         Capture job = capture;
         if (job == null || !job.id.equals(id)) return;
@@ -311,6 +362,7 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
     @Override void destroy() {
         if (closed) return; prompts.close(); media.reset(); removeCallbacks(flushState); cancelCapture(); closed = true;
         for (Consumer<JSONObject> callback : probes.values()) callback.accept(null); probes.clear();
+        for(Consumer<Boolean> callback:new ArrayList<>(popupRequests.values()))callback.accept(false);popupRequests.clear();
         NotebookBrowserData.unregister(this); NotebookBrowserRuntime.unbind(session); surface.releaseSession(); session.close(); removeView(surface);
     }
     void retireForDataClear() { if (closed) return; destroy(); listener.onDataCleared(this); }

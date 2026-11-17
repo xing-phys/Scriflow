@@ -98,6 +98,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     private TextView saveState;
     private NotebookButton noteNameButton, pageLabel, zoomValue;
     private int statusPageCount;
+    private boolean statusPageSpread;
     private NotebookDeviceStatus deviceStatus;
     private NotebookStatusIslands statusIslands;
     private final Rect notebookStatusBounds = new Rect(), deviceStatusBounds = new Rect();
@@ -764,7 +765,8 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         if (sizes.size() == session.pageCount())
             result=new NotebookViewport(NotebookPdfReading.layout(sizes,session.pdfSource(),settings),width,height,dp(12),zoom,pan);
         else result=new NotebookViewport(session.pageCount(),page.width,page.height,width,height,dp(12),zoom,pan);
-        return result.withSinglePage(settings.singlePage?Math.max(1,Math.min(session.pageCount(),activePage)):0);
+        int selected=Math.max(1,Math.min(session.pageCount(),activePage));
+        return settings.doublePage?result.withSpreadPage(selected):result.withSinglePage(settings.singlePage?selected:0);
     }
 
     private void refreshReadingViewport(){
@@ -1106,7 +1108,8 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     }
 
     private void zoomAt(float nextZoom, float fromX, float fromY, float toX, float toY) {
-        int id = viewport.nearestPage(fromY, scrollY);
+        int id = viewport.pageAt(fromX,fromY,scrollY);
+        if(id==0)id = viewport.nearestPage(fromY, scrollY);
         float x = (fromX - viewport.pageLeft(id)) / viewport.scale(id);
         float y = (fromY - viewport.pageTop(id, scrollY)) / viewport.scale(id);
         NotebookViewport next = viewport.withView(nextZoom, 0);
@@ -1347,6 +1350,24 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         bounds.add(toolsBounds); bounds.add(notebookStatusBounds); bounds.add(deviceStatusBounds); bounds.add(widthPopupBounds); bounds.add(viewNavigationBounds);
         if (viewport != null) {
             int[] origin = new int[2]; ink.view().getLocationOnScreen(origin);
+            if(viewport.spread){
+                List<Rect> empty=new ArrayList<>();empty.add(new Rect(0,0,viewport.width,viewport.height));
+                for(int id:viewport.visiblePages(scrollY)){
+                    Rect paper=new Rect((int)Math.floor(viewport.viewLeft(id)),(int)Math.floor(viewport.viewTop(id,scrollY)),
+                        (int)Math.ceil(viewport.viewRight(id)),(int)Math.ceil(viewport.viewBottom(id,scrollY)));
+                    List<Rect> next=new ArrayList<>();
+                    for(Rect region:empty){int left=Math.max(region.left,paper.left),top=Math.max(region.top,paper.top);
+                        int right=Math.min(region.right,paper.right),bottom=Math.min(region.bottom,paper.bottom);
+                        if(right<=left||bottom<=top){next.add(region);continue;}
+                        Rect intersection=new Rect(left,top,right,bottom);
+                        if(region.top<intersection.top)next.add(new Rect(region.left,region.top,region.right,intersection.top));
+                        if(intersection.bottom<region.bottom)next.add(new Rect(region.left,intersection.bottom,region.right,region.bottom));
+                        if(region.left<intersection.left)next.add(new Rect(region.left,intersection.top,intersection.left,intersection.bottom));
+                        if(intersection.right<region.right)next.add(new Rect(intersection.right,intersection.top,region.right,intersection.bottom));
+                    }empty=next;
+                }
+                for(Rect region:empty)addPageExclusion(bounds,origin,region.left,region.top,region.right,region.bottom);
+            }else{
             int left = Math.max(0, (int) Math.floor(viewport.viewLeft(1)));
             int right = Math.min(viewport.width, (int) Math.ceil(viewport.viewRight(1)));
             addPageExclusion(bounds, origin, 0, 0, left, viewport.height);
@@ -1359,6 +1380,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
                     (int) Math.ceil(viewport.viewBottom(id, scrollY))));
             }
             addPageExclusion(bounds, origin, 0, bottom, viewport.width, viewport.height);
+            }
         }
         ink.setOverlayBounds(bounds.toArray(new Rect[0]));
     }
@@ -1616,8 +1638,8 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         penButton.setAvailable(ready); eraserButton.setAvailable(ready); lassoButton.setAvailable(ready);
         undoButton.setAvailable(ready && session.canUndo(activePage));
         redoButton.setAvailable(ready && session.canRedo(activePage));
-        previousButton.setAvailable(ready && activePage > 1);
-        nextButton.setAvailable(ready && activePage < session.pageCount());
+        previousButton.setAvailable(ready && (viewport!=null&&viewport.spread?viewport.singlePage>1:activePage>1));
+        nextButton.setAvailable(ready && (viewport!=null&&viewport.spread?viewport.singlePage+2<=session.pageCount():activePage<session.pageCount()));
         addButton.setAvailable(ready && session.pageCount() < NotebookIndex.MAX_PAGES);
         floatingTools.button(NotebookFloatingTools.Action.OUTLINE).setAvailable(ready);
         floatingTools.button(NotebookFloatingTools.Action.AI_CHAT).setAvailable(ready || independentWithoutEditor() && active);
@@ -2287,19 +2309,22 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     private void updatePageLabel() {
         String name = session.notebookName();
         int total = session.pageCount();
-        String text = activePage + " / " + total, percent = zoomLabel();
+        String pagesLabel=viewport!=null&&viewport.spread?viewport.singlePage+(viewport.singlePage<total?"–"+(viewport.singlePage+1):""):String.valueOf(activePage);
+        String text = pagesLabel + " / " + total, percent = zoomLabel();
         boolean changed = false;
         if (!name.contentEquals(noteNameButton.getText())) { noteNameButton.setText(name); changed = true; }
         if (!text.contentEquals(pageLabel.getText())) { pageLabel.setText(text); changed = true; }
         if (!percent.contentEquals(zoomValue.getText())) { zoomValue.setText(percent); changed = true; }
-        if (statusPageCount != total) {
+        boolean spread=viewport!=null&&viewport.spread;
+        if (statusPageCount != total || statusPageSpread!=spread) {
             statusPageCount = total;
+            statusPageSpread=spread;
             // Reserve only this notebook's counter digits, keeping its ink exclusion steady while writing.
-            pageLabel.setMinWidth((int) Math.ceil(pageLabel.getPaint().measureText(total + " / " + total)) + dp(8));
+            pageLabel.setMinWidth((int) Math.ceil(pageLabel.getPaint().measureText(total+(spread?"–"+total:"")+" / " + total)) + dp(8));
             changed = true;
         }
         noteNameButton.setContentDescription(name + "; return to bookshelf");
-        pageLabel.setContentDescription("Page " + activePage + " of " + total + "; manage pages");
+        pageLabel.setContentDescription("Page " + pagesLabel + " of " + total + "; manage pages");
         zoomValue.setContentDescription("Zoom " + percent + "; zoom and page fit");
         if (changed && statusIslands != null) statusIslands.refresh();
     }
@@ -2403,7 +2428,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     }
 
     private void switchPage(int offset) {
-        int target = activePage + offset;
+        int target = viewport!=null&&viewport.spread?viewport.singlePage+offset*2:activePage+offset;
         if (!canEdit() || target < 1 || target > session.pageCount()) return;
         pauseForEdit();
         if (shownError != null) return;
@@ -3492,7 +3517,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             readingPreviewContrast=null;
             if(error!=null){Toast.makeText(this,error.getMessage(),Toast.LENGTH_LONG).show();resumeAfterReadingPreview();return;}
             for(NotebookPdfReading.Request pending:cropRequests.values())pending.cancel();cropRequests.clear();cropFailures.clear();
-            if(old.singlePage!=settings.singlePage||old.crop!=settings.crop||!old.odd.equals(settings.odd)||!old.even.equals(settings.even)||!old.pages.equals(settings.pages))
+            if(old.singlePage!=settings.singlePage||old.doublePage!=settings.doublePage||old.crop!=settings.crop||!old.odd.equals(settings.odd)||!old.even.equals(settings.even)||!old.pages.equals(settings.pages))
                 zoomFit=settings.singlePage?NotebookViewport.Fit.PAGE:NotebookViewport.Fit.WIDTH;
             readingFlowKnown=true;editing=false;
             for(Map.Entry<NotebookWorkspace.Pane,NotebookCompanion> entry:noteWindows.entrySet())if(entry.getKey().notebookId==book)entry.getValue().refreshReadingSettings();
@@ -3918,7 +3943,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             + "\n\nLasso draws a temporary dashed line. Lift the stylus to close the curve automatically. Drag inside with a finger or stylus to move the selected ink. Copy, Duplicate, Move to page, Cut, Delete, and Export icons appear beside the region. Tap outside to clear the selection; tap the selected Lasso icon afterward for Paste or Select all. Copied ink stays inside Scriflow until the app restarts. Drag a selection to another page; hold near the top or bottom edge to scroll. Move… places it on any page. Cross-page moves preserve the ink and undo both pages together."
             + "\n\nNew writing or a successful edit clears Redo. Changing paper keeps your stroke history.";
         message += "\n\nTap the dotted grip to collapse or expand the floating tools; drag it to move them, even when collapsed. The direction icon beside it switches between one row and one column. The thicker circle marks the selected tool. The page counter in the top-left bar opens page management."
-            + "\n\nReading view in the top-left action icons offers Continuous or Single page. Single page starts at Fit page; pinch and pan remain available. At whole-page size, swipe horizontally or use the page arrows to turn. PDF pages also offer Auto, Manual and Semi-auto cropping, separate odd/even areas and contrast. Crop and contrast affect display only. Hold a finger on a PDF word to select and open Eudic floating lookup; Copy and dictionary icons appear beside it. A PDF text layer and installed Eudic are required."
+            + "\n\nReading view in the top-left action icons offers Continuous, Single page or Two pages. Paged views start at Fit page; pinch and pan remain available. At whole-page size, swipe horizontally or use the page arrows to turn. PDF pages also offer Auto, Manual and Semi-auto cropping, separate odd/even areas and contrast. Crop and contrast affect display only. Hold a finger on a PDF word to select and open Eudic floating lookup; Copy and dictionary icons appear beside it. A PDF text layer and installed Eudic are required."
             + "\n\nThe outline icon opens the table of contents at the current heading, shown in bold, with other branches collapsed. Use the arrows to fold nested headings; hold a heading or tap Edit headings to change it. Tap PDF links with one finger; writing with the stylus keeps annotating. Previous-view and next-view arrows appear at the lower right when available, or beside a floating note's minimize control. They restore your page, position and zoom after a link, outline or page-overview jump, including after screen rotation."
             + "\n\nTap the selected Pen icon to open a small width slider. Slide the point and release to apply. The slider stays open for further adjustments; start writing, tap outside, or press Back to close. Current thickness: " + NotebookPenConfig.label(penWidth) + ". The small line below the pencil previews its width. Settings offers fixed width on the page (default) or fixed width on the screen while writing. Existing strokes keep their captured shape in either mode."
             + "\n\nExport PDF saves all pages in this notebook, including their paper backgrounds and handwriting.";

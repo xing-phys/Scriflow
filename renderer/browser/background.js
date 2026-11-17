@@ -1,14 +1,21 @@
 import './data.js';
 import { allowedRequest } from './policy.js';
-const modes = new Map(), captures = new Map();
+const modes = new Map(), captures = new Map(), popupGrants = [];
 const ownOrigin = browser.runtime.getURL('');
 browser.webRequest.onBeforeRequest.addListener(details => {
   // Extension-owned fetches are individually validated below. User tabs must be
   // configured before navigation; an offline tab never falls back to the network.
-  const mode = details.tabId < 0 ? { offline: false } : modes.get(details.tabId);
+  let mode = details.tabId < 0 ? { offline: false } : modes.get(details.tabId);
+  if(!mode && details.type==='main_frame' && details.tabId>=0) {
+    // GeckoView does not expose openerTabId reliably. A trusted native request
+    // authorizes one exact initial URL, never an unknown tab or subresource.
+    const now=Date.now();for(let i=popupGrants.length-1;i>=0;i--)if(popupGrants[i].expires<now||!modes.has(popupGrants[i].owner))popupGrants.splice(i,1);
+    const index=popupGrants.findIndex(grant=>grant.url===details.url);
+    if(index>=0){popupGrants.splice(index,1);mode={offline:false};modes.set(details.tabId,mode);}
+  }
   return { cancel: !allowedRequest(details.url, mode, ownOrigin) };
 }, { urls: ['<all_urls>'] }, ['blocking']);
-browser.tabs.onRemoved.addListener(id => { modes.delete(id); captures.delete(id); });
+browser.tabs.onRemoved.addListener(id => { modes.delete(id); captures.delete(id);for(let i=popupGrants.length-1;i>=0;i--)if(popupGrants[i].owner===id)popupGrants.splice(i,1); });
 browser.runtime.onMessage.addListener(async (message, sender) => {
   const tab = sender.tab?.id;
   if (tab == null || sender.frameId && sender.frameId !== 0) throw Error('Invalid capture owner');
@@ -18,6 +25,12 @@ browser.runtime.onMessage.addListener(async (message, sender) => {
     modes.set(tab, { offline: !!message.offline, archive }); return { ready: true };
   }
   if (!modes.has(tab) || modes.get(tab).offline) throw Error('Capture is only available online');
+  if(message.type==='authorize-popup') {
+    const url=new URL(message.url);if(url.protocol!=='https:')throw Error('Invalid popup URL');url.hash='';
+    const now=Date.now();for(let i=popupGrants.length-1;i>=0;i--)if(popupGrants[i].expires<now||!modes.has(popupGrants[i].owner))popupGrants.splice(i,1);
+    if(popupGrants.length>=32)throw Error('Too many pending windows');
+    popupGrants.push({owner:tab,url:url.href,expires:now+10000});return true;
+  }
   if (message.type === 'begin') {
     if (!/^[a-f0-9-]{36}$/.test(message.id)) throw Error('Invalid capture');
     const old = captures.get(tab);

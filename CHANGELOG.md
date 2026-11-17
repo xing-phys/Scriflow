@@ -6,6 +6,21 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.44.0-alpha.1 — Reading views and sign-in windows (2026-11-17)
+
+- Correct two-column paginated ebook spreads in portrait and landscape.
+  Continuous scrolling uses one column; choosing two columns selects page turns.
+- Show ebook contents as an expandable tree, opening around the current heading.
+  Finger taps on the right or bottom half advance; the upper left goes back.
+  Links, text selection, scrolling and zoomed fixed pages keep their own gestures.
+- Add a two-page view for PDF notebooks and handwritten notes. Page arrows and
+  whole-page swipes turn spreads; ink, cropping and links keep page-local geometry.
+- Keep the originating browser session connected to sign-in popups and return to
+  it when the popup closes. The request boundary still confines offline pages.
+- VersionCode 119. Tablet acceptance, real Google sign-in to X, e-ink rendering
+  and physical stylus behavior remain to be checked by the owner. This is an
+  alpha prerelease; beta and release-candidate promotion follow device testing.
+
 ## 0.43.0-alpha.2 — Responsive lecture casting (2026-11-17)
 
 - Isolate screen readback, JPEG memory/GC and HTTP in a private `:cast` Android

@@ -23,6 +23,11 @@ const puppeteer=require(path.join(root,'.tools/markdown-renderer/node_modules/pu
   await page.goto('http://127.0.0.1:'+server.address().port+'/article',{waitUntil:'domcontentloaded'});
   check(await page.evaluate(()=>document.readyState!=='complete'),'fixture is visibly readable while its load event is blocked');
   check(await page.evaluate(()=>messages.some(m=>m.type==='document'&&m.readable)),'capture bridge reports DOM readiness before load completes');
+  await page.evaluate(()=>command({type:'authorize-popup',id:'popup-fixture',url:'https://example.org/signin'}));
+  await page.waitForFunction(()=>messages.some(m=>m.type==='popup-authorized'&&m.id==='popup-fixture'));
+  check(await page.evaluate(()=>commands.some(m=>m.type==='authorize-popup'&&m.url==='https://example.org/signin')
+    &&messages.some(m=>m.type==='popup-authorized'&&m.id==='popup-fixture'&&m.ok)),
+    'the native popup request is acknowledged only after the extension accepts its initial URL');
   const id='11111111-1111-4111-8111-111111111111';
   await page.evaluate(id=>command({type:'capture',id}),id);
   await page.waitForFunction(id=>messages.some(m=>m.type==='complete'&&m.id===id),{},id);

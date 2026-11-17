@@ -41,6 +41,12 @@ with ZipFile(OUT/'scripted.epub','w') as archive,ZipFile(OUT/'quantum.epub') as 
         if entry.filename=='OPS/a.xhtml':
             data=data.replace(b'<h1>',b'<script>parent.__bookScriptExecuted=true;fetch("https://example.org/ebook-leak")</script><img src="https://example.org/ebook-leak.png" onerror="parent.__bookScriptExecuted=true"/><h1>',1)
         archive.writestr(entry,data)
+with ZipFile(OUT/'nested.epub','w') as archive,ZipFile(OUT/'quantum.epub') as original:
+    for entry in original.infolist():
+        data=original.read(entry.filename)
+        if entry.filename=='OPS/nav.xhtml':
+            data=b'''<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>Contents</title></head><body><nav epub:type="toc"><ol><li><a href="a.xhtml">Spin chains</a><ol><li><a href="a.xhtml#p1">First section</a><ol><li><a href="a.xhtml#p2">Deep section</a></li></ol></li></ol></li><li><a href="b.xhtml">Quantum information</a><ol><li><a href="b.xhtml#p20">Other section</a></li></ol></li></ol></nav></body></html>'''
+        archive.writestr(entry,data)
 with ZipFile(OUT/'comic.cbz','w') as archive:
     archive.writestr('page1.png',picture);archive.writestr('page2.png',png(360,480))
 (OUT/'quantum.fb2').write_text('''<?xml version="1.0" encoding="utf-8"?><FictionBook xmlns="http://www.gribuser.ru/xml/fictionbook/2.0"><description><title-info><genre>science</genre><author><first-name>Scriflow</first-name><last-name>tests</last-name></author><book-title>Quantum FB2 Fixture</book-title><lang>en</lang></title-info></description><body><section id="chapter1"><title><p>Spin dynamics</p></title><p>The uncertainty principle links measurement and fluctuations. 中文阅读测试。</p></section><section id="chapter2"><title><p>Entanglement</p></title><p>The reduced density matrix encodes local information.</p></section></body></FictionBook>''')

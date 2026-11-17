@@ -66,6 +66,12 @@ def native_tap(name):
     control=next(c for c in value['toolboxControls'] if c['name']==name)
     adb('shell','input','tap',str(control['x']+control['width']//2),str(control['y']+control['height']//2))
 
+def saved_state(book):
+    raw=adb('exec-out','run-as',PACKAGE,'cat','files/ebooks/'+book+'/state').stdout
+    magic,size=struct.unpack('>II',raw[:8]);payload=raw[8:8+size]
+    assert magic==0x45424b31 and len(raw)==size+12 and zlib.crc32(payload)==struct.unpack('>I',raw[-4:])[0]
+    return json.loads(payload)
+
 if adb('shell','getprop','ro.kernel.qemu').stdout.strip()!=b'1':raise SystemExit('Controls checks require an emulator.')
 fixture='/data/local/tmp/scriflow-ebook-controls.epub'
 try:
@@ -98,23 +104,38 @@ try:
     tap(lambda n:n.get('text')=='Size' and bounds(n)[2]-bounds(n)[0]>400)
     tap(label('24 px'));find(label('Size 24 px'))
     print('PASS: Touch opens native size choices and applies 24 px.',flush=True)
+    tap(lambda n:n.get('text')=='Columns' and bounds(n)[2]-bounds(n)[0]>400)
+    tap(label('Two'));find(label('Columns Two'))
+    find(label('Reading Page turns'))
+    print('PASS: Touch selects a two-column paginated spread.',flush=True)
     tap(label('Close reading panel'))
+    (ROOT/'build/ebook-two-column-android.png').write_bytes(adb('exec-out','screencap','-p').stdout)
+    report=json.loads(adb('exec-out','run-as',PACKAGE,'cat','cache/ebook-reader-check.json').stdout)
+    assert report.get('passed'),report
+    time.sleep(.5);before=saved_state(report['book'])['location']
+    adb('shell','input','tap','1150','1300')
+    deadline=time.monotonic()+10
+    while saved_state(report['book'])['location']==before:
+        if time.monotonic()>deadline:raise AssertionError('A right-hand touch did not turn the spread.')
+        time.sleep(.2)
+    after=saved_state(report['book'])['location']
+    adb('shell','input','tap','200','300')
+    deadline=time.monotonic()+10
+    while saved_state(report['book'])['location']==after:
+        if time.monotonic()>deadline:raise AssertionError('An upper-left touch did not turn back.')
+        time.sleep(.2)
+    print('PASS: Real GeckoView touch taps turn forward and back in a spread.',flush=True)
     value=chrome(lambda v:not v['panel'] and v['left'][2]>v['left'][0]);x,y,width,height=value['home']
     adb('shell','input','tap',str(x+width//2),str(y+height//2))
     find(label('Import book'))
-    report=json.loads(adb('exec-out','run-as',PACKAGE,'cat','cache/ebook-reader-check.json').stdout)
-    assert report.get('passed'),report
     deadline=time.monotonic()+10
     while True:
-        raw=adb('exec-out','run-as',PACKAGE,'cat','files/ebooks/'+report['book']+'/state').stdout
-        magic,size=struct.unpack('>II',raw[:8]);payload=raw[8:8+size]
-        assert magic==0x45424b31 and len(raw)==size+12 and zlib.crc32(payload)==struct.unpack('>I',raw[-4:])[0]
-        state=json.loads(payload)
-        if state['settings']['font']=='serif' and state['settings']['size']==24:break
+        state=saved_state(report['book'])
+        if state['settings']['font']=='serif' and state['settings']['size']==24 and state['settings']['columns']==2 and state['settings']['flow']=='paginated':break
         if time.monotonic()>deadline:raise AssertionError('Touch-selected settings were not saved on exit.')
         time.sleep(.2)
     print('PASS: Leaving the book durably saves the touch-selected settings.',flush=True)
-    (ROOT/'build/ebook-controls-result.json').write_text(json.dumps({'passed':True,'checks':5,'book':report['book'],'settings':state['settings']},indent=2)+'\n')
+    (ROOT/'build/ebook-controls-result.json').write_text(json.dumps({'passed':True,'checks':7,'book':report['book'],'settings':state['settings']},indent=2)+'\n')
 finally:
     adb('shell','rm','-f',fixture,'/sdcard/scriflow-ebook-controls.xml',check=False)
     adb('shell','run-as',PACKAGE,'rm','-rf','cache/ebook-check-input',check=False)

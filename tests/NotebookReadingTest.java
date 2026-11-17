@@ -8,7 +8,7 @@ import java.util.*;
 public final class NotebookReadingTest {
     private static int checks;
     private interface Action{void run()throws Exception;}
-    public static void main(String[] args)throws Exception{geometry();paging();settings();detection();contrast();words();System.out.println("NotebookReading: "+checks+" assertions passed (crop/ink geometry, single-page zoom, settings recovery, content detection and contrast).");}
+    public static void main(String[] args)throws Exception{geometry();paging();spread();settings();detection();contrast();words();System.out.println("NotebookReading: "+checks+" assertions passed (crop/ink geometry, page views, settings recovery, content detection and contrast).");}
     private static void geometry()throws Exception{
         UUID id=UUID.randomUUID();NotebookCropBox crop=new NotebookCropBox(.2f,.1f,.9f,.8f);
         NotebookViewport.Size size=new NotebookViewport.Size(1000,1200,id,1).cropped(crop);
@@ -54,6 +54,31 @@ public final class NotebookReadingTest {
         NotebookViewport next=view.forPage(3);check(next.centeredPage(next.pageScroll(3))==3,"explicit navigation selects the destination before clamping");
         check(next.withSinglePage(0).pageCount==3,"continuous mode restores the original full page stack");
     }
+    private static void spread(){
+        List<NotebookViewport.Size> sizes=Arrays.asList(new NotebookViewport.Size(600,900),new NotebookViewport.Size(900,600),new NotebookViewport.Size(300,1200));
+        NotebookViewport view=new NotebookViewport(sizes,1000,700,20).withSpreadPage(2);
+        view=view.withView(view.fittedZoom(NotebookViewport.Fit.PAGE,1),0);float scroll=view.pageScroll(1);
+        check(view.singlePage==1&&view.visiblePages(scroll).equals(Arrays.asList(1,2)),"spread shows the destination and its facing page");
+        check(view.viewRight(1)<view.viewLeft(2),"facing pages have a nonwritable gutter");
+        float leftX=(view.viewLeft(1)+view.viewRight(1))/2,rightX=(view.viewLeft(2)+view.viewRight(2))/2;
+        check(view.pageAt(leftX,350,scroll)==1&&view.pageAt(rightX,350,scroll)==2&&view.pageAt(500,350,scroll)==0,"spread hit testing distinguishes both pages and the gutter");
+        NotebookPage.Stroke line=new NotebookPage.Stroke(1,3,0xff000000,Arrays.asList(new NotebookPage.Point(leftX,350,1,1),new NotebookPage.Point(rightX,350,2,1)));
+        Map<Integer,List<NotebookPage.Stroke>> pieces=view.splitStroke(line,scroll);
+        check(pieces.size()==2&&pieces.containsKey(1)&&pieces.containsKey(2),"cross-gutter writing is saved separately to both source pages");
+        NotebookPage first=NotebookPage.empty().withSize(600,900).withStroke(pieces.get(1).get(0));
+        NotebookPage second=NotebookPage.empty().withSize(900,600).withStroke(pieces.get(2).get(0));
+        check(view.compose(new java.util.HashMap<Integer,NotebookPage>(){{put(1,first);put(2,second);}},scroll).strokes.size()==2,"both pages replay their own ink");
+        check(NotebookPageTurn.target(view,-100,0,48)==3&&NotebookPageTurn.target(view,100,0,48)==0,"swipes advance by a spread and respect the first page");
+        NotebookViewport last=view.forPage(3);last=last.withView(last.fittedZoom(NotebookViewport.Fit.PAGE,3),0);check(last.visiblePages(last.pageScroll(3)).equals(Collections.singletonList(3)),"odd last page remains reachable on its own");
+        check(NotebookPageTurn.target(last,100,0,48)==1&&NotebookPageTurn.target(last,-100,0,48)==0,"last spread navigates back without passing the end");
+        NotebookViewport zoomed=view.withView(2,0);check(NotebookPageTurn.target(zoomed,-100,0,48)==0,"zoomed spread drags remain panning gestures");
+        NotebookViewport tallRight=new NotebookViewport(Arrays.asList(new NotebookViewport.Size(600,300),new NotebookViewport.Size(300,1800)),1000,700,20).withSpreadPage(1).withView(2,0);
+        float bottom=tallRight.maxScroll();double fraction=tallRight.anchorFraction(bottom);
+        check(fraction>=0&&fraction<=1,"spread persistence uses the taller page when saving a zoomed scroll offset");
+        near(tallRight.scrollForAnchor(1,fraction),bottom,"zoomed spread scroll offsets restore without losing the taller page");
+        float pan=zoomed.panForPoint(2,450,550);zoomed=zoomed.withView(2,pan);
+        near(zoomed.pageLeft(2)+450*zoomed.scale(2),550,"right-page pinch anchor accounts for its horizontal slot");
+    }
     private static void settings()throws Exception{
         File root=Files.createTempDirectory("reading-prefs-").toFile();
         try{
@@ -61,6 +86,10 @@ public final class NotebookReadingTest {
             NotebookReadingSettings state=NotebookReadingSettings.DEFAULT.crop(NotebookReadingSettings.Crop.SEMI_AUTO).single(true).contrast(1.5f).area(NotebookReadingSettings.Scope.ODD,id,box);
             NotebookReadingStore store=new NotebookReadingStore(root,1);check(store.read().equals(NotebookReadingSettings.DEFAULT),"new notes retain uncropped continuous identity defaults");store.write(state);
             check(new NotebookReadingStore(root,1).read().equals(state),"crop scopes, page mode and contrast persist together");
+            byte[] legacy=Files.readAllBytes(new File(root,"reading/1.view").toPath());legacy[7]=1;Files.write(new File(root,"reading/1.view").toPath(),legacy);
+            check(new NotebookReadingStore(root,1).read().equals(state),"version-one reading settings still open");
+            NotebookReadingSettings spread=state.spread();store.write(spread);check(store.read().equals(spread)&&spread.contrast(2).doublePage,"spread preference persists and survives other preference changes");
+            store.write(state);
             check(state.manual(1,id).equals(box)&&state.manual(2,id).equals(NotebookCropBox.FULL),"odd/even areas remain independent");
             NotebookReadingSettings changed=state.area(NotebookReadingSettings.Scope.PAGE,id,new NotebookCropBox(.2f,.2f,.8f,.8f));store.write(changed);
             Files.write(new File(root,"reading/1.view").toPath(),new byte[]{1});check(new NotebookReadingStore(root,1).read().equals(state),"corrupt preferences recover the exact predecessor without changing notes");

@@ -1,6 +1,6 @@
 # Books and adjustable text
 
-Scriflow 0.42.0-alpha.3 shows ebooks directly on the homepage alongside PDF
+Scriflow shows ebooks directly on the homepage alongside PDF
 notebooks and handwritten notes, in the same list or thumbnail layout. Existing
 imports appear automatically; there is no separate Books folder and no reimport
 is needed. Use the **Import book** homepage icon, open a supported file from
@@ -43,17 +43,21 @@ toolbox used by notebooks sit above the page, without reserving header/footer ro
   Position and collapsed state are remembered. A new reader starts collapsed.
 - The **text/layout icon** opens book/serif/sans/monospace or imported TTF/OTF
   fonts, size, weight, spacing, margins, alignment, columns and page/scroll mode.
-  Fixed books offer fit and zoom. These settings are remembered per book.
+  Two columns are a paginated spread; choosing continuous scrolling returns to
+  one column. Fixed books offer fit and zoom. Settings are remembered per book.
 - Use the **contents**, **search**, **bookmark** and **notes** icons for navigation,
   highlights, text notes and handwritten-note links. Scans need an existing text
-  layer for search; Scriflow does not perform OCR.
+  layer for search; Scriflow does not perform OCR. Contents opens around the
+  current heading, with disclosure arrows for expanding and collapsing branches.
 - Selecting text reveals contextual **highlight**, **text note**, **copy**,
   **dictionary** and **clear selection** icons in the toolbox. The pen icon opens
   a handwritten note linked to the selection or current position.
 - The **focus icon** hides controls. Android Back or the small clock restores
   them; Back also dismisses a selection or panel before leaving the book.
-- Page-turn gestures and arrow keys remain available. Use page buttons while
-  panning a zoomed fixed page. Icons have accessible names and explanatory labels
+- In page-turn mode, tap the right half or bottom half of the reading area to
+  advance; tap the upper-left quarter to go back. Links and text selections keep
+  their normal behavior. Swipes and arrow keys remain available. Use page buttons
+  while panning a zoomed fixed page. Icons have accessible names and explanatory labels
   in their menus; text labels remain for chapter titles and settings choices.
 
 Progress and annotations use text locations, so adjusting the font or rotating

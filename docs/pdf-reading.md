@@ -34,7 +34,7 @@ figures and Markdown remain unchanged. Disabling crop reveals hidden content.
 New writing uses original page coordinates, so toggling crop does not move it.
 New figures and lasso drops fit within the displayed area.
 
-## Continuous or single page
+## Continuous, single page or two pages
 
 Continuous scrolling at Fit width remains the default. **Single page** displays
 exactly one page and initially fits the whole page, centered when necessary.
@@ -43,7 +43,11 @@ at whole-page size. Pinch to zoom in/out and pan within that page. A zoomed
 horizontal drag pans; it does not accidentally turn a page. Page arrows,
 overview jumps, outlines and internal PDF links still work. The percentage
 menu offers Fit width, Fit height, Fit page and custom zoom in either mode.
-The reading-mode setting also works for ordinary paper notes.
+**Two pages** displays consecutive pages side by side, starting with pages 1–2,
+then 3–4. The last page appears on its own when the count is odd. Arrows and
+whole-page swipes move by a spread; pinch and pan remain available. Writing,
+links and cropping use the individual page under the input. These reading modes
+also work for ordinary paper notes.
 
 Inactive floating/split notes use the same crop, page mode, sharp PDF tiles and
 finger navigation. Changing focus preserves each pane's independent view.

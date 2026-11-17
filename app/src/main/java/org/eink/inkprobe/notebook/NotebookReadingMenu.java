@@ -22,7 +22,8 @@ final class NotebookReadingMenu {
         NotebookIconButton close=new NotebookIconButton(activity,NotebookIconDrawable.Icon.CLOSE,"Close reading settings");heading.addView(close,new LinearLayout.LayoutParams(dp(28),dp(28)));content.addView(heading);
         LinearLayout flow=new LinearLayout(activity);
         add(flow,(initial.singlePage?"":"✓ ")+"Continuous",()->chooseFlow(false));
-        add(flow,(initial.singlePage?"✓ ":"")+"Single page",()->chooseFlow(true));content.addView(flow);
+        add(flow,(initial.singlePage&&!initial.doublePage?"✓ ":"")+"Single page",()->chooseFlow(true));
+        add(flow,(initial.doublePage?"✓ ":"")+"Two pages",this::chooseSpread);content.addView(flow);
         if(pdf){
             content.addView(label("Page crop",13));
             LinearLayout first=new LinearLayout(activity),second=new LinearLayout(activity);
@@ -52,6 +53,7 @@ final class NotebookReadingMenu {
         add(row,(settings.crop==mode?"✓ ":"")+text,()->{settings=settings.crop(mode);cropArea=area;popup.dismiss();});
     }
     private void chooseFlow(boolean single){settings=settings.single(single);popup.dismiss();}
+    private void chooseSpread(){settings=settings.spread();popup.dismiss();}
     private void add(LinearLayout row,String text,Runnable action){NotebookButton button=new NotebookButton(activity);button.setText(text);button.setTextSize(13);button.setOnClickListener(v->action.run());row.addView(button,new LinearLayout.LayoutParams(0,dp(36),1));}
     private TextView label(String text,int size){TextView label=new TextView(activity);label.setText(text);label.setTextColor(Color.BLACK);label.setTextSize(size);label.setPadding(0,dp(3),0,dp(3));return label;}
     private static String contrastLabel(float value){return String.format(Locale.ROOT,"PDF contrast · %.2f×",value);}
