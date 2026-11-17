@@ -17,13 +17,16 @@ apply contrast after rasterization. A transparent Eudic pause retains the
 paused native surface; a full stop releases it.
 
 Version 0.43 adds [local screen casting](screen-cast.md). An unexported
-MediaProjection foreground service captures only while a shareable Scriflow
+MediaProjection foreground service in private process `:cast` captures only while a shareable Scriflow
 screen has app-owned window focus. It detaches the capture surface on pause,
 revokes asynchronous frame ownership, and performs JPEG encoding on a background
 thread. A Wi-Fi-bound, bounded HTTP server authenticates each browser using
 session cookies. Cast credentials and frames remain in memory; capture has no
 document-writing or remote-control path. Screen-off and network changes end
-the session. The local HTTP transport requires trusted Wi-Fi.
+the session. The local HTTP transport requires trusted Wi-Fi. Alpha.2 isolates
+capture/JPEG/HTTP heaps from native pen/UI, paces latest-image acquisition,
+and sends only visibility leases and DOWN/UP contact over IPC. Waiting frame
+delivery and browser decode-before-swap avoid fixed polling and blank replacements.
 
 ## Decisions and ownership
 

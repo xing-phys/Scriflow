@@ -26,15 +26,18 @@ pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
 stays in front, window operations retain the main editor, and PDF import opens
 the file picker directly before opening the imported note.
 
-The **[0.43.0-alpha.1 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.43.0-alpha.1)**
-adds password-protected **Screen cast**. In **Settings → Screen cast**, set a
+The **[0.43.0-alpha.2 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.43.0-alpha.2)**
+improves password-protected **Screen cast** for lectures. Capture/JPEG/network
+work runs outside the pen/UI process; native-resolution, higher-quality images
+arrive through waiting requests and decoded image swaps. In **Settings → Screen cast**, set a
 password, tap **Start casting** and approve Android capture. Open the displayed
 **http://IP:port/** address in a browser on your Mac, phone or tablet connected
 to the same Wi-Fi, then enter the password. Multiple devices can watch together.
 Settings and cast controls stay private; leaving Scriflow pauses the feed.
 Stop from the panel or notification to disconnect everyone. Use trusted Wi-Fi:
 the local HTTP connection is not encrypted. See [Screen cast](docs/screen-cast.md)
-for controls and limits. Physical tablet and Safari acceptance are pending.
+for controls and limits. The owner confirmed initial casting works; dashed-line
+responsiveness and the new lecture performance still need tablet/Mac retesting.
 
 It retains offline ebooks directly on the homepage alongside PDFs and notes: EPUB,
 MOBI/AZW3, DjVu, FB2, zipped FB2, CBZ, HTML and TXT. Reading uses the existing

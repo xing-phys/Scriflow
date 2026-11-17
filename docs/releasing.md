@@ -46,6 +46,17 @@ it does not arbitrarily change the patch number or signing identity.
 
 ## Before publishing
 
+**0.43.0-alpha.2** (versionCode **118**) improves lecture casting without
+putting pixel/encoding work in the pen/UI heap. Validate the private process,
+input-aware/readback budgets, idle suspension, waiting-frame authorization and
+16-viewer control responsiveness, decode-before-swap/corrupt-frame recovery,
+private/background focus and controller death, source-size/rotation and all
+existing lifecycle cases. Run host/browser regressions and Android lint/builds,
+then build with the permanent key. Commit/push and publish the signed APK and
+checksum as an immutable alpha, retaining 0.33.2 Latest stable. The owner
+confirmed initial casting works; physical dashed-line latency and lecture
+performance require retesting. Do not infer hardware latency from emulator timings.
+
 **0.43.0-alpha.1** (versionCode **117**) adds password-protected local Wi-Fi
 screen casting. Validate real-socket authentication, independent browser
 sessions, expiry, throttling, malformed requests and stale encoders; the

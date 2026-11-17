@@ -57,7 +57,7 @@ public final class NotebookCastActivity extends NotebookDisplayActivity {
         status = label("", 16); status.setTypeface(null, Typeface.BOLD); body.addView(status);
         address = label("", 21); address.setTextIsSelectable(true); body.addView(address);
         copy = button("Copy address", () -> {
-            getSystemService(ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("Scriflow screen cast", NotebookCastService.address()));
+            getSystemService(ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("Scriflow screen cast", NotebookCastController.address()));
             Toast.makeText(this, "Cast address copied", Toast.LENGTH_SHORT).show();
         }); body.addView(copy, new LinearLayout.LayoutParams(-1, dp(42)));
         passwordControls = column(); passwordControls.addView(label("Cast password", 15));
@@ -82,7 +82,7 @@ public final class NotebookCastActivity extends NotebookDisplayActivity {
         passwordControls.addView(label("Remember the password before starting. It is kept only for this cast session. Stop casting to change it.", 13));
         body.addView(passwordControls);
         start = button("Start casting", this::requestCapture); body.addView(start, new LinearLayout.LayoutParams(-1, dp(48)));
-        stop = button("Stop casting", () -> { NotebookCastService.stopCasting(this); refresh(); });
+        stop = button("Stop casting", () -> { NotebookCastController.stopCasting(this); refresh(); });
         body.addView(stop, new LinearLayout.LayoutParams(-1, dp(48)));
         body.addView(label("Open the complete http:// address shown above in the other device's browser, then enter the password. Viewers can watch; writing and controls stay on the tablet.", 14));
         body.addView(label("Return to a note, book or browser page to share. Settings and these controls stay private. Leaving Scriflow pauses the feed; turning the screen off or losing Wi-Fi stops casting.", 14));
@@ -91,7 +91,7 @@ public final class NotebookCastActivity extends NotebookDisplayActivity {
     }
 
     private void requestCapture() {
-        if (requesting || NotebookCastService.running() || NotebookCastService.starting()) return;
+        if (requesting || NotebookCastController.running() || NotebookCastController.starting()) return;
         String value = password.getText().toString();
         if (value.codePointCount(0, value.length()) < 8 || value.trim().isEmpty()) {
             password.setError("Enter at least 8 characters."); password.requestFocus(); return;
@@ -116,16 +116,16 @@ public final class NotebookCastActivity extends NotebookDisplayActivity {
         if (request != CAPTURE) return;
         requesting = false;
         if (result == Activity.RESULT_OK && data != null && pendingPassword != null && pendingWifi != null) {
-            NotebookCastService.start(this, data, pendingPassword, pendingWifi); password.setText("");
+            NotebookCastController.start(this, data, pendingPassword, pendingWifi); password.setText("");
             getSystemService(android.view.inputmethod.InputMethodManager.class).hideSoftInputFromWindow(password.getWindowToken(), 0);
         } else Toast.makeText(this, "Screen capture was not started", Toast.LENGTH_SHORT).show();
         pendingPassword = null; pendingWifi = null; refresh();
     }
     private void refresh() {
         if (status == null) return;
-        boolean active = NotebookCastService.running(), busy = requesting || NotebookCastService.starting();
-        text(status, requesting ? "Allow screen capture in Android's prompt." : NotebookCastService.status());
-        text(address, active ? NotebookCastService.address() : ""); address.setVisibility(active ? View.VISIBLE : View.GONE);
+        boolean active = NotebookCastController.running(), busy = requesting || NotebookCastController.starting();
+        text(status, requesting ? "Allow screen capture in Android's prompt." : NotebookCastController.status());
+        text(address, active ? NotebookCastController.address() : ""); address.setVisibility(active ? View.VISIBLE : View.GONE);
         copy.setVisibility(active ? View.VISIBLE : View.GONE); stop.setVisibility(active ? View.VISIBLE : View.GONE);
         start.setVisibility(active ? View.GONE : View.VISIBLE); start.setAvailable(!busy);
         passwordControls.setVisibility(active ? View.GONE : View.VISIBLE); password.setEnabled(!busy);

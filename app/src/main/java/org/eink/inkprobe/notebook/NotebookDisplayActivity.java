@@ -62,11 +62,11 @@ public abstract class NotebookDisplayActivity extends Activity implements Notebo
         displayResumed = true; refreshDisplayOrientation();
         refreshScreenOn();
         if (headerStatus != null) headerStatus.start();
-        NotebookCastService.resumed(this);
+        NotebookCastController.resumed(this);
     }
 
     @Override protected void onPause() {
-        NotebookCastService.paused(this);
+        NotebookCastController.paused(this);
         displayResumed = false;
         refreshScreenOn();
         if (headerStatus != null) headerStatus.stop();
@@ -76,7 +76,7 @@ public abstract class NotebookDisplayActivity extends Activity implements Notebo
 
     @Override public void onWindowFocusChanged(boolean focused) {
         super.onWindowFocusChanged(focused);
-        NotebookCastService.focusChanged(this);
+        NotebookCastController.focusChanged(this);
     }
 
     protected boolean allowScreenCast() { return true; }
@@ -136,6 +136,7 @@ public abstract class NotebookDisplayActivity extends Activity implements Notebo
 
     protected final void setWritingContact(boolean down) {
         rotation.setWriting(down, SystemClock.uptimeMillis()); scheduleRotation();
+        NotebookCastController.contact(this, down);
     }
 
     private void scheduleRotation() {

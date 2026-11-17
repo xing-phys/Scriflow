@@ -149,6 +149,9 @@ try:
     address = find(lambda n: bool(re.fullmatch(r'http://\d+\.\d+\.\d+\.\d+:\d+/', n.get('text', '')))).get('text')
     parsed = urllib.parse.urlparse(address); host, port = parsed.hostname, parsed.port
     check(host != '127.0.0.1' and port > 0, 'Capture starts a server on the actual Wi-Fi address')
+    ui_pid = adb('shell', 'pidof', PACKAGE).strip()
+    capture_pid = adb('shell', 'pidof', PACKAGE + ':cast').strip()
+    check(ui_pid and capture_pid and ui_pid != capture_pid, 'Screen readback, JPEG allocation and HTTP run outside the pen/UI process')
     check(http('GET', '/frame')[0] == 401, 'Android JPEG endpoint rejects anonymous requests')
     check(http('POST', '/login', body={'password': 'incorrect'})[0] == 401, 'Android server rejects incorrect passwords')
     code, headers, _ = http('POST', '/login', body={'password': PASSWORD})
@@ -157,8 +160,20 @@ try:
     check(http('GET', '/frame', cookie)[0] == 204, 'Cast controls remain private while the session runs')
     tap(match('Done')); tap(match('Done')); find(match('Scriflow'))
     live = frame(cookie)[2]; image = Image.open(BytesIO(live))
-    check(max(image.size) == 1600 and max(ImageStat.Stat(image).stddev) > 8, 'MediaProjection produces a nonblank scaled JPEG of the real app')
+    check(max(image.size) == 1872 and max(ImageStat.Stat(image).stddev) > 8, 'Lecture capture retains the tablet-sized source pixels in a nonblank JPEG')
     (ROOT/'build/cast-tablet-live.jpg').write_bytes(live)
+    time.sleep(3.5)
+    diagnostic = adb('shell', 'dumpsys', 'activity', 'service', PACKAGE + '/.notebook.NotebookCastService')
+    check(b'capture_attached=false' in diagnostic, 'Capture detaches when all viewers stop requesting frames')
+    tap(match('+ Folder'))
+    fresh = False
+    for _ in range(30):
+        result = http('GET', '/frame', cookie)
+        if result[0] == 200 and result[2] != live:
+            fresh = True; break
+        time.sleep(.1)
+    check(fresh, 'An idle capture wakes with current app-popup content instead of stalling on a stored image')
+    tap(lambda n: n.get('resource-id') == 'android:id/button2'); frame(cookie)
     settings(); paused = frame(cookie, 204)
     check(paused[1]['x-cast-state'] == 'paused' and not paused[2], 'Settings clears the published frame before displaying private preferences')
     # Rotate through the app's real orientation preference, rather than changing only a mock frame.
@@ -191,7 +206,16 @@ try:
     start_cast(); adb('shell', 'input', 'keyevent', 'KEYCODE_SLEEP')
     time.sleep(.5); adb('shell', 'input', 'keyevent', 'KEYCODE_WAKEUP'); adb('shell', 'wm', 'dismiss-keyguard')
     check(find(lambda n: 'screen turned off' in n.get('text', '')).get('text') != '', 'Turning off the display stops capture and discards authorization')
-    (ROOT/'build/cast-android-result.json').write_text(json.dumps({'passed': True, 'checks': checks, 'android': 29, 'transport': 'on-device Java Socket to Wi-Fi binding'}, indent=2)+'\n')
+    start_cast()
+    ui_pid = adb('shell', 'pidof', PACKAGE).strip().decode()
+    adb('shell', 'su', '0', 'kill', '-9', ui_pid)
+    stopped = False
+    for _ in range(20):
+        if b'NotebookCastService' not in adb('shell', 'dumpsys', 'activity', 'services', PACKAGE):
+            stopped = True; break
+        time.sleep(.1)
+    check(stopped, 'A dead pen/UI controller cannot leave its separate capture service broadcasting')
+    (ROOT/'build/cast-android-result.json').write_text(json.dumps({'passed': True, 'checks': checks, 'android': 29, 'transport': 'on-device Java Socket to Wi-Fi binding', 'capture_process': 'separate :cast process'}, indent=2)+'\n')
     print(f'Android screen cast: {checks} checks passed.', flush=True)
 finally:
     try:

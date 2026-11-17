@@ -12,6 +12,19 @@ browser page on the tablet to share it. Multiple devices can watch together;
 each browser signs in independently. The viewer supports portrait/landscape
 screens and a full-screen button where the browser provides it.
 
+Alpha.2 improves lecture use: the tablet's native pixels are retained up to a
+2048-pixel longest edge, with higher JPEG quality. A waiting frame request
+receives changes as soon as the capture worker publishes them. The browser
+keeps the previous decoded picture until the next is ready, including recovery
+from an incomplete image. Full-screen sharing has a white pause/connection
+panel instead of exposing the dark page between images.
+An all-black replacement is confirmed for 250 ms before display, so short
+compositor blackouts do not flash over a lecture page. Persistent black
+content is still displayed; this check runs in the viewer, not the tablet's
+input process.
+When updating from alpha.1, restart casting and reload the viewer page to load
+the new viewer code.
+
 Viewers can watch the screen. Writing, navigation and other controls operate
 on the tablet. There is no remote input, audio, recording, cloud service or
 Internet requirement. Up to 16 browser sessions are allowed; idle sessions
@@ -28,6 +41,9 @@ not saved in preferences or backups. Casting never starts automatically.
   image while they are open. Leaving Scriflow or opening another app pauses
   sharing; returning to a focused Scriflow screen resumes it. Loss of app
   window focus, the notification shade and split-screen mode also pause it.
+  Brief app-owned popup handoffs retain the last safe picture while new pixels
+  are blocked, avoiding a display restart for every tool popup. Settings and
+  genuine app-background transitions clear immediately.
 - Turning off or locking the display, disconnecting Wi-Fi, changing the Wi-Fi
   address or Android stopping capture ends the session. Start again after
   reconnecting; the panel displays the current address.
@@ -48,25 +64,40 @@ not saved in preferences or backups. Casting never starts automatically.
 
 Android's [MediaProjection](https://developer.android.com/media/grow/media-projection)
 captures the composed display, including native/browser surfaces, through an
-unexported foreground service. Foreground app/window focus gates frame
+unexported foreground service in a separate private `:cast` process. The UI
+process sends small IPC visibility/contact messages, without copying pixels
+or waiting for encoding. JPEG allocations, GC and HTTP do not share its heap.
+Foreground app/window focus gates frame
 publication; revocable generation tickets discard late encodes and queued
-frames from before resuming. The capture surface detaches while paused.
+frames from before resuming. Genuine background/focus loss and absent viewers
+detach the capture surface. Controller death ends the session; an expiring
+visibility lease also prevents a stalled controller from publishing indefinitely.
 Capture follows rotation using the existing virtual display and a resized
-ImageReader. JPEG encoding runs on a background thread, with the latest frame
-coalesced at up to four frames per second and a 1600-pixel longest edge.
-Frames stay in memory. This is intended for sharing notes and reading rather
-than video or latency-sensitive remote interaction.
+ImageReader. A lowest-priority worker acquires only the latest image at the
+next capture slot, reuses pixel/JPEG work buffers, and discards intermediate
+compositor frames. Resolution is capped at 2048 pixels; JPEG quality is 94.
+The ceiling is eight frames/s normally and six during pen/lasso/region contact.
+Measured encoding cost increases the interval to reserve at least half the
+worker's time normally and three quarters during contact. These are scheduling
+ceilings, not measured Huawei frame rates or pen-latency guarantees. Android's
+GPU, memory bandwidth and Wi-Fi are still shared hardware resources.
+Frames stay in memory. This targets writing, reports and lectures; it is not
+a 30/60 fps video stream.
 
 The server binds specifically to the connected Wi-Fi IPv4 interface, closes
 on network loss/address changes, uses random HttpOnly/SameSite session cookies,
 checks Host and Origin, throttles login attempts, and bounds request sizes,
 workers and session state. Bundled HTML/CSS/JavaScript make no external requests.
-Every image request requires authentication. Viewers clear images on pause,
+Each viewer has one bounded waiting request and two image slots; there is no
+growing playback queue. Identical JPEGs do not advance the frame sequence.
+Authorization is checked both before and after a waiting request. Every image
+request requires authentication. Viewers clear images on private/background pause,
 disconnect, hidden tabs and expired sessions. Notebook/backup formats are unchanged.
 
 Run `bash scripts/test-cast.sh` for real-socket authentication, isolation,
 expiry, throttling, malformed requests and frame-ownership regressions. Run
 the Android and browser checks described by `scripts/check-cast.py` and
 `scripts/test-cast-viewer.cjs` for the complete interaction. Physical Huawei
-native ink, e-ink performance, Safari and real cross-device Wi-Fi acceptance
-remain owner testing checks.
+native dashed-line feedback, optical pen latency, e-ink performance and the
+new Safari/Wi-Fi presentation behavior remain owner testing checks. The owner
+confirmed the initial cast works before this optimization.

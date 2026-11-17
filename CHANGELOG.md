@@ -6,6 +6,26 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.43.0-alpha.2 — Responsive lecture casting (2026-11-17)
+
+- Isolate screen readback, JPEG memory/GC and HTTP in a private `:cast` Android
+  process. The pen/UI process sends only small lifecycle and contact messages.
+- Acquire the newest screen image only at a paced capture slot, reuse buffers,
+  reserve more time during pen/lasso/region-eraser contact, and stop readback
+  when no viewers remain. Native input and durable-save paths are unchanged.
+- Keep native tablet resolution up to a 2048-pixel edge, with JPEG quality 94.
+  Adapt from ceilings of eight frames/s normally and six during contact to the
+  measured encoding cost; actual tablet/Wi-Fi rates still require measurement.
+- Deliver changed frames through authenticated waiting requests, removing the
+  fixed browser polling interval. Keep a decoded image visible until its
+  replacement is decoded; reject incomplete replacements without blanking it.
+  Confirm all-black frames for 250 ms to suppress brief compositor blackouts.
+- Avoid display detach/reattach on ordinary app-popup focus handoffs. Preserve
+  immediate private/background frame revocation and protect Settings at the
+  Android window level. Stop capture if its UI controller dies.
+- VersionCode 118; the owner confirmed initial casting works. The reported
+  Huawei dashed-line latency and the new lecture performance need tablet retesting.
+
 ## 0.43.0-alpha.1 — Password-protected Wi-Fi screen cast (2026-11-17)
 
 - Start a local, view-only screen cast from Settings and open the displayed

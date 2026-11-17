@@ -249,6 +249,7 @@ def verify_manifest(manifest, badging, variant, version):
     cast_service = next((item for item in components if component_name(item) == PACKAGE + '.notebook.NotebookCastService'), None)
     require(cast_service is not None and cast_service.tag == 'service'
             and cast_service.attributes.get('android:exported') == 0
+            and cast_service.attributes.get('android:process') in {':cast', PACKAGE + ':cast'}
             and cast_service.attributes.get('android:foregroundServiceType') == 32,
             'Screen capture requires an unexported mediaProjection foreground service.')
     cast_screen = next((item for item in components if component_name(item) == PACKAGE + '.notebook.NotebookCastActivity'), None)

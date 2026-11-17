@@ -22,7 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -62,7 +62,8 @@ final class NotebookCastServer implements Closeable {
         try { listener.bind(new InetSocketAddress(address, port), 16); }
         catch (IOException error) { listener.close(); throw error; }
         authority = address.getHostAddress() + ":" + listener.getLocalPort();
-        workers = new ThreadPoolExecutor(4, 4, 20, TimeUnit.SECONDS, new ArrayBlockingQueue<>(16), task -> {
+        // Sixteen sleeping frame waits still leave capacity for login, status and disconnect.
+        workers = new ThreadPoolExecutor(0, 20, 20, TimeUnit.SECONDS, new SynchronousQueue<>(), task -> {
             Thread thread = new Thread(task, "screen-cast-client"); thread.setDaemon(true); return thread;
         });
         Thread accept = new Thread(this::accept, "screen-cast-listener"); accept.setDaemon(true); accept.start();
@@ -70,7 +71,7 @@ final class NotebookCastServer implements Closeable {
 
     String address() { return "http://" + authority + "/"; }
     boolean hasRecentViewer() {
-        long last = lastViewer; return last != Long.MIN_VALUE && clock.getAsLong() - last < 10_000;
+        long last = lastViewer; return last != Long.MIN_VALUE && clock.getAsLong() - last < 3000;
     }
 
     private void accept() {
@@ -127,15 +128,21 @@ final class NotebookCastServer implements Closeable {
             }
             lastViewer = clock.getAsLong();
             NotebookCastFrames.Frame frame = frames.latest();
+            if (path.equals("/frame") && "wait=1".equals(request.headers.get("prefer"))) {
+                frame = frames.await(request.headers.get("if-none-match"), 1000);
+                if (!authenticated(token)) { respond(client, 401, "text/plain", bytes("Enter the cast password."), null); return; }
+            }
             String headers = "X-Cast-State: " + frame.state + "\r\nETag: \"" + frame.sequence + "\"\r\n";
             if (path.equals("/session")) {
                 respond(client, 200, "application/json", bytes("{\"state\":\"" + frame.state + "\"}"), headers);
-            } else if (frame.jpeg == null) respond(client, 204, "image/jpeg", null, headers);
+            } else if (frame.jpeg == null || frame.state.equals("holding")) respond(client, 204, "image/jpeg", null, headers);
             else if (("\"" + frame.sequence + "\"").equals(request.headers.get("if-none-match")))
                 respond(client, 304, "image/jpeg", null, headers);
             else respond(client, 200, "image/jpeg", frame.jpeg, headers);
         } catch (IOException ignored) {
             // A viewer leaving, a read timeout or Stop must not affect other viewers.
+        } catch (InterruptedException stopped) {
+            Thread.currentThread().interrupt();
         } finally { sockets.remove(socket); }
     }
 

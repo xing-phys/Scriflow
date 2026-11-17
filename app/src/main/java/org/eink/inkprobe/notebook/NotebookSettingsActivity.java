@@ -22,7 +22,7 @@ public final class NotebookSettingsActivity extends NotebookDisplayActivity {
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN | WindowManager.LayoutParams.FLAG_SECURE);
         getWindow().setWindowAnimations(0);
         LinearLayout root = column(); root.setPadding(dp(18), dp(10), dp(18), dp(10));
         LinearLayout header = row();

@@ -33,12 +33,15 @@ public final class NotebookCastServerTest {
             while (commands.hasNextLine()) {
                 String command = commands.nextLine();
                 if (command.equals("stop")) break;
+                if (command.equals("hold")) { server.frames.hold(); continue; }
                 server.frames.sharing(!command.equals("pause"), 0);
-                if (!command.equals("pause")) server.frames.publish(server.frames.ticket(System.nanoTime()), Files.readAllBytes(Paths.get(args[1])));
+                if (!command.equals("pause")) server.frames.publish(server.frames.ticket(System.nanoTime()),
+                    command.startsWith("image ") ? Files.readAllBytes(Paths.get(command.substring(6))) : Files.readAllBytes(Paths.get(args[1])));
             }
             server.close(); return;
         }
         frameOwnership();
+        pacing();
         AtomicLong clock = new AtomicLong(1_000_000);
         NotebookCastServer server = new NotebookCastServer(InetAddress.getByName("127.0.0.1"), 0, PASSWORD, assets, clock::get);
         int port = Integer.parseInt(server.address().split(":")[2].replace("/", ""));
@@ -115,6 +118,7 @@ public final class NotebookCastServerTest {
             check(get(capped, "/session", existing).status == 401 && get(capped, "/session", replacement).status == 200,
                 "A browser can rotate its session even when the viewer limit is reached");
         }
+        delivery(assets);
         System.out.println("Screen cast: " + checks + " checks passed");
     }
 
@@ -122,7 +126,7 @@ public final class NotebookCastServerTest {
         NotebookCastFrames frames = new NotebookCastFrames();
         check(frames.ticket(Long.MAX_VALUE) == -1, "Frames start paused");
         frames.sharing(true, 1_000_000_000);
-        check(frames.ticket(1_100_000_000) == -1, "Queued frames before foreground settling are discarded");
+        check(frames.ticket(999_999_999L) == -1, "Queued frames from before the visible app interval are discarded");
         long old = frames.ticket(1_500_000_000);
         check(frames.publish(old, JPEG), "Foreground ticket owns the current capture");
         frames.sharing(false, 1_600_000_000); frames.sharing(true, 2_000_000_000);
@@ -131,6 +135,65 @@ public final class NotebookCastServerTest {
         check(frames.publish(current, JPEG), "New visibility interval accepts fresh frames");
         frames.sharing(true, 3_000_000_000L);
         check(frames.latest().jpeg == JPEG, "Repeated visibility checks do not invalidate live content");
+        long sequence = frames.latest().sequence;
+        frames.publish(current, JPEG.clone());
+        check(frames.latest().sequence == sequence, "Identical encoded pictures do not waste viewer bandwidth");
+        frames.hold();
+        check(frames.latest().state.equals("holding") && frames.latest().jpeg == JPEG && !frames.publish(current, JPEG),
+            "Focus handoff retains only the previous safe frame and revokes late captures");
+        frames.sharing(false, 3_500_000_000L);
+        check(frames.latest().state.equals("paused") && frames.latest().jpeg == null, "A real pause clears a held safe frame");
+    }
+    private static void pacing() {
+        NotebookCastPacer pacer = new NotebookCastPacer();
+        check(pacer.delay(0) == 0, "The first frame can be captured immediately");
+        pacer.completed(0, 10);
+        check(pacer.delay(10) == 115 && pacer.delay(125) == 0, "Normal capture is bounded to eight slots per second");
+        pacer.contact(true); pacer.completed(125, 135);
+        check(pacer.delay(135) == 157, "Pen/lasso/region contact gives input a larger reserve without stopping live casting");
+        pacer.completed(300, 400);
+        check(pacer.delay(400) == 300, "Slow readback is limited to a quarter duty cycle during contact");
+        pacer.contact(false); pacer.completed(700, 800);
+        check(pacer.delay(800) == 100, "Idle capture adapts to the measured encode cost");
+        pacer.contact(true); pacer.completed(1000, 2500);
+        check(pacer.delay(2500) == 4500, "Very slow devices keep an input reserve instead of encoding continuously");
+        pacer.reset(); check(pacer.delay(2500) == 0, "A resized source starts with a fresh pacing budget");
+        check(NotebookCastPacer.MAX_EDGE >= 1872 && NotebookCastPacer.JPEG_QUALITY >= 92,
+            "Lecture capture retains the tablet's native pixels and higher text quality");
+    }
+    private static void delivery(Map<String, byte[]> assets) throws Exception {
+        java.util.concurrent.ExecutorService clients = java.util.concurrent.Executors.newFixedThreadPool(17);
+        try (NotebookCastServer server = new NotebookCastServer(InetAddress.getByName("127.0.0.1"), 0, PASSWORD, assets)) {
+            String cookie = session(login(server, PASSWORD, null));
+            server.frames.sharing(true, 0); long ticket = server.frames.ticket(System.nanoTime()); server.frames.publish(ticket, JPEG);
+            String etag = get(server, "/frame", cookie).header("etag");
+            java.util.List<java.util.concurrent.Future<Response>> waits = new java.util.ArrayList<>();
+            for (int i = 0; i < 16; i++) waits.add(clients.submit(() -> request(server,
+                "GET /frame HTTP/1.1\r\nCookie: " + cookie + "\r\nIf-None-Match: " + etag + "\r\nPrefer: wait=1\r\n", null)));
+            Thread.sleep(60);
+            check(!waits.get(0).isDone(), "Unchanged content waits on the server instead of polling or retransmitting");
+            check(get(server, "/session", cookie).status == 200, "Sixteen waiting viewers leave control requests responsive");
+            byte[] next = JPEG.clone(); next[3]++;
+            long published = System.nanoTime(); server.frames.publish(ticket, next);
+            for (java.util.concurrent.Future<Response> wait : waits) {
+                Response response = wait.get(2, java.util.concurrent.TimeUnit.SECONDS);
+                check(response.status == 200 && Arrays.equals(response.body, next), "Each viewer wakes directly with the newest frame");
+            }
+            check(System.nanoTime()-published < 800_000_000L, "Publication wakes the waiting clients without a frame polling interval");
+            final String beforePause = get(server, "/frame", cookie).header("etag");
+            java.util.concurrent.Future<Response> paused = clients.submit(() -> request(server,
+                "GET /frame HTTP/1.1\r\nCookie: " + cookie + "\r\nIf-None-Match: " + beforePause + "\r\nPrefer: wait=1\r\n", null));
+            Thread.sleep(25); server.frames.sharing(false, System.nanoTime());
+            Response privateFrame = paused.get(2, java.util.concurrent.TimeUnit.SECONDS);
+            check(privateFrame.status == 204 && privateFrame.body.length == 0, "Private/background transitions wake all frame waits with no image");
+            server.frames.sharing(true, 0); ticket = server.frames.ticket(System.nanoTime()); server.frames.publish(ticket, JPEG);
+            final String beforeLogout = get(server, "/frame", cookie).header("etag");
+            java.util.concurrent.Future<Response> revoked = clients.submit(() -> request(server,
+                "GET /frame HTTP/1.1\r\nCookie: " + cookie + "\r\nIf-None-Match: " + beforeLogout + "\r\nPrefer: wait=1\r\n", null));
+            Thread.sleep(25); request(server, "POST /logout HTTP/1.1\r\nCookie: " + cookie + "\r\n", null);
+            server.frames.publish(ticket, next);
+            check(revoked.get(2, java.util.concurrent.TimeUnit.SECONDS).status == 401, "Authorization is checked again after a frame wait");
+        } finally { clients.shutdownNow(); }
     }
     private static Response get(NotebookCastServer server, String path, String cookie) throws Exception {
         return request(server, "GET " + path + " HTTP/1.1\r\n" + (cookie == null ? "" : "Cookie: " + cookie + "\r\n"), null);

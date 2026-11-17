@@ -19,7 +19,10 @@ interception**. Use a trusted network. No cast data is sent to a cloud service.
 
 Passwords, random browser sessions and the latest JPEG remain in memory only.
 Settings and cast controls are excluded. Leaving the app or losing app window
-focus clears the feed; returning resumes. Display off/lock, Wi-Fi loss/address
+focus blocks new frames; returning resumes. Brief app-popup focus handoffs
+retain only the previous safe picture. Private/background transitions clear
+immediately. Capture/JPEG/HTTP use a private process, controlled through
+visibility leases and stopped when the UI controller dies. Display off/lock, Wi-Fi loss/address
 changes and Stop close the session. Other visible app content, including
 private notes, AI replies or signed-in websites, is shared with authorized
 viewers. The viewer is read-only and does not receive notebook files or remote
