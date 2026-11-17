@@ -88,7 +88,7 @@ system picker, with no broad storage permission. The archive is a ZIP with a bin
 (magic `INKB`, version 1, Java modified-UTF notebook name, page count), followed in order by
 `pages/1.nbk` ... `pages/N.nbk`. Entries contain canonical snapshots, not journals or filesystem
 paths. Checksums, page bounds, duplicate IDs, entry order, counts, and resource limits are checked.
-The uncompressed limit is 512 MiB per backup and 64 MiB per page; the existing 1,000-page and
+The uncompressed limit is 2 GiB per backup and 64 MiB per page; the existing 1,000-page and
 point/stroke limits also apply. There is no encryption in this format.
 
 A restore first validates in private staging. It then publishes as a **new notebook**; existing

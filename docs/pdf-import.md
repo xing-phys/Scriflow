@@ -8,6 +8,13 @@ failures offer an explicit retry. The app keeps a private, unchanged copy of the
 source file; moving or deleting the selected external file does not affect the
 notebook.
 
+From **0.40.0-alpha.12**, Scriflow also appears in Android file managers'
+**Open with** list and the PDF **Share** menu. These actions use the supplied
+file directly without reopening the picker, then create and open a PDF notebook.
+The first import still makes one private copy; copy progress shows the amount
+transferred. The importer checks available storage and supports streams whose
+providers cannot report their size in advance.
+
 From **0.33.0-dev.5**, outstanding picker results and in-process import jobs
 belong to retained import state, so landscape recreation does not launch a second
 picker/import. Completion opens the note once, only from a resumed, attached
@@ -59,11 +66,27 @@ Backups remain unencrypted. The current alpha writes page format 8 on edit and i
 the format introduced in 0.34. It reads earlier formats; APKs before 0.34 cannot
 read edited pages or new backups. Keep independent backups before updating.
 
-PDF import is limited to 256 MiB and 1,000 pages. Password-protected PDFs need
-an unlocked copy. Large PDF memory use, picker behavior, PDF ink restoration,
+PDF import is limited to 2 GiB and 1,000 pages. Files encrypted with an empty
+opening password, including owner-password restrictions, open normally; an
+encryption flag alone no longer rejects them. PDFs that actually require an
+opening password still need a copy with that password removed. The private
+original remains unchanged; annotated exports of readable encrypted PDFs are
+unencrypted. Editable backups allow up to 2 GiB uncompressed, including the source.
+Large PDF memory use, picker behavior, PDF ink restoration,
 and sustained stylus performance require testing on the supported tablet.
 
-Implementation: `NotebookPdfEngine` inspects and exports with PDFBox Android;
+Implementation: `NotebookPdfReader` uses PDFBox Android's trailer/xref,
+decryption and repair parser while loading only page-tree geometry, destinations
+and outline fields. Images, content streams, fonts, embedded files and annotation
+appearance streams are excluded from import and link lookup. Viewed-page links
+and held-page text/resources load on demand. The read-only partial document is
+never used for export: `NotebookPdfEngine` loads the complete original for export.
+The reader uses a 2 MiB mixed-memory stream buffer with disk spillover and a
+bounded navigation graph; this is not a bound on total native or Java memory.
+Android's native image decoding still needs device-specific testing.
+The underlying parser's default full-catalog traversal is visible in
+[PDFParser.initialParse](https://github.com/TomRoush/PdfBox-Android/blob/v2.0.27.0/library/src/main/java/com/tom_roush/pdfbox/pdfparser/PDFParser.java).
+
 Android's `PdfRenderer` rasterizes visible 512-pixel tiles at the current zoom.
 The renderer and current page stay open between tiles; this display cache never
 replaces or rasterizes the original source PDF. A bitmap-only source page still

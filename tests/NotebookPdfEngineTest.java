@@ -124,16 +124,47 @@ public final class NotebookPdfEngineTest {
         rotations(directory);
         metadataCache(directory, source, asset);
         largePdf(directory);
+        largeBytesPdf(directory);
         malformedAnnotations(directory);
         NotebookPdfEngine.closeNavigation();
         File encrypted = new File(directory, "encrypted.pdf");
-        try (PDDocument document = new PDDocument()) {
-            document.addPage(new PDPage());
+        try (PDDocument document = PDDocument.load(source)) {
             document.protect(new StandardProtectionPolicy("owner-password", "", new AccessPermission()));
             document.save(encrypted);
         }
-        try { NotebookPdfEngine.inspect(encrypted); throw new AssertionError("Encrypted import should reject"); }
-        catch (IOException expected) { check(expected.getMessage().contains("unlocked copy"), "Encrypted PDF rejection is actionable"); }
+        byte[] encryptedBytes = Files.readAllBytes(encrypted.toPath());
+        NotebookPdfAsset readable = NotebookPdfEngine.inspect(encrypted);
+        check(readable.pages.size() == 2 && readable.title.equals(asset.title) && readable.outline.size() == 2,
+            "Owner-password encryption with an empty opening password imports geometry, title and outline");
+        check(NotebookPdfEngine.links(encrypted, 1).size() == 4, "Navigation decrypts links in readable encrypted PDFs");
+        check(NotebookPdfEngine.text(encrypted, 2).words.get(0).text.equals("Chapter"),
+            "Selected-page text decrypts content and font resources after the initial metadata parse");
+        File encryptedExport = new File(directory, "encrypted-annotated.pdf");
+        export(encryptedExport, encrypted, Collections.singletonList(page(readable.pages.get(0), 1)
+            .withStroke(stroke(80, 120, 0xff008000))), Collections.emptyList());
+        try (PDDocument document = PDDocument.load(encryptedExport)) {
+            check(!document.isEncrypted() && last(streams(document.getPage(0))).contains("80 120 m"),
+                "Readable encrypted source exports as an annotated PDF that opens without a password");
+        }
+        check(Arrays.equals(encryptedBytes, Files.readAllBytes(encrypted.toPath())), "Encrypted source stays byte-for-byte unchanged");
+        for (int bits : new int[]{128, 256}) {
+            File aes = new File(directory, "encrypted-aes-" + bits + ".pdf");
+            try (PDDocument document = PDDocument.load(source)) {
+                StandardProtectionPolicy policy = new StandardProtectionPolicy("owner-password", "", new AccessPermission());
+                policy.setEncryptionKeyLength(bits); policy.setPreferAES(true); document.protect(policy); document.save(aes);
+            }
+            check(NotebookPdfEngine.inspect(aes).outline.size() == 2 && NotebookPdfEngine.links(aes, 1).size() == 4
+                && NotebookPdfEngine.text(aes, 2).words.get(0).text.equals("Chapter"),
+                "AES-" + bits + " readable encryption preserves outline, links and selected-page text");
+        }
+        File locked = new File(directory, "opening-password.pdf");
+        try (PDDocument document = new PDDocument()) {
+            document.addPage(new PDPage());
+            document.protect(new StandardProtectionPolicy("owner-password", "opening-password", new AccessPermission()));
+            document.save(locked);
+        }
+        try { NotebookPdfEngine.inspect(locked); throw new AssertionError("An actual opening password is required"); }
+        catch (IOException expected) { check(expected.getMessage().contains("requires a password to open"), "Only an actual opening password produces the password error"); }
         check(Arrays.equals(pristine, Files.readAllBytes(source.toPath())), "Source remains unchanged after all exports");
         figures(directory, source, a);
         rotatedFigures(directory);
@@ -448,6 +479,61 @@ public final class NotebookPdfEngineTest {
         check(cached != null && cached.pages.size() == 600, "600-page reopen metadata available without reparsing source");
         System.out.println("600-page, " + source.length() / (1024 * 1024) + " MiB geometry/outline index: "
             + (inspected - start) / 1000000 + " ms");
+    }
+
+    /** A valid 384 MiB, 384-page scan. Sparse zero image data keeps fixture creation inexpensive. */
+    private static void largeBytesPdf(File directory) throws IOException {
+        File source = new File(directory, "scan-384-mib.pdf");
+        int count = 384, objects = 2 + count * 3;
+        long[] offsets = new long[objects + 1];
+        try (RandomAccessFile output = new RandomAccessFile(source, "rw")) {
+            output.setLength(0); output.writeBytes("%PDF-1.4\n");
+            offsets[1] = output.getFilePointer(); output.writeBytes("1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n");
+            offsets[2] = output.getFilePointer(); output.writeBytes("2 0 obj << /Type /Pages /Count " + count + " /Kids [");
+            for (int i = 0; i < count; i++) output.writeBytes((3 + i * 3) + " 0 R ");
+            output.writeBytes("] >> endobj\n");
+            String drawing = "q 612 0 0 792 0 0 cm /Scan Do Q\n";
+            for (int i = 0; i < count; i++) {
+                int page = 3 + i * 3;
+                offsets[page] = output.getFilePointer();
+                output.writeBytes(page + " 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents "
+                    + (page + 1) + " 0 R /Resources << /XObject << /Scan " + (page + 2) + " 0 R >> >> >> endobj\n");
+                offsets[page + 1] = output.getFilePointer();
+                output.writeBytes((page + 1) + " 0 obj << /Length " + drawing.length() + " >> stream\n" + drawing + "endstream endobj\n");
+                offsets[page + 2] = output.getFilePointer();
+                output.writeBytes((page + 2) + " 0 obj << /Type /XObject /Subtype /Image /Width 1024 /Height 1024 /ColorSpace /DeviceGray /BitsPerComponent 8 /Length 1048576 >> stream\n");
+                output.seek(output.getFilePointer() + 1048576);
+                output.writeBytes("\nendstream endobj\n");
+            }
+            long xref = output.getFilePointer();
+            output.writeBytes("xref\n0 " + (objects + 1) + "\n0000000000 65535 f \n");
+            for (int i = 1; i <= objects; i++) output.writeBytes(String.format(Locale.ROOT, "%010d 00000 n \n", offsets[i]));
+            output.writeBytes("trailer << /Size " + (objects + 1) + " /Root 1 0 R >>\nstartxref\n" + xref + "\n%%EOF\n");
+        }
+        check(source.length() > 384L * 1024 * 1024, "Scan fixture exceeds the previous 256 MiB import limit");
+        long started = System.nanoTime();
+        NotebookPdfAsset asset = NotebookPdfEngine.inspect(source);
+        check(asset.pages.size() == count && asset.pages.get(count - 1).width == 1224, "Hundreds-of-MiB PDF geometry imports correctly");
+        try (NotebookPdfReader reader = NotebookPdfReader.open(source, directory)) {
+            reader.pageLinks(reader.pdf().getPage(count - 1));
+            long streams = reader.pdf().getDocument().getObjects().stream().filter(object -> object.getObject() instanceof COSStream).count();
+            check(streams == 0, "Geometry and link lookup never read any page content or image streams");
+            reader.pageText(reader.pdf().getPage(count - 1));
+            streams = reader.pdf().getDocument().getObjects().stream().filter(object -> object.getObject() instanceof COSStream).count();
+            check(streams == 2, "Text lookup loads only the requested page's content and resource streams");
+        }
+        File copied = new File(directory, "scan-copied.pdf"); long[] progress = {0, 0};
+        try (InputStream input = new FileInputStream(source)) {
+            NotebookPdfCopy.copy(input, copied, -1, (bytes, expected) -> { progress[0] = bytes; progress[1] = expected; });
+        }
+        check(copied.length() == source.length() && progress[0] == source.length() && progress[1] == source.length(),
+            "Large provider stream copies with bounded memory even when its size is initially unknown");
+        check(NotebookPdfEngine.inspect(copied).pages.size() == count, "Copied large PDF remains readable");
+        copied.delete(); NotebookPdfMetadata.file(copied).delete();
+        try { NotebookPdfCopy.copy(new ByteArrayInputStream(new byte[]{1}), copied, NotebookPdfCopy.MAX_BYTES + 1, (a, b) -> {});
+            throw new AssertionError("Oversize provider size should fail before copying"); }
+        catch (IOException expected) { check(!copied.exists() && expected.getMessage().contains("2 GiB"), "Known oversized PDFs fail before allocating a copy"); }
+        System.out.println("384 MiB scan inspection, selected-page read and streaming copy: " + (System.nanoTime() - started) / 1_000_000 + " ms");
     }
 
     private static void malformedAnnotations(File directory) throws IOException {

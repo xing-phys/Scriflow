@@ -592,7 +592,7 @@ storage and retain another copy on a separate device if the notes matter.
 page/stroke IDs, names, and page order survive. The restored book starts at
 Page 1. Undo history and device settings are excluded.
 
-Backups are **unencrypted** and limited to 512 MiB uncompressed per archive
+Backups are **unencrypted** and limited to 2 GiB uncompressed per archive
 (64 MiB per page). If a destination-provider write fails, an incomplete file
 may remain; retry with a new location. After saving a backup, restore it as a
 separate notebook and open representative pages to confirm it is usable before

@@ -6,6 +6,21 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.40.0-alpha.12 — PDF import and Android file opening (2026-11-17)
+
+- Open PDFs directly from file managers' Open with list and the PDF Share menu.
+- Read page geometry, outline and destinations without loading all image/content,
+  font, annotation appearance and attachment streams. Load links and selected-page
+  text/resources on demand; keep the full original loader for source-preserving export.
+- Accept PDFs with an empty opening password instead of rejecting every encrypted
+  document. Preserve original encrypted bytes; annotated exports open without a password.
+  Files with a nonempty opening password still require an unlocked copy.
+- Raise PDF import and editable backup limits to 2 GiB. Stream copies with fixed
+  buffers, storage checks and visible progress, including unknown-size providers.
+- Validate a 384 MiB scan with a 128 MiB host heap, encrypted import/export,
+  picker/external-intent callbacks and native PDF previews on an Android 10 emulator.
+- VersionCode 112; physical Huawei large-PDF and file-manager acceptance remains pending.
+
 ## 0.40.0-alpha.10 — Browser continuity and window coordination (2026-11-16)
 
 - Remove the routine toolbox status row; show saving progress/warnings only when relevant.

@@ -26,8 +26,15 @@ pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
 stays in front, window operations retain the main editor, and PDF import opens
 the file picker directly before opening the imported note.
 
-The **[0.40.0-alpha.11 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.40.0-alpha.11)**
-adds website microphone permission, reduces repeated browser background work,
+The **[0.40.0-alpha.12 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.40.0-alpha.12)**
+opens PDFs from Android's **Open with** and **Share** menus, accepts readable
+owner-encrypted PDFs, and imports files up to 2 GiB with copy progress and free
+storage checks. Geometry, outline, links and selected-page text no longer load
+every image, font and attachment before reading. The one-time private copy keeps
+PDF notebooks independent of the selected external file. Actual opening passwords
+still require an unlocked copy. Physical tablet acceptance remains pending.
+
+It retains website microphone permission, reduces repeated browser background work,
 places tool popups beside their buttons, and shares pen/eraser settings across
 ordinary notes, AI chat and browser notes. It keeps live browser documents through
 portrait/landscape turns, remembers each saved page's reading position, and leaves
@@ -296,7 +303,10 @@ troubleshooting.
 - Erasing removes entire touched strokes. Undo/redo keeps up to 100 actions per
   page while the app process remains alive; it does not survive a process restart.
 - There is no handwriting recognition, typed text, or cloud sync.
-- PDF import supports unlocked PDFs up to 256 MiB and 1,000 pages. Landscape USB import/open checks include a 600-page, 9 MB synthetic PDF;
+- PDF import supports PDFs with no opening password up to 2 GiB and 1,000 pages,
+  including files protected only by an owner password. Host checks include a
+  384 MiB scan with a 128 MiB heap; Android 10 emulator checks include native
+  previews and PDF intent resolution. Earlier landscape USB checks include a 600-page, 9 MB synthetic PDF;
   arbitrary complex PDFs and extended sessions remain unverified.
 - Page management keeps at least one page in a notebook. Its separate undo/redo
   history holds 50 page changes until the process restarts. Removed page files
@@ -304,7 +314,7 @@ troubleshooting.
 - Very fast passes with the maximum eraser width can lag. Finger scrolling
   has no inertia or page snapping. Use the tablet's **Refresh now** action
   when residual images need clearing.
-- Limits are 200 notebooks, 1,000 pages per notebook, and 512 MiB uncompressed
+- Limits are 200 notebooks, 1,000 pages per notebook, and 2 GiB uncompressed
   per editable backup. These are format/validation limits, not tested practical
   capacity: large-notebook memory and long-duration performance remain unmeasured.
 - `.inkbook` backups are unencrypted. Keep independent copies somewhere safe.

@@ -28,6 +28,13 @@ Host AI protocol/lifecycle tests additionally cache checksum-pinned JSON-java
 this test dependency is not included in the APK. Tests use connection fixtures
 and do not need provider credentials or make paid API requests.
 
+PDF regressions include a valid 384 MiB scan, inspected and copied with a
+128 MiB host heap. After those tests and a signed release build,
+`ANDROID_SERIAL=<device> bash scripts/check-pdf-open.sh` verifies native Android
+previews and links using the release APK on a selected emulator or tablet.
+It uses disposable files under `/data/local/tmp`, never user notebooks, and
+writes `build/pdf-open-check/result.json`. This does not test Huawei handwriting.
+
 Tool downloads are version-pinned and checksum-verified. They remain in ignored
 `.tools/`; project state and generated artifacts are ignored too. The first
 bootstrap and Gradle dependency resolution need network access. A cached build

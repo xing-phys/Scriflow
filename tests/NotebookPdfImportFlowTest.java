@@ -43,15 +43,15 @@ public final class NotebookPdfImportFlowTest {
             "class ImportActivityBase {void onActivityResult(int request,int result,PdfImportActivityFixture.Intent data){}}",
             "public class PdfImportActivityFixture extends ImportActivityBase {",
             "static final int PICK_PDF=2402,RESULT_OK=1;",
-            "static class Uri {} static class NotebookActivity {} static class PickerUnavailable extends RuntimeException {}",
-            "static class Intent {static final String ACTION_OPEN_DOCUMENT=\"open\",CATEGORY_OPENABLE=\"openable\";String type;Uri uri;Intent(String action){}Intent(Object owner,Class<?> type){}Intent addCategory(String s){return this;}Intent setType(String s){type=s;return this;}Uri getData(){return uri;}}",
+            "static class Uri {String scheme=\"content\";String getScheme(){return scheme;}} static class NotebookActivity {} static class PickerUnavailable extends RuntimeException {}",
+            "static class Intent {static final String ACTION_OPEN_DOCUMENT=\"open\",CATEGORY_OPENABLE=\"openable\",ACTION_VIEW=\"view\",ACTION_SEND=\"send\",EXTRA_STREAM=\"stream\";String type,action;Uri uri,stream;Intent(String action){this.action=action;}Intent(Object owner,Class<?> type){}Intent addCategory(String s){return this;}Intent setType(String s){type=s;return this;}Uri getData(){return uri;}String getAction(){return action;}Uri getParcelableExtra(String key){return stream;}}",
             "static class View {static final int VISIBLE=0,GONE=8;}",
             "static class Control {int visibility;String text;void setText(String text){this.text=text;}void setVisibility(int n){visibility=n;}}",
             "class Root {boolean attached=true;final ArrayDeque<Runnable> queue=new ArrayDeque<>();boolean isAttachedToWindow(){return attached;}void post(Runnable r){queue.add(r);}void removeCallbacks(Runnable r){queue.removeIf(value->value==r);}void drain(){for(int i=0;!queue.isEmpty();i++){if(i>20)throw new AssertionError(\"UI callback loop\");queue.remove().run();}}}",
             "static class Job {final NotebookPdfImportFlow flow=new NotebookPdfImportFlow();String message=\"Opening PDF picker…\";int imports;void importPdf(Uri uri){if(flow.beginImport())imports++;}}",
-            "final Root root=new Root();final Control choose=new Control(),done=new Control(),status=new Control();Job job=new Job();boolean resumed=true,finishing,destroyed,noPicker;int picks,opens,finishes;Intent pickerIntent;final Runnable nextStep=this::advance;",
+            "final Root root=new Root();final Control choose=new Control(),done=new Control(),status=new Control();Job job=new Job();boolean resumed=true,finishing,destroyed,noPicker;int picks,opens,finishes;Intent pickerIntent,incoming;Intent getIntent(){return incoming;}final Runnable nextStep=this::advance;",
             "boolean isFinishing(){return finishing;}boolean isDestroyed(){return destroyed;}void startActivityForResult(Intent intent,int request){if(noPicker)throw new PickerUnavailable();picks++;pickerIntent=intent;}void startActivity(Intent intent){opens++;}void finish(){finishing=true;finishes++;}void overridePendingTransition(int a,int b){}",
-            method(source,"private void advance("),method(source,"private void pick("),
+            method(source,"private void advance("),method(source,"private void pick("),method(source,"private static Uri externalPdf("),
             method(source,"protected void onActivityResult("),method(source,"private void render("),
             "static Intent selected(){Intent result=new Intent(\"result\");result.uri=new Uri();return result;}",
             "static void check(boolean b,String s){if(!b)throw new AssertionError(s);}",
@@ -63,9 +63,12 @@ public final class NotebookPdfImportFlowTest {
             "PdfImportActivityFixture cancelled=new PdfImportActivityFixture();cancelled.advance();cancelled.onActivityResult(PICK_PDF,0,null);check(cancelled.finishing&&cancelled.job.imports==0,\"cancel returns to library without an intermediary screen\");",
             "PdfImportActivityFixture detached=new PdfImportActivityFixture();detached.root.attached=false;detached.advance();check(detached.picks==0,\"unattached Activity cannot launch picker\");detached.root.attached=true;detached.destroyed=true;detached.advance();check(detached.picks==0,\"destroyed Activity cannot launch picker\");",
             "PdfImportActivityFixture failed=new PdfImportActivityFixture();failed.noPicker=true;failed.advance();failed.root.drain();check(failed.job.flow.phase()==NotebookPdfImportFlow.Phase.ERROR&&failed.choose.visibility==View.VISIBLE&&failed.picks==0,\"missing file provider shows an explicit retry without an automatic loop\");",
+            "PdfImportActivityFixture external=new PdfImportActivityFixture();external.incoming=new Intent(Intent.ACTION_VIEW);external.incoming.uri=new Uri();external.advance();external.advance();check(external.picks==0&&external.job.imports==1&&external.job.flow.busy(),\"Open with imports the granted URI once without another picker\");external.job.flow.imported(31);external.advance();check(external.opens==1&&external.finishes==1,\"Open with hands off to the imported notebook\");",
+            "PdfImportActivityFixture shared=new PdfImportActivityFixture();shared.incoming=new Intent(Intent.ACTION_SEND);shared.incoming.stream=new Uri();shared.advance();check(shared.picks==0&&shared.job.imports==1,\"Share PDF uses EXTRA_STREAM without another picker\");",
+            "PdfImportActivityFixture invalid=new PdfImportActivityFixture();invalid.incoming=new Intent(Intent.ACTION_VIEW);invalid.incoming.uri=new Uri();invalid.incoming.uri.scheme=\"https\";invalid.advance();invalid.root.drain();check(invalid.job.imports==0&&invalid.picks==0&&invalid.choose.visibility==View.VISIBLE,\"unsupported or malformed external URI offers recovery without importing\");",
             "}","}");
         NotebookWorkspaceActivationTest.runFixture("org.eink.inkprobe.notebook.PdfImportActivityFixture", fixture);
-        assertions += 15;
+        assertions += 19;
     }
     private static void workerFailures() throws Exception {
         String source = read("NotebookPdfImport");

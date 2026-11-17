@@ -9,7 +9,7 @@ import android.view.WindowManager;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-/** Storage Access Framework import; the picker opens directly and the imported note opens on success. */
+/** PDF picker and Android Open with/Share entry point; the imported note opens on success. */
 public final class NotebookPdfImportActivity extends NotebookDisplayActivity {
     private static final int PICK_PDF = 2402;
     private NotebookPdfImport job;
@@ -64,11 +64,28 @@ public final class NotebookPdfImportActivity extends NotebookDisplayActivity {
     private void advance() {
         if (!resumed || isFinishing() || isDestroyed() || !root.isAttachedToWindow()) return;
         NotebookPdfImportFlow.Phase phase = job.flow.phase();
-        if (phase == NotebookPdfImportFlow.Phase.CHOOSE) pick();
+        if (phase == NotebookPdfImportFlow.Phase.CHOOSE) {
+            Intent incoming = getIntent();
+            boolean external = incoming != null && (Intent.ACTION_VIEW.equals(incoming.getAction())
+                || Intent.ACTION_SEND.equals(incoming.getAction()));
+            if (!external) pick();
+            else {
+                Uri uri = externalPdf(incoming);
+                if (uri != null && job.flow.beginPicker()) job.importPdf(uri);
+                else { job.flow.failed(); job.message = "Cannot open this PDF. Choose it from your files."; render(); }
+            }
+        }
         else if (phase == NotebookPdfImportFlow.Phase.READY && job.flow.beginOpen()) {
             startActivity(new Intent(this, NotebookActivity.class));
             finish(); overridePendingTransition(0, 0);
         } else if (phase == NotebookPdfImportFlow.Phase.OPENED || phase == NotebookPdfImportFlow.Phase.CANCELLED) finish();
+    }
+    private static Uri externalPdf(Intent incoming) {
+        try {
+            Uri uri = Intent.ACTION_SEND.equals(incoming.getAction())
+                ? incoming.getParcelableExtra(Intent.EXTRA_STREAM) : incoming.getData();
+            return uri != null && ("content".equals(uri.getScheme()) || "file".equals(uri.getScheme())) ? uri : null;
+        } catch (RuntimeException malformedIntent) { return null; }
     }
     private void pick() {
         if (!resumed || isFinishing() || isDestroyed() || !root.isAttachedToWindow() || !job.flow.beginPicker()) return;

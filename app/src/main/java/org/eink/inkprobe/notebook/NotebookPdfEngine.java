@@ -72,8 +72,8 @@ public final class NotebookPdfEngine {
             synchronized (metadata) { metadata.put(key, persisted); }
             return persisted;
         }
-        try (PDDocument document = open(source)) {
-            NotebookPdfAsset result = inspect(new Navigation(document));
+        try (NotebookPdfReader reader = read(source)) {
+            NotebookPdfAsset result = inspect(new Navigation(reader, ""));
             NotebookPdfMetadata.write(source, result);
             synchronized (metadata) { metadata.put(key, result); }
             return result;
@@ -89,10 +89,10 @@ public final class NotebookPdfEngine {
     static synchronized List<NotebookPdfAsset.Link> links(File source, int pdfPage) throws IOException {
         String key = source.getCanonicalPath() + ':' + source.length() + ':' + source.lastModified();
         if (navigation == null || !key.equals(navigation.key)) {
-            if (navigation != null) { navigation.document.close(); navigation = null; }
-            PDDocument document = open(source);
-            try { navigation = new Navigation(document, key); }
-            catch (IOException | RuntimeException failure) { document.close(); throw failure; }
+            if (navigation != null) { navigation.reader.close(); navigation = null; }
+            NotebookPdfReader reader = read(source);
+            try { navigation = new Navigation(reader, key); }
+            catch (IOException | RuntimeException | Error failure) { reader.close(); throw failure; }
         }
         if (pdfPage < 1 || pdfPage > navigation.pages.size()) throw new IOException("The PDF page is unavailable");
         List<NotebookPdfAsset.Link> cached = navigation.links.get(pdfPage);
@@ -105,7 +105,7 @@ public final class NotebookPdfEngine {
 
     /** Drops the optional reader when an editor is closed; caches never own source content. */
     public static synchronized void closeNavigation() {
-        if (navigation != null) try { navigation.document.close(); }
+        if (navigation != null) try { navigation.reader.close(); }
         catch (IOException ignored) { /* Read-only best-effort resource release. */ }
         finally { navigation = null; }
     }
@@ -134,22 +134,27 @@ public final class NotebookPdfEngine {
         try {
             MemoryUsageSetting memory = MemoryUsageSetting.setupMixed(8 * 1024 * 1024);
             if (scratchDirectory != null) memory.setTempDir(scratchDirectory);
-            PDDocument document = PDDocument.load(file, memory);
-            if (document.isEncrypted()) {
-                document.close();
-                throw new IOException("Password-protected PDFs are not supported. Import an unlocked copy.");
-            }
-            return document;
+            return PDDocument.load(file, memory);
         } catch (InvalidPasswordException failure) {
-            throw new IOException("Password-protected PDFs are not supported. Import an unlocked copy.", failure);
+            throw openingPassword(failure);
         }
+    }
+
+    private static NotebookPdfReader read(File file) throws IOException {
+        try { return NotebookPdfReader.open(file, scratchDirectory); }
+        catch (InvalidPasswordException failure) { throw openingPassword(failure); }
+    }
+
+    private static IOException openingPassword(InvalidPasswordException failure) {
+        return new IOException("This PDF requires a password to open. Import a copy with its opening password removed.", failure);
     }
 
     /** Extract just the held page on the optional reading worker, never on the ink writer. */
     static NotebookPdfText text(File source,int number)throws IOException{
-        try(PDDocument document=open(source)){
+        try(NotebookPdfReader reader=read(source)){
+            PDDocument document=reader.pdf();
             if(number<1||number>document.getNumberOfPages())throw new IOException("The PDF page is unavailable");
-            PDPage page=document.getPage(number-1);PDRectangle crop=page.getCropBox();
+            PDPage page=document.getPage(number-1);reader.pageText(page);PDRectangle crop=page.getCropBox();
             int rotation=((page.getRotation()%360)+360)%360;
             final float width=rotation==90||rotation==270?crop.getHeight():crop.getWidth();
             final float height=rotation==90||rotation==270?crop.getWidth():crop.getHeight();
@@ -186,6 +191,7 @@ public final class NotebookPdfEngine {
     }
 
     private static final class Navigation {
+        final NotebookPdfReader reader;
         final PDDocument document;
         final String key;
         final List<PDPage> pages = new ArrayList<>();
@@ -196,9 +202,10 @@ public final class NotebookPdfEngine {
                     return size() > 12;
                 }
             };
-        Navigation(PDDocument document) throws IOException { this(document, ""); }
-        Navigation(PDDocument document, String key) throws IOException {
-            this.document = document; this.key = key;
+        Navigation(PDDocument document) throws IOException { this(document, null, ""); }
+        Navigation(NotebookPdfReader reader, String key) throws IOException { this(reader.pdf(), reader, key); }
+        private Navigation(PDDocument document, NotebookPdfReader reader, String key) throws IOException {
+            this.document = document; this.reader = reader; this.key = key;
             int count = document.getNumberOfPages();
             if (count < 1 || count > NotebookIndex.MAX_PAGES) throw new IOException("The PDF has an unsupported page count");
             for (PDPage page : document.getPages()) {
@@ -237,6 +244,7 @@ public final class NotebookPdfEngine {
     private static List<NotebookPdfAsset.Link> readLinks(Navigation navigation, int pageNumber) throws IOException {
         PDDocument document = navigation.document;
         PDPage page = navigation.pages.get(pageNumber - 1);
+        if (navigation.reader != null) navigation.reader.pageLinks(page);
         List<NotebookPdfAsset.Link> links = new ArrayList<>();
         COSBase value = page.getCOSObject().getDictionaryObject(COSName.ANNOTS);
         if (!(value instanceof COSArray)) return links;
@@ -383,6 +391,9 @@ public final class NotebookPdfEngine {
             return;
         }
         try (PDDocument document = open(original)) {
+            // Empty opening passwords are readable. Export our annotated working copy without
+            // reapplying the source's owner-password encryption; the original stays untouched.
+            if (document.isEncrypted()) document.setAllSecurityToBeRemoved(true);
             NotebookPdfAsset originalMetadata = inspect(new Navigation(document));
             List<PDPage> originalPages = new ArrayList<>();
             for (PDPage page : document.getPages()) {

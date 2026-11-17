@@ -13,7 +13,7 @@ import java.util.zip.ZipOutputStream;
 /** Portable editable notebook archive. No Android, native brush, cache, history or credentials. */
 public final class NotebookBackup {
     private static final int MAGIC = 0x494e4b42, VERSION = 2;
-    private static final long MAX_BYTES = 512L * 1024 * 1024;
+    private static final long MAX_BYTES = 2L * 1024 * 1024 * 1024;
     private static final long MAX_PAGE_BYTES = 64L * 1024 * 1024;
     public interface PageSource { NotebookPage page(int number) throws IOException; }
     public static final class Restored {
@@ -65,7 +65,7 @@ public final class NotebookBackup {
                     }
                     private void account(int length) throws IOException {
                         check(cancelled); total[0] += length;
-                        if (total[0] > MAX_BYTES) throw new IOException("Notebook exceeds the 512 MiB backup limit");
+                        if (total[0] > MAX_BYTES) throw new IOException("Notebook exceeds the 2 GiB backup limit");
                     }
                 }, page);
                 zip.closeEntry();
@@ -76,7 +76,7 @@ public final class NotebookBackup {
                     byte[] buffer = new byte[65536]; int length;
                     while ((length = source.read(buffer)) != -1) {
                         check(cancelled); total[0] += length;
-                        if (total[0] > MAX_BYTES) throw new IOException("Notebook exceeds the 512 MiB backup limit");
+                        if (total[0] > MAX_BYTES) throw new IOException("Notebook exceeds the 2 GiB backup limit");
                         zip.write(buffer, 0, length);
                     }
                 }
@@ -86,7 +86,7 @@ public final class NotebookBackup {
             ByteArrayOutputStream outlineBytes = new ByteArrayOutputStream();
             NotebookOutline.writeSnapshot(outlineBytes, outline);
             total[0] += outlineBytes.size();
-            if (total[0] > MAX_BYTES) throw new IOException("Notebook exceeds the 512 MiB backup limit");
+            if (total[0] > MAX_BYTES) throw new IOException("Notebook exceeds the 2 GiB backup limit");
             check(cancelled); outlineBytes.writeTo(zip); zip.closeEntry();
             check(cancelled); zip.finish(); zip.flush();
         } finally { zip.close(); }

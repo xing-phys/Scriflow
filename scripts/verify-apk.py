@@ -24,6 +24,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parent.parent
 PACKAGE = 'org.eink.inkprobe'
 LAUNCHER = PACKAGE + '.notebook.NotebookLibraryActivity'
+PDF_IMPORT = PACKAGE + '.notebook.NotebookPdfImportActivity'
 NOTEBOOK_SCREENS = {PACKAGE + '.notebook.' + name for name in (
     'NotebookLibraryActivity', 'NotebookActivity', 'NotebookAiActivity', 'NotebookSettingsActivity',
     'NotebookBrowserActivity', 'NotebookWebsitesActivity', 'NotebookBrowserBookmarksActivity',
@@ -252,7 +253,25 @@ def verify_manifest(manifest, badging, variant, version):
                 child.tag == 'intent-filter' for child in component.children)
             if bool(component.attributes.get('android:exported', default_exported)):
                 exported.add(component_name(component))
-        require(exported == {LAUNCHER}, f'Release APK exports unexpected components: {sorted(exported)}.')
+        require(exported == {LAUNCHER, PDF_IMPORT}, f'Release APK exports unexpected components: {sorted(exported)}.')
+    pdf_import = next(component for component in components if component_name(component) == PDF_IMPORT)
+    pdf_filters = [child for child in pdf_import.children if child.tag == 'intent-filter']
+    require(len(pdf_filters) == 2, 'Expected PDF Open with and Share filters.')
+    require({child.attributes.get('android:name') for intent in pdf_filters
+             for child in intent.children if child.tag == 'action'}
+            == {'android.intent.action.VIEW', 'android.intent.action.SEND'}, 'Missing PDF Open with or Share action.')
+    for intent in pdf_filters:
+        actions = {child.attributes.get('android:name') for child in intent.children if child.tag == 'action'}
+        categories = {child.attributes.get('android:name') for child in intent.children if child.tag == 'category'}
+        types = {child.attributes['android:mimeType'] for child in intent.children
+                 if child.tag == 'data' and 'android:mimeType' in child.attributes}
+        schemes = {child.attributes['android:scheme'] for child in intent.children
+                   if child.tag == 'data' and 'android:scheme' in child.attributes}
+        require(types == {'application/pdf'} and categories == {'android.intent.category.DEFAULT'},
+                'External PDF entry point must match only PDF documents.')
+        require(actions == {'android.intent.action.VIEW'} and schemes == {'content', 'file'}
+                or actions == {'android.intent.action.SEND'} and not schemes,
+                'Unexpected external PDF action or URI scheme.')
 
 
 def contains_signing_block(apk):

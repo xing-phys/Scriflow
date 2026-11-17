@@ -4,6 +4,25 @@ The app is now named **Scriflow** (formerly **Scribblow**); see
 [branding](branding.md). Historical app names, log tags, and APK filenames below
 describe the original experiments.
 
+## PDF import alpha 0.40.0-alpha.12 (2026-11-17)
+
+No physical tablet is connected. An Android 10/API 29 x86_64 emulator verifies
+PDF Open with/Share resolution and actual Files-app opening of a readable
+encrypted PDF and a 384 MiB, 384-page scan. Both imports hand off to the notebook
+without reopening the picker. The imported scan's private source matches the
+original SHA-256. Native previews and link reads pass for ordinary PDFs and
+RC4/AES-128/AES-256 files with empty opening passwords. The native harness reports
+the emulator's default 512 MiB heap; the separate host PDF suite passes with a
+128 MiB heap. Synthetic image data and emulator timings do not establish physical
+tablet performance for arbitrary PDFs.
+
+Full host/browser/Markdown/AI/ink regressions, 196 PDF engine assertions,
+debug/release lint/build and permanent-certificate APK verification pass.
+`scripts/check-pdf-open.sh` reproduces native preview checks using disposable
+fixtures. See [release notes](releases/0.40.0-alpha.12.md) for behavior and limits.
+Physical Huawei large-file, file-manager, rotation and sustained-writing acceptance
+remain pending.
+
 ## Handwriting scheduling alpha 0.37.0-alpha.3 (2026-11-03)
 
 The owner authorized implementing handwriting protection after a read-only

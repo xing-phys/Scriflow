@@ -27,7 +27,19 @@
              transfer owner and its outstanding result intact across that change. -->
         <activity android:name=".notebook.NotebookMediaActivity" android:exported="false" android:screenOrientation="behind" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden" />
         <activity android:name=".notebook.NotebookTransferActivity" android:exported="false" android:screenOrientation="behind" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden" />
-        <activity android:name=".notebook.NotebookPdfImportActivity" android:exported="false" android:screenOrientation="behind" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden" />
+        <activity android:name=".notebook.NotebookPdfImportActivity" android:exported="true" android:screenOrientation="behind" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/pdf" android:scheme="content" />
+                <data android:scheme="file" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/pdf" />
+            </intent-filter>
+        </activity>
         <activity android:name=".notebook.NotebookPdfExportActivity" android:exported="false" android:screenOrientation="behind" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden" />
         <activity android:name=".notebook.NotebookSettingsActivity" android:exported="false" android:screenOrientation="behind" />
         <activity android:name=".notebook.NotebookLibraryActivity" android:exported="true" android:screenOrientation="behind">

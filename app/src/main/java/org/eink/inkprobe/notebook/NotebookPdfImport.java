@@ -7,7 +7,6 @@ import android.os.Handler;
 import android.os.Looper;
 import android.provider.OpenableColumns;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -18,7 +17,6 @@ import java.util.concurrent.Executors;
 
 /** Retained import: copy and validate privately before publishing a separate notebook. */
 final class NotebookPdfImport {
-    private static final long MAX_PDF_BYTES = 256L * 1024 * 1024;
     private static final ExecutorService files = Executors.newSingleThreadExecutor(r -> new Thread(r, "notebook-pdf-import"));
     private final Context context;
     private final NotebookSession session;
@@ -54,16 +52,14 @@ final class NotebookPdfImport {
     private void preparePdf(Uri uri, File staging) throws IOException {
         if (!staging.mkdir()) throw new IOException("Cannot create PDF import staging directory");
         File original = new File(staging, "source.pdf");
-        try (InputStream input = context.getContentResolver().openInputStream(uri);
-                FileOutputStream output = new FileOutputStream(original)) {
-            if (input == null) throw new IOException("Cannot open the selected PDF");
-            byte[] buffer = new byte[65536]; long total = 0; int size;
-            while ((size = input.read(buffer)) != -1) {
-                total += size;
-                if (total > MAX_PDF_BYTES) throw new IOException("PDF import supports files up to 256 MiB");
-                output.write(buffer, 0, size);
-            }
-            output.getFD().sync();
+        validateUri(uri);
+        long expected = sourceSize(uri);
+        try (InputStream input = context.getContentResolver().openInputStream(uri)) {
+            NotebookPdfCopy.copy(input, original, expected, (bytes, total) -> {
+                long mib = (bytes + 1048575) / 1048576;
+                message = "Copying PDF… " + mib + (total > 0 ? " / " + ((total + 1048575) / 1048576) : "") + " MiB";
+                changed();
+            });
         }
         message = "Reading PDF page sizes and outline…"; changed();
         NotebookPdfAsset asset = NotebookPdfEngine.inspect(context, original);
@@ -106,6 +102,26 @@ final class NotebookPdfImport {
             : error.getMessage() == null ? "Try a different PDF." : error.getMessage();
         // Retain only the small message, not the failing parser's potentially large object graph.
         main.post(() -> { flow.failed(); message = "Couldn’t import PDF. " + detail; changed(); });
+    }
+
+    private void validateUri(Uri uri) throws IOException {
+        if (uri == null || !("content".equals(uri.getScheme()) || "file".equals(uri.getScheme())))
+            throw new IOException("Choose a PDF from your files");
+        if ("file".equals(uri.getScheme())) {
+            String path = new File(uri.getPath()).getCanonicalPath();
+            String privatePath = context.getDataDir().getCanonicalPath();
+            if (path.equals(privatePath) || path.startsWith(privatePath + File.separator))
+                throw new IOException("Choose a PDF from your files");
+        }
+    }
+
+    private long sourceSize(Uri uri) {
+        if ("file".equals(uri.getScheme())) return new File(uri.getPath()).length();
+        try (Cursor cursor = context.getContentResolver().query(uri,
+                new String[]{OpenableColumns.SIZE}, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst() && !cursor.isNull(0)) return cursor.getLong(0);
+        } catch (RuntimeException ignored) { /* Some providers omit size until their stream is copied. */ }
+        return -1;
     }
 
     private String displayName(Uri uri, String fallback) {

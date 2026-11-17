@@ -19,7 +19,7 @@ final class NotebookPdfDisplayRenderer implements Closeable {
     NotebookPdfDisplayRenderer(File source) throws IOException {
         descriptor = ParcelFileDescriptor.open(source, ParcelFileDescriptor.MODE_READ_ONLY);
         try { renderer = new PdfRenderer(descriptor); }
-        catch (IOException | RuntimeException failure) { descriptor.close(); throw failure; }
+        catch (IOException | RuntimeException | Error failure) { descriptor.close(); throw failure; }
     }
 
     Bitmap render(NotebookPdfTiles.Tile tile) throws IOException {
