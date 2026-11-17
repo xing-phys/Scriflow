@@ -6,6 +6,7 @@
         <activity android:name=".MainActivity" android:exported="true" />
         <activity android:name=".notebook.NotebookSelfTestActivity" android:exported="true" android:screenOrientation="portrait" />
         <activity android:name=".notebook.NotebookBrowserDataSelfTestActivity" android:exported="true" />
+        <activity android:name=".notebook.NotebookEbookSelfTestActivity" android:exported="true" android:screenOrientation="behind" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden" />
         <activity android:name=".notebook.NotebookBrowserSelfTestActivity" android:exported="true" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden" />
         <activity android:name=".notebook.NotebookBrowserOverlaySelfTestActivity" android:exported="true" android:theme="@android:style/Theme.Material.Light.Dialog.NoActionBar" android:label="Dictionary test">
             <intent-filter><action android:name="android.intent.action.PROCESS_TEXT" /><category android:name="android.intent.category.DEFAULT" /><data android:mimeType="text/plain" /></intent-filter>

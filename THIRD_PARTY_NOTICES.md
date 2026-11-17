@@ -94,6 +94,29 @@ source repository. esbuild and Puppeteer are development tools and are not
 packaged in the APK. See [Markdown blocks](docs/markdown-blocks.md) for the
 offline compilation/display architecture.
 
+## Offline ebook and DjVu runtime
+
+The ebook reader bundles [foliate-js](https://github.com/johnfactotum/foliate-js)
+at commit `78914aef4466eb960965702401634c2cb348e9b1`, under the MIT license,
+copyright John Factotum. Its ZIP helpers include zip.js (BSD-3-Clause,
+Gildas Lormeau) and fflate (MIT, Arjun Barrett). Original licence texts remain
+beside the sources in `renderer/ebooks/vendor/foliate` and its `vendor` folder
+and are included unchanged in the APK's `ebook-extension` assets.
+
+[djvu-rs 0.45.0](https://github.com/matyushkin/djvu-rs) provides the scalar
+WebAssembly DjVu decoder under MIT. Its original `LICENSE` and complete
+`THIRD_PARTY_NOTICES` for the statically linked Rust crates are retained in
+`renderer/ebooks/vendor/djvu` and included in APK assets. Only the scalar
+decoder and its JavaScript binding are packaged.
+
+Exact dependency hashes, the npm package integrity, and the foliate local
+patch list are recorded in `renderer/ebooks/upstream.json`. The builder checks
+those hashes before copying assets and creates the APK inventory
+`ebook-assets.sha256.json`. Runtime parsing and fonts require no downloads.
+Test-book samples have separately pinned provenance/checksums in
+`tests/ebook-samples.json`; they are downloaded into ignored build storage and
+are not distributed in the APK.
+
 ## Bundled browser engine and capture
 
 Scriflow bundles the unmodified [Mozilla GeckoView](https://mozilla.github.io/geckoview/)

@@ -303,6 +303,12 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
                     .setDataAndType(NotebookFileProvider.uri(this, item.file), "application/pdf"));
                 overridePendingTransition(0, 0);
             } catch (IOException | SecurityException error) { problem(error.getMessage()); }
+        } else if (NotebookEbookStore.supported(item.file.getName())) {
+            try {
+                startActivity(new Intent(this, NotebookEbookImportActivity.class).setAction(Intent.ACTION_VIEW)
+                    .setDataAndType(NotebookFileProvider.uri(this, item.file), NotebookFileStorage.mime(item.file)));
+                overridePendingTransition(0,0);
+            } catch(IOException | SecurityException error) { problem(error.getMessage()); }
         } else openWith(item.file);
     }
     private void fileActions(Row item) {

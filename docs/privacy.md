@@ -31,6 +31,21 @@ Uninstalling the app or clearing its storage removes its private notes and
 settings. Android automatic app backup is disabled. Make editable `.inkbook`
 backups through the library and keep them outside the app's private storage.
 
+## Offline books
+
+Imported ebook originals, custom fonts, reading positions and text annotations
+live in private app storage. They are separate from notebook backups. Explicit
+JSON/Markdown export writes reading notes to the chosen destination; linked
+handwriting is backed up through its ordinary notebook. Keep original ebooks
+outside private storage before uninstalling or clearing app data.
+
+The ebook reader bundles its parsers, DjVu decoder and browser assets. It strips
+book scripts, embedded frames and forms and blocks network content with both
+content policies and the engine request filter. Book frames receive no native
+port. The trusted reader can read only its selected original and custom font.
+An external HTTPS link asks before opening in Browser. **Dictionary** explicitly
+hands the selected term to the installed Eudic app. See [Books](ebook-reading.md).
+
 ## Browser and saved websites
 
 The Browser bundles GeckoView, the Firefox engine, for HTTPS websites. Live

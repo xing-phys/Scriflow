@@ -44,6 +44,15 @@ tasks.register('prepareLocalDebugKey', Exec) {
 def licenseAssets = layout.buildDirectory.dir('generated/license-assets')
 def markdownAssets = layout.buildDirectory.dir('generated/markdown-assets')
 def browserAssets = layout.buildDirectory.dir('generated/browser-assets')
+def ebookAssets = layout.buildDirectory.dir('generated/ebook-assets')
+tasks.register('prepareEbookAssets', Exec) {
+    workingDir rootDir
+    commandLine 'node', rootProject.file('scripts/build-ebook-assets.cjs').absolutePath
+    inputs.dir rootProject.file('renderer/ebooks')
+    inputs.file rootProject.file('scripts/build-ebook-assets.cjs')
+    inputs.file file('version.properties')
+    outputs.dir ebookAssets
+}
 tasks.register('prepareBrowserAssets', Exec) {
     workingDir rootDir
     commandLine 'bash', rootProject.file('scripts/build-browser-assets.sh').absolutePath
@@ -120,9 +129,10 @@ android {
     sourceSets.main.assets.srcDir(licenseAssets.get().asFile)
     sourceSets.main.assets.srcDir(markdownAssets.get().asFile)
     sourceSets.main.assets.srcDir(browserAssets.get().asFile)
+    sourceSets.main.assets.srcDir(ebookAssets.get().asFile)
 }
 tasks.matching { it.name == 'preBuild' }.configureEach {
-    dependsOn tasks.named('prepareLicenseAssets'), tasks.named('prepareMarkdownAssets'), tasks.named('prepareBrowserAssets')
+    dependsOn tasks.named('prepareLicenseAssets'), tasks.named('prepareMarkdownAssets'), tasks.named('prepareBrowserAssets'), tasks.named('prepareEbookAssets')
 }
 tasks.matching { it.name == 'validateSigningDebug' }.configureEach {
     dependsOn tasks.named('prepareLocalDebugKey')

@@ -1,0 +1,38 @@
+:root { color-scheme: light; font: 15px sans-serif; color: #000; background: #fff; }
+* { box-sizing: border-box; }
+body { margin: 0; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+button, select, input, textarea { font: inherit; color: #000; background: #fff; border: 1px solid #000; border-radius: 6px; }
+button { min-height: 42px; padding: 6px 12px; cursor: pointer; }
+button:active, button[aria-pressed=true] { color: #fff; background: #000; }
+button:disabled { color: #777; border-color: #777; cursor: default; }
+input, select, textarea { min-height: 42px; padding: 8px; max-width: 100%; }
+input[type=range] { border: 0; padding: 0; accent-color: #000; }
+textarea { width: 100%; min-height: 120px; }
+nav { display: flex; gap: 5px; padding: 5px 8px; flex-shrink: 0; overflow-x: auto; }
+nav button { flex: 1; white-space: nowrap; }
+main { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+foliate-view { display: block; height: 100%; width: 100%; }
+foliate-view::part(filter) { background: white; color: black; }
+footer { display: flex; gap: 5px; padding: 5px 8px; flex-shrink: 0; }
+footer button { min-width: 44px; }
+#position { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+#notice { margin: 0; padding: 6px 12px; font-size: 13px; max-height: 30%; overflow-y: auto; white-space: pre-wrap; flex-shrink: 0; }
+#notice:empty { display: none; }
+#selection { display: flex; flex-wrap: wrap; gap: 5px; padding: 5px 8px; border-top: 1px solid #000; }
+#selection[hidden] { display: none; }
+dialog { width: min(94vw,650px); max-height: 86dvh; border: 2px solid #000; border-radius: 8px; padding: 0; color: #000; background: #fff; }
+dialog::backdrop { background: #fff9; }
+dialog header { display: flex; align-items: center; gap: 10px; padding: 10px; border-bottom: 1px solid #000; }
+dialog header strong { flex: 1; font-size: 18px; }
+dialog section { overflow-y: auto; max-height: 72dvh; padding: 12px; }
+dialog section > button { width: 100%; display: block; text-align: left; margin: 6px 0; white-space: normal; }
+dialog label { display: flex; align-items: center; gap: 14px; padding: 7px 0; }
+dialog label span { width: 115px; flex-shrink: 0; }
+dialog label input, dialog label select { flex: 1; min-width: 0; }
+.annotation { border: 1px solid #000; border-radius: 6px; padding: 10px; margin: 8px 0; }
+.annotation p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.annotation div { display: flex; flex-wrap: wrap; gap: 6px; }
+.muted { font-size: 13px; color: #444; }
+.zen #toolbar, .zen #footer { display: none; }
+.snapshot #toolbar, .snapshot #footer, .snapshot #selection, .snapshot #notice { visibility: hidden; }
+.snapshot, .working { pointer-events: none; }

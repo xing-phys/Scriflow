@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Scriflow Books</title><link rel="stylesheet" href="reader.css"><script type="module" src="reader.js"></script></head>
+<body>
+<nav id="toolbar" aria-label="Reading tools">
+  <button id="type">Aa</button><button id="contents">Contents</button><button id="search">Search</button>
+  <button id="bookmark">Bookmark</button><button id="notes">Notes</button><button id="more">More</button>
+</nav>
+<main id="reader" aria-label="Book content"></main>
+<p id="notice" role="status">Opening offline reader…</p>
+<div id="selection" hidden aria-label="Selected text actions"><button id="highlight">Highlight</button><button id="text-note">Text note</button><button id="handwrite">Handwrite</button><button id="copy">Copy</button><button id="lookup">Dictionary</button><button id="clear-selection">×</button></div>
+<footer id="footer"><button id="previous" aria-label="Previous page">‹</button><button id="history-back" aria-label="Return from link">↶</button><button id="position">0%</button><button id="history-forward" aria-label="Forward to link">↷</button><button id="next" aria-label="Next page">›</button></footer>
+<dialog id="panel"><header><strong id="panel-title"></strong><button id="close-panel" aria-label="Close reading panel">×</button></header><section id="panel-content"></section></dialog>
+</body></html>

@@ -25,14 +25,16 @@ ROOT = Path(__file__).resolve().parent.parent
 PACKAGE = 'org.eink.inkprobe'
 LAUNCHER = PACKAGE + '.notebook.NotebookLibraryActivity'
 PDF_IMPORT = PACKAGE + '.notebook.NotebookPdfImportActivity'
+EBOOK_IMPORT = PACKAGE + '.notebook.NotebookEbookImportActivity'
 NOTEBOOK_SCREENS = {PACKAGE + '.notebook.' + name for name in (
     'NotebookLibraryActivity', 'NotebookActivity', 'NotebookAiActivity', 'NotebookSettingsActivity',
     'NotebookBrowserActivity', 'NotebookWebsitesActivity', 'NotebookBrowserBookmarksActivity',
     'NotebookBrowserHistoryActivity', 'NotebookBrowserDataActivity', 'NotebookFilesActivity',
+    'NotebookEbookActivity', 'NotebookEbookLibraryActivity', 'NotebookEbookImportActivity',
     'NotebookTransferActivity', 'NotebookPdfExportActivity', 'NotebookPdfImportActivity')}
 DIAGNOSTICS = {PACKAGE + '.MainActivity', PACKAGE + '.notebook.NotebookSelfTestActivity',
                PACKAGE + '.notebook.NotebookBrowserSelfTestActivity', PACKAGE + '.notebook.NotebookBrowserDataSelfTestActivity',
-               PACKAGE + '.notebook.NotebookBrowserOverlaySelfTestActivity'}
+               PACKAGE + '.notebook.NotebookBrowserOverlaySelfTestActivity', PACKAGE + '.notebook.NotebookEbookSelfTestActivity'}
 # Gecko's standard runtime permissions support media/audio and its process services.
 # Microphone and Android-10 storage access are requested at runtime. The file
 # manager uses the special All files access setting on newer Android versions.
@@ -269,7 +271,23 @@ def verify_manifest(manifest, badging, variant, version):
                 child.tag == 'intent-filter' for child in component.children)
             if bool(component.attributes.get('android:exported', default_exported)):
                 exported.add(component_name(component))
-        require(exported == {LAUNCHER, PDF_IMPORT}, f'Release APK exports unexpected components: {sorted(exported)}.')
+        require(exported == {LAUNCHER, PDF_IMPORT, EBOOK_IMPORT}, f'Release APK exports unexpected components: {sorted(exported)}.')
+    ebook_import = next(component for component in components if component_name(component) == EBOOK_IMPORT)
+    ebook_types = {'application/epub+zip', 'application/x-mobipocket-ebook', 'application/vnd.amazon.ebook',
+                   'application/x-fictionbook+xml', 'image/vnd.djvu', 'image/x-djvu',
+                   'application/vnd.comicbook+zip', 'application/x-cbz', 'text/plain', 'text/html'}
+    ebook_filters = [child for child in ebook_import.children if child.tag == 'intent-filter']
+    require(len(ebook_filters) == 2, 'Expected ebook Open with and Share filters.')
+    for intent in ebook_filters:
+        actions = {child.attributes.get('android:name') for child in intent.children if child.tag == 'action'}
+        types = {child.attributes['android:mimeType'] for child in intent.children if child.tag == 'data' and 'android:mimeType' in child.attributes}
+        schemes = {child.attributes['android:scheme'] for child in intent.children if child.tag == 'data' and 'android:scheme' in child.attributes}
+        require(types == ebook_types and (actions == {'android.intent.action.VIEW'} and schemes == {'content', 'file'}
+                or actions == {'android.intent.action.SEND'} and not schemes), 'Unexpected ebook opening types or URI schemes.')
+    snapshot = next((item for item in components if component_name(item) == PACKAGE + '.notebook.NotebookEbookSnapshotProvider'), None)
+    require(snapshot is not None and snapshot.tag == 'provider' and snapshot.attributes.get('android:exported') == 0
+            and bool(snapshot.attributes.get('android:grantUriPermissions'))
+            and snapshot.attributes.get('android:authorities') == PACKAGE + '.ebookviews', 'Reading snapshots require an unexported, individually granted provider.')
     pdf_import = next(component for component in components if component_name(component) == PDF_IMPORT)
     pdf_filters = [child for child in pdf_import.children if child.tag == 'intent-filter']
     require(len(pdf_filters) == 2, 'Expected PDF Open with and Share filters.')
@@ -375,6 +393,23 @@ def main():
             extension = json.loads(package.read('assets/browser-extension/manifest.json'))
             require(extension['browser_specific_settings']['gecko']['id'] == 'browser@scriflow.local', 'Unexpected browser extension identity.')
             require(extension['version'] == '1.' + str(version[1]), 'Browser extension must update with every APK versionCode.')
+            require('assets/ebook-assets.sha256.json' in package.namelist(), 'APK is missing its offline ebook inventory.')
+            ebook_assets = json.loads(package.read('assets/ebook-assets.sha256.json'))
+            for name in ('ebook-extension/manifest.json', 'ebook-extension/reader.html', 'ebook-extension/reader.js',
+                         'ebook-extension/io.js', 'ebook-extension/djvu.js', 'ebook-extension/vendor/foliate/LICENSE',
+                         'ebook-extension/vendor/foliate/vendor/zipjs-LICENSE', 'ebook-extension/vendor/foliate/vendor/fflate-LICENSE',
+                         'ebook-extension/vendor/djvu/LICENSE', 'ebook-extension/vendor/djvu/THIRD_PARTY_NOTICES',
+                         'ebook-extension/vendor/djvu/djvu_rs_bg.wasm'):
+                require(name in ebook_assets, 'Ebook inventory is incomplete: ' + name)
+            for name, digest in ebook_assets.items():
+                require('..' not in name and not name.startswith('/'), 'Invalid ebook asset path.')
+                require('assets/' + name in package.namelist(), 'Missing offline ebook asset: ' + name)
+                require(hashlib.sha256(package.read('assets/' + name)).hexdigest() == digest, 'Ebook asset checksum differs: ' + name)
+            ebook_extension = json.loads(package.read('assets/ebook-extension/manifest.json'))
+            require(ebook_extension['browser_specific_settings']['gecko']['id'] == 'ebooks@scriflow.local'
+                    and ebook_extension['version'] == '1.' + str(version[1]), 'Unexpected offline ebook extension identity/version.')
+            require("script-src 'self' 'wasm-unsafe-eval';" in ebook_extension['content_security_policy']
+                    and "object-src 'none'" in ebook_extension['content_security_policy'], 'Unexpected offline ebook script policy.')
             for name in ('geckoview-MPL-2.0.txt', 'geckoview-third-party.html', 'geckoview-SOURCE.txt'):
                 require('assets/' + name in package.namelist(), 'Missing browser engine notice: ' + name)
                 require(package.read('assets/' + name) == (ROOT / 'licenses' / name).read_bytes(),

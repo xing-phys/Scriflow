@@ -46,6 +46,17 @@ it does not arbitrarily change the patch number or signing identity.
 
 ## Before publishing
 
+**0.42.0-alpha.1** (versionCode **114**) adds offline ebook reading and
+passage-linked native handwriting, plus fixed-view PDF copies. Validate EPUB,
+MOBI/KF8/AZW3, FB2/FBZ, CBZ, HTML/TXT and bundled DjVu in the actual Gecko reader;
+font and orientation changes, restored text anchors, imported fonts, linked
+notebook creation, a nonblank PDF copy, DRM rejection and offline isolation.
+Run host regressions and Android lint/builds. Publish the permanently signed APK
+and checksum as an alpha before owner testing; verify the pinned certificate,
+source/tag and downloaded bytes. Keep 0.33.2 Latest stable. Physical Huawei pen,
+e-ink, representative owner books and large-book acceptance remain pending.
+See [Books and adjustable text](ebook-reading.md).
+
 **0.41.0-alpha.1** (versionCode **113**) adds a shared-storage file manager.
 Validate real-file copy/move/rename/delete, collision preflight, cancellation,
 Unicode and hidden files, root boundaries and symbolic links, plus Android 10

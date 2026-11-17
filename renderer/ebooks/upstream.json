@@ -1,0 +1,47 @@
+{
+  "foliate": {
+    "repository": "https://github.com/johnfactotum/foliate-js",
+    "commit": "78914aef4466eb960965702401634c2cb348e9b1",
+    "license": "MIT",
+    "patches": [
+      "Reject ZIP resources larger than 32 MiB before decompression in view.js.",
+      "Defer paginator layout until the chapter frame has a body; prevent ResizeObserver races during loading.",
+      "Ignore the initial about:blank frame load before installing and laying out a chapter.",
+      "Populate sanitized offline chapter documents directly in both renderers to avoid GeckoView extension subframe navigation stalls.",
+      "Reject unsupported EPUB encryption with a clear error; retain supported font deobfuscation."
+    ]
+  },
+  "djvu": {
+    "repository": "https://github.com/matyushkin/djvu-rs",
+    "npm": "djvu-rs",
+    "version": "0.45.0",
+    "integrity": "sha512-wd4EdEzoZcPj2JQuO54HaCazmqpRBsSAdU9B0t9kQBZSAp/jHATulNhLLUxAk/xcpkLh+UBTgqL+p73/R+QCMw==",
+    "license": "MIT",
+    "variant": "scalar"
+  },
+  "files": {
+    "vendor/djvu/LICENSE": "9b634d974fb7ccacccc877fa6b36016eb48884b09732485d7ad92b6294699163",
+    "vendor/djvu/THIRD_PARTY_NOTICES": "443274a3d4f03294476d37fc0cdaca16b768ddd6afa44a93416134802e5ce1f3",
+    "vendor/djvu/djvu_rs.js": "c533f5cfef25a15b39012fb2691cad1e2c4b8afd2bcb391009811dc4041a862c",
+    "vendor/djvu/djvu_rs_bg.wasm": "c8116bf7564923e3ee88ff3be8fb46c0054a7b2c6c8346e912adefdd5944f27f",
+    "vendor/foliate/LICENSE": "b621ffc351fe263bc9b09dd0bc1c9332fda9c462a3904c1e4f0b4d3236b9c28c",
+    "vendor/foliate/comic-book.js": "7f3bf77561ca77300d5244015fcb1f73805787db246928074dc49fb56c88762e",
+    "vendor/foliate/epub.js": "154f0a77899156f6f759befe4fa55fb890c9d8c9604c805b17131df126d30b76",
+    "vendor/foliate/epubcfi.js": "e1a688ad5c84bf31f33cef467f92c7a6d060a0f17ec37c1d3c048e9c7b1cf645",
+    "vendor/foliate/fb2.js": "09a7890bf191f1b6c6dd435fae2868b86c75e73e00731b0051c02f2a998a180a",
+    "vendor/foliate/fixed-layout.js": "b0a3341a4a99b928309a4d414545dc72d77e297a25c86e025fe976a6f39c68ba",
+    "vendor/foliate/footnotes.js": "d377b45d2ac05290c42873612ec0a92e640938e8be8ed850a467133a883388de",
+    "vendor/foliate/mobi.js": "016526df13a9f11ee6671a8c74346e1cf41fe6bdfe50165fdcbf744f015694f3",
+    "vendor/foliate/overlayer.js": "d3d3396e3083277ccbd4f17c407621159b22a407107e43ce75ca3014578094fb",
+    "vendor/foliate/paginator.js": "bf982965ff73caa21f78d746c79d8b56db254842828152e93d7bc1d7567a51d5",
+    "vendor/foliate/progress.js": "544f5e90babc0cb31c5caf971a5f06dd6249ec06600cb62f672fa7179811fde1",
+    "vendor/foliate/quote-image.js": "32df52ebce383bade52d84e7510270e3c192bea51db070f4458a44d3cacf05e7",
+    "vendor/foliate/search.js": "31e846bdc095a645de0e94f7baa2c9e136561a363a2f774d4032e72cfa1fb0ef",
+    "vendor/foliate/text-walker.js": "4ad740ab6142b5be428700ef4d270253cef6649cf6e047ae7d2698a7aec65e92",
+    "vendor/foliate/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4d4dbd57bef8b29ad65c8bd65752f6e6b",
+    "vendor/foliate/vendor/zip.js": "2a0d43157e4a447c6e43351225758795b75a33e8dfec10c6767248df2182949a",
+    "vendor/foliate/view.js": "c6515bdfe91f8d61cd1a481af91de3b55c6cda3eae23dd5ef5333773367d44a8",
+    "vendor/foliate/vendor/fflate-LICENSE": "0a1df3a083d0c010560aa342e87959c8c1070e6fd54545741f083f22d0c8b551",
+    "vendor/foliate/vendor/zipjs-LICENSE": "1b7ebc8d7889ed25491484ab2b102370742ca6c0b26650a0c62cc2269b579b84"
+  }
+}

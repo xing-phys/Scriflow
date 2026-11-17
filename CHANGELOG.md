@@ -6,6 +6,25 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.42.0-alpha.1 — Offline books and adjustable reading (2026-11-17)
+
+- Add Books and direct file opening for DRM-free EPUB, MOBI/AZW3, FB2 and zipped
+  FB2, CBZ, local HTML/TXT and bundled DjVu. Preserve private immutable originals.
+- Add per-book fonts and imported TTF/OTF, size, weight, spacing, margins,
+  alignment, columns and scrolling; fixed books have fit/zoom controls.
+- Add contents, text search, progress restoration, internal-link history,
+  bookmarks, highlights, text notes, Eudic lookup and Markdown/JSON export.
+- Link native handwritten notebooks to text anchors that survive font/layout
+  changes. Optionally turn the visible reading view into a one-page PDF notebook
+  for direct writing on that fixed layout.
+- Bundle pinned MIT foliate-js and djvu-rs engines, retain licences, strip book
+  scripts/frames/forms and block network resources. Reject unsupported DRM.
+- Validate real files, reflow/CFI persistence, script isolation, publisher-font
+  overrides, custom font import and native notebook/PDF-copy workflows. Existing
+  notebook and PDF formats remain compatible.
+- VersionCode 114; physical Huawei stylus, e-ink and owner-book acceptance pending.
+  See [Books and adjustable text](docs/ebook-reading.md) for scope and limits.
+
 ## 0.41.0-alpha.1 — Tablet file manager (2026-11-17)
 
 - Add Files on the bookshelf for internal storage, available SD/USB volumes,

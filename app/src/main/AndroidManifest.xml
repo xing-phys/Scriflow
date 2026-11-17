@@ -14,6 +14,8 @@
             android:exported="false" android:grantUriPermissions="true" />
         <provider android:name=".notebook.NotebookFileProvider" android:authorities="${applicationId}.tabletfiles"
             android:exported="false" android:grantUriPermissions="true" />
+        <provider android:name=".notebook.NotebookEbookSnapshotProvider" android:authorities="${applicationId}.ebookviews"
+            android:exported="false" android:grantUriPermissions="true" />
         <!-- This optional dependency entry is removed, never instantiated. -->
         <receiver android:name="androidx.profileinstaller.ProfileInstallReceiver" tools:node="remove" tools:ignore="MissingClass" />
         <!-- Match Jnotes' firmware-managed scrolling/handwriting policy on this tablet.
@@ -31,6 +33,27 @@
         <activity android:name=".notebook.NotebookBrowserDataActivity" android:exported="false" android:screenOrientation="behind" />
         <activity android:name=".notebook.NotebookWebsitesActivity" android:exported="false" android:screenOrientation="behind" />
         <activity android:name=".notebook.NotebookFilesActivity" android:exported="false" android:screenOrientation="behind" />
+        <activity android:name=".notebook.NotebookEbookLibraryActivity" android:exported="false" android:screenOrientation="behind" />
+        <activity android:name=".notebook.NotebookEbookActivity" android:exported="false" android:screenOrientation="behind" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden" />
+        <activity android:name=".notebook.NotebookEbookImportActivity" android:exported="true" android:screenOrientation="behind" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" /><data android:scheme="file" />
+                <data android:mimeType="application/epub+zip" /><data android:mimeType="application/x-mobipocket-ebook" />
+                <data android:mimeType="application/vnd.amazon.ebook" /><data android:mimeType="application/x-fictionbook+xml" />
+                <data android:mimeType="image/vnd.djvu" /><data android:mimeType="image/x-djvu" />
+                <data android:mimeType="application/vnd.comicbook+zip" /><data android:mimeType="application/x-cbz" />
+                <data android:mimeType="text/plain" /><data android:mimeType="text/html" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" /><category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/epub+zip" /><data android:mimeType="application/x-mobipocket-ebook" />
+                <data android:mimeType="application/vnd.amazon.ebook" /><data android:mimeType="application/x-fictionbook+xml" />
+                <data android:mimeType="image/vnd.djvu" /><data android:mimeType="image/x-djvu" />
+                <data android:mimeType="application/vnd.comicbook+zip" /><data android:mimeType="application/x-cbz" />
+                <data android:mimeType="text/plain" /><data android:mimeType="text/html" />
+            </intent-filter>
+        </activity>
         <!-- File pickers can temporarily force a different orientation. Keep the
              transfer owner and its outstanding result intact across that change. -->
         <activity android:name=".notebook.NotebookMediaActivity" android:exported="false" android:screenOrientation="behind" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden" />

@@ -26,8 +26,15 @@ pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
 stays in front, window operations retain the main editor, and PDF import opens
 the file picker directly before opening the imported note.
 
-The **[0.41.0-alpha.1 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.41.0-alpha.1)**
-adds **Files** on the bookshelf to browse and manage shared tablet storage.
+The **[0.42.0-alpha.1 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.42.0-alpha.1)**
+adds offline **Books** for EPUB, MOBI/AZW3, DjVu, FB2, zipped FB2, CBZ, HTML and
+TXT. Adjust fonts and layout, navigate contents, search, bookmark, highlight,
+take text notes, use Eudic, and resume reading. Handwriting opens a native
+notebook linked to the passage; an optional one-page PDF copy of the visible
+view supports direct writing. See [Books and adjustable text](docs/ebook-reading.md)
+for formats, controls, export and limits. Physical tablet acceptance is pending.
+
+It retains **Files** on the bookshelf to browse and manage shared tablet storage.
 Open internal storage, available SD/USB drives or common folders; search, sort,
 multi-select, copy, move, rename, create folders, delete with confirmation,
 and open/share files with installed apps. Storage access is requested when
