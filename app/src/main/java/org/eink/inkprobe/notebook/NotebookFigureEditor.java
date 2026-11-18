@@ -351,7 +351,8 @@ final class NotebookFigureEditor extends FrameLayout {
     }
     private void preview(float x, float y) {
         if (mode == 1) {
-            page = viewport.nearestPage(y, scroll);
+            page = viewport.pageAt(x,y,scroll);
+            if(page==0)page=viewport.nearestPage(y, scroll);
             figure = NotebookFigureGeometry.move(viewport, start, page, grabX, grabY, x, y, scroll);
             if (!main.hasCallbacks(edgeScroll)) main.postDelayed(edgeScroll, 40);
         } else {
@@ -379,11 +380,12 @@ final class NotebookFigureEditor extends FrameLayout {
     }
     private void edgeScroll() {
         if (closed || busy || pointer < 0 || mode != 1) return;
-        float step = NotebookSelectionMove.edgeScroll(lastY, viewport.height, dp(48), dp(22));
+        boolean horizontal=viewport.horizontal;
+        float step = NotebookSelectionMove.edgeScroll(horizontal?lastX:lastY,horizontal?viewport.width:viewport.height,dp(48),dp(22));
         if (step == 0) return;
-        float previous = scroll;
-        listener.navigate(0, step, 1, lastX, lastY);
-        if (scroll != previous) preview(lastX, lastY);
+        float previous = horizontal?viewport.pan:scroll;
+        listener.navigate(horizontal?step:0,horizontal?0:step,1,lastX,lastY);
+        if ((horizontal?viewport.pan:scroll) != previous) preview(lastX, lastY);
     }
     private int dp(int n) { return Math.round(n * getResources().getDisplayMetrics().density); }
 }

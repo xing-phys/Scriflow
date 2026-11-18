@@ -131,17 +131,17 @@ final class NotebookReader extends View {
         if (sizes.isEmpty() || getWidth() < 1 || getHeight() < 1) return;
         NotebookReadingSettings settings=session.readingSettings(pane.notebookId);
         boolean fitted=viewport!=null&&viewport.singlePage!=0&&Math.abs(viewport.zoom-viewport.fittedZoom(NotebookViewport.Fit.PAGE,pane.page))<.0001;
-        boolean changedFlow=readingSettings!=null&&(readingSettings.singlePage!=settings.singlePage||readingSettings.doublePage!=settings.doublePage);
+        boolean changedFlow=readingSettings!=null&&(readingSettings.paged!=settings.paged||readingSettings.doublePage!=settings.doublePage||readingSettings.horizontal!=settings.horizontal);
         readingSettings=settings;
         viewport = new NotebookViewport(NotebookPdfReading.layout(sizes,source,settings), getWidth(), getHeight(), dp(12), pane.hasView ? pane.zoom : 1, 0);
-        viewport = settings.doublePage?viewport.withSpreadPage(pane.page):viewport.withSinglePage(settings.singlePage?pane.page:0);
-        if(settings.singlePage&&(!pane.hasView||changedFlow||fitted))viewport=viewport.withView(viewport.fittedZoom(NotebookViewport.Fit.PAGE,pane.page),0);
-        if(changedFlow&&!settings.singlePage)viewport=viewport.withView(1,0);
+        viewport = viewport.withLayout(settings.paged,settings.doublePage,settings.horizontal,pane.page);
+        if(settings.paged&&(!pane.hasView||changedFlow||fitted))viewport=viewport.withView(viewport.fittedZoom(NotebookViewport.Fit.PAGE,pane.page),0);
+        if(changedFlow&&!settings.paged)viewport=viewport.withView(1,0);
         if (pane.hasView) {
             viewport = viewport.withView(viewport.zoom, viewport.panForPoint(pane.page,
                 pane.centerX * viewport.pageWidth(pane.page), getWidth() / 2f));
             scrollY = viewport.scrollForPoint(pane.page, pane.centerY * viewport.pageHeight(pane.page), getHeight() / 2f);
-        } else scrollY = viewport.pageScroll(pane.page);
+        } else { viewport=viewport.withView(viewport.zoom,viewport.panForPage(pane.page)); scrollY = viewport.pageScroll(pane.page); }
         changed();
     }
     void refreshReadingSettings(){remember();cropFailures.clear();if(cropRequest!=null){cropRequest.cancel();cropRequest=null;}configure();}
@@ -272,17 +272,17 @@ final class NotebookReader extends View {
             return true;
         }
         if (action == MotionEvent.ACTION_DOWN)
-            figureTap.begin(event.getX(), event.getY(), event.getEventTime(), dp(4), listener.writingRevision());
+            figureTap.begin(event.getX(), event.getY(), event.getEventTime(), dp(10), listener.writingRevision());
         if (action == MotionEvent.ACTION_MOVE) figureTap.move(event.getX(), event.getY());
         for (int i=0;i<event.getPointerCount();i++)
             if (event.getToolType(i) != MotionEvent.TOOL_TYPE_FINGER
-                    || NotebookPalmGuard.broadContact(event.getTouchMajor(i), pixelsPerMm)) figureTap.cancel();
+                    || NotebookPalmGuard.broadContact(event.getTouchMajor(i), pixelsPerMm)) {figureTap.cancel();pageTurnEligible=false;}
         if (event.getPointerCount() != 1 || action == MotionEvent.ACTION_POINTER_DOWN) figureTap.cancel();
         scale.onTouchEvent(event);
         if(event.getPointerCount()!=1||action==MotionEvent.ACTION_POINTER_DOWN)pageTurnEligible=false;
-        if (action == MotionEvent.ACTION_DOWN) { lastX = downX=event.getX(); lastY = downY=event.getY();navigationMoved=false;fingerWritingRevision=listener.writingRevision();pageTurnEligible=event.getPointerCount()==1; }
+        if (action == MotionEvent.ACTION_DOWN) { lastX = downX=event.getX(); lastY = downY=event.getY();navigationMoved=false;fingerWritingRevision=listener.writingRevision();pageTurnEligible=event.getPointerCount()==1&&type==MotionEvent.TOOL_TYPE_FINGER&&!NotebookPalmGuard.broadContact(event.getTouchMajor(0),pixelsPerMm); }
         else if (action == MotionEvent.ACTION_MOVE) {
-            if(!navigationMoved&&event.getPointerCount()==1&&Math.hypot(event.getX()-downX,event.getY()-downY)<dp(4))return true;
+            if(!navigationMoved&&event.getPointerCount()==1&&Math.hypot(event.getX()-downX,event.getY()-downY)<dp(10))return true;
             navigationMoved=true;
             if (viewport != null && !scale.isInProgress() && event.getPointerCount() == 1) {
                 viewport = viewport.withView(viewport.zoom, viewport.pan - (event.getX() - lastX));
@@ -305,6 +305,11 @@ final class NotebookReader extends View {
             if (tapped) {
                 NotebookFigureHit.Hit hit = NotebookFigureHit.find(viewport, pages, scrollY, event.getX(), event.getY());
                 if (hit != null) { listener.figure(hit); return true; }
+                if(pageTurnEligible){int target=NotebookPageTurn.tapTarget(viewport,scrollY,event.getX(),event.getY());
+                    if(target>0){viewport=viewport.forPage(target);
+                        if(viewport.singlePage!=0)viewport=viewport.withView(viewport.fittedZoom(NotebookViewport.Fit.PAGE,target),0);
+                        viewport=viewport.withView(viewport.zoom,viewport.panForPage(target));scrollY=viewport.navigationScroll(target);
+                        changed();listener.save();return true;}}
             }
             if (action == MotionEvent.ACTION_UP) performClick();
         }

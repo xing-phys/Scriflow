@@ -840,6 +840,7 @@ export class Paginator extends HTMLElement {
         const touch = e.changedTouches[0]
         this.#touchState = {
             x: touch?.screenX, y: touch?.screenY,
+            startX: touch?.screenX, startY: touch?.screenY,
             t: e.timeStamp,
             vx: 0, xy: 0,
         }
@@ -853,9 +854,11 @@ export class Paginator extends HTMLElement {
             if (this.#touchScrolled) e.preventDefault()
             return
         }
-        e.preventDefault()
         const touch = e.changedTouches[0]
         const x = touch.screenX, y = touch.screenY
+        // A small touch jitter is still a tap; only an actual drag should snap.
+        if (!this.#touchScrolled && Math.hypot(x - state.startX, y - state.startY) <= 12) return
+        e.preventDefault()
         const dx = state.x - x, dy = state.y - y
         const dt = e.timeStamp - state.t
         state.x = x
@@ -867,8 +870,9 @@ export class Paginator extends HTMLElement {
         this.scrollBy(dx, dy)
     }
     #onTouchEnd() {
+        const dragged = this.#touchScrolled
         this.#touchScrolled = false
-        if (this.scrolled) return
+        if (this.scrolled || !dragged) return
 
         // XXX: Firefox seems to report scale as 1... sometimes...?
         // at this point I'm basically throwing `requestAnimationFrame` at

@@ -34,23 +34,26 @@ figures and Markdown remain unchanged. Disabling crop reveals hidden content.
 New writing uses original page coordinates, so toggling crop does not move it.
 New figures and lasso drops fit within the displayed area.
 
-## Continuous, single page or two pages
+## Navigation and page layout
 
-Continuous scrolling at Fit width remains the default. **Single page** displays
-exactly one page and initially fits the whole page, centered when necessary.
-Turn pages using the arrows beside the counter or a horizontal finger swipe
-at whole-page size. Pinch to zoom in/out and pan within that page. A zoomed
-horizontal drag pans; it does not accidentally turn a page. Page arrows,
-overview jumps, outlines and internal PDF links still work. The percentage
-menu offers Fit width, Fit height, Fit page and custom zoom in either mode.
-**Two pages** displays consecutive pages side by side, starting with pages 1–2,
-then 3–4. The last page appears on its own when the count is odd. Arrows and
-whole-page swipes move by a spread; pinch and pan remain available. Writing,
-links and cropping use the individual page under the input. These reading modes
-also work for ordinary paper notes.
+Open **Reading view** and choose each setting independently:
 
-Inactive floating/split notes use the same crop, page mode, sharp PDF tiles and
-finger navigation. Changing focus preserves each pane's independent view.
+- **Navigation:** Continuous or Page turns.
+- **Pages on screen:** Single page or Double page.
+- **Continuous direction:** Vertical or Horizontal. Your direction is remembered
+  while Page turns is selected.
+
+Continuous scrolling defaults to Fit width. Page turns initially fit the whole
+page or spread; at that size, horizontal swipes turn pages. In either mode,
+tap the right or bottom half to advance, and the upper-left quarter to go back.
+The page arrows also work. Double-page views arrange pages 1–2, 3–4 and so on;
+the final odd page remains accessible. A tap or arrow advances by a spread.
+
+Pinch and pan remain available; a zoomed drag pans instead of turning a page.
+Links, figures, long-press text selection and stylus writing take precedence
+on their targets. Crop, ink and links use the individual page. The same
+controls work for PDF notebooks, ordinary notes and inactive floating/split
+notes. Each note retains its preferences.
 
 ## PDF contrast
 

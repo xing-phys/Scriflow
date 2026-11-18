@@ -26,10 +26,11 @@ pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
 stays in front, window operations retain the main editor, and PDF import opens
 the file picker directly before opening the imported note.
 
-The **[0.44.0-alpha.1 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.44.0-alpha.1)**
-adds true two-column ebook spreads, an expandable contents tree, finger-tap page
-turns, and a two-page view for PDFs and notes. Browser sign-in windows retain
-their connection to the original page. Real X/Google sign-in and the new
+The **[0.44.0-alpha.2 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.44.0-alpha.2)**
+adds independent page-turn/continuous, single/double-page, and scroll-direction
+choices for PDFs and notes, and improves finger-tap navigation in all readers.
+It also includes two-column ebook spreads and an expandable contents tree.
+Browser sign-in windows retain their connection to the original page. Real X/Google sign-in and the new
 reading views still need acceptance on the supported tablet before beta.
 
 The preceding **[0.43.0-alpha.2 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.43.0-alpha.2)**

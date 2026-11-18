@@ -250,10 +250,13 @@ storage compatibility, and remaining hardware checks.
 ## PDF crop, page views, contrast and dictionary
 
 Open **⋮ → Reading view** (the page-with-lines icon) in the top-left bar.
-Choose Continuous, Single page or Two pages. Continuous defaults to Fit width;
-the paged views default to Fit page. Use the page arrows or a horizontal swipe
-at whole-page size to turn a page or a two-page spread. You can still pinch and
-pan; zoomed horizontal drags pan rather than turn pages.
+Choose **Continuous** or **Page turns**, independently choose **Single page**
+or **Double page**, and choose **Vertical** or **Horizontal** for continuous
+scrolling. Tap the right or bottom half to advance, or the upper-left quarter
+to go back. Double-page navigation advances by a spread. Use the page arrows
+or, at whole-page size in Page turns mode, a horizontal swipe. Pinch and pan
+remain available; links, figures, text selection and stylus writing keep their
+normal actions.
 
 PDF pages offer crop Off, Auto, Semi-auto and Manual. Auto finds the content;
 Manual uses your exact area; Semi-auto finds content inside your area. Tap two

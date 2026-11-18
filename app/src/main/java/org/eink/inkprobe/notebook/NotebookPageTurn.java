@@ -7,5 +7,13 @@ final class NotebookPageTurn {
         if(view.zoom>view.fittedZoom(NotebookViewport.Fit.PAGE,view.singlePage)+.0001f||Math.abs(dx)<threshold||Math.abs(dx)<=Math.abs(dy)*1.25f)return 0;
         int target=view.singlePage+(dx<0?1:-1)*(view.spread?2:1);return target<1||target>view.pageCount?0:target;
     }
+    /** The upper-left quarter goes back; the rest advances, in any layout or orientation. */
+    static int tapTarget(NotebookViewport view,float scroll,float x,float y){
+        if(view==null||!Float.isFinite(x)||!Float.isFinite(y)||x<0||y<0||x>view.width||y>view.height)return 0;
+        int current=view.navigationPage(scroll);
+        int direction=x>=view.width/2f||y>=view.height/2f?1:-1;
+        int target=current+direction*(view.spread?2:1);
+        return target<1||target>view.pageCount?0:target;
+    }
     private NotebookPageTurn(){}
 }

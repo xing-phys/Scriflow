@@ -54,8 +54,8 @@ toolbox used by notebooks sit above the page, without reserving header/footer ro
   a handwritten note linked to the selection or current position.
 - The **focus icon** hides controls. Android Back or the small clock restores
   them; Back also dismisses a selection or panel before leaving the book.
-- In page-turn mode, tap the right half or bottom half of the reading area to
-  advance; tap the upper-left quarter to go back. Links and text selections keep
+- Tap the right half or bottom half of the reading area to
+  advance by a page in page-turn or continuous mode; tap the upper-left quarter to go back. Links and text selections keep
   their normal behavior. Swipes and arrow keys remain available. Use page buttons
   while panning a zoomed fixed page. Icons have accessible names and explanatory labels
   in their menus; text labels remain for chapter titles and settings choices.

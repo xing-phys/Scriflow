@@ -115,7 +115,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     private final Map<Integer, NotebookPage> selectionTilePages = new LinkedHashMap<>();
     private final List<Path> selectionPaths = new ArrayList<>();
     private float selectionPreviewDx, selectionPreviewDy;
-    private float selectionPointerX, selectionPointerY, selectionGrabX, selectionGrabY, selectionStartScroll;
+    private float selectionPointerX, selectionPointerY, selectionGrabX, selectionGrabY, selectionStartScroll, selectionStartPan;
     private float selectionBaseScroll = Float.NaN;
     private boolean selectionBackgroundDirty;
     private final Runnable selectionEdgeScroll = this::scrollSelectionAtEdge;
@@ -737,6 +737,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         }
         NotebookScrollStore.State position = reopenPosition == null ? session.scrollPosition() : reopenPosition;
         reopenPosition = null;
+        viewport=viewport.withView(zoom,position==null?viewport.panForPage(session.pageNumber()):viewport.panForAnchor(position.page,position.fraction));
         scrollY = position == null ? viewport.pageScroll(session.pageNumber())
             : viewport.scrollForAnchor(position.page, position.fraction);
         if (restoreCenter && NotebookPage.finite(restoreCenterX) && NotebookPage.finite(restoreCenterY)) {
@@ -766,7 +767,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             result=new NotebookViewport(NotebookPdfReading.layout(sizes,session.pdfSource(),settings),width,height,dp(12),zoom,pan);
         else result=new NotebookViewport(session.pageCount(),page.width,page.height,width,height,dp(12),zoom,pan);
         int selected=Math.max(1,Math.min(session.pageCount(),activePage));
-        return settings.doublePage?result.withSpreadPage(selected):result.withSinglePage(settings.singlePage?selected:0);
+        return result.withLayout(settings.paged,settings.doublePage,settings.horizontal,selected);
     }
 
     private void refreshReadingViewport(){
@@ -775,11 +776,11 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         int anchor=viewport.centeredPage(scrollY);float x=(viewport.width/2f-viewport.pageLeft(anchor))/viewport.scale(anchor);
         float y=(viewport.height/2f-viewport.pageTop(anchor,scrollY))/viewport.scale(anchor),oldScale=viewport.scale(anchor);
         NotebookViewport next=createViewport(viewport.width,viewport.height,0).forPage(anchor);
-        if(zoomFit==NotebookViewport.Fit.CUSTOM)zoom=oldScale*next.pageWidth(anchor)*next.crop(anchor).width()/next.width;
+        if(zoomFit==NotebookViewport.Fit.CUSTOM)zoom=oldScale*next.zoom/next.scale(anchor);
         else zoom=next.fittedZoom(zoomFit,anchor);
         viewport=next.withView(zoom,0);viewport=viewport.withView(zoom,viewport.panForPoint(anchor,x,viewport.width/2f));
         scrollY=viewport.scrollForPoint(anchor,y,viewport.height/2f);activePage=anchor;
-        tiles.clear();selectionTiles.clear();selectionTilePages.clear();scrolling=true;settleRead=true;++viewportRevision;
+        tiles.clear();selectionTiles.clear();selectionTilePages.clear();scrolling=true;savePosition=true;settleRead=true;++viewportRevision;
         updatePageLabel();requestWindow();
     }
 
@@ -978,7 +979,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
                 && shownError == null && session.error() == null && ink != null && !ink.isPenDown();
             if (!canEdit() && !continueLoading) return;
             collapseNoteActions();
-            linkTap.begin(event.getX(changed), event.getY(changed), event.getEventTime(), dp(4), writingRevision);
+            linkTap.begin(event.getX(changed), event.getY(changed), event.getEventTime(), dp(10), writingRevision);
             rememberGestureStart();
             fingerWritingRevision=writingRevision;
             pageTurnEligible=event.getPointerCount()==1&&event.getToolType(changed)==MotionEvent.TOOL_TYPE_FINGER;
@@ -1048,7 +1049,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         }
         if (action == MotionEvent.ACTION_MOVE && index >= 0) {
             float x = event.getX(index), y = event.getY(index);
-            if (!moved && Math.hypot(x - fingerOriginX, y - fingerOrigin) < dp(4)) return;
+            if (!moved && Math.hypot(x - fingerOriginX, y - fingerOrigin) < dp(10)) return;
             if (!engageNavigation()) return;
             moved = true;
             viewport = viewport.withView(zoom, viewport.pan + fingerX - x);
@@ -1076,6 +1077,10 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
                         writingRevision, ink.isPenDown());
                 if (follow && (selectFigureAt(event.getX(changed), event.getY(changed))
                         || followPdfLink(event.getX(changed), event.getY(changed)))) return;
+                if(follow&&pageTurnEligible){
+                    int target=NotebookPageTurn.tapTarget(viewport,scrollY,event.getX(changed),event.getY(changed));
+                    if(target>0){linkTap.cancel();pauseForEdit();if(shownError==null)jumpToPage(target);return;}
+                }
                 linkTap.cancel();
                 if (scrolling) requestWindow();
                 scheduleSaveState();
@@ -1350,7 +1355,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         bounds.add(toolsBounds); bounds.add(notebookStatusBounds); bounds.add(deviceStatusBounds); bounds.add(widthPopupBounds); bounds.add(viewNavigationBounds);
         if (viewport != null) {
             int[] origin = new int[2]; ink.view().getLocationOnScreen(origin);
-            if(viewport.spread){
+            if(viewport.spread||viewport.horizontal){
                 List<Rect> empty=new ArrayList<>();empty.add(new Rect(0,0,viewport.width,viewport.height));
                 for(int id:viewport.visiblePages(scrollY)){
                     Rect paper=new Rect((int)Math.floor(viewport.viewLeft(id)),(int)Math.floor(viewport.viewTop(id,scrollY)),
@@ -1638,8 +1643,10 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         penButton.setAvailable(ready); eraserButton.setAvailable(ready); lassoButton.setAvailable(ready);
         undoButton.setAvailable(ready && session.canUndo(activePage));
         redoButton.setAvailable(ready && session.canRedo(activePage));
-        previousButton.setAvailable(ready && (viewport!=null&&viewport.spread?viewport.singlePage>1:activePage>1));
-        nextButton.setAvailable(ready && (viewport!=null&&viewport.spread?viewport.singlePage+2<=session.pageCount():activePage<session.pageCount()));
+        int navigationPage=viewport!=null?viewport.navigationPage(scrollY):activePage;
+        int navigationStep=viewport!=null&&viewport.spread?2:1;
+        previousButton.setAvailable(ready && navigationPage>1);
+        nextButton.setAvailable(ready && navigationPage+navigationStep<=session.pageCount());
         addButton.setAvailable(ready && session.pageCount() < NotebookIndex.MAX_PAGES);
         floatingTools.button(NotebookFloatingTools.Action.OUTLINE).setAvailable(ready);
         floatingTools.button(NotebookFloatingTools.Action.AI_CHAT).setAvailable(ready || independentWithoutEditor() && active);
@@ -1991,7 +1998,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             pauseForEdit(true);
             if (shownError != null) return;
             selectionPointer = event.getPointerId(changed);
-            selectionPointerX = event.getX(changed); selectionPointerY = event.getY(changed); selectionStartScroll = scrollY;
+            selectionPointerX = event.getX(changed); selectionPointerY = event.getY(changed); selectionStartScroll = scrollY; selectionStartPan=viewport.pan;
             if (inside) {
                 NotebookLasso.Bounds bounds = selection.bounds;
                 selectionGrabX = (selectionPointerX - viewport.pageLeft(selectionPage)) / scale - (bounds.left + bounds.right) / 2;
@@ -2039,7 +2046,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             main.removeCallbacks(selectionFrame); main.removeCallbacks(selectionEdgeScroll);
             if (!result.cancelled && result.moved && !result.outside && selection != null && destination != null) {
                 if (!destination.fits) {
-                    scrollY = selectionStartScroll;
+                    scrollY = selectionStartScroll; viewport=viewport.withView(zoom,selectionStartPan);
                     resetSelectionPreview(); editing = false; scrolling = true;
                     Toast.makeText(this, "Selected ink is larger than that page", Toast.LENGTH_SHORT).show();
                     settleRead = true; ++viewportRevision; requestWindow(); return;
@@ -2051,7 +2058,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
                 session.moveSelection(source, target, selection, destination.centerX, destination.centerY,
                     (selected, error) -> finishLasso(request, target, selected, error, false));
             } else {
-                if (result.cancelled) scrollY = selectionStartScroll;
+                if (result.cancelled) {scrollY = selectionStartScroll; viewport=viewport.withView(zoom,selectionStartPan);}
                 resetSelectionPreview(); if (!result.cancelled && result.outside) clearSelection();
                 editing = false; scrolling = true; settleRead = true; ++viewportRevision; requestWindow();
             }
@@ -2069,10 +2076,14 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
 
     private void scrollSelectionAtEdge() {
         if (!active || !selectionDrag.isMoving() || viewport == null || shownError != null) return;
-        float step = NotebookSelectionMove.edgeScroll(selectionPointerY, viewport.height, dp(64), dp(24));
-        float next = viewport.clampScroll(scrollY + step);
-        if (next != scrollY) {
-            scrollY = next; selectionBackgroundDirty = true; ++viewportRevision;
+        boolean horizontal=viewport.horizontal;
+        float step = NotebookSelectionMove.edgeScroll(horizontal?selectionPointerX:selectionPointerY,
+            horizontal?viewport.width:viewport.height,dp(64),dp(24));
+        float before=horizontal?viewport.pan:scrollY;
+        if(horizontal)viewport=viewport.withView(zoom,viewport.pan+step);
+        else scrollY=viewport.clampScroll(scrollY+step);
+        if((horizontal?viewport.pan:scrollY)!=before) {
+            selectionBackgroundDirty = true; ++viewportRevision;
             preparePdfBackgrounds(); requestWindow(); scheduleSelectionFrame();
             main.postDelayed(selectionEdgeScroll, 40);
         }
@@ -2309,7 +2320,8 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     private void updatePageLabel() {
         String name = session.notebookName();
         int total = session.pageCount();
-        String pagesLabel=viewport!=null&&viewport.spread?viewport.singlePage+(viewport.singlePage<total?"–"+(viewport.singlePage+1):""):String.valueOf(activePage);
+        int firstPage=viewport!=null?viewport.navigationPage(scrollY):activePage;
+        String pagesLabel=viewport!=null&&viewport.spread?firstPage+(firstPage<total?"–"+(firstPage+1):""):String.valueOf(firstPage);
         String text = pagesLabel + " / " + total, percent = zoomLabel();
         boolean changed = false;
         if (!name.contentEquals(noteNameButton.getText())) { noteNameButton.setText(name); changed = true; }
@@ -2428,7 +2440,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     }
 
     private void switchPage(int offset) {
-        int target = viewport!=null&&viewport.spread?viewport.singlePage+offset*2:activePage+offset;
+        int target = viewport!=null?viewport.navigationPage(scrollY)+offset*(viewport.spread?2:1):activePage+offset;
         if (!canEdit() || target < 1 || target > session.pageCount()) return;
         pauseForEdit();
         if (shownError != null) return;
@@ -2477,10 +2489,11 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         NotebookViewHistory.State origin=currentView();
         int oldPage=viewport.centeredPage(scrollY);
         prepareReadingPage(target);
+        viewport=viewport.withView(zoom,viewport.panForPage(target));
         float destination = viewport.scrollForPoint(target, (float) fraction * viewport.pageHeight(target), 0);
         if ((oldPage!=target||scrollY != destination || viewport.pan != 0)&&origin!=null) viewHistory.record(origin,navigation);
         clearSelection();
-        viewport = viewport.withView(zoom, 0);
+        viewport = viewport.withView(zoom, viewport.panForPage(target));
         scrollY = destination;
         activePage = target;
         editing = false; scrolling = true; savePosition = true;
@@ -2555,7 +2568,8 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         clearSelection();
         prepareReadingPage(target);
         editing = false; scrolling = true; savePosition = true;
-        scrollY = viewport.pageScroll(target); activePage = target;
+        viewport=viewport.withView(zoom,viewport.panForPage(target));
+        scrollY = viewport.navigationScroll(target); activePage = target;
         settleRead = true; ++viewportRevision;
         requestWindow();
     }
@@ -2583,7 +2597,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             if (!active || request != generation) return;
             mergeWindow();
             if (error != null) { showError(error); return; }
-            NotebookPageOverview dialog = new NotebookPageOverview(this, session, activePage);
+            NotebookPageOverview dialog = new NotebookPageOverview(this, session, viewport.navigationPage(scrollY));
             overview = dialog;
             dialog.setOnDismissListener(closed -> {
                 if (overview == dialog) overview = null;
@@ -2826,7 +2840,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             if (error != null) { showError(error); return; }
             viewport = createViewport(viewport.width, viewport.height, viewport.pan);
             editing = false; scrolling = true; savePosition = true;
-            activePage = session.pageNumber(); scrollY = viewport.pageScroll(activePage);
+            activePage = session.pageNumber(); viewport=viewport.withView(zoom,viewport.panForPage(activePage)); scrollY = viewport.pageScroll(activePage);
             settleRead = true; ++viewportRevision;
             requestWindow();
         });
@@ -3517,8 +3531,8 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             readingPreviewContrast=null;
             if(error!=null){Toast.makeText(this,error.getMessage(),Toast.LENGTH_LONG).show();resumeAfterReadingPreview();return;}
             for(NotebookPdfReading.Request pending:cropRequests.values())pending.cancel();cropRequests.clear();cropFailures.clear();
-            if(old.singlePage!=settings.singlePage||old.doublePage!=settings.doublePage||old.crop!=settings.crop||!old.odd.equals(settings.odd)||!old.even.equals(settings.even)||!old.pages.equals(settings.pages))
-                zoomFit=settings.singlePage?NotebookViewport.Fit.PAGE:NotebookViewport.Fit.WIDTH;
+            if(old.paged!=settings.paged||old.doublePage!=settings.doublePage||old.horizontal!=settings.horizontal||old.crop!=settings.crop||!old.odd.equals(settings.odd)||!old.even.equals(settings.even)||!old.pages.equals(settings.pages))
+                zoomFit=settings.paged?NotebookViewport.Fit.PAGE:NotebookViewport.Fit.WIDTH;
             readingFlowKnown=true;editing=false;
             for(Map.Entry<NotebookWorkspace.Pane,NotebookCompanion> entry:noteWindows.entrySet())if(entry.getKey().notebookId==book)entry.getValue().refreshReadingSettings();
             refreshReadingViewport();
@@ -3812,7 +3826,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         if (shownError != null) return;
         figureNavigationPreview = true;
         if (factor != 1 && NotebookSettings.pinchZoomEnabled(this)) {
-            int number = viewport.nearestPage(y, scrollY);
+            int number = viewport.pageAt(x,y,scrollY);if(number==0)number=viewport.nearestPage(y, scrollY);
             float logicalX = (x - viewport.pageLeft(number)) / viewport.scale(number);
             float logicalY = (y - viewport.pageTop(number, scrollY)) / viewport.scale(number);
             float minimum = Math.min(.1f, viewport.fittedZoom(NotebookViewport.Fit.PAGE, number));
@@ -3943,7 +3957,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             + "\n\nLasso draws a temporary dashed line. Lift the stylus to close the curve automatically. Drag inside with a finger or stylus to move the selected ink. Copy, Duplicate, Move to page, Cut, Delete, and Export icons appear beside the region. Tap outside to clear the selection; tap the selected Lasso icon afterward for Paste or Select all. Copied ink stays inside Scriflow until the app restarts. Drag a selection to another page; hold near the top or bottom edge to scroll. Move… places it on any page. Cross-page moves preserve the ink and undo both pages together."
             + "\n\nNew writing or a successful edit clears Redo. Changing paper keeps your stroke history.";
         message += "\n\nTap the dotted grip to collapse or expand the floating tools; drag it to move them, even when collapsed. The direction icon beside it switches between one row and one column. The thicker circle marks the selected tool. The page counter in the top-left bar opens page management."
-            + "\n\nReading view in the top-left action icons offers Continuous, Single page or Two pages. Paged views start at Fit page; pinch and pan remain available. At whole-page size, swipe horizontally or use the page arrows to turn. PDF pages also offer Auto, Manual and Semi-auto cropping, separate odd/even areas and contrast. Crop and contrast affect display only. Hold a finger on a PDF word to select and open Eudic floating lookup; Copy and dictionary icons appear beside it. A PDF text layer and installed Eudic are required."
+            + "\n\nReading view in the top-left action icons lets you choose Continuous or Page turns, Single page or Double page, and the direction of continuous scrolling. Page turns start at Fit page; pinch and pan remain available. Tap the right or bottom half to advance, or the upper-left quarter to go back. You can also use the page arrows; at whole-page size, swipe horizontally to turn. PDF pages also offer Auto, Manual and Semi-auto cropping, separate odd/even areas and contrast. Crop and contrast affect display only. Hold a finger on a PDF word to select and open Eudic floating lookup; Copy and dictionary icons appear beside it. A PDF text layer and installed Eudic are required."
             + "\n\nThe outline icon opens the table of contents at the current heading, shown in bold, with other branches collapsed. Use the arrows to fold nested headings; hold a heading or tap Edit headings to change it. Tap PDF links with one finger; writing with the stylus keeps annotating. Previous-view and next-view arrows appear at the lower right when available, or beside a floating note's minimize control. They restore your page, position and zoom after a link, outline or page-overview jump, including after screen rotation."
             + "\n\nTap the selected Pen icon to open a small width slider. Slide the point and release to apply. The slider stays open for further adjustments; start writing, tap outside, or press Back to close. Current thickness: " + NotebookPenConfig.label(penWidth) + ". The small line below the pencil previews its width. Settings offers fixed width on the page (default) or fixed width on the screen while writing. Existing strokes keep their captured shape in either mode."
             + "\n\nExport PDF saves all pages in this notebook, including their paper backgrounds and handwriting.";
@@ -4133,7 +4147,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         if (figureEditor != null) { figureEditor.cancel(); return; }
         if (widthPopup != null) { widthPopup.cancel(); return; }
         if (selectionDrag.isActive()) {
-            scrollY = selectionStartScroll;
+            scrollY = selectionStartScroll; viewport=viewport.withView(zoom,selectionStartPan);
             resetSelectionPreview(); editing = false; scrolling = true; settleRead = true;
             ++viewportRevision; requestWindow(); return;
         }

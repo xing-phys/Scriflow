@@ -8,7 +8,7 @@ import java.util.*;
 public final class NotebookReadingTest {
     private static int checks;
     private interface Action{void run()throws Exception;}
-    public static void main(String[] args)throws Exception{geometry();paging();spread();settings();detection();contrast();words();System.out.println("NotebookReading: "+checks+" assertions passed (crop/ink geometry, page views, settings recovery, content detection and contrast).");}
+    public static void main(String[] args)throws Exception{geometry();paging();spread();continuousLayouts();settings();detection();contrast();words();System.out.println("NotebookReading: "+checks+" assertions passed (crop/ink geometry, page views, settings recovery, content detection and contrast).");}
     private static void geometry()throws Exception{
         UUID id=UUID.randomUUID();NotebookCropBox crop=new NotebookCropBox(.2f,.1f,.9f,.8f);
         NotebookViewport.Size size=new NotebookViewport.Size(1000,1200,id,1).cropped(crop);
@@ -79,16 +79,69 @@ public final class NotebookReadingTest {
         float pan=zoomed.panForPoint(2,450,550);zoomed=zoomed.withView(2,pan);
         near(zoomed.pageLeft(2)+450*zoomed.scale(2),550,"right-page pinch anchor accounts for its horizontal slot");
     }
+    private static void continuousLayouts(){
+        List<NotebookViewport.Size> sizes=Arrays.asList(new NotebookViewport.Size(600,900),new NotebookViewport.Size(900,600),new NotebookViewport.Size(300,1200),new NotebookViewport.Size(600,900),new NotebookViewport.Size(600,900));
+        for(int[] screen:new int[][]{{700,1000},{1000,700}})for(boolean doublePage:new boolean[]{false,true})for(boolean horizontal:new boolean[]{false,true}){
+            NotebookViewport view=new NotebookViewport(sizes,screen[0],screen[1],20).withLayout(false,doublePage,horizontal,1);
+            int step=doublePage?2:1;
+            check(view.singlePage==0&&view.spread==doublePage&&view.horizontal==horizontal,"continuous preferences are independent");
+            check(NotebookPageTurn.tapTarget(view,0,screen[0]*.75f,screen[1]*.25f)==1+step,"right tap advances in continuous layout");
+            check(NotebookPageTurn.tapTarget(view,0,screen[0]*.25f,screen[1]*.75f)==1+step,"bottom tap advances in continuous layout");
+            check(NotebookPageTurn.tapTarget(view,0,screen[0]*.25f,screen[1]*.25f)==0,"top left tap respects the beginning");
+            view=view.withView(1,view.panForPage(1+step));float scroll=view.navigationScroll(1+step);
+            check(view.navigationPage(scroll)==1+step,"continuous page navigation reaches the target: "+Arrays.toString(screen)+" double="+doublePage+" horizontal="+horizontal+" got="+view.navigationPage(scroll)+" scroll="+scroll+" pan="+view.pan);
+            check(NotebookPageTurn.tapTarget(view,scroll,screen[0]*.25f,screen[1]*.25f)==1,"top left tap returns to the previous page or spread");
+            float x=(view.viewLeft(1+step)+view.viewRight(1+step))/2;
+            float y=(Math.max(0,view.viewTop(1+step,scroll))+Math.min(screen[1],view.viewBottom(1+step,scroll)))/2;
+            check(view.pageAt(x,y,scroll)==1+step,"continuous page hit testing finds the source page");
+            NotebookPage.Stroke line=new NotebookPage.Stroke(1,3,0xff000000,Arrays.asList(new NotebookPage.Point(x,y,1,1),new NotebookPage.Point(x+2,y+2,2,1)));
+            check(view.splitStroke(line,scroll).containsKey(1+step),"continuous page writing returns to the correct page");
+            if(horizontal){
+                view=view.withView(1,view.panForAnchor(1+step,.2));int anchor=view.anchorPage(0);double fraction=view.anchorFraction(0);
+                near(view.panForAnchor(anchor,fraction),view.pan,"horizontal position persists as an anchor and fraction");
+            }else{
+                float position=view.clampScroll(scroll+20);int anchor=view.anchorPage(position);double fraction=view.anchorFraction(position);
+                near(view.scrollForAnchor(anchor,fraction),position,"vertical position persists as an anchor and fraction");
+            }
+            if(doublePage){
+                view=view.withView(1,view.panForPage(1));scroll=view.pageScroll(1);
+                float right=(view.viewLeft(2)+view.viewRight(2))/2;
+                float rightY=(Math.max(0,view.viewTop(2,scroll))+Math.min(screen[1],view.viewBottom(2,scroll)))/2;
+                check(view.pageAt(right,rightY,scroll)==2,"continuous facing page has its own hit target");
+            }
+        }
+        NotebookViewport shortLast=new NotebookViewport(3,1404,1688,1396,1864,24).withLayout(false,true,false,1);
+        float last=shortLast.navigationScroll(3);
+        check(shortLast.navigationPage(last)==3&&shortLast.anchorFraction(last)==0,"short final spread reaches its exact anchor despite float rounding");
+        check(NotebookPageTurn.tapTarget(shortLast,last,100,200)==1,"a tap can return from a short final spread");
+        for(boolean doublePage:new boolean[]{false,true})for(int[] screen:new int[][]{{700,1000},{1000,700}}){
+            NotebookViewport view=new NotebookViewport(sizes,screen[0],screen[1],20).withLayout(true,doublePage,false,3);
+            int first=doublePage?3:3,step=doublePage?2:1;
+            check(NotebookPageTurn.tapTarget(view,view.pageScroll(first),screen[0]*.25f,screen[1]*.25f)==first-step,"paged top-left tap goes back in either orientation");
+            check(NotebookPageTurn.tapTarget(view,view.pageScroll(first),screen[0]*.75f,screen[1]*.25f)==first+step,"paged right tap advances in either orientation");
+            view=view.withView(3,0);
+            check(NotebookPageTurn.tapTarget(view,view.pageScroll(first),screen[0]*.25f,screen[1]*.75f)==first+step,"a tap still turns a zoomed page");
+        }
+    }
     private static void settings()throws Exception{
         File root=Files.createTempDirectory("reading-prefs-").toFile();
         try{
             UUID id=UUID.randomUUID();NotebookCropBox box=new NotebookCropBox(.1f,.1f,.9f,.9f);
-            NotebookReadingSettings state=NotebookReadingSettings.DEFAULT.crop(NotebookReadingSettings.Crop.SEMI_AUTO).single(true).contrast(1.5f).area(NotebookReadingSettings.Scope.ODD,id,box);
+            NotebookReadingSettings state=NotebookReadingSettings.DEFAULT.crop(NotebookReadingSettings.Crop.SEMI_AUTO).paged(true).contrast(1.5f).area(NotebookReadingSettings.Scope.ODD,id,box);
             NotebookReadingStore store=new NotebookReadingStore(root,1);check(store.read().equals(NotebookReadingSettings.DEFAULT),"new notes retain uncropped continuous identity defaults");store.write(state);
             check(new NotebookReadingStore(root,1).read().equals(state),"crop scopes, page mode and contrast persist together");
             byte[] legacy=Files.readAllBytes(new File(root,"reading/1.view").toPath());legacy[7]=1;Files.write(new File(root,"reading/1.view").toPath(),legacy);
             check(new NotebookReadingStore(root,1).read().equals(state),"version-one reading settings still open");
-            NotebookReadingSettings spread=state.spread();store.write(spread);check(store.read().equals(spread)&&spread.contrast(2).doublePage,"spread preference persists and survives other preference changes");
+            NotebookReadingSettings spread=state.doublePage(true);store.write(spread);check(store.read().equals(spread)&&spread.contrast(2).doublePage,"spread preference persists and survives other preference changes");
+            byte[] v2=Files.readAllBytes(new File(root,"reading/1.view").toPath());v2[7]=2;v2[17]=2;
+            java.util.zip.CRC32 crc=new java.util.zip.CRC32();crc.update(v2,16,v2.length-20);int value=(int)crc.getValue();
+            for(int n=0;n<4;n++)v2[v2.length-4+n]=(byte)(value>>>(24-n*8));Files.write(new File(root,"reading/1.view").toPath(),v2);
+            check(store.read().equals(spread),"version-two spread settings migrate to page turns and double page");
+            for(boolean paged:new boolean[]{false,true})for(boolean two:new boolean[]{false,true})for(boolean sideways:new boolean[]{false,true}){
+                NotebookReadingSettings option=state.paged(paged).doublePage(two).horizontal(sideways);store.write(option);
+                check(store.read().equals(option),"independent reading choices persist in every combination");
+                check(option.contrast(2).paged==paged&&option.crop(NotebookReadingSettings.Crop.AUTO).doublePage==two&&option.paged(!paged).horizontal==sideways,"changing one preference preserves the others");
+            }
             store.write(state);
             check(state.manual(1,id).equals(box)&&state.manual(2,id).equals(NotebookCropBox.FULL),"odd/even areas remain independent");
             NotebookReadingSettings changed=state.area(NotebookReadingSettings.Scope.PAGE,id,new NotebookCropBox(.2f,.2f,.8f,.8f));store.write(changed);

@@ -20,10 +20,18 @@ final class NotebookReadingMenu {
         LinearLayout heading=new LinearLayout(activity);heading.setGravity(Gravity.CENTER_VERTICAL);
         TextView title=label("Reading view",15);title.setTypeface(null,Typeface.BOLD);heading.addView(title,new LinearLayout.LayoutParams(0,dp(30),1));
         NotebookIconButton close=new NotebookIconButton(activity,NotebookIconDrawable.Icon.CLOSE,"Close reading settings");heading.addView(close,new LinearLayout.LayoutParams(dp(28),dp(28)));content.addView(heading);
+        content.addView(label("Navigation",13));
         LinearLayout flow=new LinearLayout(activity);
-        add(flow,(initial.singlePage?"":"✓ ")+"Continuous",()->chooseFlow(false));
-        add(flow,(initial.singlePage&&!initial.doublePage?"✓ ":"")+"Single page",()->chooseFlow(true));
-        add(flow,(initial.doublePage?"✓ ":"")+"Two pages",this::chooseSpread);content.addView(flow);
+        add(flow,(initial.paged?"":"✓ ")+"Continuous",()->chooseFlow(false));
+        add(flow,(initial.paged?"✓ ":"")+"Page turns",()->chooseFlow(true));content.addView(flow);
+        content.addView(label("Pages on screen",13));
+        LinearLayout pages=new LinearLayout(activity);
+        add(pages,(initial.doublePage?"":"✓ ")+"Single page",()->choosePages(false));
+        add(pages,(initial.doublePage?"✓ ":"")+"Double page",()->choosePages(true));content.addView(pages);
+        content.addView(label("Continuous direction",13));
+        LinearLayout direction=new LinearLayout(activity);
+        add(direction,(initial.horizontal?"":"✓ ")+"Vertical",()->chooseDirection(false));
+        add(direction,(initial.horizontal?"✓ ":"")+"Horizontal",()->chooseDirection(true));content.addView(direction);
         if(pdf){
             content.addView(label("Page crop",13));
             LinearLayout first=new LinearLayout(activity),second=new LinearLayout(activity);
@@ -43,7 +51,8 @@ final class NotebookReadingMenu {
             LinearLayout reset=new LinearLayout(activity);add(reset,"Reset contrast",()->{slider.setProgress(16);saveContrast.accept(settings.contrast);});content.addView(reset);
             content.addView(label("Applies to PDF text and images. Ink is unchanged.",11));
         }
-        popup=new PopupWindow(content,1,1,true);popup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+        ScrollView scroll=new ScrollView(activity);scroll.setFillViewport(false);scroll.addView(content);
+        popup=new PopupWindow(scroll,1,1,true);popup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
         popup.setWindowLayoutType(WindowManager.LayoutParams.TYPE_APPLICATION_SUB_PANEL);
         popup.setOutsideTouchable(true);popup.setClippingEnabled(false);popup.setIsLaidOutInScreen(true);popup.setAnimationStyle(0);popup.setElevation(0);
         popup.setEnterTransition(null);popup.setExitTransition(null);popup.setInputMethodMode(PopupWindow.INPUT_METHOD_NOT_NEEDED);
@@ -52,8 +61,9 @@ final class NotebookReadingMenu {
     private void cropButton(LinearLayout row,String text,NotebookReadingSettings.Crop mode,boolean area){
         add(row,(settings.crop==mode?"✓ ":"")+text,()->{settings=settings.crop(mode);cropArea=area;popup.dismiss();});
     }
-    private void chooseFlow(boolean single){settings=settings.single(single);popup.dismiss();}
-    private void chooseSpread(){settings=settings.spread();popup.dismiss();}
+    private void chooseFlow(boolean paged){settings=settings.paged(paged);popup.dismiss();}
+    private void choosePages(boolean doublePage){settings=settings.doublePage(doublePage);popup.dismiss();}
+    private void chooseDirection(boolean horizontal){settings=settings.horizontal(horizontal);popup.dismiss();}
     private void add(LinearLayout row,String text,Runnable action){NotebookButton button=new NotebookButton(activity);button.setText(text);button.setTextSize(13);button.setOnClickListener(v->action.run());row.addView(button,new LinearLayout.LayoutParams(0,dp(36),1));}
     private TextView label(String text,int size){TextView label=new TextView(activity);label.setText(text);label.setTextColor(Color.BLACK);label.setTextSize(size);label.setPadding(0,dp(3),0,dp(3));return label;}
     private static String contrastLabel(float value){return String.format(Locale.ROOT,"PDF contrast · %.2f×",value);}

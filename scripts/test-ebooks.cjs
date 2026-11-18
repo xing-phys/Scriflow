@@ -113,6 +113,35 @@ const check=(condition,message)=>{assert(condition,message);assertions++;console
     await spread.page.touchscreen.tap(540,700);await new Promise(r=>setTimeout(r,500));probe=await spread.probe();
     check(selection&&probe.location===selectedLocation,'An existing text selection prevents a page-turn tap');
     await spread.page.close();
+    for(const [width,height] of [[700,950],[950,700]])for(const columns of [1,2]){
+      const reader=await open('quantum.epub','epub');await reader.page.setViewport({width,height,hasTouch:true});
+      await reader.probe({action:'settings',settings:{columns,flow:'paginated'}});await new Promise(r=>setTimeout(r,300));
+      const start=(await reader.probe()).location;
+      await reader.page.touchscreen.touchStart(width*.75,height*.35);
+      await reader.page.touchscreen.touchMove(width*.75+7,height*.35+3);
+      await reader.page.touchscreen.touchEnd();await new Promise(r=>setTimeout(r,450));
+      const next=(await reader.probe()).location;
+      check(next!==start,`Jitter-tolerant right tap advances ${columns} column(s) at ${width}×${height}`);
+      await reader.page.touchscreen.tap(width*.2,height*.75);await new Promise(r=>setTimeout(r,450));
+      const afterTwo=(await reader.probe()).location;
+      check(afterTwo!==next,`Bottom-left tap advances ${columns} column(s) at ${width}×${height}`);
+      await reader.page.touchscreen.tap(width*.2,height*.2);await new Promise(r=>setTimeout(r,450));
+      check((await reader.probe()).location!==afterTwo,`Top-left tap goes back ${columns} column(s) at ${width}×${height}`);
+      await reader.probe({action:'goto',value:start});await new Promise(r=>setTimeout(r,350));
+      await reader.page.touchscreen.tap(width*.75,height*.35);await reader.page.touchscreen.tap(width*.75,height*.35);
+      await new Promise(r=>setTimeout(r,700));
+      check((await reader.probe()).location===afterTwo,`Rapid taps queue two turns at ${width}×${height} with ${columns} column(s)`);
+      await reader.page.close();
+    }
+    const scrolling=await open('quantum.epub','epub');
+    await scrolling.probe({action:'settings',settings:{flow:'scrolled'}});await new Promise(r=>setTimeout(r,300));
+    const scrollStart=(await scrolling.probe()).location;
+    await scrolling.page.touchscreen.tap(550,300);await new Promise(r=>setTimeout(r,600));
+    const scrollNext=(await scrolling.probe()).location;
+    check(scrollStart!==scrollNext,'A right tap advances the continuous ebook view');
+    await scrolling.page.touchscreen.tap(120,180);await new Promise(r=>setTimeout(r,600));
+    check((await scrolling.probe()).location!==scrollNext,'A top-left tap goes back in the continuous ebook view');
+    await scrolling.page.close();
     const nested=await open('nested.epub','epub');await nested.reply({type:'command',action:'contents'});await nested.page.waitForSelector('#panel[open]');
     let labels=await nested.page.$$eval('.contents-title',nodes=>nodes.map(n=>n.textContent));
     check(labels.includes('Spin chains')&&labels.includes('Quantum information')&&!labels.includes('Other section')&&!labels.includes('Deep section'),'Contents collapses unrelated and deeper branches by default');

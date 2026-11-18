@@ -24,7 +24,8 @@ final class NotebookSelectionMove {
                 || bounds.left > bounds.right || bounds.top > bounds.bottom)
             throw new IllegalArgumentException("Invalid selection movement");
         viewport.pageWidth(sourcePage); // Reject a stale source page before producing a drop target.
-        int page = viewport.nearestPage(screenY, scroll);
+        int page = viewport.pageAt(screenX,screenY,scroll);
+        if(page==0)page=viewport.nearestPage(screenY, scroll);
         float scale = viewport.scale(page);
         float width = viewport.pageWidth(page)*viewport.crop(page).width(), height = viewport.pageHeight(page)*viewport.crop(page).height();
         float minX=viewport.cropLeft(page),minY=viewport.cropTop(page);

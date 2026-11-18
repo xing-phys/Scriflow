@@ -99,6 +99,11 @@ function selectionChanged(doc,index) {
   selected=value;send('selection',{enabled:true});
 }
 function clearSelection() { selected=null;send('selection',{enabled:false});view?.deselect(); }
+let turnTail=Promise.resolve();
+function queuePageTurn(forward) {
+  const current=view;
+  turnTail=turnTail.then(()=>attempt(()=>current===view&&!disconnected?(forward?current.next():current.prev()):undefined));
+}
 function installPageTaps(target,doc=null) {
   let down=null, multi=false;
   const interactive=e=>e.target?.closest?.('a,button,input,select,textarea,video,audio,[contenteditable]');
@@ -115,11 +120,12 @@ function installPageTaps(target,doc=null) {
     if(multi || !start || start.id!==e.pointerId || start.interactive || start.selection || interactive(e)
         || Date.now()-start.t>500 || Math.hypot(e.clientX-start.x,e.clientY-start.y)>12
         || hasSelection())return;
-    if(view.isFixedLayout ? state.settings.zoom!=='fit-page' : state.settings.flow==='scrolled')return;
-    const frame=doc?.defaultView.frameElement?.getBoundingClientRect(), area=$('reader').getBoundingClientRect();
-    const x=e.clientX+(frame?.left||0)-area.left, y=e.clientY+(frame?.top||0)-area.top;
+    if(view.isFixedLayout && state.settings.zoom!=='fit-page')return;
+    const element=doc?.defaultView.frameElement, frame=element?.getBoundingClientRect(), area=$('reader').getBoundingClientRect();
+    const x=e.clientX*(frame&&element.clientWidth?frame.width/element.clientWidth:1)+(frame?.left||0)-area.left;
+    const y=e.clientY*(frame&&element.clientHeight?frame.height/element.clientHeight:1)+(frame?.top||0)-area.top;
     if(x<0||y<0||x>area.width||y>area.height)return;
-    attempt(()=>x>=area.width/2||y>=area.height/2?view.next():view.prev());
+    queuePageTurn(x>=area.width/2||y>=area.height/2);
   });
 }
 function loaded({detail:{doc,index}}) {

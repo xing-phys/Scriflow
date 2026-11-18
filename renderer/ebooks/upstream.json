@@ -9,7 +9,8 @@
       "Ignore the initial about:blank frame load before installing and laying out a chapter.",
       "Populate sanitized offline chapter documents directly in both renderers to avoid GeckoView extension subframe navigation stalls.",
       "Reject unsupported EPUB encryption with a clear error; retain supported font deobfuscation.",
-      "Honor explicit column count and portrait column settings for paginated spreads."
+      "Honor explicit column count and portrait column settings for paginated spreads.",
+      "Avoid snapping a touch tap back to its previous position; allow small finger jitter before treating it as a drag."
     ]
   },
   "djvu": {
@@ -34,7 +35,7 @@
     "vendor/foliate/footnotes.js": "d377b45d2ac05290c42873612ec0a92e640938e8be8ed850a467133a883388de",
     "vendor/foliate/mobi.js": "016526df13a9f11ee6671a8c74346e1cf41fe6bdfe50165fdcbf744f015694f3",
     "vendor/foliate/overlayer.js": "d3d3396e3083277ccbd4f17c407621159b22a407107e43ce75ca3014578094fb",
-    "vendor/foliate/paginator.js": "1d8c1933e47f7e8d26ab31b118ed3689c50a62f2a0e1f3077a7c0467e1084c6f",
+    "vendor/foliate/paginator.js": "9ed766d80de409043ecef907b3b2214adf29e9a2cb20e08f145952ba2e100e43",
     "vendor/foliate/progress.js": "544f5e90babc0cb31c5caf971a5f06dd6249ec06600cb62f672fa7179811fde1",
     "vendor/foliate/quote-image.js": "32df52ebce383bade52d84e7510270e3c192bea51db070f4458a44d3cacf05e7",
     "vendor/foliate/search.js": "31e846bdc095a645de0e94f7baa2c9e136561a363a2f774d4032e72cfa1fb0ef",

@@ -83,9 +83,9 @@ public final class NotebookViewportTest {
 
     private static void layoutAndArbitraryScroll() {
         NotebookViewport layout = new NotebookViewport(3, 100, 100, 100, 180, 24);
-        near(168, layout.maxScroll(), "three pages and two gaps");
+        near(248, layout.maxScroll(), "the last short page can be brought to the top");
         near(0, layout.clampScroll(-20), "clamp top");
-        near(168, layout.clampScroll(999), "clamp bottom");
+        near(248, layout.clampScroll(999), "clamp bottom");
         near(-20.75, layout.pageTop(1, 20.75f), "fractional scroll does not snap");
         near(103.25, layout.pageTop(2, 20.75f), "page two includes gap");
         check(layout.visiblePages(80).equals(Arrays.asList(1, 2, 3)), "all partially visible pages enumerated");
@@ -99,7 +99,7 @@ public final class NotebookViewportTest {
         near(0, shortBook.maxScroll(), "short notebook cannot scroll");
         check(shortBook.pageAt(10, 80, 0) == 0, "blank below short book is not writable");
         check(shortBook.centeredPage(0) == 1, "short book still has active page");
-        near(168, layout.pageScroll(3), "last page jump clamps instead of overscrolling");
+        near(248, layout.pageScroll(3), "last page jump reaches its own start");
     }
 
     private static void anchorRoundTrips() {

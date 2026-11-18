@@ -6,6 +6,19 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.44.0-alpha.2 — Independent reading layouts and touch navigation (2026-11-18)
+
+- Choose continuous scrolling or page turns independently of single-page or
+  double-page layouts. Continuous PDF and note views scroll vertically or
+  horizontally, with the direction remembered per notebook.
+- Finger taps advance on the right or bottom half and go back in the upper-left
+  quarter in ebook, PDF and note readers. Handle small finger movement and rapid
+  ebook taps without losing page turns; preserve links, selections and stylus input.
+- Short final pages remain reachable in continuous views; page positions and
+  page-local ink remain associated with their original pages.
+- VersionCode 120. Android emulator and host tests do not replace physical tablet
+  acceptance of finger/stylus delivery, e-ink rendering or real X/Google sign-in.
+
 ## 0.44.0-alpha.1 — Reading views and sign-in windows (2026-11-17)
 
 - Correct two-column paginated ebook spreads in portrait and landscape.
