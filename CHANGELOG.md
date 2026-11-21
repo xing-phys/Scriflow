@@ -6,6 +6,14 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.47.0-alpha.1 — Screenful reading taps (2026-11-21)
+
+- In continuous note and PDF reading, finger taps move through the visible
+  screen before reaching the next page. Set the retained screen overlap from
+  0–80% independently for each notebook; existing preferences default to 10%.
+- Preserve full-page navigation in Page turns mode and the page-arrow controls.
+  VersionCode 125; reading preference files advance to version 5.
+
 ## 0.46.0-alpha.2 — Ebook chapter transitions (2026-11-21)
 
 - Restore the ebook title and Android Back navigation used before alpha.1.

@@ -44,11 +44,18 @@ Open **Reading view** and choose each setting independently:
   occupies the right half on its own, followed by pages 2–3, 4–5 and so on.
 - **Continuous direction:** Vertical or Horizontal. Your direction is remembered
   while Page turns is selected.
+- **Tap overlap:** 0–80% of the visible screen, initially 10%. This controls how
+  much of the previous view remains visible after a tap in Continuous mode.
 
-Continuous scrolling defaults to Fit width. Page turns initially fit the whole
-page or spread; at that size, horizontal swipes turn pages. In either mode,
-tap the right or bottom half to advance, and the upper-left quarter to go back.
-The page arrows also work. A tap or arrow advances by a spread, including the
+Continuous scrolling defaults to Fit width. A tap in the right or bottom half
+advances by one screenful less the chosen overlap; an upper-left tap moves back
+by the same amount. The movement continues naturally into the next page. In
+horizontal continuous mode, taps first move down through a tall page and then
+across the strip; backward taps reverse that sequence. The page arrows still
+jump directly to the adjacent page or spread.
+
+Page turns initially fit the whole page or spread; at that size, horizontal
+swipes turn pages. A tap or arrow advances by a page or spread, including the
 cover when enabled. All pages remain accessible at either end of the document.
 
 Pinch and pan remain available; a zoomed drag pans instead of turning a page.
@@ -102,7 +109,7 @@ files with predecessor recovery, outside notebook page files. They are local
 preferences, excluded from `.inkbook` backups like existing view/workspace
 settings. A restored notebook starts with default reading preferences. Page
 format remains 8 (as in 0.34), reading older formats without rewriting on open.
-The reading preference format is version 4; earlier APKs cannot read a preference
+The reading preference format is version 5; earlier APKs cannot read a preference
 file after this version updates it. The underlying notebook and PDF remain intact.
 
 Host checks exercise crop/ink mappings, zoom and one-page bounds, detection,

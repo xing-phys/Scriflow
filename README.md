@@ -26,7 +26,11 @@ pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
 stays in front, window operations retain the main editor, and PDF import opens
 the file picker directly before opening the imported note.
 
-The **[0.46.0-alpha.2 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.46.0-alpha.2)**
+The **[0.47.0-alpha.1 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.47.0-alpha.1)**
+lets taps in continuous PDF and note reading advance by a screenful with a
+per-notebook adjustable overlap. Physical tablet acceptance remains pending.
+
+The preceding **[0.46.0-alpha.2 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.46.0-alpha.2)**
 restores the original ebook title and Back controls and fixes a reproducible
 error when a chapter detaches during a page turn. The cause of the reported
 unexpected return to the bookshelf remains unconfirmed and needs tablet testing.

@@ -36,6 +36,16 @@ final class NotebookReadingMenu {
         LinearLayout direction=new LinearLayout(activity);
         add(direction,(initial.horizontal?"":"✓ ")+"Vertical",()->chooseDirection(false));
         add(direction,(initial.horizontal?"✓ ":"")+"Horizontal",()->chooseDirection(true));content.addView(direction);
+        TextView overlapValue=label("Tap overlap · "+initial.tapOverlap+"%",13);content.addView(overlapValue);
+        SeekBar overlap=new SeekBar(activity);overlap.setMax(NotebookReadingSettings.MAX_TAP_OVERLAP);overlap.setProgress(initial.tapOverlap);
+        overlap.setThumbTintList(ColorStateList.valueOf(Color.BLACK));overlap.setProgressTintList(ColorStateList.valueOf(Color.BLACK));
+        overlap.setProgressBackgroundTintList(ColorStateList.valueOf(0xffbbbbbb));overlap.setStateListAnimator(null);
+        overlap.setContentDescription("Continuous reading tap overlap, percentage of the visible screen");
+        overlap.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
+            public void onStartTrackingTouch(SeekBar s){}public void onStopTrackingTouch(SeekBar s){}
+            public void onProgressChanged(SeekBar s,int value,boolean user){settings=settings.tapOverlap(value);overlapValue.setText("Tap overlap · "+value+"%");}
+        });
+        content.addView(overlap,new LinearLayout.LayoutParams(-1,dp(36)));
         if(pdf){
             content.addView(label("Page crop",13));
             LinearLayout first=new LinearLayout(activity),second=new LinearLayout(activity);

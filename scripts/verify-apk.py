@@ -35,7 +35,7 @@ NOTEBOOK_SCREENS = {PACKAGE + '.notebook.' + name for name in (
 DIAGNOSTICS = {PACKAGE + '.MainActivity', PACKAGE + '.notebook.NotebookSelfTestActivity',
                PACKAGE + '.notebook.NotebookBrowserSelfTestActivity', PACKAGE + '.notebook.NotebookBrowserDataSelfTestActivity',
                PACKAGE + '.notebook.NotebookBrowserOverlaySelfTestActivity', PACKAGE + '.notebook.NotebookEbookSelfTestActivity',
-               PACKAGE + '.notebook.NotebookReadingSelfTestActivity'}
+               PACKAGE + '.notebook.NotebookReadingSelfTestActivity', PACKAGE + '.notebook.NotebookReadingFixtureActivity'}
 # Gecko's standard runtime permissions support media/audio and its process services.
 # Microphone and Android-10 storage access are requested at runtime. The file
 # manager uses the special All files access setting on newer Android versions.

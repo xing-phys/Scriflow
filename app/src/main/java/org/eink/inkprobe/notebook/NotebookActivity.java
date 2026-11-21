@@ -1078,8 +1078,12 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
                 if (follow && (selectFigureAt(event.getX(changed), event.getY(changed))
                         || followPdfLink(event.getX(changed), event.getY(changed)))) return;
                 if(follow&&pageTurnEligible){
-                    int target=NotebookPageTurn.tapTarget(viewport,scrollY,event.getX(changed),event.getY(changed));
-                    if(target>0){linkTap.cancel();pauseForEdit();if(shownError==null)jumpToPage(target);return;}
+                    if(viewport!=null&&viewport.singlePage==0){
+                        if(moveContinuousTap(event.getX(changed),event.getY(changed)))return;
+                    }else{
+                        int target=NotebookPageTurn.tapTarget(viewport,scrollY,event.getX(changed),event.getY(changed));
+                        if(target>0){linkTap.cancel();pauseForEdit();if(shownError==null)jumpToPage(target);return;}
+                    }
                 }
                 linkTap.cancel();
                 if (scrolling) requestWindow();
@@ -2572,6 +2576,13 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         settleRead = true; ++viewportRevision;
         requestWindow();
     }
+    private boolean moveContinuousTap(float x,float y){
+        NotebookPageTurn.ScrollMove move=NotebookPageTurn.scrollTap(viewport,scrollY,x,y,session.readingSettings(session.notebookId()).tapOverlap);
+        if(move==null)return false;
+        linkTap.cancel();pauseForEdit();if(shownError!=null)return true;
+        clearSelection();clearPdfText();viewport=move.view;scrollY=move.scroll;activePage=viewport.centeredPage(scrollY);
+        editing=false;scrolling=true;savePosition=true;settleRead=true;++viewportRevision;requestWindow();return true;
+    }
     private void prepareReadingPage(int target){
         clearPdfText();
         viewport=viewport.forPage(target);
@@ -3956,7 +3967,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             + "\n\nLasso draws a temporary dashed line. Lift the stylus to close the curve automatically. Drag inside with a finger or stylus to move the selected ink. Copy, Duplicate, Move to page, Cut, Delete, and Export icons appear beside the region. Tap outside to clear the selection; tap the selected Lasso icon afterward for Paste or Select all. Copied ink stays inside Scriflow until the app restarts. Drag a selection to another page; hold near the top or bottom edge to scroll. Move… places it on any page. Cross-page moves preserve the ink and undo both pages together."
             + "\n\nNew writing or a successful edit clears Redo. Changing paper keeps your stroke history.";
         message += "\n\nTap the dotted grip to collapse or expand the floating tools; drag it to move them, even when collapsed. The direction icon beside it switches between one row and one column. The thicker circle marks the selected tool. The page counter in the top-left bar opens page management."
-            + "\n\nReading view in the top-left action icons lets you choose Continuous or Page turns, Single page or Double page, a first spread of pages 1–2 or a cover followed by 2–3, and the direction of continuous scrolling. Page turns start at Fit page; pinch and pan remain available. Tap the right or bottom half to advance, or the upper-left quarter to go back. You can also use the page arrows; at whole-page size, swipe horizontally to turn. PDF pages also offer Auto, Manual and Semi-auto cropping, separate odd/even areas and contrast. Crop and contrast affect display only. Hold a finger on a PDF word to select and open Eudic floating lookup; Copy and dictionary icons appear beside it. A PDF text layer and installed Eudic are required."
+            + "\n\nReading view in the top-left action icons lets you choose Continuous or Page turns, Single page or Double page, a first spread of pages 1–2 or a cover followed by 2–3, and the direction of continuous scrolling. In Continuous mode, a tap advances by a screenful with adjustable overlap; an upper-left tap moves back. Page turns start at Fit page; pinch and pan remain available. The page arrows jump between pages or spreads; at whole-page size, swipe horizontally to turn. PDF pages also offer Auto, Manual and Semi-auto cropping, separate odd/even areas and contrast. Crop and contrast affect display only. Hold a finger on a PDF word to select and open Eudic floating lookup; Copy and dictionary icons appear beside it. A PDF text layer and installed Eudic are required."
             + "\n\nThe outline icon opens the table of contents at the current heading, shown in bold, with other branches collapsed. Use the arrows to fold nested headings; hold a heading or tap Edit headings to change it. Tap PDF links with one finger; writing with the stylus keeps annotating. Previous-view and next-view arrows appear at the lower right when available, or beside a floating note's minimize control. They restore your page, position and zoom after a link, outline or page-overview jump, including after screen rotation."
             + "\n\nTap the selected Pen icon to open a small width slider. Slide the point and release to apply. The slider stays open for further adjustments; start writing, tap outside, or press Back to close. Current thickness: " + NotebookPenConfig.label(penWidth) + ". The small line below the pencil previews its width. Settings offers fixed width on the page (default) or fixed width on the screen while writing. Existing strokes keep their captured shape in either mode."
             + "\n\nExport PDF saves all pages in this notebook, including their paper backgrounds and handwriting.";

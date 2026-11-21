@@ -8,7 +8,7 @@ import java.util.*;
 public final class NotebookReadingTest {
     private static int checks;
     private interface Action{void run()throws Exception;}
-    public static void main(String[] args)throws Exception{geometry();paging();spread();coverSpreads();continuousLayouts();settings();detection();contrast();words();System.out.println("NotebookReading: "+checks+" assertions passed (crop/ink geometry, page views, settings recovery, content detection and contrast).");}
+    public static void main(String[] args)throws Exception{geometry();paging();spread();coverSpreads();continuousLayouts();screenfulTaps();activeTap();settings();detection();contrast();words();System.out.println("NotebookReading: "+checks+" assertions passed (crop/ink geometry, page views, settings recovery, content detection and contrast).");}
     private static void geometry()throws Exception{
         UUID id=UUID.randomUUID();NotebookCropBox crop=new NotebookCropBox(.2f,.1f,.9f,.8f);
         NotebookViewport.Size size=new NotebookViewport.Size(1000,1200,id,1).cropped(crop);
@@ -157,6 +157,55 @@ public final class NotebookReadingTest {
         check(pair.splitStroke(stroke,scroll).containsKey(3),"ink remains attached to the correct page in a shifted spread");
         check(pair.withView(2,0).cover&&pair.forPage(4).cover,"zooming and changing pages retain spread alignment");
     }
+    private static void screenfulTaps(){
+        for(int[] screen:new int[][]{{600,900},{900,600}})for(boolean spread:new boolean[]{false,true}){
+            NotebookViewport view=new NotebookViewport(5,600,2400,screen[0],screen[1],20).withLayout(false,spread,false,1,true);
+            for(int overlap:new int[]{0,10,25,80}){
+                NotebookPageTurn.ScrollMove next=NotebookPageTurn.scrollTap(view,0,screen[0]*.8f,screen[1]*.4f,overlap);
+                check(next!=null&&next.view==view,"continuous tap retains the same layout and zoom");
+                near(next.scroll,screen[1]*(100-overlap)/100f,"continuous tap moves one screen minus its overlap");
+                NotebookPageTurn.ScrollMove back=NotebookPageTurn.scrollTap(view,next.scroll,screen[0]*.2f,screen[1]*.2f,overlap);
+                check(back!=null&&back.scroll==0,"a backward tap returns to the same continuous position");
+            }
+            check(NotebookPageTurn.scrollTap(view,0,screen[0]*.2f,screen[1]*.2f,10)==null,"backward tap at the start does nothing");
+            check(NotebookPageTurn.scrollTap(view,view.maxScroll(),screen[0]*.8f,screen[1]*.4f,10)==null,"forward tap at the end does nothing");
+        }
+        NotebookViewport tall=new NotebookViewport(3,600,1800,600,900,20).withLayout(false,false,false,1);
+        NotebookPageTurn.ScrollMove lower=NotebookPageTurn.scrollTap(tall,0,500,400,10);
+        near(lower.scroll,810,"the first tap reaches the lower part of a tall page instead of jumping to the next page");
+        check(lower.view.navigationPage(lower.scroll)==1,"the first screenful remains on the current tall page");
+        NotebookViewport horizontal=tall.withLayout(false,false,true,1);
+        NotebookPageTurn.ScrollMove first=NotebookPageTurn.scrollTap(horizontal,0,500,400,10);
+        near(first.scroll,810,"horizontal continuous reading shows the lower part before moving sideways");
+        NotebookPageTurn.ScrollMove bottom=NotebookPageTurn.scrollTap(first.view,first.scroll,500,400,10);
+        near(bottom.scroll,horizontal.maxScroll(),"the last vertical step stops at the page bottom");
+        NotebookPageTurn.ScrollMove side=NotebookPageTurn.scrollTap(bottom.view,bottom.scroll,500,400,10);
+        near(side.view.pan,540,"horizontal movement retains the configured screen overlap");near(side.scroll,0,"moving to the next horizontal slice starts at its top");
+        NotebookPageTurn.ScrollMove previous=NotebookPageTurn.scrollTap(side.view,side.scroll,50,100,10);
+        near(previous.view.pan,0,"backward horizontal tap returns to the previous slice");near(previous.scroll,previous.view.maxScroll(),"backward horizontal movement resumes at the previous bottom");
+        check(NotebookPageTurn.scrollTap(tall,0,-1,100,10)==null,"taps outside the reader do not navigate");
+        check(NotebookPageTurn.scrollTap(tall.withLayout(true,false,false,1),0,500,400,10)==null,"discrete page turns do not use continuous screenful movement");
+    }
+    private static byte[] legacyView(byte[] frame,int version,int flags)throws IOException{
+        int length=java.nio.ByteBuffer.wrap(frame,8,4).getInt();byte[] payload=new byte[length-1];
+        System.arraycopy(frame,16,payload,0,2);System.arraycopy(frame,19,payload,2,length-3);payload[1]=(byte)flags;
+        java.util.zip.CRC32 crc=new java.util.zip.CRC32();crc.update(payload);
+        ByteArrayOutputStream bytes=new ByteArrayOutputStream();DataOutputStream out=new DataOutputStream(bytes);
+        out.writeInt(0x4e525631);out.writeInt(version);out.writeInt(payload.length);out.writeInt(~payload.length);out.write(payload);out.writeInt((int)crc.getValue());out.flush();return bytes.toByteArray();
+    }
+    private static void activeTap()throws Exception{
+        String source=new String(Files.readAllBytes(Paths.get("app/src/main/java/org/eink/inkprobe/notebook/NotebookActivity.java")),java.nio.charset.StandardCharsets.UTF_8);
+        String fixture=String.join("\n",
+            "package org.eink.inkprobe.notebook;import java.io.*;public class ActiveContinuousTapFixture {",
+            "static class Session{NotebookReadingSettings settings=NotebookReadingSettings.DEFAULT.tapOverlap(25);int notebookId(){return 1;}NotebookReadingSettings readingSettings(int n){return settings;}}static class Tap{int cancelled;void cancel(){cancelled++;}}",
+            "final Session session=new Session();final Tap linkTap=new Tap();NotebookViewport viewport=new NotebookViewport(3,600,1800,600,900,20).withLayout(false,false,false,1);float scrollY;int activePage=1,viewportRevision,pauses,clears,requests;boolean editing,scrolling,savePosition,settleRead,fail;IOException shownError;void pauseForEdit(){pauses++;editing=true;if(fail)shownError=new IOException(\"failed\");}void clearSelection(){clears++;}void clearPdfText(){}void requestWindow(){requests++;}",
+            NotebookWorkspaceActivationTest.method(source,"private boolean moveContinuousTap("),
+            "static void check(boolean b,String s){if(!b)throw new AssertionError(s);}public static void run(){",
+            "ActiveContinuousTapFixture f=new ActiveContinuousTapFixture();check(f.moveContinuousTap(500,400),\"forward tap handled\");check(Math.abs(f.scrollY-675)<.01&&f.activePage==1,\"tap shows the lower part with 25 percent overlap\");check(f.pauses==1&&f.clears==1&&f.requests==1&&f.scrolling&&f.savePosition&&f.settleRead&&!f.editing&&f.viewportRevision==1,\"tap pauses native input, restores through the window barrier and saves position\");check(f.moveContinuousTap(50,100)&&f.scrollY==0,\"backward tap returns to the previous screen\");int pauses=f.pauses;check(!f.moveContinuousTap(50,100)&&f.pauses==pauses,\"a boundary tap does not pause the native writer\");ActiveContinuousTapFixture failure=new ActiveContinuousTapFixture();failure.fail=true;check(failure.moveContinuousTap(500,400)&&failure.scrollY==0&&failure.requests==0,\"a native pause failure does not navigate\");",
+            "System.out.println(\"ActiveContinuousTap: 6 assertions passed (production pause, scroll, boundary and failure handling).\");}}"
+        );
+        NotebookWorkspaceActivationTest.runFixture("org.eink.inkprobe.notebook.ActiveContinuousTapFixture",fixture);
+    }
     private static void settings()throws Exception{
         File root=Files.createTempDirectory("reading-prefs-").toFile();
         try{
@@ -164,18 +213,21 @@ public final class NotebookReadingTest {
             NotebookReadingSettings state=NotebookReadingSettings.DEFAULT.crop(NotebookReadingSettings.Crop.SEMI_AUTO).paged(true).contrast(1.5f).area(NotebookReadingSettings.Scope.ODD,id,box);
             NotebookReadingStore store=new NotebookReadingStore(root,1);check(store.read().equals(NotebookReadingSettings.DEFAULT),"new notes retain uncropped continuous identity defaults");store.write(state);
             check(new NotebookReadingStore(root,1).read().equals(state),"crop scopes, page mode and contrast persist together");
-            byte[] legacy=Files.readAllBytes(new File(root,"reading/1.view").toPath());legacy[7]=1;Files.write(new File(root,"reading/1.view").toPath(),legacy);
+            byte[] legacy=Files.readAllBytes(new File(root,"reading/1.view").toPath());Files.write(new File(root,"reading/1.view").toPath(),legacyView(legacy,1,1));
             check(new NotebookReadingStore(root,1).read().equals(state),"version-one reading settings still open");
             NotebookReadingSettings spread=state.doublePage(true);store.write(spread);check(store.read().equals(spread)&&spread.contrast(2).doublePage,"spread preference persists and survives other preference changes");
             NotebookReadingSettings prior=spread.horizontal(true);store.write(prior);
-            byte[] v3=Files.readAllBytes(new File(root,"reading/1.view").toPath());v3[7]=3;Files.write(new File(root,"reading/1.view").toPath(),v3);
+            byte[] v3=Files.readAllBytes(new File(root,"reading/1.view").toPath());Files.write(new File(root,"reading/1.view").toPath(),legacyView(v3,3,7));
             check(store.read().equals(prior)&&!store.read().cover,"version-three settings retain all choices and default to no cover");
             NotebookReadingSettings cover=spread.cover(true);store.write(cover);
             check(store.read().equals(cover)&&cover.contrast(2).cover&&cover.area(NotebookReadingSettings.Scope.ALL,id,box).cover,"cover alignment persists across crop and contrast changes");
-            byte[] v2=Files.readAllBytes(new File(root,"reading/1.view").toPath());v2[7]=2;v2[17]=2;
-            java.util.zip.CRC32 crc=new java.util.zip.CRC32();crc.update(v2,16,v2.length-20);int value=(int)crc.getValue();
-            for(int n=0;n<4;n++)v2[v2.length-4+n]=(byte)(value>>>(24-n*8));Files.write(new File(root,"reading/1.view").toPath(),v2);
+            byte[] v2=Files.readAllBytes(new File(root,"reading/1.view").toPath());Files.write(new File(root,"reading/1.view").toPath(),legacyView(v2,2,2));
             check(store.read().equals(spread),"version-two spread settings migrate to page turns and double page");
+            store.write(cover);byte[] v4=Files.readAllBytes(new File(root,"reading/1.view").toPath());
+            Files.write(new File(root,"reading/1.view").toPath(),legacyView(v4,4,11));
+            check(store.read().equals(cover)&&store.read().tapOverlap==10,"version-four cover settings preserve alignment and receive the default overlap");
+            for(int overlap:new int[]{0,10,33,80}){NotebookReadingSettings option=cover.tapOverlap(overlap);store.write(option);
+                check(store.read().equals(option)&&option.crop(NotebookReadingSettings.Crop.AUTO).tapOverlap==overlap,"tap overlap persists and survives other settings changes");}
             for(boolean paged:new boolean[]{false,true})for(boolean two:new boolean[]{false,true})for(boolean sideways:new boolean[]{false,true}){
                 NotebookReadingSettings option=state.paged(paged).doublePage(two).horizontal(sideways);store.write(option);
                 check(store.read().equals(option),"independent reading choices persist in every combination");
@@ -189,7 +241,7 @@ public final class NotebookReadingTest {
             List<NotebookViewport.Size> layout=state.layout(pages,(p,area)->new NotebookCropBox(.15f,.15f,.85f,.85f));
             check(layout.get(0).crop.left==.15f&&layout.get(1).crop.equals(NotebookCropBox.FULL),"semi-auto detection applies to PDF pages only");
             check(changed.crop(NotebookReadingSettings.Crop.MANUAL).layout(pages,(p,area)->{throw new AssertionError("manual crop must not rasterize");}).get(0).crop.left==.2f,"manual crop uses the exact chosen box");
-            reject(()->state.contrast(Float.NaN));reject(()->state.pages.clear());
+            reject(()->state.contrast(Float.NaN));reject(()->state.tapOverlap(-1));reject(()->state.tapOverlap(81));reject(()->state.pages.clear());
         }finally{NotebookBackup.deleteTree(root);}
     }
     private static void detection(){
