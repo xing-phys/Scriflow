@@ -33,6 +33,7 @@ public class NotebookBrowserActivity extends NotebookActivity {
     private View saveShield;
     private EditText address;
     private NotebookButton go, previous, next, reload, save;
+    private NotebookBrowserIconButton insecureConnection;
     private NotebookBrowserEngine web;
     private NotebookWebsites.Saved savedPage;
     private NotebookWebsites.Pending pendingSave;
@@ -110,6 +111,10 @@ public class NotebookBrowserActivity extends NotebookActivity {
             if (action == EditorInfo.IME_ACTION_GO) { browse(); return true; } return false;
         });
         NotebookBrowserUi.field(address);
+        insecureConnection = toolIcon(NotebookIconDrawable.Icon.INFORMATION, "Unencrypted HTTP connection", () ->
+            message("Unencrypted connection", "This website uses HTTP. Information sent to or from it can be read or changed by others on the network."));
+        insecureConnection.setVisibility(View.GONE);
+        addressRow.addView(insecureConnection, new LinearLayout.LayoutParams(dp(32), dp(32)));
         addressRow.addView(address, new LinearLayout.LayoutParams(0, dp(48), 1));
         go = toolIcon(NotebookIconDrawable.Icon.NEXT, "Browse website address", this::browse); go.setVisibility(offline ? View.GONE : View.VISIBLE);
         addressRow.addView(go, NotebookBrowserUi.beside(this, 32, 32)); controls.addView(addressRow);
@@ -426,9 +431,9 @@ public class NotebookBrowserActivity extends NotebookActivity {
                 return true;
             }
             if (saving && mainFrame) return true;
-            if ("https".equals(scheme)) return false;
+            if (NotebookBrowserAddress.isWebUrl(url)) return false;
             if (mainFrame && gesture) Toast.makeText(NotebookBrowserActivity.this,
-                "Only HTTPS websites can open here", Toast.LENGTH_SHORT).show();
+                "Only HTTP or HTTPS websites can open here", Toast.LENGTH_SHORT).show();
             return true;
         }
 
@@ -567,6 +572,8 @@ public class NotebookBrowserActivity extends NotebookActivity {
 
     private void updateControls() {
         if (go == null) return;
+        insecureConnection.setVisibility(!offline && !home && currentUrl != null
+            && currentUrl.regionMatches(true, 0, "http://", 0, 7) ? View.VISIBLE : View.GONE);
         go.setAvailable(!offline && !saving);
         previous.setAvailable(!saving && canHistory(false)); next.setAvailable(!saving && canHistory(true));
         reload.setAvailable(!saving && !home && (offline ? archiveUrl != null : NotebookBrowserAddress.isWebUrl(currentUrl)));

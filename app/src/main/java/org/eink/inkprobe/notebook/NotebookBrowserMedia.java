@@ -32,7 +32,7 @@ final class NotebookBrowserMedia implements GeckoSession.PermissionDelegate {
 
     @Override public void onMediaPermissionRequest(GeckoSession session, String uri, MediaSource[] video, MediaSource[] audio, MediaCallback callback) {
         String origin = NotebookBrowserAddress.origin(uri);
-        if (!allowed.getAsBoolean() || origin.isEmpty() || !origin.equals(NotebookBrowserAddress.origin(address.get()))
+        if (!allowed.getAsBoolean() || !origin.startsWith("https://") || !origin.equals(NotebookBrowserAddress.origin(address.get()))
                 || video != null && video.length != 0 || audio == null || audio.length == 0 || dialog != null) { callback.reject(); return; }
         MediaSource selected = null;
         for (MediaSource source : audio) if (source.type == MediaSource.TYPE_AUDIO && source.source == MediaSource.SOURCE_MICROPHONE) { selected = source; break; }

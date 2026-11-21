@@ -6,5 +6,5 @@ export function allowedRequest(url, mode, ownOrigin = '') {
   if (['data:', 'blob:', 'about:'].includes(parsed.protocol)) return true;
   if (!mode) return false;
   if (mode.offline) return parsed.protocol === 'file:' && parsed.href.split('#')[0] === mode.archive;
-  return parsed.protocol === 'https:' || parsed.protocol === 'wss:';
+  return ['http:', 'https:', 'ws:', 'wss:'].includes(parsed.protocol);
 }

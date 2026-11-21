@@ -189,7 +189,7 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
         Uri uri = Uri.parse(value); String scheme = uri.getScheme();
         if (offline) return archive.equals(NotebookBrowserAddress.withoutFragment(value))
             || !main && NotebookBrowserAddress.isEmbeddedScheme(scheme);
-        return "https".equals(scheme) || !main && NotebookBrowserAddress.isEmbeddedScheme(scheme);
+        return NotebookBrowserAddress.isWebUrl(value) || !main && NotebookBrowserAddress.isEmbeddedScheme(scheme);
     }
     private GeckoResult<AllowOrDeny> navigation(GeckoSession.NavigationDelegate.LoadRequest request, boolean main) {
         if (closed) return GeckoResult.deny();

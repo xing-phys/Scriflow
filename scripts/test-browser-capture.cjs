@@ -23,13 +23,13 @@ const katex = path.join(root, '.tools/markdown-renderer/node_modules/katex/dist'
     equal(JSON.parse(JSON.stringify(dataReplies[0])), { type: 'sites', id: 'fixture', sites: [{ host: 'example.org', count: 2 }, { host: 'other.example', count: 1 }] }, 'cookie domains are aggregated without exposing cookie values');
     await dataListener({ type: 'not-a-command', id: 'unknown' }); equal(dataReplies.length, 1, 'unknown data commands are ignored');
     const own = 'moz-extension://owned/', archive = 'file:///private/websites/selected/page.html';
-    for (const url of ['https://example.org/', 'wss://example.org/socket', 'data:image/png;base64,AA==', 'blob:https://example.org/id'])
-      equal(allowedRequest(url, { offline: false }, own), true, 'online standard secure and embedded resources');
-    for (const url of ['http://example.org/', 'ws://example.org/', 'file:///private/secret', 'content://private/item'])
-      equal(allowedRequest(url, { offline: false }, own), false, 'online policy rejects cleartext and local files');
+    for (const url of ['https://example.org/', 'http://example.org/', 'wss://example.org/socket', 'ws://example.org/socket', 'data:image/png;base64,AA==', 'blob:https://example.org/id'])
+      equal(allowedRequest(url, { offline: false }, own), true, 'online policy permits web and embedded resources');
+    for (const url of ['file:///private/secret', 'content://private/item'])
+      equal(allowedRequest(url, { offline: false }, own), false, 'online policy rejects local files');
     for (const url of [archive, archive + '#section', 'data:image/png;base64,AA==', 'about:srcdoc'])
       equal(allowedRequest(url, { offline: true, archive }, own), true, 'offline policy permits only archive and embedded bytes');
-    for (const url of ['https://example.org/', 'wss://example.org/', 'file:///private/websites/other/page.html', archive + '?remote=1', 'file:///private/secret'])
+    for (const url of ['https://example.org/', 'http://example.org/', 'wss://example.org/', 'ws://example.org/', 'file:///private/websites/other/page.html', archive + '?remote=1', 'file:///private/secret'])
       equal(allowedRequest(url, { offline: true, archive }, own), false, 'offline requests never fall back to network or other files');
     equal(allowedRequest('https://example.org/', undefined, own), false, 'an unconfigured session cannot request content');
     equal(allowedRequest(own + 'bootstrap.html', undefined, own), true, 'trusted bootstrap can configure a new session');
@@ -58,7 +58,7 @@ const katex = path.join(root, '.tools/markdown-renderer/node_modules/katex/dist'
           + '<img id="saved-image" src="/image.svg" srcset="/missing.svg 2x"><div id="background"></div><img id="unavailable" src="/missing.svg">'
           + '<canvas id="drawing" width="30" height="30"></canvas><iframe src="/frame"></iframe><p id="scripted"></p>'
           + '<input id="secret" type="password" value="do-not-save"><input id="value" value="old"><textarea id="text">old</textarea>'
-          + '<a id="unsafe" href="javascript:alert(1)" onclick="window.attack=1">Unsafe</a><a id="external" target="_blank" href="https://example.org/other">External</a>'
+          + '<a id="unsafe" href="javascript:alert(1)" onclick="window.attack=1">Unsafe</a><a id="external" target="_blank" href="https://example.org/other">External</a><a id="legacy" href="http://example.org/legacy">HTTP link</a>'
           + '<p><a id="first" href="#section-one">First section</a> · <a id="second" href="#section-two">Second section</a></p>'
           + '<div style="height:1200px"></div><h2 id="section-one">First saved section</h2><div style="height:1200px"></div><h2 id="section-two">Second saved section</h2><div style="height:1000px"></div>'
           + '<noscript>This must not replace the rendered page.</noscript><script>window.liveRuns=1;document.getElementById("scripted").textContent="Rendered online";</script></body></html>');
@@ -114,6 +114,7 @@ const katex = path.join(root, '.tools/markdown-renderer/node_modules/katex/dist'
     equal(await offline.$eval('#text', n => n.value), 'Frozen text', 'textarea display is retained');
     equal(await offline.$eval('#unsafe', n => n.hasAttribute('href') || n.hasAttribute('onclick')), false, 'script links and handlers are stripped');
     equal(await offline.$eval('#external', n => n.getAttribute('href')), 'https://example.org/other', 'external link retains its online destination');
+    equal(await offline.$eval('#legacy', n => n.getAttribute('href')), 'http://example.org/legacy', 'HTTP links retain their destination for an explicit online open');
     equal(await offline.$$eval('script,noscript,link,base', n => n.length), 0, 'executable/loading nodes are removed');
     equal(await offline.$$eval('.katex', n => n.length), 1, 'rendered math survives with scripting disabled');
     await offline.evaluate(() => document.fonts.ready);

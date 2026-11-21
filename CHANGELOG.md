@@ -6,6 +6,14 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.47.0-alpha.2 — HTTP website access (2026-11-21)
+
+- Open, bookmark, restore and save explicitly entered HTTP websites; addresses
+  without a scheme still use HTTPS. An information icon identifies HTTP pages.
+- Retain offline isolation, HTTPS microphone consent, certificate checks and
+  protection against cleartext redirects in secure extension fetches.
+  VersionCode 126. Physical tablet acceptance remains pending.
+
 ## 0.47.0-alpha.1 — Screenful reading taps (2026-11-21)
 
 - In continuous note and PDF reading, finger taps move through the visible

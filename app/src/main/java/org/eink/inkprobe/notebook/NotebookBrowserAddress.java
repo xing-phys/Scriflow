@@ -15,15 +15,13 @@ final class NotebookBrowserAddress {
         if (value.length() > 8192) throw new IllegalArgumentException("This website address is too long.");
         for (int i = 0; i < value.length(); i++)
             if (Character.isISOControl(value.charAt(i)) || value.charAt(i) == '\\')
-                throw new IllegalArgumentException("Enter a valid HTTPS address.");
+                throw new IllegalArgumentException("Enter a valid website address.");
         if (value.startsWith("//")) value = "https:" + value;
         else if (!value.contains("://")) value = "https://" + value;
-        if (value.regionMatches(true, 0, "http://", 0, 7))
-            throw new IllegalArgumentException("This browser supports HTTPS websites. Try an https:// address.");
         try {
             URI uri = new URI(value.replace(" ", "%20"));
             String scheme = uri.getScheme().toLowerCase(Locale.ROOT);
-            if (!scheme.equals("https")) throw new IllegalArgumentException();
+            if (!scheme.equals("https") && !scheme.equals("http")) throw new IllegalArgumentException();
             URL parsed = uri.toURL();
             String host = parsed.getHost();
             if (host.isEmpty() || parsed.getUserInfo() != null || host.contains("%")) throw new IllegalArgumentException();
@@ -37,7 +35,7 @@ final class NotebookBrowserAddress {
             // Keep existing escapes intact, including escaped slashes in paths.
             return new URI(result).toASCIIString();
         } catch (Exception error) {
-            throw new IllegalArgumentException("Enter a valid HTTPS address (without a username or password).");
+            throw new IllegalArgumentException("Enter a valid HTTP or HTTPS address (without a username or password).");
         }
     }
 
@@ -52,7 +50,8 @@ final class NotebookBrowserAddress {
     }
 
     static boolean isWebUrl(String url) {
-        if (url == null || !url.regionMatches(true, 0, "https://", 0, 8)) return false;
+        if (url == null || !(url.regionMatches(true, 0, "https://", 0, 8)
+                || url.regionMatches(true, 0, "http://", 0, 7))) return false;
         try { normalize(url); return true; }
         catch (IllegalArgumentException error) { return false; }
     }
@@ -60,7 +59,9 @@ final class NotebookBrowserAddress {
     static String origin(String url) {
         if (!isWebUrl(url)) return "";
         URI uri = URI.create(normalize(url)); int port = uri.getPort();
-        return "https://" + uri.getHost().toLowerCase(Locale.ROOT) + (port < 0 || port == 443 ? "" : ":" + port);
+        String scheme = uri.getScheme();
+        int defaultPort = scheme.equals("https") ? 443 : 80;
+        return scheme + "://" + uri.getHost().toLowerCase(Locale.ROOT) + (port < 0 || port == defaultPort ? "" : ":" + port);
     }
 
     static String withoutFragment(String url) {

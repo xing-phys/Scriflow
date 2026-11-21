@@ -25,7 +25,9 @@ public final class NotebookBrowserLibraryTest {
         library.folder(folder.id,"QEC");check(library.read().folderTitle(folder.id).equals("QEC"),"collection rename retains identity");
         io(()->library.folder(null,"qec"));library.put(null,"Other","https://example.org/math","",false);check(library.read().find("https://example.org/math").id.equals(link.id)&&library.read().links.size()==3,"saving an existing URL updates its bookmark without duplication");
         library.put(link.id,"Moved",link.url,folder.id,true);library.removeFolder(folder.id);link=library.read().find(link.url);check(link.folder.isEmpty()&&link.pinned,"removing a collection keeps its bookmarks and pins");
-        final String id=link.id;io(()->library.put(id,"Unsafe","file:///private","",true));io(()->library.put(null,"Unsafe","http://example.org","",true));io(()->library.put(null,"Bad folder","https://example.org/other","missing",false));
+        library.put(null,"HTTP book","http://example.org/book","",true);
+        check(new NotebookBrowserLibrary(root).read().find("http://example.org/book")!=null,"HTTP bookmarks survive a cold read");
+        final String id=link.id;io(()->library.put(id,"Unsafe","file:///private","",true));io(()->library.put(null,"Unsafe","http://user:pass@example.org","",true));io(()->library.put(null,"Bad folder","https://example.org/other","missing",false));
         for(NotebookBrowserLibrary.Link value:new ArrayList<>(library.read().links))library.remove(value.id);
         check(library.initialize().links.isEmpty(),"deleted starter pins never reappear");
     }
@@ -35,6 +37,8 @@ public final class NotebookBrowserLibraryTest {
         library.visit(" First\n page ","https://one.example/path");library.visit("Second","https://two.example/path");library.visit("Updated","https://one.example/path");
         check(library.read().visits.size()==2&&library.read().visits.get(0).title.equals("Updated"),"history stores the latest visit per URL");
         library.visit("Forbidden","file:///private");check(library.read().visits.size()==2,"local files never enter online history");
+        library.visit("HTTP","http://three.example/path");check(new NotebookBrowserLibrary(root).read().visits.get(0).url.equals("http://three.example/path"),"HTTP history survives a cold read");
+        library.removeVisit("http://three.example/path");
         library.removeVisit("https://one.example/path");check(library.read().visits.size()==1,"single-entry deletion leaves other visits");
         library.clearHistory();check(library.read().visits.isEmpty()&&library.read().links.size()==2,"history deletion preserves bookmarks");
         check(Arrays.equals(Files.readAllBytes(new File(root,"keep.nbk").toPath()),note)&&Arrays.equals(Files.readAllBytes(new File(offline,"page.html").toPath()),note),"browser history operations preserve notebooks and offline files exactly");
@@ -53,7 +57,7 @@ public final class NotebookBrowserLibraryTest {
     }
     private static void tabs(){
         NotebookBrowserTabs tabs=new NotebookBrowserTabs();NotebookBrowserTabs.Tab first=tabs.current();first.url="https://example.org/one";first.title="One";first.home=false;
-        NotebookBrowserTabs.Tab second=tabs.add();second.url="https://example.org/two";second.title="Two";second.home=false;tabs.select(first.id);tabs.close(second.id);check(tabs.current()==first,"closing a background tab preserves selection");
+        NotebookBrowserTabs.Tab second=tabs.add();second.url="http://example.org/two";second.title="Two";second.home=false;String httpTabs=tabs.encode();NotebookBrowserTabs httpRestore=new NotebookBrowserTabs();check(httpRestore.restore(httpTabs)&&httpRestore.current().url.equals(second.url),"HTTP tab destinations survive a cold restore");tabs.select(first.id);tabs.close(second.id);check(tabs.current()==first,"closing a background tab preserves selection");
         for(int i=1;i<NotebookBrowserTabs.MAX;i++)tabs.add();try{tabs.add();throw new AssertionError("unbounded tabs");}catch(IllegalStateException expected){checks++;}
         String stored=tabs.encode();NotebookBrowserTabs restored=new NotebookBrowserTabs();check(restored.restore(stored)&&restored.items.size()==12&&restored.current().id.equals(tabs.current().id),"tab destinations and selection survive a cold restore");
         check(!restored.restore("garbage")&&!restored.restore(stored+"x")&&restored.items.size()==12,"damaged tab data cannot replace current tabs");
@@ -62,10 +66,11 @@ public final class NotebookBrowserLibraryTest {
     }
     private static void search(){
         check(NotebookBrowserAddress.destination("example.org/path",0).equals("https://example.org/path"),"address still opens directly");
+        check(NotebookBrowserAddress.destination("http://example.org/path",0).equals("http://example.org/path"),"an explicit HTTP address opens without upgrading it");
         check(NotebookBrowserAddress.destination("quantum error correction",0).equals("https://duckduckgo.com/?q=quantum+error+correction"),"plain text uses selected search provider");
         check(NotebookBrowserAddress.destination("物理",1).startsWith("https://www.google.com/search?q=%"),"Unicode search is escaped");
         check(NotebookBrowserAddress.destination("cat & dog",2).endsWith("cat+%26+dog"),"search punctuation cannot become another parameter");
-        for(String value:new String[]{"http://example.org","file:///private","javascript:alert(1)"," ","test\nsearch"})try{NotebookBrowserAddress.destination(value,0);throw new AssertionError("unsafe destination "+value);}catch(IllegalArgumentException expected){checks++;}
+        for(String value:new String[]{"http://user:pass@example.org","file:///private","javascript:alert(1)"," ","test\nsearch"})try{NotebookBrowserAddress.destination(value,0);throw new AssertionError("unsafe destination "+value);}catch(IllegalArgumentException expected){checks++;}
     }
     private static void concurrent()throws Exception{
         File root=root();NotebookBrowserLibrary library=new NotebookBrowserLibrary(root);library.initialize();List<Throwable> errors=Collections.synchronizedList(new ArrayList<>());Thread[] workers=new Thread[3];

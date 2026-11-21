@@ -136,7 +136,7 @@ export async function captureDocument(document, fetchResource, depth = 0) {
         try {
           const url = new URL(href, node.baseURI);
           if (withoutHash(url.href) === withoutHash(sourceUrl) && url.hash) copy.setAttribute('href', url.hash);
-          else if (url.protocol === 'https:') copy.setAttribute('href', url.href);
+          else if (url.protocol === 'https:' || url.protocol === 'http:') copy.setAttribute('href', url.href);
           else copy.removeAttribute('href');
         } catch { copy.removeAttribute('href'); }
       }

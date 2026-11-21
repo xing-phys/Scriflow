@@ -26,8 +26,9 @@ pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
 stays in front, window operations retain the main editor, and PDF import opens
 the file picker directly before opening the imported note.
 
-The **[0.47.0-alpha.1 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.47.0-alpha.1)**
-lets taps in continuous PDF and note reading advance by a screenful with a
+The **[0.47.0-alpha.2 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.47.0-alpha.2)**
+opens explicitly entered HTTP websites, identifies their unencrypted connections,
+and lets taps in continuous PDF and note reading advance by a screenful with a
 per-notebook adjustable overlap. Physical tablet acceptance remains pending.
 
 The preceding **[0.46.0-alpha.2 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.46.0-alpha.2)**

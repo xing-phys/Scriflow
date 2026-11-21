@@ -42,7 +42,9 @@ controls. The browser's note picker also opens near its Notes button.
 1. Tap **Browser** in the bookshelf's shortcut row.
 2. Tap the **dotted button** to expand the floating panel if hidden. Enter a
    website address and tap the **right arrow**, or the keyboard's Go key. Addresses without
-   a scheme use HTTPS. The app's existing restriction on cleartext HTTP remains.
+   a scheme use HTTPS. Enter `http://` explicitly for an HTTP-only site. An
+   information icon beside the address identifies an unencrypted connection;
+   tap it for details.
 3. Use the arrows for Back/Forward, the circular arrow to Reload, and pinch to
    zoom. The arrows also work offline after section links.
 4. Once the page is readable, scroll to load any lazy images you want to keep. Tap
@@ -152,8 +154,8 @@ restore successfully deleted history.
 
 The start page and floating address field both accept searches. **Browser data**
 lets you choose DuckDuckGo (default), Google or Bing. A query is sent to that
-provider only when submitted; there are no live search suggestions. HTTPS
-addresses open directly, and unsupported URL schemes remain blocked.
+provider only when submitted; there are no live search suggestions. HTTP and
+HTTPS addresses open directly, and unsupported URL schemes remain blocked.
 
 ## Browser data settings
 
@@ -300,8 +302,10 @@ before relying on them offline.
 
 ## Storage and verification
 
-An app-owned isolated extension freezes the rendered DOM and embeds HTTPS
-resources using parsed CSS. The extension accepts capture commands only from
+An app-owned isolated extension freezes the rendered DOM and embeds web
+resources using parsed CSS. Captures of HTTPS pages do not fetch HTTP resources,
+and extension fetches cannot follow HTTPS-to-HTTP redirects.
+The extension accepts capture commands only from
 the native browser owner, with a per-save identifier, resource/time/size limits
 and acknowledged chunks. It exposes no JavaScript API to website code. Every
 new session configures its network policy through a trusted built-in bootstrap

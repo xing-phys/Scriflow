@@ -23,28 +23,34 @@ public final class NotebookWebsitesTest {
 
     public static void main(String[] args) throws Exception {
         try {
-            addresses(); publicationAndRestart(); htmlSnapshots(); readingPositions(); failedSaves(); corruptionIsIsolated(); deletionAndPaths(); abandonedSaves();
-            System.out.println("NotebookWebsites: " + assertions + " assertions passed (real files, atomic snapshots, restart, path isolation and HTTPS addresses).");
+            addresses(); publicationAndRestart(); htmlSnapshots(); httpSnapshot(); readingPositions(); failedSaves(); corruptionIsIsolated(); deletionAndPaths(); abandonedSaves();
+            System.out.println("NotebookWebsites: " + assertions + " assertions passed (real files, atomic snapshots, restart, path isolation and web addresses).");
         } finally { for (File root : roots) remove(root); }
     }
 
     private static void addresses() {
         equal("https://example.org/", NotebookBrowserAddress.normalize(" example.org "), "bare host defaults to HTTPS");
         equal("https://example.org/", NotebookBrowserAddress.normalize("HTTPS://EXAMPLE.ORG"), "scheme and host normalized");
+        equal("http://example.org:8080/a%2Fb?q=a%20b#section", NotebookBrowserAddress.normalize("HTTP://EXAMPLE.ORG:8080/a%2Fb?q=a b#section"), "explicit HTTP addresses retain ports and escapes");
+        equal("http://www.incompleteideas.net/IncIdeas/BitterLesson.html", NotebookBrowserAddress.normalize("http://www.incompleteideas.net/IncIdeas/BitterLesson.html"), "reported website is a valid explicit HTTP address");
         equal("https://example.org/a%2Fb?q=a%20b#section", NotebookBrowserAddress.normalize("//example.org/a%2Fb?q=a b#section"), "escapes and fragments retained");
         equal("https://xn--fsqu00a.xn--0zwm56d/", NotebookBrowserAddress.normalize("例子.测试"), "international domain converted with IDN");
         equal("https://[::1]:8443/a", NotebookBrowserAddress.normalize("https://[::1]:8443/a"), "IPv6 and custom ports supported");
         equal("https://example.org/%E7%89%A9%E7%90%86", NotebookBrowserAddress.normalize("example.org/物理"), "Unicode paths escaped");
-        for (String value : Arrays.asList("", " ", "http://example.org", "file:///etc/passwd", "content://private/item",
+        for (String value : Arrays.asList("", " ", "file:///etc/passwd", "content://private/item",
                 "javascript:alert(1)", "data:text/html,<script>alert(1)</script>", "intent://example.org", "ftp://example.org",
-                "https://user:pass@example.org", "https://example.org:0", "https://example.org:65536", "https://example.org:",
+                "https://user:pass@example.org", "http://user:pass@example.org", "https://example.org:0", "https://example.org:65536", "https://example.org:",
                 "https://", "https://bad..host", "https://a%2fb.example.org", "https://example.org\n/path", "https://example.org\\@private")) {
             try { NotebookBrowserAddress.normalize(value); throw new AssertionError("Accepted " + value); }
             catch (IllegalArgumentException expected) { assertions++; }
         }
-        for (String value : Arrays.asList("example.org", "//example.org", "http://example.org", "file:///tmp/page.mht", null))
-            check(!NotebookBrowserAddress.isWebUrl(value), "navigation never adds a scheme or permits local/cleartext URLs");
+        for (String value : Arrays.asList("example.org", "//example.org", "file:///tmp/page.mht", null))
+            check(!NotebookBrowserAddress.isWebUrl(value), "navigation never adds a scheme or permits local URLs");
         check(NotebookBrowserAddress.isWebUrl("https://example.org/article"), "absolute HTTPS navigation allowed");
+        check(NotebookBrowserAddress.isWebUrl("http://example.org/article"), "absolute HTTP navigation allowed");
+        equal("http://example.org", NotebookBrowserAddress.origin("http://example.org:80/a"), "HTTP default port is omitted from its origin");
+        equal("http://example.org:443", NotebookBrowserAddress.origin("http://example.org:443/a"), "HTTP and HTTPS default ports remain distinct");
+        equal("https://example.org", NotebookBrowserAddress.origin("https://example.org:443/a"), "HTTPS default port is omitted from its origin");
         for (String scheme : Arrays.asList("data", "blob", "cid", "about"))
             check(NotebookBrowserAddress.isEmbeddedScheme(scheme), "inline archive resources can render without network or private-file access");
         for (String scheme : Arrays.asList("file", "content", "https", "http", "intent", null))
@@ -141,6 +147,14 @@ public final class NotebookWebsitesTest {
         cold.delete(saved.id);
         check(cold.list().size() == 1 && cold.get(legacy.id).format == NotebookWebsites.Format.MHTML,
             "removing an HTML snapshot preserves legacy data");
+    }
+
+    private static void httpSnapshot() throws Exception {
+        File root = root(); NotebookWebsites store = new NotebookWebsites(root);
+        NotebookWebsites.Pending pending = store.begin(NotebookWebsites.Format.HTML);
+        Files.write(pending.archive.toPath(), "<!DOCTYPE html>\n<!-- Saved by Scriflow -->\n<html><head></head><body>HTTP snapshot</body></html>".getBytes(StandardCharsets.UTF_8));
+        NotebookWebsites.Saved saved = store.finish(pending, "HTTP snapshot", "http://example.org/article", 0);
+        check(new NotebookWebsites(root).get(saved.id).url.equals("http://example.org/article"), "HTTP source survives saving and a cold read");
     }
 
     private static void failedSaves() throws Exception {
