@@ -86,8 +86,8 @@ public final class NotebookCastService extends Service {
             case NotebookCastController.VISIBILITY:
                 lastLease = SystemClock.uptimeMillis();
                 if (visibility != message.arg1) focusLostAt = lastLease;
-                visibility = message.arg1; pacer.contact(message.arg2 != 0); updateCapture(); return true;
-            case NotebookCastController.CONTACT: pacer.contact(message.arg1 != 0); return true;
+                visibility = message.arg1; pacer.contact(message.arg2, lastLease); updateCapture(); return true;
+            case NotebookCastController.CONTACT: pacer.contact(message.arg1, SystemClock.uptimeMillis()); updateCapture(); return true;
             case NotebookCastController.STOP: finish("Casting stopped."); return true;
             default: return false;
         }
@@ -162,12 +162,13 @@ public final class NotebookCastService extends Service {
                 // Drain it on the worker so the compositor can supply a fresh app frame.
                 if (capture != null) capture.post(this::requestImage);
             }
+            server.frames.suspendCapture(pacer.protectedInput(now), System.nanoTime());
         } else if (allowed && now-focusLostAt < 250) {
             // Revoke all new pixels immediately, retaining only the previous safe image during app-popup focus handoff.
             server.frames.hold(); sharing = false;
         } else { server.frames.sharing(false, System.nanoTime()); sharing = false; }
         // Focus handoffs never reconfigure the display. Genuine background/private/no-viewer transitions detach it.
-        boolean wantSurface = allowed && (focused || (attached && now-focusLostAt < 250)) && server.hasRecentViewer();
+        boolean wantSurface = allowed && !pacer.protectedInput(now) && (focused || (attached && now-focusLostAt < 250)) && server.hasRecentViewer();
         if (virtualDisplay != null && attached != wantSurface) {
             try {
                 virtualDisplay.setSurface(wantSurface && reader != null ? reader.getSurface() : null); attached = wantSurface;
@@ -216,9 +217,10 @@ public final class NotebookCastService extends Service {
     private final Runnable encodeFrame = () -> {
         encodeQueued = false;
         long start = SystemClock.uptimeMillis();
+        long inputGeneration = pacer.generation();
         Image image = null;
         try {
-            if (closing || server == null || !sharing || !server.hasRecentViewer()) return;
+            if (closing || server == null || !sharing || pacer.protectedInput(start) || !server.hasRecentViewer()) return;
             ImageReader current = reader; if (current == null) return;
             image = current.acquireLatestImage(); if (image == null) return;
             long ticket = server.frames.ticket(image.getTimestamp()); if (ticket < 0) return;
@@ -246,7 +248,7 @@ public final class NotebookCastService extends Service {
         } catch (RuntimeException error) { main.post(() -> finish("Screen capture failed. Start casting again.")); }
         finally {
             if (image != null) image.close();
-            lastEncodeMillis = SystemClock.uptimeMillis()-start; pacer.completed(start, SystemClock.uptimeMillis());
+            lastEncodeMillis = SystemClock.uptimeMillis()-start; pacer.completed(start, SystemClock.uptimeMillis(), inputGeneration);
         }
     };
 

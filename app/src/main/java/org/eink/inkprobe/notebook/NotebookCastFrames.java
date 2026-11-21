@@ -11,12 +11,12 @@ final class NotebookCastFrames {
         }
     }
     private long generation, sequence, notBefore;
-    private boolean sharing, holding;
+    private boolean sharing, holding, suspended;
     private byte[] jpeg;
 
     synchronized void sharing(boolean enabled, long nowNanos) {
         if (sharing == enabled && !holding) return;
-        sharing = enabled; holding = false; generation++; sequence++; jpeg = null;
+        sharing = enabled; holding = false; suspended = false; generation++; sequence++; jpeg = null;
         // Discard queued compositor frames from before the app became visible.
         notBefore = nowNanos;
         notifyAll();
@@ -24,15 +24,22 @@ final class NotebookCastFrames {
 
     synchronized void hold() {
         if (holding) return;
-        sharing = false; holding = true; generation++; sequence++; notifyAll();
+        sharing = false; holding = true; suspended = false; generation++; sequence++; notifyAll();
+    }
+
+    /** Freeze the last safe frame and reject encodes while a latency-sensitive gesture runs. */
+    synchronized void suspendCapture(boolean value, long nowNanos) {
+        if (suspended == value) return;
+        suspended = value; generation++;
+        if (!value) notBefore = nowNanos;
     }
 
     synchronized long ticket(long imageNanos) {
-        return sharing && imageNanos >= notBefore ? generation : -1;
+        return sharing && !suspended && imageNanos >= notBefore ? generation : -1;
     }
 
     synchronized boolean publish(long ticket, byte[] bytes) {
-        if (!sharing || ticket < 0 || ticket != generation) return false;
+        if (!sharing || suspended || ticket < 0 || ticket != generation) return false;
         if (java.util.Arrays.equals(jpeg, bytes)) return true;
         jpeg = bytes; sequence++; notifyAll(); return true;
     }

@@ -76,6 +76,11 @@ const check=(condition,message)=>{assert(condition,message);assertions++;console
     await restored.reply({type:'command',action:'contents'});await restored.page.waitForSelector('#panel[open]');check((await restored.page.$$('.contents-title')).length===2,'Contents lists both EPUB chapters');await restored.page.click('#close-panel');
     await restored.reply({type:'command',action:'search'});await restored.page.waitForSelector('input[aria-label="Search book text"]');await restored.page.type('input[aria-label="Search book text"]','entanglement');await restored.page.evaluate(()=>[...document.querySelectorAll('#panel-content button')].find(b=>b.textContent==='Find').click());
     await restored.page.waitForFunction(()=>document.querySelectorAll('#panel-content div button').length>0,{timeout:30000});check(true,'Full-book search returns actual text locations');await restored.page.click('#close-panel');
+    let beforeBack=restored.messages.length;await restored.reply({type:'back'});await new Promise(r=>setTimeout(r,100));
+    check(restored.messages.slice(beforeBack).some(m=>m.type==='request-exit')&&!restored.messages.slice(beforeBack).some(m=>m.type==='exit'),'A Back gesture requests confirmation instead of closing the book');
+    await restored.reply({type:'command',action:'more'});await restored.page.waitForSelector('#panel[open]');
+    check(await restored.page.evaluate(()=>[...document.querySelectorAll('#panel-content button')].some(b=>b.textContent==='Return to bookshelf')),'Reading tools provide an explicit bookshelf action');
+    await restored.page.click('#close-panel');
     await restored.page.screenshot({path:path.join(root,'build/ebook-reader.png')});await restored.page.close();
     const spread=await open('quantum.epub','epub');
     await spread.reply({type:'command',action:'type'});await spread.page.waitForSelector('select[aria-label="Columns"]');

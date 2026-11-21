@@ -63,7 +63,9 @@ def find(predicate, scroll=False):
                 distance = min(600, (yy-y)//2)
                 adb('shell', 'input', 'swipe', str((x+xx)//2), str(yy-60), str((x+xx)//2), str(yy-60-distance), '550')
         time.sleep(.15)
-    raise AssertionError('Expected cast UI control was not found')
+    labels = [node.get('text') or node.get('content-desc') for node in root.iter('node')
+              if node.get('text') or node.get('content-desc')]
+    raise AssertionError('Expected cast UI control was not found. Visible: ' + ', '.join(labels[:30]))
 
 
 def tap(predicate, scroll=False):
@@ -105,6 +107,16 @@ def frame(cookie, code=200):
     raise AssertionError('Expected cast frame state was not reached: ' + str(result[:2]))
 
 
+def attached(value):
+    expected = ('capture_attached=' + str(value).lower()).encode()
+    for _ in range(40):
+        diagnostic = adb('shell', 'dumpsys', 'activity', 'service', PACKAGE + '/.notebook.NotebookCastService')
+        if expected in diagnostic:
+            return diagnostic
+        time.sleep(.1)
+    raise AssertionError('Capture surface did not reach ' + expected.decode())
+
+
 def settings():
     tap(lambda n: n.get('content-desc', '').endswith('tap to open settings'))
     find(match('Settings'))
@@ -135,7 +147,7 @@ try:
     adb('shell', 'am', 'force-stop', PACKAGE)
     adb('shell', 'am', 'start', '-W', '-n', PACKAGE + '/.notebook.NotebookLibraryActivity')
     settings(); tap(lambda n: n.get('content-desc') in ('Portrait', 'Portrait, selected'), scroll=True)
-    tap(match('Done')); settings(); tap(match('Screen cast to a browser…'))
+    tap(match('Done')); settings(); tap(match('Screen cast to a browser…'), scroll=True)
     find(match('Screen cast'))
     check(find(match('Start casting')) is not None, 'Settings opens the native cast controls')
     tap(lambda n: n.get('class') == 'android.widget.EditText'); adb('shell', 'input', 'text', 'short')
@@ -162,6 +174,30 @@ try:
     live = frame(cookie)[2]; image = Image.open(BytesIO(live))
     check(max(image.size) == 1872 and max(ImageStat.Stat(image).stddev) > 8, 'Lecture capture retains the tablet-sized source pixels in a nonblank JPEG')
     (ROOT/'build/cast-tablet-live.jpg').write_bytes(live)
+    browser = PACKAGE + '/.notebook.NotebookBrowserSelfTestActivity'
+    adb('shell', 'am', 'start', '-W', '-n', browser, '--ez', 'softwareInk', 'true')
+    frame(cookie); attached(True)
+    adb('shell', 'am', 'start', '-W', '-f', '0x20000000', '-n', browser,
+        '--ez', 'castContact', 'true', '--ez', 'castProtect', 'true')
+    time.sleep(.7)
+    held_diagnostic = attached(False)
+    held = frame(cookie)[2]
+    time.sleep(.5)
+    held_count = re.search(rb'frames_encoded=(\d+)', held_diagnostic).group(1)
+    held_again = frame(cookie)[2]
+    held_count_again = re.search(rb'frames_encoded=(\d+)', attached(False)).group(1)
+    if held_again != held or held_count_again != held_count:
+        print('Protected capture diagnostics:', 'same picture=', held_again == held,
+              'published frames=', held_count.decode(), 'then', held_count_again.decode(), flush=True)
+    check(held_again == held and held_count_again == held_count,
+          'Protected pen contact detaches capture and retains the last safe picture for viewers')
+    adb('shell', 'am', 'start', '-W', '-f', '0x20000000', '-n', browser,
+        '--ez', 'castContact', 'false', '--ez', 'castProtect', 'true')
+    time.sleep(.7)
+    attached(True); frame(cookie)
+    check(True, 'Capture and live frames resume after protected contact ends')
+    adb('shell', 'am', 'start', '-W', '-f', '0x20000000', '-n', browser, '--es', 'click', 'Bookshelf')
+    find(match('Scriflow')); live = frame(cookie)[2]
     time.sleep(3.5)
     diagnostic = adb('shell', 'dumpsys', 'activity', 'service', PACKAGE + '/.notebook.NotebookCastService')
     check(b'capture_attached=false' in diagnostic, 'Capture detaches when all viewers stop requesting frames')
@@ -190,7 +226,7 @@ try:
     adb('shell', 'input', 'keyevent', 'KEYCODE_HOME')
     check(frame(cookie, 204)[2] == b'', 'Leaving Scriflow removes the cached frame')
     adb('shell', 'am', 'start', '-W', '-n', PACKAGE + '/.notebook.NotebookLibraryActivity'); frame(cookie)
-    settings(); tap(match('Screen cast to a browser…')); tap(match('Stop casting'))
+    settings(); tap(match('Screen cast to a browser…'), scroll=True); tap(match('Stop casting'))
     find(match('Casting stopped.'))
     check(b'NotebookCastService' not in adb('shell', 'dumpsys', 'activity', 'services', PACKAGE).split(b'Active services:')[-1], 'Stop releases the foreground capture service')
     start_cast()

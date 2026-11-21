@@ -6,6 +6,18 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.46.0-alpha.1 — Spread alignment and input responsiveness (2026-11-21)
+
+- Choose pages 1–2 or a standalone cover followed by 2–3 for double-page PDF
+  and note views, with independent per-notebook settings and spread navigation.
+- Prevent an upper-left ebook page-turn tap from immediately closing the book;
+  keep an explicit bookshelf action and require two Back presses to exit.
+- Hold the last safe casting frame during lasso/eraser contact and resume after
+  lift, reducing capture contention for the native drawing trail.
+- Navigate directly via file-path breadcrumbs and use smaller circular icons
+  across Files, the bookshelf, browser and saved websites.
+- VersionCode 123. Physical tablet and casting responsiveness remain unverified.
+
 ## 0.45.0-alpha.2 — File manager controls and types (2026-11-21)
 
 - Center the file manager's icon-only controls and use icons for routine

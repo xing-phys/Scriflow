@@ -26,6 +26,7 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.GridView;
+import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -40,7 +41,10 @@ import java.util.List;
 public final class NotebookFilesActivity extends NotebookDisplayActivity {
     private static final int STORAGE_PERMISSION = 2410;
     private NotebookFilesJob job;
-    private TextView path, status, empty, selectedCount, clipboardCount;
+    private TextView status, empty, selectedCount, clipboardCount;
+    private HorizontalScrollView path;
+    private LinearLayout pathParts;
+    private String renderedPath;
     private EditText search;
     private LinearLayout selectionBar, clipboardBar, accessPanel, footer;
     private NotebookButton up, homeButton, optionsButton, searchAction, searchClose, stop;
@@ -92,10 +96,13 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
         navigation.addView(up, new LinearLayout.LayoutParams(dp(44), dp(42)));
         homeButton = icon("Storage locations", NotebookIconDrawable.Icon.HOME, () -> navigate(null));
         navigation.addView(homeButton, spaced(44, 42));
-        path = label("Storage locations", 14); path.setSingleLine(true); path.setEllipsize(TextUtils.TruncateAt.MIDDLE);
-        path.setPadding(dp(8), 0, dp(8), 0); path.setOnClickListener(v -> ancestors());
-        path.setContentDescription("Current folder. Tap to navigate to a parent folder.");
-        navigation.addView(path, new LinearLayout.LayoutParams(0, dp(44), 1));
+        path = new HorizontalScrollView(this); path.setHorizontalScrollBarEnabled(false);
+        path.setOverScrollMode(View.OVER_SCROLL_NEVER); path.setFillViewport(false);
+        path.setBackground(NotebookUi.rounded(getResources().getDisplayMetrics().density, 7));
+        pathParts = row(); pathParts.setPadding(dp(8), 0, dp(8), 0);
+        path.addView(pathParts, new HorizontalScrollView.LayoutParams(-2, -1));
+        LinearLayout.LayoutParams pathSpace = new LinearLayout.LayoutParams(0, dp(40), 1); pathSpace.setMarginStart(dp(6));
+        navigation.addView(path, pathSpace);
 
         search = new EditText(this); search.setTextSize(14); search.setSingleLine(true);
         search.setTextColor(Color.BLACK); search.setHintTextColor(Color.DKGRAY); search.setHint("Search this folder and subfolders");
@@ -195,7 +202,7 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
         clipboardBar.setVisibility(access && !job.clipboard.isEmpty() ? View.VISIBLE : View.GONE);
         selectedCount.setText(job.selected.size() + " selected");
         clipboardCount.setText(job.clipboard.size() + (job.move ? " to move" : " to copy"));
-        path.setText(job.folder == null ? "Storage locations" : displayPath(new File(job.folder)));
+        renderPath();
         up.setEnabled(!job.busy && job.folder != null); stop.setVisibility(job.busy ? View.VISIBLE : View.GONE);
         list.setEnabled(access && !job.busy);
         rows.clear();
@@ -274,16 +281,42 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
         }
         return file.getAbsolutePath();
     }
-    private void ancestors() {
-        if (!ready() || job.folder == null) return;
-        List<File> paths = new ArrayList<>(); File current = new File(job.folder);
+    private void renderPath() {
+        String currentPath = job.folder == null ? "" : job.folder;
+        StringBuilder signature = new StringBuilder(currentPath);
+        for (NotebookFileStorage.Volume volume : job.volumes)
+            signature.append('\0').append(volume.directory).append('\0').append(volume.title);
+        if (signature.toString().equals(renderedPath)) return;
+        renderedPath = signature.toString();
+        pathParts.removeAllViews();
+        if (job.folder == null) { addPathPart("Storage locations", null, true); return; }
+        File current = new File(job.folder);
         for (NotebookFileStorage.Volume volume : job.volumes) if (current.toPath().startsWith(volume.directory.toPath())) {
-            while (current != null && current.toPath().startsWith(volume.directory.toPath())) { paths.add(current); current = current.getParentFile(); }
-            break;
+            File segment = volume.directory;
+            addPathPart(volume.title, segment, segment.equals(current));
+            for (java.nio.file.Path name : volume.directory.toPath().relativize(current.toPath())) {
+                if (name.toString().isEmpty()) continue;
+                segment = new File(segment, name.toString());
+                addPathPart(name.toString(), segment, segment.equals(current));
+            }
+            path.post(() -> path.fullScroll(View.FOCUS_RIGHT));
+            return;
         }
-        String[] names = new String[paths.size()]; for (int i = 0; i < names.length; i++) names[i] = displayPath(paths.get(i));
-        show(new AlertDialog.Builder(this).setTitle("Go to folder").setItems(names, (d, which) -> navigate(paths.get(which)))
-            .setNegativeButton("Close", null).create());
+        addPathPart(current.getAbsolutePath(), current, true);
+        path.post(() -> path.fullScroll(View.FOCUS_RIGHT));
+    }
+
+    private void addPathPart(String name, File destination, boolean current) {
+        if (pathParts.getChildCount() > 0) {
+            TextView separator = label("›", 18); separator.setGravity(Gravity.CENTER); separator.setTextColor(0xff777777);
+            pathParts.addView(separator, new LinearLayout.LayoutParams(dp(18), -1));
+        }
+        TextView part = label(name, 13); part.setSingleLine(true); part.setEllipsize(TextUtils.TruncateAt.END);
+        part.setMaxWidth(dp(180)); part.setPadding(dp(4), 0, dp(4), 0);
+        if (current) part.setTypeface(null, Typeface.BOLD);
+        part.setContentDescription(destination == null ? "Storage locations" : "Go to " + displayPath(destination));
+        part.setOnClickListener(v -> navigate(destination));
+        pathParts.addView(part, new LinearLayout.LayoutParams(-2, -1));
     }
     private void find() {
         if (!ready()) return;

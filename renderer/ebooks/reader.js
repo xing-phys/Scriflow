@@ -293,6 +293,7 @@ function more(){if(!view)return;const body=panel('Reading tools');
   button(body,'Write on a fixed copy of this view',fixedCopy);
   button(body,'Export reading notes',exports);
   button(body,'Focus reading / show controls',()=>{closePanel();document.body.classList.toggle('zen');send('zen',{enabled:document.body.classList.contains('zen')});});
+  button(body,'Return to bookshelf',()=>{closePanel();flush();send('exit');});
   para(body,'Press Android Back to show reading controls while focus reading is active. Reading positions and annotations are stored with this book.','muted');
 }
 function jump(){if(!view)return;const body=panel('Reading position'),input=document.createElement('input');input.type='range';input.min='0';input.max='100';input.value=String(Math.round(state.fraction*100));input.setAttribute('aria-label','Book progress');input.style.width='100%';body.append(input);
@@ -328,7 +329,7 @@ port.onMessage.addListener(message=>attempt(async()=>{
   else if(message.type==='busy')document.body.classList.toggle('working',!!message.enabled);
   else if(message.type==='font-imported'){config.fontSize=message.size;await loadFont(true);state.settings.font='custom';await restyle();changed();closePanel();}
   else if(message.type==='back'){
-    if($('panel').open)closePanel();else if(selected)clearSelection();else if(document.body.classList.contains('zen')){document.body.classList.remove('zen');send('zen',{enabled:false});}else{flush();send('exit');}
+    if($('panel').open)closePanel();else if(selected)clearSelection();else if(document.body.classList.contains('zen')){document.body.classList.remove('zen');send('zen',{enabled:false});}else{flush();send('request-exit');}
   }else if(message.type==='probe'){
     if(!config?.debug)return;
     if(message.action==='select'){

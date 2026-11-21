@@ -131,10 +131,10 @@ final class NotebookReader extends View {
         if (sizes.isEmpty() || getWidth() < 1 || getHeight() < 1) return;
         NotebookReadingSettings settings=session.readingSettings(pane.notebookId);
         boolean fitted=viewport!=null&&viewport.singlePage!=0&&Math.abs(viewport.zoom-viewport.fittedZoom(NotebookViewport.Fit.PAGE,pane.page))<.0001;
-        boolean changedFlow=readingSettings!=null&&(readingSettings.paged!=settings.paged||readingSettings.doublePage!=settings.doublePage||readingSettings.horizontal!=settings.horizontal);
+        boolean changedFlow=readingSettings!=null&&(readingSettings.paged!=settings.paged||readingSettings.doublePage!=settings.doublePage||readingSettings.horizontal!=settings.horizontal||readingSettings.cover!=settings.cover);
         readingSettings=settings;
         viewport = new NotebookViewport(NotebookPdfReading.layout(sizes,source,settings), getWidth(), getHeight(), dp(12), pane.hasView ? pane.zoom : 1, 0);
-        viewport = viewport.withLayout(settings.paged,settings.doublePage,settings.horizontal,pane.page);
+        viewport = viewport.withLayout(settings.paged,settings.doublePage,settings.horizontal,pane.page,settings.cover);
         if(settings.paged&&(!pane.hasView||changedFlow||fitted))viewport=viewport.withView(viewport.fittedZoom(NotebookViewport.Fit.PAGE,pane.page),0);
         if(changedFlow&&!settings.paged)viewport=viewport.withView(1,0);
         if (pane.hasView) {

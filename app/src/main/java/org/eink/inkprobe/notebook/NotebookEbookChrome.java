@@ -30,7 +30,7 @@ final class NotebookEbookChrome {
         this.activity=activity;this.root=root;this.command=command;
         settings=activity.getSharedPreferences("ebook-tools",Activity.MODE_PRIVATE);
         x=settings.getFloat("x",.5f);y=settings.getFloat("y",0);
-        title=text("Opening…","Return to bookshelf",()->command.accept("close"));title.setMaxWidth(dp(160));title.setEllipsize(TextUtils.TruncateAt.END);
+        title=text("Opening…","Previous page",()->command.accept("previous"));title.setMaxWidth(dp(160));title.setEllipsize(TextUtils.TruncateAt.END);
         position=text("0%","Reading position",()->command.accept("position"));position.setFontFeatureSettings("tnum");
         NotebookButton zoom=text("","Text and layout",()->command.accept("type"));zoom.setVisibility(View.GONE);
         NotebookButton more=text("⋮","More reading tools",()->command.accept("more"));

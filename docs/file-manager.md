@@ -12,8 +12,9 @@ Android app settings so it can be enabled there.
 - The home button lists internal storage, mounted SD/USB volumes exposed by
   Android, and existing Downloads, Documents, Pictures, DCIM, Music and Movies
   folders. A read-only drive can be browsed; Android rejects changes to it.
-- Tap a folder to open it. The left arrow goes up; tap the current path to jump
-  to an ancestor. Android Back clears selection/search before going up.
+- Tap a folder to open it. The left arrow goes up; tap a folder in the bordered
+  path bar to jump straight there. Scroll the bar sideways to reach earlier
+  folders. Android Back clears selection/search before going up.
 - Tap the search icon to replace the navigation controls with a search field;
   submit with the search icon or keyboard, and use the close icon to return to
   browsing. Search matches names, ignoring case, in the current folder and its

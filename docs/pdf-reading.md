@@ -40,14 +40,16 @@ Open **Reading view** and choose each setting independently:
 
 - **Navigation:** Continuous or Page turns.
 - **Pages on screen:** Single page or Double page.
+- **Spread starts:** Pages 1–2, or Cover, then 2–3. In cover mode, page 1
+  occupies the right half on its own, followed by pages 2–3, 4–5 and so on.
 - **Continuous direction:** Vertical or Horizontal. Your direction is remembered
   while Page turns is selected.
 
 Continuous scrolling defaults to Fit width. Page turns initially fit the whole
 page or spread; at that size, horizontal swipes turn pages. In either mode,
 tap the right or bottom half to advance, and the upper-left quarter to go back.
-The page arrows also work. Double-page views arrange pages 1–2, 3–4 and so on;
-the final odd page remains accessible. A tap or arrow advances by a spread.
+The page arrows also work. A tap or arrow advances by a spread, including the
+cover when enabled. All pages remain accessible at either end of the document.
 
 Pinch and pan remain available; a zoomed drag pans instead of turning a page.
 Links, figures, long-press text selection and stylus writing take precedence
@@ -100,6 +102,8 @@ files with predecessor recovery, outside notebook page files. They are local
 preferences, excluded from `.inkbook` backups like existing view/workspace
 settings. A restored notebook starts with default reading preferences. Page
 format remains 8 (as in 0.34), reading older formats without rewriting on open.
+The reading preference format is version 4; earlier APKs cannot read a preference
+file after this version updates it. The underlying notebook and PDF remain intact.
 
 Host checks exercise crop/ink mappings, zoom and one-page bounds, detection,
 preference recovery, production touch/timer callbacks, crop gestures,

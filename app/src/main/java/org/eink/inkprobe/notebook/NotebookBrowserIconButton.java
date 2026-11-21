@@ -10,6 +10,8 @@ import android.view.accessibility.AccessibilityNodeInfo;
 final class NotebookBrowserIconButton extends NotebookButton {
     private final NotebookIconDrawable symbol;
     private final Paint countPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint circle = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final boolean compact;
     private int count;
 
     NotebookBrowserIconButton(Context context, NotebookIconDrawable.Icon icon, String name, Runnable action) {
@@ -18,11 +20,11 @@ final class NotebookBrowserIconButton extends NotebookButton {
 
     NotebookBrowserIconButton(Context context, NotebookIconDrawable.Icon icon, String name, Runnable action, boolean compact) {
         super(context);
+        this.compact = compact;
         symbol = new NotebookIconDrawable(icon);
         symbol.setCallback(this);
-        NotebookUi.action(this, null);
+        setBackground(null);
         setPadding(0, 0, 0, 0);
-        if (compact) setBackground(NotebookUi.rounded(getResources().getDisplayMetrics().density, 1000));
         setMinimumWidth(NotebookBrowserUi.dp(context, compact ? 32 : 48));
         setMinimumHeight(NotebookBrowserUi.dp(context, compact ? 32 : 48));
         setContentDescription(name);
@@ -44,6 +46,13 @@ final class NotebookBrowserIconButton extends NotebookButton {
     void setSymbol(NotebookIconDrawable.Icon icon, String name) { symbol.setIcon(icon); setContentDescription(name); setTooltipText(name); }
 
     @Override protected void onDraw(Canvas canvas) {
+        float stroke = Math.max(1, NotebookBrowserUi.dp(getContext(), 1));
+        float diameter = Math.min(NotebookBrowserUi.dp(getContext(), compact ? 32 : 36), Math.min(getWidth(), getHeight()));
+        float radius = Math.max(0, (diameter - stroke) / 2);
+        circle.setColor(android.graphics.Color.WHITE); circle.setStyle(Paint.Style.FILL);
+        canvas.drawCircle(getWidth() / 2f, getHeight() / 2f, radius, circle);
+        circle.setColor(android.graphics.Color.BLACK); circle.setStyle(Paint.Style.STROKE); circle.setStrokeWidth(stroke);
+        canvas.drawCircle(getWidth() / 2f, getHeight() / 2f, radius, circle);
         super.onDraw(canvas);
         int size = NotebookBrowserUi.dp(getContext(), 20);
         int left = (getWidth() - size) / 2, top = (getHeight() - size) / 2;

@@ -26,7 +26,8 @@ final class NotebookCastController {
     private static WeakReference<NotebookDisplayActivity> foreground = new WeakReference<>(null);
     private static Context app;
     private static Messenger remote;
-    private static boolean bound, running, starting, contact;
+    private static boolean bound, running, starting;
+    private static int contact;
     private static String address = "", status = "Casting is off.";
     private static long lastLease;
     private static int lastVisibility = -1;
@@ -88,17 +89,18 @@ final class NotebookCastController {
         refresh();
     }
     static void paused(NotebookDisplayActivity activity) {
-        if (foreground.get() == activity) { foreground.clear(); contact = false; refresh(); }
+        if (foreground.get() == activity) { foreground.clear(); contact = NotebookCastPacer.IDLE; refresh(); }
     }
     static void focusChanged(NotebookDisplayActivity activity) {
         if (foreground.get() != activity || remote == null) return;
         refresh(); main.removeCallbacks(settledFocus); main.postDelayed(settledFocus, 32);
     }
     private static final Runnable settledFocus = NotebookCastController::refresh;
-    static void contact(NotebookDisplayActivity activity, boolean down) {
-        if (foreground.get() != activity || contact == down) return;
-        contact = down;
-        if (remote != null) send(Message.obtain(null, CONTACT, down ? 1 : 0, 0));
+    static void contact(NotebookDisplayActivity activity, boolean down, boolean protect) {
+        int mode = !down ? NotebookCastPacer.IDLE : protect ? NotebookCastPacer.PROTECTED : NotebookCastPacer.PEN;
+        if (foreground.get() != activity || contact == mode) return;
+        contact = mode;
+        if (remote != null) send(Message.obtain(null, CONTACT, mode, 0));
     }
     private static final Runnable watch = new Runnable() {
         @Override public void run() { if (remote != null) { refresh(); main.postDelayed(this, 200); } }
@@ -120,7 +122,7 @@ final class NotebookCastController {
         long now = SystemClock.uptimeMillis();
         if (visibility == lastVisibility && now-lastLease < 1000) return;
         lastVisibility = visibility; lastLease = now;
-        Message message = Message.obtain(null, VISIBILITY, visibility, contact ? 1 : 0);
+        Message message = Message.obtain(null, VISIBILITY, visibility, contact);
         send(message);
     }
     private static void send(Message message) {

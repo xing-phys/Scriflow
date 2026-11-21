@@ -638,7 +638,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
                         ++writingRevision; linkTap.cancel(); clearPdfText();
                         if (widthPopup != null && !widthContact) widthPopup.dismiss();
                     }
-                    setWritingContact(down);
+                    setWritingContact(down, tool==NotebookInk.Tool.LASSO || tool==NotebookInk.Tool.ERASER);
                     lastInputAt = SystemClock.uptimeMillis();
                     main.removeCallbacks(updateSaveState);
                     if (!down) {
@@ -767,7 +767,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             result=new NotebookViewport(NotebookPdfReading.layout(sizes,session.pdfSource(),settings),width,height,dp(12),zoom,pan);
         else result=new NotebookViewport(session.pageCount(),page.width,page.height,width,height,dp(12),zoom,pan);
         int selected=Math.max(1,Math.min(session.pageCount(),activePage));
-        return result.withLayout(settings.paged,settings.doublePage,settings.horizontal,selected);
+        return result.withLayout(settings.paged,settings.doublePage,settings.horizontal,selected,settings.cover);
     }
 
     private void refreshReadingViewport(){
@@ -1644,9 +1644,8 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         undoButton.setAvailable(ready && session.canUndo(activePage));
         redoButton.setAvailable(ready && session.canRedo(activePage));
         int navigationPage=viewport!=null?viewport.navigationPage(scrollY):activePage;
-        int navigationStep=viewport!=null&&viewport.spread?2:1;
-        previousButton.setAvailable(ready && navigationPage>1);
-        nextButton.setAvailable(ready && navigationPage+navigationStep<=session.pageCount());
+        previousButton.setAvailable(ready && (viewport!=null?viewport.adjacentPage(navigationPage,-1)!=0:navigationPage>1));
+        nextButton.setAvailable(ready && (viewport!=null?viewport.adjacentPage(navigationPage,1)!=0:navigationPage<session.pageCount()));
         addButton.setAvailable(ready && session.pageCount() < NotebookIndex.MAX_PAGES);
         floatingTools.button(NotebookFloatingTools.Action.OUTLINE).setAvailable(ready);
         floatingTools.button(NotebookFloatingTools.Action.AI_CHAT).setAvailable(ready || independentWithoutEditor() && active);
@@ -2440,7 +2439,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     }
 
     private void switchPage(int offset) {
-        int target = viewport!=null?viewport.navigationPage(scrollY)+offset*(viewport.spread?2:1):activePage+offset;
+        int target = viewport!=null?viewport.adjacentPage(viewport.navigationPage(scrollY),offset):activePage+offset;
         if (!canEdit() || target < 1 || target > session.pageCount()) return;
         pauseForEdit();
         if (shownError != null) return;
@@ -3531,7 +3530,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             readingPreviewContrast=null;
             if(error!=null){Toast.makeText(this,error.getMessage(),Toast.LENGTH_LONG).show();resumeAfterReadingPreview();return;}
             for(NotebookPdfReading.Request pending:cropRequests.values())pending.cancel();cropRequests.clear();cropFailures.clear();
-            if(old.paged!=settings.paged||old.doublePage!=settings.doublePage||old.horizontal!=settings.horizontal||old.crop!=settings.crop||!old.odd.equals(settings.odd)||!old.even.equals(settings.even)||!old.pages.equals(settings.pages))
+            if(old.paged!=settings.paged||old.doublePage!=settings.doublePage||old.horizontal!=settings.horizontal||old.cover!=settings.cover||old.crop!=settings.crop||!old.odd.equals(settings.odd)||!old.even.equals(settings.even)||!old.pages.equals(settings.pages))
                 zoomFit=settings.paged?NotebookViewport.Fit.PAGE:NotebookViewport.Fit.WIDTH;
             readingFlowKnown=true;editing=false;
             for(Map.Entry<NotebookWorkspace.Pane,NotebookCompanion> entry:noteWindows.entrySet())if(entry.getKey().notebookId==book)entry.getValue().refreshReadingSettings();
@@ -3957,7 +3956,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             + "\n\nLasso draws a temporary dashed line. Lift the stylus to close the curve automatically. Drag inside with a finger or stylus to move the selected ink. Copy, Duplicate, Move to page, Cut, Delete, and Export icons appear beside the region. Tap outside to clear the selection; tap the selected Lasso icon afterward for Paste or Select all. Copied ink stays inside Scriflow until the app restarts. Drag a selection to another page; hold near the top or bottom edge to scroll. Move… places it on any page. Cross-page moves preserve the ink and undo both pages together."
             + "\n\nNew writing or a successful edit clears Redo. Changing paper keeps your stroke history.";
         message += "\n\nTap the dotted grip to collapse or expand the floating tools; drag it to move them, even when collapsed. The direction icon beside it switches between one row and one column. The thicker circle marks the selected tool. The page counter in the top-left bar opens page management."
-            + "\n\nReading view in the top-left action icons lets you choose Continuous or Page turns, Single page or Double page, and the direction of continuous scrolling. Page turns start at Fit page; pinch and pan remain available. Tap the right or bottom half to advance, or the upper-left quarter to go back. You can also use the page arrows; at whole-page size, swipe horizontally to turn. PDF pages also offer Auto, Manual and Semi-auto cropping, separate odd/even areas and contrast. Crop and contrast affect display only. Hold a finger on a PDF word to select and open Eudic floating lookup; Copy and dictionary icons appear beside it. A PDF text layer and installed Eudic are required."
+            + "\n\nReading view in the top-left action icons lets you choose Continuous or Page turns, Single page or Double page, a first spread of pages 1–2 or a cover followed by 2–3, and the direction of continuous scrolling. Page turns start at Fit page; pinch and pan remain available. Tap the right or bottom half to advance, or the upper-left quarter to go back. You can also use the page arrows; at whole-page size, swipe horizontally to turn. PDF pages also offer Auto, Manual and Semi-auto cropping, separate odd/even areas and contrast. Crop and contrast affect display only. Hold a finger on a PDF word to select and open Eudic floating lookup; Copy and dictionary icons appear beside it. A PDF text layer and installed Eudic are required."
             + "\n\nThe outline icon opens the table of contents at the current heading, shown in bold, with other branches collapsed. Use the arrows to fold nested headings; hold a heading or tap Edit headings to change it. Tap PDF links with one finger; writing with the stylus keeps annotating. Previous-view and next-view arrows appear at the lower right when available, or beside a floating note's minimize control. They restore your page, position and zoom after a link, outline or page-overview jump, including after screen rotation."
             + "\n\nTap the selected Pen icon to open a small width slider. Slide the point and release to apply. The slider stays open for further adjustments; start writing, tap outside, or press Back to close. Current thickness: " + NotebookPenConfig.label(penWidth) + ". The small line below the pencil previews its width. Settings offers fixed width on the page (default) or fixed width on the screen while writing. Existing strokes keep their captured shape in either mode."
             + "\n\nExport PDF saves all pages in this notebook, including their paper backgrounds and handwriting.";

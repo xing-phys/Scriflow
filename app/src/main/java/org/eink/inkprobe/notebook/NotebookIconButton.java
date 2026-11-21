@@ -93,7 +93,7 @@ public final class NotebookIconButton extends View {
         super.onDraw(canvas);
         // Pressed, focused, hovered, and unavailable all draw exactly the same pixels.
         float stroke = dpFloat(toolSelected ? 3f : 1f);
-        float radius = Math.max(0, (Math.min(getWidth(), getHeight()) - stroke) / 2f);
+        float radius = Math.max(0, (Math.min(dp(36), Math.min(getWidth(), getHeight())) - stroke) / 2f);
         paint.setColor(Color.WHITE);
         paint.setStyle(Paint.Style.FILL);
         canvas.drawCircle(getWidth() / 2f, getHeight() / 2f, radius, paint);

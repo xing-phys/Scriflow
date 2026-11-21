@@ -38,6 +38,11 @@ public final class NotebookBrowserSelfTestActivity extends NotebookBrowserActivi
 
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        if (intent.hasExtra("castContact")) {
+            boolean down = intent.getBooleanExtra("castContact", false), protect = intent.getBooleanExtra("castProtect", false);
+            // Android may deliver a new intent between onPause and onResume.
+            getWindow().getDecorView().postDelayed(() -> setWritingContact(down, protect), 250);
+        }
         if (intent.hasExtra("orientation")) {
             NotebookSettings.setOrientation(this, NotebookSettings.Orientation.valueOf(intent.getStringExtra("orientation"))); refreshDisplayOrientation();
         }

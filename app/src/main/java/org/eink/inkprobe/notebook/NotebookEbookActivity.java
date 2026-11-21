@@ -27,6 +27,7 @@ public class NotebookEbookActivity extends NotebookDisplayActivity {
     private NotebookEbookChrome chrome;
     private TextView status;
     private boolean resumed, busy;
+    private long lastBackRequest;
     private AlertDialog dialog;
     private NotebookPdfImport snapshotImport;
     private JSONObject snapshotLink;
@@ -75,6 +76,7 @@ public class NotebookEbookActivity extends NotebookDisplayActivity {
                 case "reading-state":chrome.progress(message.optInt("percentage"));chrome.bookmark(message.optBoolean("bookmarked"));chrome.history(message.optBoolean("back"),message.optBoolean("forward"));break;
                 case "external-link":externalLink(message.optString("url"));break;
                 case "exit":leave();break;
+                case "request-exit":requestExit();break;
                 default:onReaderMessage(message);
             }
         } catch(Exception error){problem(error.getMessage());}
@@ -192,6 +194,11 @@ public class NotebookEbookActivity extends NotebookDisplayActivity {
     }
     private void leave() {
         if(busy)return;startActivity(new Intent(this,NotebookLibraryActivity.class).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP));finish();overridePendingTransition(0,0);
+    }
+    private void requestExit() {
+        long now=android.os.SystemClock.uptimeMillis();
+        if(lastBackRequest>0&&now-lastBackRequest<=2000){lastBackRequest=0;leave();}
+        else {lastBackRequest=now;android.widget.Toast.makeText(this,"Press Back again to return to the bookshelf",android.widget.Toast.LENGTH_SHORT).show();}
     }
     private void showStatus(String message) { if(isDestroyed())return;status.setText(message);status.setVisibility(View.VISIBLE); }
     private void working(boolean value){try{if(page!=null)page.send(new JSONObject().put("type","busy").put("enabled",value));}catch(Exception impossible){throw new AssertionError(impossible);}}

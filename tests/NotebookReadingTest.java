@@ -8,7 +8,7 @@ import java.util.*;
 public final class NotebookReadingTest {
     private static int checks;
     private interface Action{void run()throws Exception;}
-    public static void main(String[] args)throws Exception{geometry();paging();spread();continuousLayouts();settings();detection();contrast();words();System.out.println("NotebookReading: "+checks+" assertions passed (crop/ink geometry, page views, settings recovery, content detection and contrast).");}
+    public static void main(String[] args)throws Exception{geometry();paging();spread();coverSpreads();continuousLayouts();settings();detection();contrast();words();System.out.println("NotebookReading: "+checks+" assertions passed (crop/ink geometry, page views, settings recovery, content detection and contrast).");}
     private static void geometry()throws Exception{
         UUID id=UUID.randomUUID();NotebookCropBox crop=new NotebookCropBox(.2f,.1f,.9f,.8f);
         NotebookViewport.Size size=new NotebookViewport.Size(1000,1200,id,1).cropped(crop);
@@ -123,6 +123,40 @@ public final class NotebookReadingTest {
             check(NotebookPageTurn.tapTarget(view,view.pageScroll(first),screen[0]*.25f,screen[1]*.75f)==first+step,"a tap still turns a zoomed page");
         }
     }
+    private static void coverSpreads(){
+        for(int count=1;count<=8;count++)for(int[] screen:new int[][]{{700,1000},{1000,700}})
+            for(boolean paged:new boolean[]{false,true})for(boolean horizontal:new boolean[]{false,true})for(boolean cover:new boolean[]{false,true}){
+                NotebookViewport base=new NotebookViewport(count,600,900,screen[0],screen[1],20);
+                for(int page=1;page<=count;page++){
+                    int first=cover?(page==1?1:page-page%2):page-(page+1)%2;
+                    int last=Math.min(count,first+(cover&&first==1?0:1));
+                    NotebookViewport view=base.withLayout(paged,true,horizontal,page,cover);
+                    if(paged)view=view.withView(view.fittedZoom(NotebookViewport.Fit.PAGE,page),0);
+                    else view=view.withView(1,view.panForPage(page));
+                    float scroll=view.pageScroll(page);
+                    check(view.navigationPage(scroll)==first,"cover alignment preserves the selected group");
+                    check(view.visiblePages(scroll).contains(page),"every page stays reachable with either spread alignment");
+                    if(paged)check(view.visiblePages(scroll).equals(first==last?Collections.singletonList(first):Arrays.asList(first,last)),"paged spread contains exactly its own pages");
+                    int expectedPrevious=first==1?0:cover&&first==2?1:first-2;
+                    int expectedNext=last==count?0:last+1;
+                    check(view.adjacentPage(page,-1)==expectedPrevious&&view.adjacentPage(page,1)==expectedNext,"spread navigation includes cover and short final page");
+                    boolean right=cover?(page%2==1):(page%2==0);
+                    check(right?view.viewLeft(page)>view.viewLeft(first)+(page==first?0:1)||page==first&&cover&&page==1:view.viewLeft(page)<=view.viewLeft(first),"page remains on its intended side of the spread");
+                    check(NotebookPageTurn.tapTarget(view,scroll,screen[0]*.75f,screen[1]*.25f)==expectedNext,"forward taps respect cover alignment");
+                    check(NotebookPageTurn.tapTarget(view,scroll,screen[0]*.25f,screen[1]*.25f)==expectedPrevious,"back taps respect cover alignment");
+                }
+            }
+        NotebookViewport cover=new NotebookViewport(4,600,900,1000,700,20).withLayout(true,true,false,1,true);
+        cover=cover.withView(cover.fittedZoom(NotebookViewport.Fit.PAGE,1),0);
+        check(cover.visiblePages(0).equals(Collections.singletonList(1))&&cover.viewLeft(1)>500,"a cover is alone in the right-hand slot");
+        NotebookViewport pair=cover.forPage(3);check(pair.singlePage==2&&pair.visiblePages(pair.pageScroll(2)).equals(Arrays.asList(2,3)),"pages 2 and 3 share the next spread");
+        check(NotebookPageTurn.target(cover,-100,0,48)==2&&NotebookPageTurn.target(pair,100,0,48)==1,"swipes cross the cover boundary correctly");
+        check(cover.pageAt(100,350,cover.pageScroll(1))==0&&cover.pageAt(750,350,cover.pageScroll(1))==1,"the empty cover slot never accepts page input");
+        float scroll=pair.pageScroll(2);check(pair.pageAt(250,350,scroll)==2&&pair.pageAt(750,350,scroll)==3,"each side of a shifted spread targets its own page");
+        NotebookPage.Stroke stroke=new NotebookPage.Stroke(1,3,0xff000000,Arrays.asList(new NotebookPage.Point(750,350,1,1),new NotebookPage.Point(760,360,2,1)));
+        check(pair.splitStroke(stroke,scroll).containsKey(3),"ink remains attached to the correct page in a shifted spread");
+        check(pair.withView(2,0).cover&&pair.forPage(4).cover,"zooming and changing pages retain spread alignment");
+    }
     private static void settings()throws Exception{
         File root=Files.createTempDirectory("reading-prefs-").toFile();
         try{
@@ -133,6 +167,11 @@ public final class NotebookReadingTest {
             byte[] legacy=Files.readAllBytes(new File(root,"reading/1.view").toPath());legacy[7]=1;Files.write(new File(root,"reading/1.view").toPath(),legacy);
             check(new NotebookReadingStore(root,1).read().equals(state),"version-one reading settings still open");
             NotebookReadingSettings spread=state.doublePage(true);store.write(spread);check(store.read().equals(spread)&&spread.contrast(2).doublePage,"spread preference persists and survives other preference changes");
+            NotebookReadingSettings prior=spread.horizontal(true);store.write(prior);
+            byte[] v3=Files.readAllBytes(new File(root,"reading/1.view").toPath());v3[7]=3;Files.write(new File(root,"reading/1.view").toPath(),v3);
+            check(store.read().equals(prior)&&!store.read().cover,"version-three settings retain all choices and default to no cover");
+            NotebookReadingSettings cover=spread.cover(true);store.write(cover);
+            check(store.read().equals(cover)&&cover.contrast(2).cover&&cover.area(NotebookReadingSettings.Scope.ALL,id,box).cover,"cover alignment persists across crop and contrast changes");
             byte[] v2=Files.readAllBytes(new File(root,"reading/1.view").toPath());v2[7]=2;v2[17]=2;
             java.util.zip.CRC32 crc=new java.util.zip.CRC32();crc.update(v2,16,v2.length-20);int value=(int)crc.getValue();
             for(int n=0;n<4;n++)v2[v2.length-4+n]=(byte)(value>>>(24-n*8));Files.write(new File(root,"reading/1.view").toPath(),v2);

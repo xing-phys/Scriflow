@@ -6,7 +6,7 @@ import java.util.zip.CRC32;
 
 /** Small atomic view-preference snapshots, separate from notebook/backup page formats. */
 final class NotebookReadingStore {
-    private static final int MAGIC=0x4e525631,VERSION=3,MAX_BYTES=1024*1024;
+    private static final int MAGIC=0x4e525631,VERSION=4,MAX_BYTES=1024*1024;
     private final File directory,document,temporary,backup;
     NotebookReadingStore(File root,int book) {
         if(book<1)throw new IllegalArgumentException("Invalid notebook");
@@ -20,7 +20,7 @@ final class NotebookReadingStore {
     }
     void write(NotebookReadingSettings settings)throws IOException {
         ByteArrayOutputStream bytes=new ByteArrayOutputStream();DataOutputStream out=new DataOutputStream(bytes);
-        out.writeByte(settings.crop.ordinal());out.writeByte((settings.paged?1:0)|(settings.doublePage?2:0)|(settings.horizontal?4:0));out.writeFloat(settings.contrast);
+        out.writeByte(settings.crop.ordinal());out.writeByte((settings.paged?1:0)|(settings.doublePage?2:0)|(settings.horizontal?4:0)|(settings.cover?8:0));out.writeFloat(settings.contrast);
         box(out,settings.odd);box(out,settings.even);out.writeInt(settings.pages.size());
         for(Map.Entry<UUID,NotebookCropBox> entry:settings.pages.entrySet()){out.writeLong(entry.getKey().getMostSignificantBits());out.writeLong(entry.getKey().getLeastSignificantBits());box(out,entry.getValue());}
         out.flush();byte[] data=bytes.toByteArray();
@@ -45,7 +45,7 @@ final class NotebookReadingStore {
             int length=in.readInt();if(length<0||in.readInt()!=~length||length!=file.length()-20)throw new IOException("Invalid view settings framing");
             byte[] data=new byte[length];in.readFully(data);if(in.readInt()!=crc(data)||in.read()!=-1)throw new IOException("View settings checksum failed");
             DataInputStream fields=new DataInputStream(new ByteArrayInputStream(data));int mode=fields.readUnsignedByte(),single=fields.readUnsignedByte();
-            if(mode>=NotebookReadingSettings.Crop.values().length||single>(version==1?1:version==2?2:7))throw new IOException("Invalid view settings flags");
+            if(mode>=NotebookReadingSettings.Crop.values().length||single>(version==1?1:version==2?2:version==3?7:15))throw new IOException("Invalid view settings flags");
             float contrast=fields.readFloat();
             try{
                 NotebookCropBox odd=box(fields),even=box(fields);int count=fields.readInt();
@@ -54,7 +54,7 @@ final class NotebookReadingStore {
                 for(int n=0;n<count;n++){UUID id=new UUID(fields.readLong(),fields.readLong());if(pages.put(id,box(fields))!=null)throw new IOException("Duplicate crop page");}
                 int flags=version<3?(single==2?3:single):single;
                 return new NotebookReadingSettings(NotebookReadingSettings.Crop.values()[mode],(flags&1)!=0,contrast,odd,even,pages)
-                    .doublePage((flags&2)!=0).horizontal((flags&4)!=0);
+                    .doublePage((flags&2)!=0).horizontal((flags&4)!=0).cover((flags&8)!=0);
             }catch(IllegalArgumentException e){throw new IOException("Invalid notebook view settings",e);}
         }
     }

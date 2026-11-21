@@ -149,17 +149,35 @@ public final class NotebookCastServerTest {
         check(pacer.delay(0) == 0, "The first frame can be captured immediately");
         pacer.completed(0, 10);
         check(pacer.delay(10) == 115 && pacer.delay(125) == 0, "Normal capture is bounded to eight slots per second");
-        pacer.contact(true); pacer.completed(125, 135);
-        check(pacer.delay(135) == 157, "Pen/lasso/region contact gives input a larger reserve without stopping live casting");
+        pacer.contact(NotebookCastPacer.PEN,125); pacer.completed(125, 135);
+        check(pacer.delay(135) == 157, "Pen contact gives input a larger reserve without stopping live casting");
         pacer.completed(300, 400);
         check(pacer.delay(400) == 300, "Slow readback is limited to a quarter duty cycle during contact");
-        pacer.contact(false); pacer.completed(700, 800);
+        pacer.contact(NotebookCastPacer.IDLE,700); pacer.completed(700, 800);
         check(pacer.delay(800) == 100, "Idle capture adapts to the measured encode cost");
-        pacer.contact(true); pacer.completed(1000, 2500);
+        pacer.contact(NotebookCastPacer.PEN,1000); pacer.completed(1000, 2500);
         check(pacer.delay(2500) == 4500, "Very slow devices keep an input reserve instead of encoding continuously");
         pacer.reset(); check(pacer.delay(2500) == 0, "A resized source starts with a fresh pacing budget");
         check(NotebookCastPacer.MAX_EDGE >= 1872 && NotebookCastPacer.JPEG_QUALITY >= 92,
             "Lecture capture retains the tablet's native pixels and higher text quality");
+        pacer.contact(NotebookCastPacer.PROTECTED,3000);
+        check(pacer.protectedInput(3000)&&pacer.protectedInput(9000),"lasso and eraser contact suspend competing capture for the entire gesture");
+        pacer.contact(NotebookCastPacer.IDLE,9000);
+        check(pacer.protectedInput(9299)&&!pacer.protectedInput(9300),"capture resumes only after the dashed-tool quiet period");
+        pacer.contact(NotebookCastPacer.PROTECTED,9400);pacer.contact(NotebookCastPacer.IDLE,9450);
+        pacer.contact(NotebookCastPacer.PROTECTED,9600);pacer.contact(NotebookCastPacer.IDLE,9650);
+        check(pacer.protectedInput(9900)&&!pacer.protectedInput(9950),"rapid gestures extend the quiet period without a capture gap");
+        long old=pacer.generation();pacer.contact(NotebookCastPacer.PROTECTED,10000);
+        pacer.contact(NotebookCastPacer.IDLE,10010);pacer.completed(9990,10400,old);
+        check(pacer.delay(10400)==0,"an encode interrupted by protected input cannot delay the first safe frame");
+        NotebookCastFrames frozen=new NotebookCastFrames();frozen.sharing(true,0);long ticket=frozen.ticket(1);
+        check(frozen.publish(ticket,JPEG),"the last safe frame can be published before a gesture");
+        frozen.suspendCapture(true,2);
+        check(frozen.latest().jpeg==JPEG&&frozen.latest().state.equals("live")&&frozen.ticket(3)<0&&!frozen.publish(ticket,JPEG),"a protected gesture retains the last frame and rejects old or new encodes");
+        frozen.suspendCapture(false,4);
+        check(frozen.ticket(3)<0&&frozen.ticket(4)>=0,"resuming discards stale compositor frames before accepting fresh ones");
+        frozen.suspendCapture(true,5);frozen.sharing(false,6);
+        check(frozen.latest().jpeg==null&&frozen.latest().state.equals("paused"),"privacy pause clears the held frame during protected input");
     }
     private static void delivery(Map<String, byte[]> assets) throws Exception {
         java.util.concurrent.ExecutorService clients = java.util.concurrent.Executors.newFixedThreadPool(17);

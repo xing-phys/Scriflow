@@ -28,6 +28,10 @@ final class NotebookReadingMenu {
         LinearLayout pages=new LinearLayout(activity);
         add(pages,(initial.doublePage?"":"✓ ")+"Single page",()->choosePages(false));
         add(pages,(initial.doublePage?"✓ ":"")+"Double page",()->choosePages(true));content.addView(pages);
+        content.addView(label("Spread starts",13));
+        LinearLayout cover=new LinearLayout(activity);
+        add(cover,(initial.cover?"":"✓ ")+"Pages 1–2",()->chooseCover(false));
+        add(cover,(initial.cover?"✓ ":"")+"Cover, then 2–3",()->chooseCover(true));content.addView(cover);
         content.addView(label("Continuous direction",13));
         LinearLayout direction=new LinearLayout(activity);
         add(direction,(initial.horizontal?"":"✓ ")+"Vertical",()->chooseDirection(false));
@@ -63,6 +67,7 @@ final class NotebookReadingMenu {
     }
     private void chooseFlow(boolean paged){settings=settings.paged(paged);popup.dismiss();}
     private void choosePages(boolean doublePage){settings=settings.doublePage(doublePage);popup.dismiss();}
+    private void chooseCover(boolean value){settings=settings.cover(value);popup.dismiss();}
     private void chooseDirection(boolean horizontal){settings=settings.horizontal(horizontal);popup.dismiss();}
     private void add(LinearLayout row,String text,Runnable action){NotebookButton button=new NotebookButton(activity);button.setText(text);button.setTextSize(13);button.setOnClickListener(v->action.run());row.addView(button,new LinearLayout.LayoutParams(0,dp(36),1));}
     private TextView label(String text,int size){TextView label=new TextView(activity);label.setText(text);label.setTextColor(Color.BLACK);label.setTextSize(size);label.setPadding(0,dp(3),0,dp(3));return label;}

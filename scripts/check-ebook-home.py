@@ -14,7 +14,7 @@ import zlib
 
 ROOT=Path(__file__).resolve().parent.parent
 PACKAGE='org.eink.inkprobe';SERIAL=os.environ.get('ANDROID_SERIAL','emulator-5554')
-TITLE='Homepage Reader Check';RENAMED='Homepage_reader_renamed';FOLDER='Reader_shelf_'+str(os.getpid())
+TITLE='Homepage Reader Check '+str(os.getpid());RENAMED='Homepage_reader_'+str(os.getpid());FOLDER='Reader_shelf_'+str(os.getpid())
 
 def adb(*args,check=True):
     if args and args[0]=='shell':args=('shell',shlex.join(args[1:]))
@@ -25,14 +25,18 @@ def tree():
 def bounds(node):return list(map(int,re.findall(r'\d+',node.get('bounds'))))
 def label(value):return lambda n:n.get('text')==value or n.get('content-desc')==value
 def find(predicate,scroll=False):
-    for _ in range(18):
+    for attempt in range(25):
         root=tree()
         for node in root.iter('node'):
             if predicate(node):return node
         if scroll:
             grid=next((n for n in root.iter('node') if n.get('class')=='android.widget.GridView'),None)
             if grid is not None:
-                x,y,xx,yy=bounds(grid);adb('shell','input','swipe',str((x+xx)//2),str(yy-40),str((x+xx)//2),str(y+40),'300')
+                x,y,xx,yy=bounds(grid)
+                distance=min(600,(yy-y)//2)
+                start=y+40 if attempt<3 else yy-40
+                end=start+distance if attempt<3 else start-distance
+                adb('shell','input','swipe',str((x+xx)//2),str(start),str((x+xx)//2),str(end),'300')
         time.sleep(.2)
     raise AssertionError('Expected homepage control not found.')
 def tap(predicate,scroll=False,hold=False):
@@ -58,14 +62,14 @@ try:
     time.sleep(3)
     report=json.loads(adb('exec-out','run-as',PACKAGE,'cat','cache/ebook-reader-check.json').stdout);assert report['passed'],report
     ui=json.loads(adb('exec-out','run-as',PACKAGE,'cat','cache/ebook-chrome-check.json').stdout)
-    x,y,w,h=ui['home'];adb('shell','input','tap',str(x+w//2),str(y+h//2))
+    adb('shell','input','keyevent','KEYCODE_BACK');time.sleep(.5);adb('shell','input','keyevent','KEYCODE_BACK')
     find(label('Import book'));tap(label(TITLE),scroll=True)
     time.sleep(2)
     activity=adb('shell','dumpsys','activity','activities').stdout.decode()
     assert any('/.notebook.NotebookEbookActivity' in line for line in activity.splitlines() if 'mResumedActivity' in line)
     (ROOT/'build/ebook-reader-home-open.png').write_bytes(adb('exec-out','screencap','-p').stdout)
     print('PASS: An ebook on the homepage opens directly in the floating reader.',flush=True)
-    adb('shell','input','keyevent','KEYCODE_BACK');find(label('Import book'))
+    adb('shell','input','keyevent','KEYCODE_BACK');time.sleep(.5);adb('shell','input','keyevent','KEYCODE_BACK');find(label('Import book'))
     state_path='files/ebooks/'+report['book']+'/state';before=frame(state_path)[0]
     source=adb('exec-out','run-as',PACKAGE,'cat','files/ebooks/'+report['book']+'/source').stdout
     original_hash=hashlib.sha256(source).hexdigest()
@@ -75,13 +79,13 @@ try:
     find(lambda n:n.get('class')=='android.widget.EditText' and n.get('text')==RENAMED);positive()
     find(label(RENAMED),scroll=True)
     print('PASS: Homepage Rename changes the ebook label.',flush=True)
-    tap(label('+ Folder'));adb('shell','input','text',FOLDER);positive();find(label(FOLDER))
+    tap(label('+ Folder'));adb('shell','input','text',FOLDER);positive();find(label(FOLDER),scroll=True)
     tap(label(RENAMED),scroll=True,hold=True);find(label('1 selected'))
     tap(label('Actions'));tap(label('Move to folder…'));tap(label(FOLDER))
     tap(label(FOLDER),scroll=True);find(label(RENAMED))
     print('PASS: Shelf selection moves the ebook into a normal homepage folder.',flush=True)
     tap(label('Manage ebook '+RENAMED));tap(label('Move to Trash'))
-    tap(lambda n:bool(re.fullmatch(r'Trash \(\d+\)',n.get('text',''))))
+    tap(lambda n:bool(re.fullmatch(r'Trash \(\d+\)',n.get('text','') or n.get('content-desc',''))))
     tap(label('Manage ebook '+RENAMED),scroll=True);tap(label('Restore ebook'))
     tap(label('Bookshelf'));tap(label(FOLDER),scroll=True);find(label(RENAMED))
     print('PASS: Shared Trash restores the ebook to its original folder.',flush=True)

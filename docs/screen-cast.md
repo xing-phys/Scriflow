@@ -18,6 +18,9 @@ receives changes as soon as the capture worker publishes them. The browser
 keeps the previous decoded picture until the next is ready, including recovery
 from an incomplete image. Full-screen sharing has a white pause/connection
 panel instead of exposing the dark page between images.
+During a lasso or eraser gesture, viewers keep the last safe picture until
+shortly after the stylus lifts. This deliberately pauses the video while those
+tools are in use, giving the tablet's drawing hardware more time for the trail.
 An all-black replacement is confirmed for 250 ms before display, so short
 compositor blackouts do not flash over a lecture page. Persistent black
 content is still displayed; this check runs in the viewer, not the tablet's
@@ -76,9 +79,11 @@ Capture follows rotation using the existing virtual display and a resized
 ImageReader. A lowest-priority worker acquires only the latest image at the
 next capture slot, reuses pixel/JPEG work buffers, and discards intermediate
 compositor frames. Resolution is capped at 2048 pixels; JPEG quality is 94.
-The ceiling is eight frames/s normally and six during pen/lasso/region contact.
+The ceiling is eight frames/s normally and six during ordinary pen contact.
 Measured encoding cost increases the interval to reserve at least half the
-worker's time normally and three quarters during contact. These are scheduling
+worker's time normally and three quarters during pen contact. Lasso and eraser
+contact detach the capture surface until 300 ms after the last lift; an in-flight
+frame cannot replace the held image. These are scheduling
 ceilings, not measured Huawei frame rates or pen-latency guarantees. Android's
 GPU, memory bandwidth and Wi-Fi are still shared hardware resources.
 Frames stay in memory. This targets writing, reports and lectures; it is not

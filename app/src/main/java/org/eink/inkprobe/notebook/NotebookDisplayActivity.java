@@ -141,8 +141,12 @@ public abstract class NotebookDisplayActivity extends Activity implements Notebo
     }
 
     protected final void setWritingContact(boolean down) {
+        setWritingContact(down, false);
+    }
+
+    protected final void setWritingContact(boolean down, boolean protect) {
         rotation.setWriting(down, SystemClock.uptimeMillis()); scheduleRotation();
-        NotebookCastController.contact(this, down);
+        NotebookCastController.contact(this, down, protect);
     }
 
     private void scheduleRotation() {
