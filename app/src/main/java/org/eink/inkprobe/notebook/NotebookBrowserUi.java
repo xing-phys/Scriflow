@@ -16,7 +16,7 @@ final class NotebookBrowserUi {
     static void header(Context context,LinearLayout root,String name,Runnable back,android.view.View status) {
         LinearLayout header=row(context);header.addView(icon(context,NotebookIconDrawable.Icon.PREVIOUS,"Back to browser",back),new LinearLayout.LayoutParams(dp(context,48),dp(context,48)));
         TextView title=label(context,name,21);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);LinearLayout.LayoutParams titleSize=new LinearLayout.LayoutParams(0,dp(context,48),1);titleSize.setMargins(dp(context,12),0,dp(context,12),0);header.addView(title,titleSize);
-        if(compact(context)){root.addView(header);space(root,dp(context,8));LinearLayout details=row(context);details.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);details.addView(status);root.addView(details);}else{header.addView(status);root.addView(header);}space(root,dp(context,12));
+        header.addView(status);root.addView(header);space(root,dp(context,12));
     }
     static void list(ListView view) { view.setOverScrollMode(android.view.View.OVER_SCROLL_NEVER);view.setDivider(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));view.setDividerHeight(dp(view.getContext(),10));view.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)); }
     static void field(EditText view) { Context context=view.getContext();view.setBackground(NotebookUi.rounded(context.getResources().getDisplayMetrics().density,7));view.setPadding(dp(context,12),0,dp(context,12),0);view.setHintTextColor(0xff555555);view.setMinimumHeight(dp(context,48)); }

@@ -113,7 +113,9 @@ final class NotebookPageOverview extends Dialog {
             Activity owner = getOwnerActivity(); dismiss();
             if (owner != null) { owner.startActivity(new android.content.Intent(owner, NotebookSettingsActivity.class)); owner.overridePendingTransition(0, 0); }
         });
-        header.addView(deviceStatus, new LinearLayout.LayoutParams(-2, dp(32)));
+        LinearLayout deviceIsland = NotebookUi.statusIsland(getContext());
+        deviceIsland.addView(deviceStatus, new LinearLayout.LayoutParams(-2, dp(24)));
+        header.addView(deviceIsland, new LinearLayout.LayoutParams(-2, dp(32)));
         root.addView(header, new LinearLayout.LayoutParams(-1, -2));
 
         LinearLayout jump = new LinearLayout(getContext());
@@ -197,7 +199,7 @@ final class NotebookPageOverview extends Dialog {
         LinearLayout.LayoutParams redoSpace = new LinearLayout.LayoutParams(0, dp(48), 1); redoSpace.leftMargin = dp(8);
         pageHistory.addView(redoPagesButton, redoSpace);
         root.addView(pageHistory, new LinearLayout.LayoutParams(-1, -2));
-        setContentView(root);
+        setContentView(NotebookUi.pinStatus(root, deviceIsland));
         updateManagementControls();
         root.requestFocus();
         grid.setSelection((currentPage - 1) / columns * columns);

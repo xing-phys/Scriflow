@@ -17,6 +17,13 @@ Android app settings so it can be enabled there.
 - Search matches names, ignoring case, in the current folder and its
   subfolders. Searching from storage home searches internal storage. Hidden
   entries are omitted unless **Show hidden files** is enabled under **⋮**.
+- Use the grid/list icon next to **⋮** to switch between a compact list and
+  thumbnail cards. The list has one column in portrait and two in landscape;
+  the choice persists when you rotate or reopen Files.
+- Thumbnail cards show locally decoded previews for readable PNG, JPEG, WebP,
+  GIF, BMP and PDF files up to 128 MiB. Other files, folders and previews that
+  cannot be decoded use a type icon. Previews are held only in a bounded memory
+  cache and do not contact the network.
 - **⋮ → Sort by…** offers name, newest, largest, and file type, with folders
   first. **Refresh** reloads files changed by another app or a reconnected drive.
 - Search stops at 1,000 matches or 50,000 examined entries; a folder listing

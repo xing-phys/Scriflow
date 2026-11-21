@@ -238,7 +238,7 @@ final class NotebookStatusIslands {
         int unspecified = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED);
         rightContent.measure(View.MeasureSpec.makeMeasureSpec(available.width(), View.MeasureSpec.AT_MOST), unspecified);
         int rightWidth = rightContent.getMeasuredWidth();
-        // On unusually narrow windows place the right island below the left, without overlap.
+        // On narrow windows keep the device island at the corner and move the notebook bar below it.
         int minimumLeftWidth = dp(224);
         boolean hideLeft = zenMode || !noteVisible;
         boolean stacked = !hideLeft && available.width() < rightWidth + minimumLeftWidth + dp(8);
@@ -251,7 +251,8 @@ final class NotebookStatusIslands {
             leftBounds.set(available.left, available.top, available.left + leftWidth,
                 available.top + leftContent.getMeasuredHeight());
         }
-        int rightTop = stacked ? leftBounds.bottom + dp(8) : available.top;
+        if (stacked) leftBounds.offset(0, rightContent.getMeasuredHeight() + dp(8));
+        int rightTop = available.top;
         rightBounds.set(available.right - rightWidth, rightTop, available.right,
             rightTop + rightContent.getMeasuredHeight());
         // Install both holes before either window becomes visible.

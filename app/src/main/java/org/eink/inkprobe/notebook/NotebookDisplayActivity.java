@@ -15,6 +15,7 @@ import android.view.WindowManager;
 import android.view.Gravity;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.view.View;
 
 /** Foreground-only sensor rotation shared by all production notebook screens. */
 public abstract class NotebookDisplayActivity extends Activity implements NotebookDisplayState.Target {
@@ -25,6 +26,7 @@ public abstract class NotebookDisplayActivity extends Activity implements Notebo
     private OrientationEventListener orientationSensor;
     private boolean displayResumed, naturalLandscape;
     private NotebookDeviceStatus headerStatus;
+    private LinearLayout headerIsland;
     private final Runnable rotateWhenSettled = () -> {
         if (!displayResumed || NotebookSettings.orientation(this) != NotebookSettings.Orientation.SENSOR) return;
         int angle = rotation.ready(SystemClock.uptimeMillis());
@@ -107,7 +109,7 @@ public abstract class NotebookDisplayActivity extends Activity implements Notebo
     }
 
     protected final LinearLayout deviceSettingsIsland() {
-        LinearLayout island = NotebookUi.statusIsland(this);
+        LinearLayout island = NotebookUi.statusIsland(this); headerIsland = island;
         int height = Math.round(24 * getResources().getDisplayMetrics().density);
         island.addView(deviceSettingsButton(), new LinearLayout.LayoutParams(-2, height));
         return island;
@@ -118,8 +120,12 @@ public abstract class NotebookDisplayActivity extends Activity implements Notebo
         int height = Math.round(36 * getResources().getDisplayMetrics().density);
         title.setSingleLine(true); title.setEllipsize(android.text.TextUtils.TruncateAt.END);
         header.addView(title, new LinearLayout.LayoutParams(0, height, 1));
-        header.addView(deviceSettingsButton(), new LinearLayout.LayoutParams(-2, height));
+        header.addView(deviceSettingsIsland(), new LinearLayout.LayoutParams(-2, Math.round(32 * getResources().getDisplayMetrics().density)));
         root.addView(header);
+    }
+
+    @Override public void setContentView(View view) {
+        super.setContentView(headerIsland == null ? view : NotebookUi.pinStatus(view, headerIsland));
     }
 
     protected void openAppSettings() {

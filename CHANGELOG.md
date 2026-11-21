@@ -6,6 +6,20 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.45.0-alpha.1 — Collections and browser home (2026-11-21)
+
+- Give Settings compact, spaced controls and clearer sections. Align the
+  time, battery and Wi-Fi island at the top right across screen headers, page
+  overview and the existing note, ebook, AI and browser workspaces.
+- Give Files and Saved websites independent list/thumbnail switches. Lists use
+  one column in portrait and two in landscape. Files preview local images and
+  PDFs; saved pages use local browser previews when available.
+- Show open tabs as well as pinned sites on Browser Home, with smaller cards,
+  individual view choices and more shortcuts. Open or close tabs directly
+  from Home while retaining the other tab sessions.
+- VersionCode 121. Physical tablet appearance, e-ink refresh and touch behavior
+  remain to be checked by the owner.
+
 ## 0.44.0-alpha.2 — Independent reading layouts and touch navigation (2026-11-18)
 
 - Choose continuous scrolling or page turns independently of single-page or

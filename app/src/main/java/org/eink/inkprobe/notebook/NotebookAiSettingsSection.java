@@ -27,19 +27,18 @@ final class NotebookAiSettingsSection {
 
     NotebookAiSettingsSection(Activity activity,LinearLayout body) {
         this.activity=activity;
-        TextView title=label("AI chat",14);title.setTypeface(null,android.graphics.Typeface.BOLD);title.setPadding(dp(10),dp(3),dp(10),dp(3));
-        title.setBackground(NotebookUi.rounded(activity.getResources().getDisplayMetrics().density,5));
-        LinearLayout.LayoutParams titleSpace=new LinearLayout.LayoutParams(-1,dp(34));titleSpace.setMargins(0,dp(14),0,dp(6));body.addView(title,titleSpace);
+        TextView title=label("AI chat",16);title.setTypeface(null,android.graphics.Typeface.BOLD);
+        LinearLayout.LayoutParams titleSpace=new LinearLayout.LayoutParams(-1,dp(32));titleSpace.setMargins(0,dp(20),0,dp(8));body.addView(title,titleSpace);
         body.addView(label("Enter your connection, fetch models, and check the ones you want. Use a model's settings icon to adjust its parameters.",12));
         provider=new Spinner(activity);provider.setContentDescription("Saved AI provider");
         provider.setPopupBackgroundDrawable(NotebookUi.border(activity.getResources().getDisplayMetrics().density));body.addView(provider,new LinearLayout.LayoutParams(-1,dp(42)));
         providerType=label("",12);body.addView(providerType,new LinearLayout.LayoutParams(-1,dp(26)));
-        addProvider=button("Add provider…",this::addProvider);body.addView(addProvider,new LinearLayout.LayoutParams(-1,dp(38)));
+        addProvider=button("Add provider…",this::addProvider);body.addView(addProvider,new LinearLayout.LayoutParams(-2,dp(40)));
         providerName=field(body,"Provider name","Name for this provider",InputType.TYPE_CLASS_TEXT);
         url=field(body,"API base URL","https://…",InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_URI);
         key=field(body,"API key","Enter API key",InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD);
         key.setSaveEnabled(false);key.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
-        fetch=button("Fetch available models",this::fetchModels);body.addView(fetch,new LinearLayout.LayoutParams(-1,dp(38)));
+        fetch=button("Fetch available models",this::fetchModels);LinearLayout.LayoutParams fetchSpace=new LinearLayout.LayoutParams(-2,dp(40));fetchSpace.topMargin=dp(12);body.addView(fetch,fetchSpace);
         empty=label("Fetch models to show them here.",12);empty.setPadding(0,dp(6),0,dp(6));body.addView(empty);
         models=new ListView(activity);models.setBackgroundColor(Color.WHITE);models.setCacheColorHint(Color.WHITE);
         models.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));models.setOverScrollMode(View.OVER_SCROLL_NEVER);
@@ -209,7 +208,7 @@ final class NotebookAiSettingsSection {
         if(modelRequest==null)return;++modelGeneration;modelRequest.cancel();modelRequest=null;busy(false);status.setText("Model loading stopped. Tap Fetch available models to retry.");
     }
     private EditText field(LinearLayout body,String name,String hint,int type){
-        body.addView(label(name,12));EditText field=new EditText(activity);field.setTextColor(Color.BLACK);field.setTextSize(14);field.setSingleLine(true);field.setInputType(type|InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        TextView heading=label(name,12);LinearLayout.LayoutParams headingSpace=new LinearLayout.LayoutParams(-1,dp(28));headingSpace.topMargin=dp(6);body.addView(heading,headingSpace);EditText field=new EditText(activity);field.setTextColor(Color.BLACK);field.setTextSize(14);field.setSingleLine(true);field.setInputType(type|InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         field.setImeOptions(EditorInfo.IME_FLAG_NO_EXTRACT_UI|EditorInfo.IME_FLAG_NO_FULLSCREEN);field.setHint(hint);field.setContentDescription(name);
         field.setBackground(NotebookUi.rounded(activity.getResources().getDisplayMetrics().density,5));field.setPadding(dp(10),0,dp(10),0);
         body.addView(field,new LinearLayout.LayoutParams(-1,dp(42)));return field;

@@ -10,7 +10,7 @@ public final class NotebookBrowserUiTest {
     private static int assertions;
 
     public static void main(String[] args) throws Exception {
-        externalNotes(); sharedNotes(); startup(); anchors(); presentation(); history(); backNavigation(); visibility(); closeTabs(); selectCurrentTab(); captureBridgeRetry();
+        externalNotes(); sharedNotes(); startup(); anchors(); presentation(); history(); backNavigation(); visibility(); closeTabs(); selectCurrentTab(); homeTabs(); captureBridgeRetry();
         System.out.println("NotebookBrowserUi: " + assertions + " assertions passed (shared toolbox, state restoration and offline anchor mapping).");
     }
 
@@ -151,6 +151,18 @@ public final class NotebookBrowserUiTest {
             "static void check(boolean b,String m){if(!b)throw new AssertionError(m);}public static void run(){BrowserSelectCurrentFixture f=new BrowserSelectCurrentFixture();f.tabs.current().home=false;f.tabs.current().url=\"https://example.org/kept\";Page live=new Page();f.web=live;f.engines.put(f.tabs.current().id,live);f.activateTab(f.tabs.current().id);check(live.pauses==0&&f.loads==0&&f.shown==0&&f.updates==1,\"selecting the current web tab cannot hide/reactivate or reload it\");f.home=true;NotebookBrowserTabs.Tab blank=f.tabs.add();f.activateTab(blank.id);check(f.homes==1,\"a newly selected home tab still presents its own start page\");String id=f.tabs.items.get(0).id;f.tabs.close(blank.id);f.web=null;f.activateTab(id);check(f.web==live&&f.shown==1&&f.loads==0,\"closing the active home switches to the already-live neighbor\");System.out.println(\"NotebookBrowserSelectCurrent: 3 assertions passed (active document, new Home and closed Home fallback).\");}}"
         );
         NotebookWorkspaceActivationTest.runFixture("org.eink.inkprobe.notebook.BrowserSelectCurrentFixture",fixture);
+    }
+
+    private static void homeTabs() throws Exception {
+        String source = source("NotebookBrowserActivity");
+        String fixture = String.join("\n",
+            "package org.eink.inkprobe.notebook;import java.util.*;public class BrowserHomeTabsFixture {",
+            "static class View{static final int GONE=8;}static class Page{int pauses,destroys;void destroy(){destroys++;}void onPause(){pauses++;}void setVisibility(int v){}}static class Content{void removeView(Page p){}}",
+            "final NotebookBrowserTabs tabs=new NotebookBrowserTabs();final Map<String,Page> engines=new HashMap<>();final Map<String,String> popupParents=new HashMap<>();final Map<Page,Object> pageStates=new HashMap<>();final Content content=new Content();Page web;boolean home=true,startupHome,waiting;String currentUrl,activated;int updates,refreshes,backgroundCloses;boolean waitForSave(){return waiting;}void activateTab(String id){activated=id;tabs.select(id);}void updateTabButton(){updates++;}void updateControls(){}void refreshHome(){refreshes++;}void closeTab(String id){backgroundCloses++;tabs.close(id);}",
+            method(source,"private void openHomeTab("), method(source,"private void closeHomeTab(").replace("NotebookBrowserEngine page", "Page page"),
+            "static void check(boolean b,String m){if(!b)throw new AssertionError(m);}public static void run(){BrowserHomeTabsFixture f=new BrowserHomeTabsFixture();NotebookBrowserTabs.Tab first=f.tabs.current();first.url=\"https://example.org/one\";first.home=true;Page live=new Page();f.web=live;f.engines.put(first.id,live);f.openHomeTab(first.id);check(!first.home&&first.id.equals(f.activated),\"Home opens the retained page in its existing tab\");NotebookBrowserTabs.Tab second=f.tabs.add();second.url=\"https://example.org/two\";second.home=false;Page neighbor=new Page();f.engines.put(second.id,neighbor);f.tabs.select(first.id);f.closeHomeTab(first.id);check(f.home&&f.web==neighbor&&live.destroys==1&&neighbor.destroys==0&&neighbor.pauses==1,\"closing the selected card keeps Home visible and does not load or destroy its neighbor\");check(f.refreshes==1&&f.updates==1&&f.currentUrl.equals(second.url),\"closing updates the Home cards and selected metadata\");f.closeHomeTab(second.id);check(f.home&&f.tabs.items.size()==1&&f.tabs.current().home&&neighbor.destroys==1,\"closing the last card leaves a usable start tab\");int refresh=f.refreshes;f.closeHomeTab(\"missing\");f.waiting=true;f.openHomeTab(f.tabs.current().id);check(f.refreshes==refresh&&f.activated.equals(first.id),\"stale and blocked actions do nothing\");System.out.println(\"NotebookBrowserHomeTabs: 5 assertions passed (open retained page, close selected and last tabs without leaving Home, guarded actions).\");}}"
+        );
+        NotebookWorkspaceActivationTest.runFixture("org.eink.inkprobe.notebook.BrowserHomeTabsFixture", fixture);
     }
 
     private static void captureBridgeRetry() throws Exception {

@@ -161,6 +161,15 @@ public class NotebookBrowserActivity extends NotebookActivity {
                 public void history() { openHistory(); }
                 public void settings() { openBrowserData(); }
                 public void tabs() { showTabs(); }
+                public void newTab() {
+                    if (waitForSave()) return;
+                    try { NotebookBrowserTabs.Tab tab = tabs.add(); activateTab(tab.id); }
+                    catch (IllegalStateException error) { message("Tabs", error.getMessage()); }
+                }
+                public void savedWebsites() { NotebookBrowserActivity.this.savedWebsites(); }
+                public void bookshelf() { NotebookBrowserActivity.this.bookshelf(); }
+                public void openTab(String id) { openHomeTab(id); }
+                public void closeTab(String id) { closeHomeTab(id); }
             });
             content.addView(startPage, new FrameLayout.LayoutParams(-1, -1));
         }
@@ -680,9 +689,29 @@ public class NotebookBrowserActivity extends NotebookActivity {
     private void rememberTabs() { getSharedPreferences("browser-tabs", MODE_PRIVATE).edit().putString("tabs", tabs.encode()).apply(); }
     private int searchEngine() { return getSharedPreferences("browser-data", MODE_PRIVATE).getInt("search", 0); }
     private void refreshHome() {
+        if (startPage == null) return;
+        startPage.showTabs(tabs.items, tabs.current().id);
         NotebookWebsiteTasks.run(() -> new NotebookBrowserLibrary(getFilesDir()).initialize(), (value, error) -> {
             if (isDestroyed()) return; if (error != null) { message("Browser start page", error.getMessage()); return; } startPage.show(value);
         });
+    }
+    private void openHomeTab(String id) {
+        NotebookBrowserTabs.Tab tab = tabs.find(id);
+        if (tab == null || waitForSave()) return;
+        // Home can cover the page in the selected tab; its engine and history stay alive.
+        if (NotebookBrowserAddress.isWebUrl(tab.url)) tab.home = false;
+        activateTab(id);
+    }
+    private void closeHomeTab(String id) {
+        if (!home || waitForSave() || tabs.find(id) == null) return;
+        if (!id.equals(tabs.current().id)) { closeTab(id); refreshHome(); return; }
+        popupParents.remove(id);
+        NotebookBrowserEngine page = engines.remove(id);
+        if (page != null) { content.removeView(page); page.destroy(); pageStates.remove(page); }
+        tabs.close(id); startupHome = false;
+        web = engines.get(tabs.current().id); currentUrl = tabs.current().url;
+        if (web != null) { web.onPause(); web.setVisibility(View.GONE); }
+        updateTabButton(); updateControls(); refreshHome();
     }
     private void showHome(boolean collapse) {
         if (offline || saving) return;
@@ -732,7 +761,7 @@ public class NotebookBrowserActivity extends NotebookActivity {
         int scrollY = scroll.getScrollY(); rows.removeAllViews();
         boolean thumbnails = getSharedPreferences("browser-ui", MODE_PRIVATE).getBoolean("tabsThumbnails", false);
         int dialogWidth = tabDialogWidth();
-        int columns = Math.max(1, Math.min(3, (dialogWidth - 32) / 224)), at = 0;
+        int columns = Math.max(1, Math.min(5, (dialogWidth - 32) / 150)), at = 0;
         LinearLayout thumbnailRow = null;
         LinearLayout heading = new LinearLayout(this); heading.setGravity(Gravity.CENTER_VERTICAL);
         TextView count = label(tabs.items.size() + " of " + NotebookBrowserTabs.MAX + " open", 14);
@@ -751,7 +780,7 @@ public class NotebookBrowserActivity extends NotebookActivity {
                 String name = tab.home ? "Start page" : tab.title;
                 NotebookBrowserCard card = new NotebookBrowserCard(this, name, tab.home ? null : tab.url,
                     "Open tab " + name + (tab == tabs.current() ? ", current" : ""), tab == tabs.current(), false,
-                    () -> { shownDialog.dismiss(); activateTab(tab.id); }, NotebookIconDrawable.Icon.CLOSE, "Close tab " + name, () -> closeTab(tab.id));
+                    () -> { shownDialog.dismiss(); activateTab(tab.id); }, NotebookIconDrawable.Icon.CLOSE, "Close tab " + name, () -> closeTab(tab.id), true);
                 LinearLayout.LayoutParams size = new LinearLayout.LayoutParams(0, -2, 1); size.topMargin = dp(10); if (at % columns != 0) size.setMarginStart(dp(10));
                 thumbnailRow.addView(card, size); at++; continue;
             }

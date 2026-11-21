@@ -4,6 +4,9 @@ Tap the time/battery/Wi-Fi area at the top right to open Settings. It is also
 visible on the bookshelf, Settings, page overview, and PDF/backup screens.
 Display and writing settings save each change immediately. The AI provider,
 model, URL and key fields use **Save AI settings**; see [AI chat](ai-chat.md).
+Settings groups related controls into spaced sections. The time, battery and
+Wi-Fi island keeps the same top-right position across screen headers and the
+note, ebook, browser and AI workspaces.
 Row and column counts use **− / +**
 buttons beside the current value; no keyboard or editable number field is needed.
 

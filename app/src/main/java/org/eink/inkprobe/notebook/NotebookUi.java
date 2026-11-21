@@ -11,6 +11,10 @@ import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.LinearLayout;
+import android.widget.FrameLayout;
+import android.widget.Space;
+import android.view.Gravity;
+import android.view.ViewGroup;
 
 /** Shared flat e-ink window styling, including the window's Material shadow. */
 final class NotebookUi {
@@ -38,6 +42,31 @@ final class NotebookUi {
         background.setStroke(Math.max(1, Math.round(density)), 0xff999999); background.setCornerRadius(1000*density);
         result.setBackground(background); result.setStateListAnimator(null); result.setElevation(0f);
         return result;
+    }
+
+    /** Reserve header space, but place the status at the same screen corner as the editor. */
+    static View pinStatus(View content, View island) {
+        if (!(island.getParent() instanceof ViewGroup)) return content;
+        Context context = content.getContext();
+        int margin = Math.round(8 * context.getResources().getDisplayMetrics().density);
+        island.measure(View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+        ViewGroup parent = (ViewGroup) island.getParent();
+        int index = parent.indexOfChild(island);
+        ViewGroup.LayoutParams reserved = island.getLayoutParams();
+        reserved.width = island.getMeasuredWidth();
+        if (reserved instanceof ViewGroup.MarginLayoutParams) {
+            ViewGroup.MarginLayoutParams spacing = (ViewGroup.MarginLayoutParams) reserved;
+            spacing.setMarginStart(Math.max(spacing.getMarginStart(), margin));
+        }
+        parent.removeViewAt(index);
+        parent.addView(new Space(context), index, reserved);
+        FrameLayout frame = new FrameLayout(context);
+        frame.addView(content, new FrameLayout.LayoutParams(-1, -1));
+        FrameLayout.LayoutParams corner = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.RIGHT);
+        corner.topMargin = margin; corner.rightMargin = margin;
+        frame.addView(island, corner);
+        return frame;
     }
 
     static void action(NotebookButton button, NotebookIconDrawable.Icon icon) {

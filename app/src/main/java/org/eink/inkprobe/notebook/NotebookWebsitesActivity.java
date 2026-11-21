@@ -12,7 +12,7 @@ import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.BaseAdapter;
 import android.widget.LinearLayout;
-import android.widget.ListView;
+import android.widget.GridView;
 import android.widget.TextView;
 import java.text.DateFormat;
 import java.util.ArrayList;
@@ -24,12 +24,15 @@ public final class NotebookWebsitesActivity extends NotebookDisplayActivity {
     private final List<NotebookWebsites.Saved> entries = new ArrayList<>();
     private final WebsiteAdapter adapter = new WebsiteAdapter();
     private TextView status;
-    private boolean active, busy;
+    private GridView grid;
+    private NotebookButton presentation;
+    private boolean active, busy, thumbnails;
     private int generation;
     private AlertDialog shownDialog;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        thumbnails = NotebookCollectionLayout.thumbnails(this, "websites");
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN); getWindow().setWindowAnimations(0);
         LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Color.WHITE); root.setPadding(dp(18), dp(10), dp(18), dp(10));
@@ -42,19 +45,33 @@ public final class NotebookWebsitesActivity extends NotebookDisplayActivity {
             if (!active || busy) return;
             startActivity(new Intent(this, NotebookBrowserActivity.class)); overridePendingTransition(0, 0);
         });
-        root.addView(browser, new LinearLayout.LayoutParams(dp(160), dp(42)));
+        LinearLayout actions = new LinearLayout(this); actions.setGravity(Gravity.CENTER_VERTICAL);
+        actions.addView(browser, new LinearLayout.LayoutParams(dp(160), dp(42)));
+        actions.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1));
+        presentation = button("", NotebookIconDrawable.Icon.OVERVIEW, () -> {
+            thumbnails = !thumbnails; NotebookCollectionLayout.setThumbnails(this, "websites", thumbnails); updatePresentation();
+        });
+        actions.addView(presentation, new LinearLayout.LayoutParams(dp(44), dp(42))); root.addView(actions);
         status = label("Opening Saved websites…", 12); status.setMaxLines(2);
-        root.addView(status, new LinearLayout.LayoutParams(-1, dp(48)));
-        ListView list = new ListView(this); list.setBackgroundColor(Color.WHITE); list.setOverScrollMode(View.OVER_SCROLL_NEVER);
-        list.setId(android.R.id.list);
-        list.setDividerHeight(dp(8)); list.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
-        list.setAdapter(adapter); list.setOnItemClickListener((parent, view, position, id) -> open(entries.get(position)));
+        root.addView(status, new LinearLayout.LayoutParams(-1, dp(30)));
+        grid = new GridView(this); grid.setBackgroundColor(Color.WHITE); grid.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        grid.setId(android.R.id.list); grid.setStretchMode(GridView.STRETCH_COLUMN_WIDTH);
+        grid.setHorizontalSpacing(dp(8)); grid.setVerticalSpacing(dp(8));
+        grid.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+        grid.setAdapter(adapter); grid.setOnItemClickListener((parent, view, position, id) -> open(entries.get(position)));
         TextView empty = label("No saved websites yet.\n\nOpen Browser from the bookshelf, visit a page and tap Save.\nYour saved pages will be available here without Wi-Fi.", 17);
         empty.setGravity(Gravity.CENTER); empty.setPadding(dp(24), dp(24), dp(24), dp(24));
         android.widget.FrameLayout body = new android.widget.FrameLayout(this);
-        body.addView(list, new android.widget.FrameLayout.LayoutParams(-1, -1));
-        body.addView(empty, new android.widget.FrameLayout.LayoutParams(-1, -1)); list.setEmptyView(empty);
-        root.addView(body, new LinearLayout.LayoutParams(-1, 0, 1)); setContentView(root);
+        body.addView(grid, new android.widget.FrameLayout.LayoutParams(-1, -1));
+        body.addView(empty, new android.widget.FrameLayout.LayoutParams(-1, -1)); grid.setEmptyView(empty);
+        root.addView(body, new LinearLayout.LayoutParams(-1, 0, 1)); setContentView(root); updatePresentation();
+    }
+
+    private void updatePresentation() {
+        grid.setNumColumns(NotebookCollectionLayout.columns(this, thumbnails));
+        String label = thumbnails ? "Show saved websites as list" : "Show saved website thumbnails";
+        NotebookUi.action(presentation, thumbnails ? NotebookIconDrawable.Icon.OUTLINE : NotebookIconDrawable.Icon.OVERVIEW);
+        presentation.setContentDescription(label); presentation.setTooltipText(label); adapter.notifyDataSetChanged();
     }
 
     @Override protected void onResume() { super.onResume(); active = true; refresh(); }
@@ -113,6 +130,7 @@ public final class NotebookWebsitesActivity extends NotebookDisplayActivity {
         @Override public long getItemId(int position) { return position; }
         @Override public View getView(int position, View recycled, ViewGroup parent) {
             NotebookWebsites.Saved entry = entries.get(position);
+            if (thumbnails) return thumbnail(entry);
             LinearLayout row = new LinearLayout(NotebookWebsitesActivity.this); row.setGravity(Gravity.CENTER_VERTICAL);
             row.setPadding(dp(12), dp(9), dp(7), dp(9)); row.setBackground(NotebookUi.rounded(getResources().getDisplayMetrics().density, 7));
             LinearLayout info = new LinearLayout(NotebookWebsitesActivity.this); info.setOrientation(LinearLayout.VERTICAL);
@@ -124,6 +142,21 @@ public final class NotebookWebsitesActivity extends NotebookDisplayActivity {
             row.addView(info, new LinearLayout.LayoutParams(0, -2, 1));
             NotebookButton delete = button("", NotebookIconDrawable.Icon.DELETE, () -> confirmDelete(entry)); delete.setContentDescription("Delete saved website " + entry.title);
             row.addView(delete, new LinearLayout.LayoutParams(dp(44), dp(42))); return row;
+        }
+
+        private View thumbnail(NotebookWebsites.Saved entry) {
+            LinearLayout card = new LinearLayout(NotebookWebsitesActivity.this); card.setOrientation(LinearLayout.VERTICAL);
+            card.setPadding(dp(7), dp(7), dp(7), dp(7)); card.setBackground(NotebookUi.rounded(getResources().getDisplayMetrics().density, 7));
+            card.setOnClickListener(view -> open(entry)); card.setContentDescription("Read offline: " + entry.title);
+            card.addView(new NotebookBrowserPreview(NotebookWebsitesActivity.this, entry.url, false), new LinearLayout.LayoutParams(-1, -2));
+            LinearLayout footer = new LinearLayout(NotebookWebsitesActivity.this); footer.setGravity(Gravity.CENTER_VERTICAL);
+            TextView name = label(entry.title, 14); name.setMaxLines(2); name.setEllipsize(TextUtils.TruncateAt.END);
+            footer.addView(name, new LinearLayout.LayoutParams(0, dp(48), 1));
+            NotebookButton delete = button("", NotebookIconDrawable.Icon.DELETE, () -> confirmDelete(entry));
+            delete.setContentDescription("Delete saved website " + entry.title); footer.addView(delete, new LinearLayout.LayoutParams(dp(40), dp(40)));
+            card.addView(footer);
+            TextView host = label(NotebookBrowserLibrary.host(entry.url), 11); host.setSingleLine(true); host.setEllipsize(TextUtils.TruncateAt.END);
+            card.addView(host, new LinearLayout.LayoutParams(-1, dp(20))); return card;
         }
     }
 

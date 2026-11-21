@@ -7,6 +7,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.LinearLayout;
+import android.widget.FrameLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import java.util.EnumMap;
@@ -35,14 +36,6 @@ public final class NotebookSettingsActivity extends NotebookDisplayActivity {
         scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
         LinearLayout body = column();
 
-        section(body, "Screen cast");
-        body.addView(button("Screen cast to a browser…", () -> {
-            startActivity(new android.content.Intent(this, NotebookCastActivity.class)); overridePendingTransition(0, 0);
-        }), new LinearLayout.LayoutParams(-1, dp(40)));
-        hint(body, "Share Scriflow on the same Wi-Fi with a password. Open the tablet's address on your Mac, phone or tablet.");
-
-        aiSettings=new NotebookAiSettingsSection(this, body);
-
         section(body, "Text size");
         textSizeRow(body, "AI chat replies", true);
         textSizeRow(body, "Markdown blocks", false);
@@ -54,7 +47,11 @@ public final class NotebookSettingsActivity extends NotebookDisplayActivity {
             NotebookButton choice = button("", () -> {
                 NotebookSettings.setOrientation(this, orientation); refreshDisplayOrientation(); updateChoices();
             });
-            choices.put(orientation, choice); orientationRow.addView(choice, new LinearLayout.LayoutParams(0, dp(36), 1));
+            choices.put(orientation, choice);
+            int choiceWidth = Math.min(148, Math.max(65, (getResources().getConfiguration().screenWidthDp - 52) / 3));
+            LinearLayout.LayoutParams size = new LinearLayout.LayoutParams(dp(choiceWidth), dp(40));
+            if (orientationRow.getChildCount() > 0) size.setMarginStart(dp(8));
+            orientationRow.addView(choice, size);
         }
         body.addView(orientationRow);
         hint(body, canUseOrientationSensor() ? "Sensor mode keeps the current direction when flat and waits until writing ends."
@@ -64,7 +61,11 @@ public final class NotebookSettingsActivity extends NotebookDisplayActivity {
         LinearLayout viewRow = row();
         for (NotebookSettings.BookshelfView view : NotebookSettings.BookshelfView.values()) {
             NotebookButton choice = button("", () -> { NotebookSettings.setBookshelfView(this, view); updateChoices(); });
-            shelfChoices.put(view, choice); viewRow.addView(choice, new LinearLayout.LayoutParams(0, dp(34), 1));
+            shelfChoices.put(view, choice);
+            int choiceWidth = Math.min(148, Math.max(90, (getResources().getConfiguration().screenWidthDp - 44) / 2));
+            LinearLayout.LayoutParams size = new LinearLayout.LayoutParams(dp(choiceWidth), dp(40));
+            if (viewRow.getChildCount() > 0) size.setMarginStart(dp(8));
+            viewRow.addView(choice, size);
         }
         body.addView(viewRow);
         hint(body, "List: one column in portrait, two in landscape. Thumbnail grid: choose rows and columns per screen.");
@@ -84,25 +85,39 @@ public final class NotebookSettingsActivity extends NotebookDisplayActivity {
         screenChoice = button("", () -> {
             NotebookSettings.setKeepScreenOn(this, !NotebookSettings.keepScreenOn(this)); refreshScreenOn(); updateChoices();
         });
-        body.addView(screenChoice, new LinearLayout.LayoutParams(-1, dp(34)));
+        body.addView(screenChoice, new LinearLayout.LayoutParams(-2, dp(40)));
         hint(body, "Keep the screen on while Scriflow is open. The cover, Power button, and system sleep remain in control.");
 
         section(body, "Touch gestures");
         pinchChoice = button("", () -> {
             NotebookSettings.setPinchZoomEnabled(this, !NotebookSettings.pinchZoomEnabled(this)); updateChoices();
         });
-        body.addView(pinchChoice, new LinearLayout.LayoutParams(-1, dp(34)));
+        body.addView(pinchChoice, new LinearLayout.LayoutParams(-2, dp(40)));
         hint(body, "Lift the pen away before using two fingers. Zoom presets also work when pinch zoom is off.");
 
         section(body, "Pen width when zooming");
         for (NotebookPenConfig.WidthMode mode : NotebookPenConfig.WidthMode.values()) {
             NotebookButton choice = button("", () -> { NotebookSettings.setPenWidthMode(this, mode); updateChoices(); });
-            widthChoices.put(mode, choice); body.addView(choice, new LinearLayout.LayoutParams(-1, dp(32)));
+            widthChoices.put(mode, choice); body.addView(choice, new LinearLayout.LayoutParams(-2, dp(40)));
             hint(body, mode == NotebookPenConfig.WidthMode.PAGE
                 ? "Fits the nib to the page. Native pressure response may vary with zoom."
                 : "Keeps the nib's screen width while writing. Saved strokes scale with the page.");
         }
-        scroll.addView(body); root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        section(body, "Screen cast");
+        body.addView(button("Screen cast to a browser…", () -> {
+            startActivity(new android.content.Intent(this, NotebookCastActivity.class)); overridePendingTransition(0, 0);
+        }), new LinearLayout.LayoutParams(-2, dp(40)));
+        hint(body, "Share Scriflow on the same Wi-Fi with a password. Open the tablet's address on your Mac, phone or tablet.");
+
+        aiSettings = new NotebookAiSettingsSection(this, body);
+        FrameLayout centered = new FrameLayout(this);
+        centered.addView(body, new FrameLayout.LayoutParams(-1, -2, Gravity.TOP | Gravity.CENTER_HORIZONTAL));
+        scroll.addView(centered);
+        scroll.addOnLayoutChangeListener((view, l, t, r, b, ol, ot, or, ob) -> {
+            int width = Math.min(Math.max(1, r - l), dp(760));
+            if (body.getLayoutParams().width != width) { body.getLayoutParams().width = width; body.requestLayout(); }
+        });
+        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(root); updateChoices();
     }
 
@@ -193,13 +208,12 @@ public final class NotebookSettingsActivity extends NotebookDisplayActivity {
     }
     private void section(LinearLayout body, String text) {
         TextView heading = label(text, 14); heading.setTypeface(null, Typeface.BOLD);
-        heading.setPadding(dp(10), dp(3), dp(10), dp(3));
-        heading.setBackground(NotebookUi.rounded(getResources().getDisplayMetrics().density, 5));
-        LinearLayout.LayoutParams space = new LinearLayout.LayoutParams(-1, dp(34));
-        space.setMargins(0, dp(14), 0, dp(6)); body.addView(heading, space);
+        heading.setTextSize(16);
+        LinearLayout.LayoutParams space = new LinearLayout.LayoutParams(-1, dp(32));
+        space.setMargins(0, dp(20), 0, dp(8)); body.addView(heading, space);
     }
     private void hint(LinearLayout body, String text) {
-        TextView hint = label(text, 12); hint.setPadding(0, dp(2), 0, dp(5)); body.addView(hint);
+        TextView hint = label(text, 12); hint.setTextColor(0xff555555); hint.setPadding(0, dp(6), 0, dp(10)); body.addView(hint);
     }
     private LinearLayout column() {
         LinearLayout layout = new LinearLayout(this); layout.setOrientation(LinearLayout.VERTICAL);

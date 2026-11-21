@@ -59,7 +59,7 @@ saving cancels that attempt; storage, size-limit and connection failures are
 reported as capture errors rather than asking you to wait for rendering again.
 
 Each fresh entry from the bookshelf opens the native start page with pinned
-websites. Existing website tabs remain available in Tabs; they do not load until
+websites and currently open tabs. Existing website tabs do not load until
 you select them. A direct Open online link still opens its requested address,
 and screen recreation keeps the current page. The start page never fetches
 websites or favicons. Live pages use the engine's
@@ -89,7 +89,8 @@ network access, and touching the page takes priority over a pending restoration.
 ## Start page, bookmarks and collections
 
 The start page has a **Search or enter a website** field, pinned shortcuts,
-an **Add shortcut** tile and a row of icons for Bookmarks, History, Tabs and Browser data.
+open tabs, and icons for Bookmarks, History, Tabs, New tab, Saved websites,
+Add shortcut, Browser data and Bookshelf. The icons wrap on narrower screens.
 Wikipedia and GitHub are initial shortcuts; removing them is remembered.
 Hold a shortcut to edit, unpin or move it earlier/later. Up to 32 shortcuts can
 be pinned. **Home** returns to this page without discarding the current website.
@@ -98,10 +99,16 @@ The tab picker stays open as you close tabs in either list or thumbnail view,
 updates its count/selection and preserves its scroll position. Tap Done or select
 a tab when finished.
 
-Use the **grid/list icon** beside Pinned websites to choose thumbnails or a list.
-Bookmarks has its own switch beside the collection controls, and Tabs has one
-beside the plus button. Each view remembers its choice independently. Preview
-cards retain separate menu/close buttons and the selected-tab marker.
+Use the **grid/list icons** beside Pinned websites and Open tabs to choose
+thumbnails or a list independently. Open or close a tab directly from Home;
+closing the selected tab keeps Home visible. Bookmarks and the tab picker have
+their own switches. Each view remembers its choice independently. Preview cards
+retain separate menu/close buttons and the selected-tab marker.
+
+Saved websites also offers list and thumbnail views, with one list column in
+portrait and two in landscape. Its thumbnails use the browser's local preview
+for the same address when available; that preview can reflect a later visit than
+the offline copy. Missing previews show a placeholder without a network request.
 
 Previews are monochrome 4:3 images of pages already opened in the browser. A site
 without a preview has a local placeholder; browsing a library never opens sites

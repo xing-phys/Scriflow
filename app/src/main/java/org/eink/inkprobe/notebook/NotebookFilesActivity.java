@@ -25,7 +25,7 @@ import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
-import android.widget.ListView;
+import android.widget.GridView;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.io.File;
@@ -42,10 +42,10 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
     private TextView path, status, empty, selectedCount, clipboardCount;
     private EditText search;
     private LinearLayout selectionBar, clipboardBar, accessPanel;
-    private NotebookButton up, stop;
-    private ListView list;
+    private NotebookButton up, stop, presentation;
+    private GridView list;
     private AlertDialog dialog;
-    private boolean resumed, renderingBusy, renderingAccess;
+    private boolean resumed, renderingBusy, renderingAccess, thumbnails;
     private final List<Row> rows = new ArrayList<>();
     private final FileAdapter adapter = new FileAdapter();
 
@@ -60,6 +60,7 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
+        thumbnails = NotebookCollectionLayout.thumbnails(this, "files");
         Object retained = getLastNonConfigurationInstance();
         job = retained instanceof NotebookFilesJob ? (NotebookFilesJob) retained : new NotebookFilesJob(this);
         if (!(retained instanceof NotebookFilesJob) && saved != null) {
@@ -86,12 +87,17 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
         LinearLayout navigation = row();
         up = icon("Parent folder", NotebookIconDrawable.Icon.PREVIOUS, this::parent);
         navigation.addView(up, new LinearLayout.LayoutParams(dp(44), dp(42)));
-        navigation.addView(icon("Storage locations", NotebookIconDrawable.Icon.HOME, () -> navigate(null)), new LinearLayout.LayoutParams(dp(44), dp(42)));
+        navigation.addView(icon("Storage locations", NotebookIconDrawable.Icon.HOME, () -> navigate(null)), spaced(44, 42));
         path = label("Storage locations", 14); path.setSingleLine(true); path.setEllipsize(TextUtils.TruncateAt.MIDDLE);
         path.setPadding(dp(8), 0, dp(8), 0); path.setOnClickListener(v -> ancestors());
         path.setContentDescription("Current folder. Tap to navigate to a parent folder.");
         navigation.addView(path, new LinearLayout.LayoutParams(0, dp(44), 1));
-        navigation.addView(icon("File options", NotebookIconDrawable.Icon.MORE, this::options), new LinearLayout.LayoutParams(dp(44), dp(42)));
+        presentation = icon("Show file thumbnails", NotebookIconDrawable.Icon.OVERVIEW, () -> {
+            if (!ready()) return;
+            thumbnails = !thumbnails; NotebookCollectionLayout.setThumbnails(this, "files", thumbnails); render();
+        });
+        navigation.addView(presentation, spaced(44, 42));
+        navigation.addView(icon("File options", NotebookIconDrawable.Icon.MORE, this::options), spaced(44, 42));
         root.addView(navigation);
 
         LinearLayout find = row(); search = new EditText(this); search.setTextSize(14); search.setSingleLine(true);
@@ -101,21 +107,21 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
         search.setText(saved == null ? job.query : saved.getString("searchDraft", job.query));
         search.setOnEditorActionListener((view, action, event) -> { if (action == EditorInfo.IME_ACTION_SEARCH) { find(); return true; } return false; });
         find.addView(search, new LinearLayout.LayoutParams(0, dp(46), 1));
-        find.addView(icon("Search files", NotebookIconDrawable.Icon.SEARCH, this::find), new LinearLayout.LayoutParams(dp(44), dp(42)));
-        find.addView(icon("Clear search", NotebookIconDrawable.Icon.CLOSE, () -> { if (ready()) { search.setText(""); job.query = ""; job.refresh(); } }), new LinearLayout.LayoutParams(dp(44), dp(42)));
+        find.addView(icon("Search files", NotebookIconDrawable.Icon.SEARCH, this::find), spaced(44, 42));
+        find.addView(icon("Clear search", NotebookIconDrawable.Icon.CLOSE, () -> { if (ready()) { search.setText(""); job.query = ""; job.refresh(); } }), spaced(44, 42));
         root.addView(find);
 
         selectionBar = row(); selectedCount = label("", 13);
         selectionBar.addView(selectedCount, new LinearLayout.LayoutParams(0, dp(42), 1));
-        selectionBar.addView(button("Select all", null, this::selectAll), new LinearLayout.LayoutParams(dp(92), dp(42)));
-        selectionBar.addView(button("Actions", null, this::selectionActions), new LinearLayout.LayoutParams(dp(84), dp(42)));
-        selectionBar.addView(button("Cancel", null, () -> { if (ready()) { job.selecting = false; job.selected.clear(); render(); } }), new LinearLayout.LayoutParams(dp(78), dp(42)));
+        selectionBar.addView(button("Select all", null, this::selectAll), spaced(92, 42));
+        selectionBar.addView(button("Actions", null, this::selectionActions), spaced(84, 42));
+        selectionBar.addView(button("Cancel", null, () -> { if (ready()) { job.selecting = false; job.selected.clear(); render(); } }), spaced(78, 42));
         root.addView(selectionBar);
 
         clipboardBar = row(); clipboardCount = label("", 13);
         clipboardBar.addView(clipboardCount, new LinearLayout.LayoutParams(0, dp(44), 1));
-        clipboardBar.addView(button("Paste here", NotebookIconDrawable.Icon.PASTE, this::paste), new LinearLayout.LayoutParams(dp(116), dp(42)));
-        clipboardBar.addView(button("Cancel", null, () -> { if (ready()) { job.clipboard.clear(); render(); } }), new LinearLayout.LayoutParams(dp(78), dp(42)));
+        clipboardBar.addView(button("Paste here", NotebookIconDrawable.Icon.PASTE, this::paste), spaced(116, 42));
+        clipboardBar.addView(button("Cancel", null, () -> { if (ready()) { job.clipboard.clear(); render(); } }), spaced(78, 42));
         root.addView(clipboardBar);
 
         accessPanel = new LinearLayout(this); accessPanel.setOrientation(LinearLayout.VERTICAL); accessPanel.setPadding(dp(16), dp(16), dp(16), dp(16));
@@ -124,9 +130,10 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
         root.addView(accessPanel);
 
         FrameLayout body = new FrameLayout(this);
-        list = new ListView(this); list.setId(android.R.id.list); list.setBackgroundColor(Color.WHITE);
+        list = new GridView(this); list.setId(android.R.id.list); list.setBackgroundColor(Color.WHITE);
+        list.setStretchMode(GridView.STRETCH_COLUMN_WIDTH); list.setHorizontalSpacing(dp(8)); list.setVerticalSpacing(dp(8));
         list.setOverScrollMode(View.OVER_SCROLL_NEVER); list.setScrollingCacheEnabled(false);
-        list.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)); list.setDividerHeight(dp(5));
+        list.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
         list.setAdapter(adapter); list.setOnItemClickListener((parent, view, position, id) -> open(rows.get(position)));
         list.setOnItemLongClickListener((parent, view, position, id) -> { toggle(rows.get(position)); return true; });
         empty = label("", 16); empty.setGravity(Gravity.CENTER); empty.setPadding(dp(24), dp(24), dp(24), dp(24));
@@ -170,6 +177,10 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
             return;
         }
         renderingBusy = job.busy; renderingAccess = access;
+        list.setNumColumns(NotebookCollectionLayout.columns(this, thumbnails));
+        String presentationLabel = thumbnails ? "Show files as list" : "Show file thumbnails";
+        NotebookUi.action(presentation, thumbnails ? NotebookIconDrawable.Icon.OUTLINE : NotebookIconDrawable.Icon.OVERVIEW);
+        presentation.setContentDescription(presentationLabel); presentation.setTooltipText(presentationLabel);
         accessPanel.setVisibility(access ? View.GONE : View.VISIBLE);
         selectionBar.setVisibility(access && job.selecting ? View.VISIBLE : View.GONE);
         clipboardBar.setVisibility(access && !job.clipboard.isEmpty() ? View.VISIBLE : View.GONE);
@@ -436,6 +447,7 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
         @Override public Object getItem(int position) { return rows.get(position); }
         @Override public long getItemId(int position) { return position; }
         @Override public View getView(int position, View recycled, ViewGroup parent) {
+            if (thumbnails) return thumbnail(rows.get(position));
             Row item = rows.get(position); LinearLayout row = row();
             row.setPadding(dp(8), dp(6), dp(6), dp(6)); row.setMinimumHeight(dp(66));
             row.setBackground(NotebookUi.rounded(getResources().getDisplayMetrics().density, 6));
@@ -454,6 +466,28 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
             row.addView(info, new LinearLayout.LayoutParams(0, -2, 1));
             if (!item.root) row.addView(icon("Actions for " + item.title, NotebookIconDrawable.Icon.MORE, () -> fileActions(item)), new LinearLayout.LayoutParams(dp(44), dp(44)));
             return row;
+        }
+
+        private View thumbnail(Row item) {
+            LinearLayout card = new LinearLayout(NotebookFilesActivity.this); card.setOrientation(LinearLayout.VERTICAL);
+            card.setPadding(dp(7), dp(7), dp(7), dp(7));
+            card.setBackground(NotebookUi.rounded(getResources().getDisplayMetrics().density, 7));
+            card.setOnClickListener(v -> open(item)); card.setOnLongClickListener(v -> { toggle(item); return true; });
+            card.addView(new NotebookFileThumbnail(NotebookFilesActivity.this, item.file, item.directory), new LinearLayout.LayoutParams(-1, dp(108)));
+            LinearLayout footer = row();
+            if (job.selecting && !item.root) {
+                CheckBox check = new CheckBox(NotebookFilesActivity.this); check.setChecked(job.selected.contains(item.file.getAbsolutePath()));
+                check.setButtonTintList(android.content.res.ColorStateList.valueOf(Color.BLACK));
+                check.setContentDescription("Select " + item.title); check.setOnClickListener(v -> toggle(item));
+                footer.addView(check, new LinearLayout.LayoutParams(dp(40), dp(44)));
+            }
+            TextView name = label(item.title, 14); name.setMaxLines(2); name.setEllipsize(TextUtils.TruncateAt.END);
+            name.setOnClickListener(v -> open(item)); name.setOnLongClickListener(v -> { toggle(item); return true; });
+            footer.addView(name, new LinearLayout.LayoutParams(0, dp(48), 1));
+            if (!item.root) footer.addView(icon("Actions for " + item.title, NotebookIconDrawable.Icon.MORE, () -> fileActions(item)), new LinearLayout.LayoutParams(dp(40), dp(40)));
+            card.addView(footer);
+            TextView detail = label(item.detail, 11); detail.setSingleLine(true); detail.setEllipsize(TextUtils.TruncateAt.END);
+            card.addView(detail, new LinearLayout.LayoutParams(-1, dp(20))); return card;
         }
     }
     private void bookshelf() {
@@ -474,6 +508,9 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
         if (dialog != null) dialog.dismiss(); dialog = value; NotebookUi.show(value);
     }
     private LinearLayout row() { LinearLayout view = new LinearLayout(this); view.setGravity(Gravity.CENTER_VERTICAL); return view; }
+    private LinearLayout.LayoutParams spaced(int width, int height) {
+        LinearLayout.LayoutParams size = new LinearLayout.LayoutParams(dp(width), dp(height)); size.setMarginStart(dp(6)); return size;
+    }
     private NotebookButton icon(String description, NotebookIconDrawable.Icon icon, Runnable action) {
         NotebookButton view = button("", icon, action); view.setContentDescription(description); view.setTooltipText(description); return view;
     }
