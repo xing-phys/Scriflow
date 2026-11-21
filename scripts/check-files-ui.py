@@ -117,6 +117,7 @@ try:
     tap('Allow storage access')
     permission('permission_allow_button')
     tap('Internal storage')
+    tap('Search files')
     enter(token)
     tap('Search files')
     tap(token)

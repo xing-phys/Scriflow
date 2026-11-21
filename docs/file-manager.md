@@ -14,7 +14,9 @@ Android app settings so it can be enabled there.
   folders. A read-only drive can be browsed; Android rejects changes to it.
 - Tap a folder to open it. The left arrow goes up; tap the current path to jump
   to an ancestor. Android Back clears selection/search before going up.
-- Search matches names, ignoring case, in the current folder and its
+- Tap the search icon to replace the navigation controls with a search field;
+  submit with the search icon or keyboard, and use the close icon to return to
+  browsing. Search matches names, ignoring case, in the current folder and its
   subfolders. Searching from storage home searches internal storage. Hidden
   entries are omitted unless **Show hidden files** is enabled under **⋮**.
 - Use the grid/list icon next to **⋮** to switch between a compact list and
@@ -22,8 +24,10 @@ Android app settings so it can be enabled there.
   the choice persists when you rotate or reopen Files.
 - Thumbnail cards show locally decoded previews for readable PNG, JPEG, WebP,
   GIF, BMP and PDF files up to 128 MiB. Other files, folders and previews that
-  cannot be decoded use a type icon. Previews are held only in a bounded memory
-  cache and do not contact the network.
+  cannot be decoded use a type icon. Folder icons and short file-type badges
+  distinguish formats such as PDF and EPUB in both views, including on top of
+  generated previews. Previews are held only in a bounded memory cache and do
+  not contact the network.
 - **⋮ → Sort by…** offers name, newest, largest, and file type, with folders
   first. **Refresh** reloads files changed by another app or a reconnected drive.
 - Search stops at 1,000 matches or 50,000 examined entries; a folder listing
@@ -34,10 +38,10 @@ Android app settings so it can be enabled there.
 
 Each entry's **⋮** menu offers Copy, Move, Rename, Delete, Details and Select.
 Files also offer Open, Open with, and Share. Hold an entry for multi-selection;
-then use Select all and Actions. Select all applies to the displayed results.
+then use the select-all and actions icons. Select all applies to the displayed results.
 
 For **Copy** or **Move**, browse to a destination, clear any search, and tap
-**Paste here**. Folders include their hidden contents. A name conflict stops
+the **Paste here** icon. Folders include their hidden contents. A name conflict stops
 the batch before copying any items; rename the conflicting entry or choose a
 different folder. Files are never deliberately replaced or merged. Overlapping
 selections (a folder and its child) are handled once. Storage roots cannot be
@@ -59,8 +63,10 @@ and cannot be undone. It does **not** use the bookshelf's notebook Trash.
 Cancellation or an access error can leave a partially deleted folder; inspect
 the remaining contents before retrying.
 
-Tap a PDF to import and open an independent notebook copy in Scriflow. Other
-files use Android's Open with chooser. Share supports up to 100 individual files;
+Tap a PDF to import and open an independent notebook copy in Scriflow. Supported
+ebooks open in Scriflow's book reader. Other files use Android's Open with chooser.
+The bookshelf import shortcuts also use Android's document picker, which can
+offer installed document providers beyond shared tablet storage. Share supports up to 100 individual files;
 directory sharing and archive creation/extraction are not included. Installed
 apps can handle additional file types. Open/share uses temporary, read-only
 Android content-URI grants for the selected files, without exposing app-private

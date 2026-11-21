@@ -6,6 +6,16 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.45.0-alpha.2 — File manager controls and types (2026-11-21)
+
+- Center the file manager's icon-only controls and use icons for routine
+  navigation, selection, clipboard and cancellation actions.
+- Open search within the navigation row only when requested. Hide routine
+  item-count instructions while retaining progress, errors and listing limits.
+- Distinguish folders and file formats with high-contrast type badges in both
+  list and thumbnail views, including on top of image and PDF previews.
+- VersionCode 122. Physical MatePad touch and e-ink appearance remain pending.
+
 ## 0.45.0-alpha.1 — Collections and browser home (2026-11-21)
 
 - Give Settings compact, spaced controls and clearer sections. Align the

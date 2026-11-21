@@ -130,6 +130,7 @@ with tempfile.TemporaryDirectory(prefix='scriflow-collection-') as temporary:
         local.write_text('fixture'); adb('push', str(local), FIXTURE + '/b-note.txt')
         pdf = Path(temporary) / 'c-paper.pdf'; Image.new('RGB', (200, 100), (0, 0, 0)).save(pdf, 'PDF')
         adb('push', str(pdf), FIXTURE + '/c-paper.pdf')
+        local.write_text('fixture'); adb('push', str(local), FIXTURE + '/d-book.epub')
         for i, identity in enumerate(saved_ids):
             title = TOKEN + (' A' if i == 0 else ' B')
             html = b'<!doctype html><!-- saved by scriflow --><html><body>Offline fixture</body></html>'
@@ -143,12 +144,58 @@ with tempfile.TemporaryDirectory(prefix='scriflow-collection-') as temporary:
         locate(named('Files')); choose_orientation('Portrait'); locate(named('Files'))
         shelf_status = status(); tap(named('Files')); locate(named('Files'))
         check(status() == shelf_status, 'Bookshelf and Files use the same top-right status position')
+        root = tree()
+        check(any(named('Folder')(n) for n in root.iter('node')), 'Storage locations use folder icons')
+        check(not any(n.get('class') == 'android.widget.EditText' for n in root.iter('node')),
+              'The search field is hidden while browsing')
+        check(not any('items · Hold to select' in n.get('text', '') or n.get('text') == 'Choose storage or a common folder'
+                      for n in root.iter('node')), 'The normal file view has no instructional footer')
+        screenshot = Image.open(io.BytesIO(adb('exec-out', 'screencap', '-p'))).convert('RGB')
+        screenshot.save('build/file-manager-polish-controls.png')
+        controls = ('Bookshelf', 'Parent folder', 'Storage locations', 'Search files', 'File options')
+        centered = True
+        for control in controls:
+            node = next(n for n in root.iter('node') if named(control)(n))
+            x1, y1, x2, y2 = bounds(node); inset = min(x2 - x1, y2 - y1) // 6
+            points = [(x, y) for y in range(y1 + inset, y2 - inset) for x in range(x1 + inset, x2 - inset)
+                      if max(screenshot.getpixel((x, y))) < 96]
+            if not points: centered = False; continue
+            center_x = (min(p[0] for p in points) + max(p[0] for p in points)) / 2
+            center_y = (min(p[1] for p in points) + max(p[1] for p in points)) / 2
+            if abs(center_x - (x1 + x2) / 2) > 5 or abs(center_y - (y1 + y2) / 2) > 5: centered = False
+        check(centered, 'Icon-only file-manager controls draw their symbols at the button center')
+        search_button = bounds(locate(named('Search files'))[1]); tap(named('Search files'))
+        search_field = bounds(locate(named('Search files by name'))[1])
+        check(abs((search_field[1] + search_field[3]) - (search_button[1] + search_button[3])) <= 4,
+              'Search opens in the existing navigation row')
+        shell('input', 'text', 'draft')
+        choose_orientation('Landscape')
+        _, draft = locate(named('Search files by name'))
+        check(draft.get('text') == 'draft', 'An unsubmitted search survives rotation')
+        choose_orientation('Portrait'); locate(named('Search files by name'))
+        tap(named('Close search'))
+        check(not any(n.get('class') == 'android.widget.EditText' for n in tree().iter('node')),
+              'Closing search returns to the compact toolbar')
         tap(named('Downloads')); tap(named(TOKEN)); locate(named('a-image.png'))
         root = tree()
         if any(named('Show files as list')(n) for n in root.iter('node')): tap(named('Show files as list'))
+        locate(named('PNG file')); locate(named('PDF file')); locate(named('EPUB file'))
+        check(True, 'List icons distinguish image, PDF and EPUB files')
+        tap(named('Search files')); shell('input', 'text', 'a-image'); tap(named('Search files'))
+        filtered = False
+        for _ in range(15):
+            found = list(tree().iter('node'))
+            if any(named('a-image.png')(n) for n in found) and not any(named('b-note.txt')(n) for n in found):
+                filtered = True; break
+            time.sleep(.2)
+        check(filtered, 'Search filters the current folder')
+        tap(named('Close search')); locate(named('b-note.txt'))
+        check(True, 'Closing search restores the unfiltered folder')
         a = bounds(locate(named('a-image.png'))[1]); b = bounds(locate(named('b-note.txt'))[1])
         check(a[1] < b[1], 'Portrait file list uses one column')
         tap(named('Show file thumbnails')); root, a_node = locate(named('a-image.png'))
+        locate(named('PNG file')); locate(named('PDF file')); locate(named('EPUB file'))
+        check(True, 'Thumbnail cards retain their file-type badges')
         a, b = bounds(a_node), bounds(locate(named('b-note.txt'))[1])
         check(a[0] < b[0] and a[1] == b[1], 'File thumbnails use a multi-column grid')
         parents = {child: parent for parent in root.iter() for child in parent}
@@ -166,7 +213,8 @@ with tempfile.TemporaryDirectory(prefix='scriflow-collection-') as temporary:
             time.sleep(.5)
         check('a-image.png' in shown, 'A local image displays actual thumbnail pixels')
         check('c-paper.pdf' in shown, 'A local PDF displays actual first-page thumbnail pixels')
-        tap(named('a-image.png'), hold=True); locate(named('1 selected')); tap(named('Cancel'))
+        screenshot.save('build/file-manager-polish-thumbnails.png')
+        tap(named('a-image.png'), hold=True); locate(named('1 selected')); tap(named('Cancel selection'))
         check(True, 'Thumbnail cards retain file selection')
         choose_orientation('Landscape'); locate(named('a-image.png'))
         check(any(named('Show files as list')(n) for n in tree().iter('node')), 'File thumbnail choice survives rotation')

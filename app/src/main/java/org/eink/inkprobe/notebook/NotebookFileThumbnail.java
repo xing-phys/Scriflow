@@ -19,10 +19,8 @@ import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.TextView;
 import java.io.File;
 import java.lang.ref.WeakReference;
-import java.util.Locale;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -37,6 +35,7 @@ final class NotebookFileThumbnail extends FrameLayout {
     };
     private final ImageView image;
     private final LinearLayout placeholder;
+    private final ImageView badge;
     private String bound;
 
     NotebookFileThumbnail(Context context, File file, boolean directory) {
@@ -47,15 +46,18 @@ final class NotebookFileThumbnail extends FrameLayout {
         addView(image, new LayoutParams(-1, -1));
         placeholder = new LinearLayout(context); placeholder.setOrientation(LinearLayout.VERTICAL); placeholder.setGravity(Gravity.CENTER);
         placeholder.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
-        ImageView icon = new ImageView(context); icon.setImageDrawable(new NotebookIconDrawable(directory ? NotebookIconDrawable.Icon.FOLDER : NotebookIconDrawable.Icon.READING));
-        placeholder.addView(icon, new LinearLayout.LayoutParams(dp(32), dp(32)));
-        TextView description = new TextView(context); description.setGravity(Gravity.CENTER); description.setTextColor(0xff555555); description.setTextSize(11);
-        String name = file.getName(); int dot = name.lastIndexOf('.');
-        description.setText(directory ? "Folder" : dot >= 0 && name.length() - dot <= 8 ? name.substring(dot + 1).toUpperCase(Locale.ROOT) : "File");
-        LinearLayout.LayoutParams textSpace = new LinearLayout.LayoutParams(-2, -2); textSpace.topMargin = dp(5); placeholder.addView(description, textSpace);
+        String name = file.getName();
+        setContentDescription(directory ? "Folder" : NotebookFileTypes.label(name) + " file");
+        ImageView icon = new ImageView(context); icon.setImageDrawable(new NotebookFileTypeDrawable(name, directory));
+        placeholder.addView(icon, new LinearLayout.LayoutParams(dp(48), dp(48)));
         addView(placeholder, new LayoutParams(-1, -1));
+        badge = new ImageView(context); badge.setImageDrawable(new NotebookFileTypeDrawable(name, false));
+        badge.setBackgroundColor(Color.WHITE); badge.setVisibility(View.GONE);
+        badge.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        LayoutParams badgeSpace = new LayoutParams(dp(32), dp(32), Gravity.TOP | Gravity.LEFT);
+        badgeSpace.setMargins(dp(4), dp(4), 0, 0); addView(badge, badgeSpace);
         if (directory || !file.isFile() || !file.canRead()) return;
-        String lower = name.toLowerCase(Locale.ROOT);
+        String lower = name.toLowerCase(java.util.Locale.ROOT);
         boolean pdf = lower.endsWith(".pdf");
         if (!pdf && !lower.matches(".*\\.(png|jpe?g|webp|gif|bmp)$")) return;
         bound = file.getAbsolutePath() + ":" + file.lastModified() + ":" + file.length();
@@ -73,7 +75,7 @@ final class NotebookFileThumbnail extends FrameLayout {
         });
     }
 
-    private void show(Bitmap bitmap) { image.setImageBitmap(bitmap); placeholder.setVisibility(View.GONE); }
+    private void show(Bitmap bitmap) { image.setImageBitmap(bitmap); placeholder.setVisibility(View.GONE); badge.setVisibility(View.VISIBLE); }
 
     private static Bitmap decode(File file, boolean pdf) {
         try {

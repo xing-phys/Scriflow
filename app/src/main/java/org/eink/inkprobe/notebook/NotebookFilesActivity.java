@@ -26,6 +26,7 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.GridView;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.io.File;
@@ -41,11 +42,12 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
     private NotebookFilesJob job;
     private TextView path, status, empty, selectedCount, clipboardCount;
     private EditText search;
-    private LinearLayout selectionBar, clipboardBar, accessPanel;
-    private NotebookButton up, stop, presentation;
+    private LinearLayout selectionBar, clipboardBar, accessPanel, footer;
+    private NotebookButton up, homeButton, optionsButton, searchAction, searchClose, stop;
+    private NotebookBrowserIconButton presentation;
     private GridView list;
     private AlertDialog dialog;
-    private boolean resumed, renderingBusy, renderingAccess, thumbnails;
+    private boolean resumed, renderingBusy, renderingAccess, thumbnails, searching;
     private final List<Row> rows = new ArrayList<>();
     private final FileAdapter adapter = new FileAdapter();
 
@@ -73,13 +75,14 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
             if (selected != null) java.util.Collections.addAll(job.selected, selected);
             if (clipboard != null) for (String item : clipboard) job.clipboard.add(new File(item));
         }
+        searching = saved == null ? !job.query.isEmpty() : saved.getBoolean("searching", !job.query.isEmpty());
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
         getWindow().setWindowAnimations(0);
-        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE | WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
         LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Color.WHITE); root.setPadding(dp(16), dp(10), dp(16), dp(8));
         LinearLayout header = row();
-        header.addView(button("Bookshelf", NotebookIconDrawable.Icon.LIBRARY, this::bookshelf), new LinearLayout.LayoutParams(dp(116), dp(42)));
+        header.addView(icon("Bookshelf", NotebookIconDrawable.Icon.LIBRARY, this::bookshelf), new LinearLayout.LayoutParams(dp(44), dp(42)));
         TextView title = label("Files", 21); title.setTypeface(null, Typeface.BOLD); title.setPadding(dp(12), 0, 0, 0);
         header.addView(title, new LinearLayout.LayoutParams(0, dp(44), 1));
         header.addView(deviceSettingsIsland(), new LinearLayout.LayoutParams(-2, dp(32))); root.addView(header);
@@ -87,41 +90,47 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
         LinearLayout navigation = row();
         up = icon("Parent folder", NotebookIconDrawable.Icon.PREVIOUS, this::parent);
         navigation.addView(up, new LinearLayout.LayoutParams(dp(44), dp(42)));
-        navigation.addView(icon("Storage locations", NotebookIconDrawable.Icon.HOME, () -> navigate(null)), spaced(44, 42));
+        homeButton = icon("Storage locations", NotebookIconDrawable.Icon.HOME, () -> navigate(null));
+        navigation.addView(homeButton, spaced(44, 42));
         path = label("Storage locations", 14); path.setSingleLine(true); path.setEllipsize(TextUtils.TruncateAt.MIDDLE);
         path.setPadding(dp(8), 0, dp(8), 0); path.setOnClickListener(v -> ancestors());
         path.setContentDescription("Current folder. Tap to navigate to a parent folder.");
         navigation.addView(path, new LinearLayout.LayoutParams(0, dp(44), 1));
+
+        search = new EditText(this); search.setTextSize(14); search.setSingleLine(true);
+        search.setTextColor(Color.BLACK); search.setHintTextColor(Color.DKGRAY); search.setHint("Search this folder and subfolders");
+        search.setContentDescription("Search files by name"); search.setImeOptions(EditorInfo.IME_ACTION_SEARCH | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
+        search.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
+        search.setText(saved == null ? job.query : saved.getString("searchDraft", job.query));
+        search.setOnEditorActionListener((view, action, event) -> { if (action == EditorInfo.IME_ACTION_SEARCH) { find(); return true; } return false; });
+        navigation.addView(search, new LinearLayout.LayoutParams(0, dp(44), 1));
+        searchAction = icon("Search files", NotebookIconDrawable.Icon.SEARCH, () -> {
+            if (!ready()) return;
+            if (searching) find(); else showSearch(true, true);
+        });
+        navigation.addView(searchAction, spaced(44, 42));
+        searchClose = icon("Close search", NotebookIconDrawable.Icon.CLOSE, this::closeSearch);
+        navigation.addView(searchClose, spaced(44, 42));
         presentation = icon("Show file thumbnails", NotebookIconDrawable.Icon.OVERVIEW, () -> {
             if (!ready()) return;
             thumbnails = !thumbnails; NotebookCollectionLayout.setThumbnails(this, "files", thumbnails); render();
         });
         navigation.addView(presentation, spaced(44, 42));
-        navigation.addView(icon("File options", NotebookIconDrawable.Icon.MORE, this::options), spaced(44, 42));
+        optionsButton = icon("File options", NotebookIconDrawable.Icon.MORE, this::options);
+        navigation.addView(optionsButton, spaced(44, 42));
         root.addView(navigation);
-
-        LinearLayout find = row(); search = new EditText(this); search.setTextSize(14); search.setSingleLine(true);
-        search.setTextColor(Color.BLACK); search.setHintTextColor(Color.DKGRAY); search.setHint("Search this folder and subfolders");
-        search.setContentDescription("Search files by name"); search.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
-        search.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
-        search.setText(saved == null ? job.query : saved.getString("searchDraft", job.query));
-        search.setOnEditorActionListener((view, action, event) -> { if (action == EditorInfo.IME_ACTION_SEARCH) { find(); return true; } return false; });
-        find.addView(search, new LinearLayout.LayoutParams(0, dp(46), 1));
-        find.addView(icon("Search files", NotebookIconDrawable.Icon.SEARCH, this::find), spaced(44, 42));
-        find.addView(icon("Clear search", NotebookIconDrawable.Icon.CLOSE, () -> { if (ready()) { search.setText(""); job.query = ""; job.refresh(); } }), spaced(44, 42));
-        root.addView(find);
 
         selectionBar = row(); selectedCount = label("", 13);
         selectionBar.addView(selectedCount, new LinearLayout.LayoutParams(0, dp(42), 1));
-        selectionBar.addView(button("Select all", null, this::selectAll), spaced(92, 42));
-        selectionBar.addView(button("Actions", null, this::selectionActions), spaced(84, 42));
-        selectionBar.addView(button("Cancel", null, () -> { if (ready()) { job.selecting = false; job.selected.clear(); render(); } }), spaced(78, 42));
+        selectionBar.addView(icon("Select all", NotebookIconDrawable.Icon.CHECK, this::selectAll), spaced(44, 42));
+        selectionBar.addView(icon("Actions", NotebookIconDrawable.Icon.MORE, this::selectionActions), spaced(44, 42));
+        selectionBar.addView(icon("Cancel selection", NotebookIconDrawable.Icon.CLOSE, () -> { if (ready()) { job.selecting = false; job.selected.clear(); render(); } }), spaced(44, 42));
         root.addView(selectionBar);
 
         clipboardBar = row(); clipboardCount = label("", 13);
         clipboardBar.addView(clipboardCount, new LinearLayout.LayoutParams(0, dp(44), 1));
-        clipboardBar.addView(button("Paste here", NotebookIconDrawable.Icon.PASTE, this::paste), spaced(116, 42));
-        clipboardBar.addView(button("Cancel", null, () -> { if (ready()) { job.clipboard.clear(); render(); } }), spaced(78, 42));
+        clipboardBar.addView(icon("Paste here", NotebookIconDrawable.Icon.PASTE, this::paste), spaced(44, 42));
+        clipboardBar.addView(icon("Cancel paste", NotebookIconDrawable.Icon.CLOSE, () -> { if (ready()) { job.clipboard.clear(); render(); } }), spaced(44, 42));
         root.addView(clipboardBar);
 
         accessPanel = new LinearLayout(this); accessPanel.setOrientation(LinearLayout.VERTICAL); accessPanel.setPadding(dp(16), dp(16), dp(16), dp(16));
@@ -139,11 +148,11 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
         empty = label("", 16); empty.setGravity(Gravity.CENTER); empty.setPadding(dp(24), dp(24), dp(24), dp(24));
         body.addView(list, new FrameLayout.LayoutParams(-1, -1)); body.addView(empty, new FrameLayout.LayoutParams(-1, -1));
         list.setEmptyView(empty); root.addView(body, new LinearLayout.LayoutParams(-1, 0, 1));
-        LinearLayout footer = row(); status = label("", 12); status.setMaxLines(3);
-        footer.addView(status, new LinearLayout.LayoutParams(0, dp(58), 1));
-        stop = button("Stop", NotebookIconDrawable.Icon.STOP, () -> { if (job.busy) job.cancel(); });
-        footer.addView(stop, new LinearLayout.LayoutParams(dp(80), dp(42))); root.addView(footer);
-        setContentView(root);
+        footer = row(); status = label("", 12); status.setMaxLines(3);
+        footer.addView(status, new LinearLayout.LayoutParams(0, -2, 1));
+        stop = icon("Stop", NotebookIconDrawable.Icon.STOP, () -> { if (job.busy) job.cancel(); });
+        footer.addView(stop, spaced(44, 42)); root.addView(footer); footer.setVisibility(View.GONE);
+        setContentView(root); showSearch(searching, false);
     }
 
     @Override protected void onResume() {
@@ -158,6 +167,7 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
     @Override public Object onRetainNonConfigurationInstance() { return job; }
     @Override protected void onSaveInstanceState(Bundle state) {
         state.putString("folder", job.folder); state.putString("query", job.query);
+        state.putBoolean("searching", searching);
         state.putString("searchDraft", search.getText().toString()); state.putString("sort", job.sort.name());
         state.putBoolean("hidden", job.hidden); state.putBoolean("move", job.move); state.putBoolean("selecting", job.selecting);
         state.putStringArray("selected", job.selected.toArray(new String[0]));
@@ -179,8 +189,7 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
         renderingBusy = job.busy; renderingAccess = access;
         list.setNumColumns(NotebookCollectionLayout.columns(this, thumbnails));
         String presentationLabel = thumbnails ? "Show files as list" : "Show file thumbnails";
-        NotebookUi.action(presentation, thumbnails ? NotebookIconDrawable.Icon.OUTLINE : NotebookIconDrawable.Icon.OVERVIEW);
-        presentation.setContentDescription(presentationLabel); presentation.setTooltipText(presentationLabel);
+        presentation.setSymbol(thumbnails ? NotebookIconDrawable.Icon.OUTLINE : NotebookIconDrawable.Icon.OVERVIEW, presentationLabel);
         accessPanel.setVisibility(access ? View.GONE : View.VISIBLE);
         selectionBar.setVisibility(access && job.selecting ? View.VISIBLE : View.GONE);
         clipboardBar.setVisibility(access && !job.clipboard.isEmpty() ? View.VISIBLE : View.GONE);
@@ -204,8 +213,8 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
                 }
             }
         } else if (access) for (NotebookFiles.Entry entry : job.listing.entries) {
-            String detail = (entry.directory ? "Folder" : Formatter.formatFileSize(this, entry.bytes))
-                + " · " + DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(new Date(entry.modified));
+            String detail = (entry.directory ? "" : Formatter.formatFileSize(this, entry.bytes) + " · ")
+                + DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(new Date(entry.modified));
             if (!job.query.isEmpty()) detail += " · " + displayPath(entry.file.getParentFile());
             rows.add(new Row(entry.file, entry.file.getName(), detail, entry.directory, false));
         }
@@ -213,11 +222,11 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
         empty.setText(!access ? "" : job.busy ? job.message : job.error != null ? job.error
             : job.folder == null ? "No mounted storage found. Reconnect the drive and refresh."
             : job.query.isEmpty() ? "This folder is empty." : "No matching files in this folder or its subfolders.");
-        String info = job.folder == null ? "Choose storage or a common folder" : rows.size() + " items · Hold to select · ⋮ for actions";
-        if (!job.query.isEmpty()) info = rows.size() + " matches for “" + job.query + "” · This folder and subfolders";
-        if (job.listing.limited) info += " · Limit reached; narrow your search";
-        if (job.listing.skipped > 0) info += " · " + job.listing.skipped + " protected folders or links skipped";
-        status.setText(!access ? "Storage access is only needed for Files." : job.busy || job.error != null ? job.message : info);
+        String info = "";
+        if (job.listing.limited) info = "Limit reached; narrow your search";
+        if (job.listing.skipped > 0) info += (info.isEmpty() ? "" : " · ") + job.listing.skipped + " protected folders or links skipped";
+        status.setText(!access ? "" : job.busy || job.error != null ? job.message : info);
+        footer.setVisibility(access && (job.busy || job.error != null || !info.isEmpty()) ? View.VISIBLE : View.GONE);
         status.setOnClickListener(v -> { if (ready()) job.refresh(); });
     }
 
@@ -249,6 +258,7 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
     private void navigate(File folder) {
         if (!ready()) return;
         job.folder = folder == null ? null : folder.getAbsolutePath(); job.query = ""; search.setText("");
+        showSearch(false, false);
         job.selected.clear(); job.selecting = false; job.listing = new NotebookFiles.Listing(); job.refresh(); list.setSelection(0);
     }
     private void parent() {
@@ -285,6 +295,34 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
         InputMethodManager keyboard = getSystemService(InputMethodManager.class);
         if (keyboard != null) keyboard.hideSoftInputFromWindow(search.getWindowToken(), 0);
         search.clearFocus(); job.refresh();
+    }
+
+    private void showSearch(boolean visible, boolean focus) {
+        searching = visible;
+        path.setVisibility(visible ? View.GONE : View.VISIBLE);
+        search.setVisibility(visible ? View.VISIBLE : View.GONE);
+        up.setVisibility(visible ? View.GONE : View.VISIBLE);
+        homeButton.setVisibility(visible ? View.GONE : View.VISIBLE);
+        presentation.setVisibility(visible ? View.GONE : View.VISIBLE);
+        optionsButton.setVisibility(visible ? View.GONE : View.VISIBLE);
+        searchClose.setVisibility(visible ? View.VISIBLE : View.GONE);
+        if (visible && focus) {
+            search.requestFocus(); search.post(() -> {
+                InputMethodManager keyboard = getSystemService(InputMethodManager.class);
+                if (searching && keyboard != null) keyboard.showSoftInput(search, InputMethodManager.SHOW_IMPLICIT);
+            });
+        } else if (!visible) {
+            InputMethodManager keyboard = getSystemService(InputMethodManager.class);
+            if (keyboard != null) keyboard.hideSoftInputFromWindow(search.getWindowToken(), 0);
+            search.clearFocus();
+        }
+    }
+
+    private void closeSearch() {
+        if (!resumed || job.busy) return;
+        boolean filtered = !job.query.isEmpty();
+        search.setText(""); job.query = ""; showSearch(false, false);
+        if (filtered && NotebookFileStorage.hasAccess(this)) job.refresh();
     }
 
     private void options() {
@@ -458,9 +496,12 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
                 row.addView(check, new LinearLayout.LayoutParams(dp(44), dp(44)));
             }
             LinearLayout info = new LinearLayout(NotebookFilesActivity.this); info.setOrientation(LinearLayout.VERTICAL);
+            ImageView type = new ImageView(NotebookFilesActivity.this);
+            type.setImageDrawable(new NotebookFileTypeDrawable(item.file.getName(), item.directory));
+            type.setContentDescription(item.directory ? "Folder" : NotebookFileTypes.label(item.file.getName()) + " file");
+            type.setOnClickListener(v -> open(item)); type.setOnLongClickListener(v -> { toggle(item); return true; });
+            LinearLayout.LayoutParams typeSpace = new LinearLayout.LayoutParams(dp(38), dp(42)); typeSpace.setMarginEnd(dp(10)); row.addView(type, typeSpace);
             TextView name = label(item.title, 16); name.setMaxLines(2); name.setEllipsize(TextUtils.TruncateAt.END);
-            NotebookIconDrawable symbol = new NotebookIconDrawable(item.directory ? NotebookIconDrawable.Icon.FOLDER : NotebookIconDrawable.Icon.READING);
-            symbol.setBounds(0, 0, dp(22), dp(22)); name.setCompoundDrawablesRelative(symbol, null, null, null); name.setCompoundDrawablePadding(dp(8));
             info.addView(name); TextView detail = label(item.detail, 12); detail.setSingleLine(true); detail.setEllipsize(TextUtils.TruncateAt.MIDDLE); info.addView(detail);
             info.setOnClickListener(v -> open(item)); info.setOnLongClickListener(v -> { toggle(item); return true; });
             row.addView(info, new LinearLayout.LayoutParams(0, -2, 1));
@@ -497,7 +538,7 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
     @Override public void onBackPressed() {
         if (job.busy) { job.cancel(); return; }
         if (job.selecting) { job.selecting = false; job.selected.clear(); render(); }
-        else if (!job.query.isEmpty()) { job.query = ""; search.setText(""); job.refresh(); }
+        else if (searching || !job.query.isEmpty()) closeSearch();
         else if (job.folder != null && NotebookFileStorage.hasAccess(this)) parent();
         else { super.onBackPressed(); overridePendingTransition(0, 0); }
     }
@@ -511,8 +552,8 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
     private LinearLayout.LayoutParams spaced(int width, int height) {
         LinearLayout.LayoutParams size = new LinearLayout.LayoutParams(dp(width), dp(height)); size.setMarginStart(dp(6)); return size;
     }
-    private NotebookButton icon(String description, NotebookIconDrawable.Icon icon, Runnable action) {
-        NotebookButton view = button("", icon, action); view.setContentDescription(description); view.setTooltipText(description); return view;
+    private NotebookBrowserIconButton icon(String description, NotebookIconDrawable.Icon icon, Runnable action) {
+        return new NotebookBrowserIconButton(this, icon, description, action);
     }
     private NotebookButton button(String text, NotebookIconDrawable.Icon icon, Runnable action) {
         NotebookButton view = new NotebookButton(this); view.setText(text); view.setTextSize(12);

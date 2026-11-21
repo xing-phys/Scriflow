@@ -26,7 +26,12 @@ pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
 stays in front, window operations retain the main editor, and PDF import opens
 the file picker directly before opening the imported note.
 
-The **[0.45.0-alpha.1 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.45.0-alpha.1)**
+The **[0.45.0-alpha.2 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.45.0-alpha.2)**
+centers Files controls, puts search in the navigation row on demand, removes
+routine footer instructions and distinguishes file types with compact icons.
+This alpha awaits physical tablet acceptance.
+
+The preceding **[0.45.0-alpha.1 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.45.0-alpha.1)**
 improves Settings, adds list and thumbnail views to Files and Saved websites,
 and shows open tabs alongside pinned sites on Browser Home. Status indicators
 share the same top-right position throughout the app. This alpha awaits
