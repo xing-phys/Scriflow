@@ -77,10 +77,7 @@ const check=(condition,message)=>{assert(condition,message);assertions++;console
     await restored.reply({type:'command',action:'search'});await restored.page.waitForSelector('input[aria-label="Search book text"]');await restored.page.type('input[aria-label="Search book text"]','entanglement');await restored.page.evaluate(()=>[...document.querySelectorAll('#panel-content button')].find(b=>b.textContent==='Find').click());
     await restored.page.waitForFunction(()=>document.querySelectorAll('#panel-content div button').length>0,{timeout:30000});check(true,'Full-book search returns actual text locations');await restored.page.click('#close-panel');
     let beforeBack=restored.messages.length;await restored.reply({type:'back'});await new Promise(r=>setTimeout(r,100));
-    check(restored.messages.slice(beforeBack).some(m=>m.type==='request-exit')&&!restored.messages.slice(beforeBack).some(m=>m.type==='exit'),'A Back gesture requests confirmation instead of closing the book');
-    await restored.reply({type:'command',action:'more'});await restored.page.waitForSelector('#panel[open]');
-    check(await restored.page.evaluate(()=>[...document.querySelectorAll('#panel-content button')].some(b=>b.textContent==='Return to bookshelf')),'Reading tools provide an explicit bookshelf action');
-    await restored.page.click('#close-panel');
+    check(restored.messages.slice(beforeBack).some(m=>m.type==='exit'),'Back returns to the bookshelf when no panel or selection is open');
     await restored.page.screenshot({path:path.join(root,'build/ebook-reader.png')});await restored.page.close();
     const spread=await open('quantum.epub','epub');
     await spread.reply({type:'command',action:'type'});await spread.page.waitForSelector('select[aria-label="Columns"]');
@@ -109,12 +106,23 @@ const check=(condition,message)=>{assert(condition,message);assertions++;console
     await spread.probe({action:'goto',value:first});await new Promise(r=>setTimeout(r,300));
     const link=await spread.page.evaluate(()=>{
       const doc=document.querySelector('foliate-view').renderer.getContents()[0].doc,frame=doc.defaultView.frameElement.getBoundingClientRect();
+      globalThis.__previousBookDocument=doc;
       const a=[...doc.querySelectorAll('a')].find(e=>e.textContent==='Linked passage'),r=a.getBoundingClientRect();
       return {x:frame.left+r.left+r.width/2,y:frame.top+r.top+r.height/2};
     });
     await spread.page.touchscreen.tap(link.x,link.y);await new Promise(r=>setTimeout(r,800));probe=await spread.probe();
     check(probe.documents.some(d=>d.index===1),'Tapping a book link follows it instead of turning the page');
+    const detached=await spread.page.evaluate(()=>{
+      const doc=globalThis.__previousBookDocument, detached=doc.defaultView===null;
+      doc.dispatchEvent(new Event('selectionchange'));doc.dispatchEvent(new Event('pointerup'));return detached;
+    });
+    await new Promise(r=>setTimeout(r,150));
+    check(detached&&!spread.error,'Late selection callbacks safely ignore a detached chapter');
     await spread.probe({action:'select',text:'The uncertainty principle'});probe=await spread.probe();const selection=probe.documents.find(d=>d.selected)?.selected,selectedLocation=probe.location;
+    const beforeStale=spread.messages.length;
+    await spread.page.evaluate(()=>{const doc=globalThis.__previousBookDocument;doc.dispatchEvent(new Event('selectionchange'));doc.dispatchEvent(new Event('pointerup'));});
+    await new Promise(r=>setTimeout(r,150));
+    check(!spread.messages.slice(beforeStale).some(m=>m.type==='selection'&&!m.enabled),'A detached chapter cannot clear a current selection');
     await spread.page.touchscreen.tap(540,700);await new Promise(r=>setTimeout(r,500));probe=await spread.probe();
     check(selection&&probe.location===selectedLocation,'An existing text selection prevents a page-turn tap');
     await spread.page.close();

@@ -90,11 +90,14 @@ async function loadFont(force=false) {
   for (const {doc} of view?.renderer.getContents()??[]) doc.fonts.add(customFont);
 }
 function rangeTarget(doc,index) {
-  const selection=doc.defaultView.getSelection();
+  const selection=doc.defaultView?.getSelection();
   if (!selection?.rangeCount || selection.isCollapsed || !selection.toString().trim()) return null;
   return {value:view.getCFI(index,selection.getRangeAt(0)),text:selection.toString().trim().slice(0,4000),mark:true};
 }
 function selectionChanged(doc,index) {
+  // A delayed pointer-up or selection event can arrive after a chapter's
+  // iframe has been removed. Never let it clear the new chapter's selection.
+  if(!doc.defaultView || !view?.renderer?.getContents().some(({doc:current})=>current===doc))return;
   const value=rangeTarget(doc,index);if(!value){if(selected)clearSelection();return;}
   selected=value;send('selection',{enabled:true});
 }
@@ -107,7 +110,7 @@ function queuePageTurn(forward) {
 function installPageTaps(target,doc=null) {
   let down=null, multi=false;
   const interactive=e=>e.target?.closest?.('a,button,input,select,textarea,video,audio,[contenteditable]');
-  const hasSelection=()=>!!selected||!!view?.renderer.getContents().some(({doc:d})=>!d.defaultView.getSelection()?.isCollapsed);
+  const hasSelection=()=>!!selected||!!view?.renderer.getContents().some(({doc:d})=>{const selection=d.defaultView?.getSelection();return !!selection&&!selection.isCollapsed;});
   target.addEventListener('pointerdown',e=>{
     if(e.pointerType!=='touch')return;
     if(down || !e.isPrimary){down=null;multi=true;return;}
@@ -120,8 +123,9 @@ function installPageTaps(target,doc=null) {
     if(multi || !start || start.id!==e.pointerId || start.interactive || start.selection || interactive(e)
         || Date.now()-start.t>500 || Math.hypot(e.clientX-start.x,e.clientY-start.y)>12
         || hasSelection())return;
+    if(doc && !doc.defaultView)return;
     if(view.isFixedLayout && state.settings.zoom!=='fit-page')return;
-    const element=doc?.defaultView.frameElement, frame=element?.getBoundingClientRect(), area=$('reader').getBoundingClientRect();
+    const element=doc?.defaultView?.frameElement, frame=element?.getBoundingClientRect(), area=$('reader').getBoundingClientRect();
     const x=e.clientX*(frame&&element.clientWidth?frame.width/element.clientWidth:1)+(frame?.left||0)-area.left;
     const y=e.clientY*(frame&&element.clientHeight?frame.height/element.clientHeight:1)+(frame?.top||0)-area.top;
     if(x<0||y<0||x>area.width||y>area.height)return;
@@ -293,7 +297,6 @@ function more(){if(!view)return;const body=panel('Reading tools');
   button(body,'Write on a fixed copy of this view',fixedCopy);
   button(body,'Export reading notes',exports);
   button(body,'Focus reading / show controls',()=>{closePanel();document.body.classList.toggle('zen');send('zen',{enabled:document.body.classList.contains('zen')});});
-  button(body,'Return to bookshelf',()=>{closePanel();flush();send('exit');});
   para(body,'Press Android Back to show reading controls while focus reading is active. Reading positions and annotations are stored with this book.','muted');
 }
 function jump(){if(!view)return;const body=panel('Reading position'),input=document.createElement('input');input.type='range';input.min='0';input.max='100';input.value=String(Math.round(state.fraction*100));input.setAttribute('aria-label','Book progress');input.style.width='100%';body.append(input);
@@ -329,7 +332,7 @@ port.onMessage.addListener(message=>attempt(async()=>{
   else if(message.type==='busy')document.body.classList.toggle('working',!!message.enabled);
   else if(message.type==='font-imported'){config.fontSize=message.size;await loadFont(true);state.settings.font='custom';await restyle();changed();closePanel();}
   else if(message.type==='back'){
-    if($('panel').open)closePanel();else if(selected)clearSelection();else if(document.body.classList.contains('zen')){document.body.classList.remove('zen');send('zen',{enabled:false});}else{flush();send('request-exit');}
+    if($('panel').open)closePanel();else if(selected)clearSelection();else if(document.body.classList.contains('zen')){document.body.classList.remove('zen');send('zen',{enabled:false});}else{flush();send('exit');}
   }else if(message.type==='probe'){
     if(!config?.debug)return;
     if(message.action==='select'){

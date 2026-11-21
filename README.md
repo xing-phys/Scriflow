@@ -26,8 +26,13 @@ pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
 stays in front, window operations retain the main editor, and PDF import opens
 the file picker directly before opening the imported note.
 
-The **[0.46.0-alpha.1 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.46.0-alpha.1)**
-adds cover-aware PDF and note spreads, safer ebook page turns, direct file-path
+The **[0.46.0-alpha.2 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.46.0-alpha.2)**
+restores the original ebook title and Back controls and fixes a reproducible
+error when a chapter detaches during a page turn. The cause of the reported
+unexpected return to the bookshelf remains unconfirmed and needs tablet testing.
+
+The preceding **[0.46.0-alpha.1 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.46.0-alpha.1)**
+adds cover-aware PDF and note spreads, direct file-path
 breadcrumbs and smaller circular buttons. Screen casting briefly holds its last
 image during lasso and eraser contact to reduce competition with native ink.
 This alpha awaits physical tablet acceptance.

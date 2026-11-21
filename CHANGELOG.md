@@ -6,6 +6,15 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.46.0-alpha.2 — Ebook chapter transitions (2026-11-21)
+
+- Restore the ebook title and Android Back navigation used before alpha.1.
+- Ignore late touch/selection callbacks from an already detached chapter and
+  keep them from clearing a selection in the current chapter.
+- Add repeated emulator tap/swipe coverage and a detached-document regression.
+  The cause of the owner's reported return to the bookshelf remains unconfirmed
+  without the tablet's crash or lifecycle logs. VersionCode 124.
+
 ## 0.46.0-alpha.1 — Spread alignment and input responsiveness (2026-11-21)
 
 - Choose pages 1–2 or a standalone cover followed by 2–3 for double-page PDF

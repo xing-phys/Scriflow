@@ -62,14 +62,14 @@ try:
     time.sleep(3)
     report=json.loads(adb('exec-out','run-as',PACKAGE,'cat','cache/ebook-reader-check.json').stdout);assert report['passed'],report
     ui=json.loads(adb('exec-out','run-as',PACKAGE,'cat','cache/ebook-chrome-check.json').stdout)
-    adb('shell','input','keyevent','KEYCODE_BACK');time.sleep(.5);adb('shell','input','keyevent','KEYCODE_BACK')
+    adb('shell','input','keyevent','KEYCODE_BACK')
     find(label('Import book'));tap(label(TITLE),scroll=True)
     time.sleep(2)
     activity=adb('shell','dumpsys','activity','activities').stdout.decode()
     assert any('/.notebook.NotebookEbookActivity' in line for line in activity.splitlines() if 'mResumedActivity' in line)
     (ROOT/'build/ebook-reader-home-open.png').write_bytes(adb('exec-out','screencap','-p').stdout)
     print('PASS: An ebook on the homepage opens directly in the floating reader.',flush=True)
-    adb('shell','input','keyevent','KEYCODE_BACK');time.sleep(.5);adb('shell','input','keyevent','KEYCODE_BACK');find(label('Import book'))
+    adb('shell','input','keyevent','KEYCODE_BACK');find(label('Import book'))
     state_path='files/ebooks/'+report['book']+'/state';before=frame(state_path)[0]
     source=adb('exec-out','run-as',PACKAGE,'cat','files/ebooks/'+report['book']+'/source').stdout
     original_hash=hashlib.sha256(source).hexdigest()

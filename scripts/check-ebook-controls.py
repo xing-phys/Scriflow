@@ -127,16 +127,8 @@ try:
     print('PASS: Real GeckoView touch taps turn forward and back in a spread.',flush=True)
     value=chrome(lambda v:not v['panel'] and v['left'][2]>v['left'][0]);x,y,width,height=value['home']
     adb('shell','input','tap',str(x+width//2),str(y+height//2))
-    time.sleep(.5)
-    resumed=adb('shell','dumpsys','activity','activities').stdout
-    assert re.search(rb'mResumedActivity:.*NotebookEbookSelfTestActivity',resumed), 'Tapping the upper-left title cannot exit the book.'
-    print('PASS: Tapping the upper-left title cannot accidentally return to the bookshelf.',flush=True)
-    adb('shell','input','keyevent','KEYCODE_BACK');time.sleep(.5)
-    resumed=adb('shell','dumpsys','activity','activities').stdout
-    assert re.search(rb'mResumedActivity:.*NotebookEbookSelfTestActivity',resumed), 'One Back gesture cannot exit the book.'
-    print('PASS: A single Back gesture leaves the ebook open.',flush=True)
-    adb('shell','input','keyevent','KEYCODE_BACK')
     find(label('Import book'))
+    print('PASS: Tapping the book title returns to the bookshelf.',flush=True)
     deadline=time.monotonic()+10
     while True:
         state=saved_state(report['book'])
@@ -144,7 +136,7 @@ try:
         if time.monotonic()>deadline:raise AssertionError('Touch-selected settings were not saved on exit.')
         time.sleep(.2)
     print('PASS: Leaving the book durably saves the touch-selected settings.',flush=True)
-    (ROOT/'build/ebook-controls-result.json').write_text(json.dumps({'passed':True,'checks':9,'book':report['book'],'settings':state['settings']},indent=2)+'\n')
+    (ROOT/'build/ebook-controls-result.json').write_text(json.dumps({'passed':True,'checks':8,'book':report['book'],'settings':state['settings']},indent=2)+'\n')
 finally:
     adb('shell','rm','-f',fixture,'/sdcard/scriflow-ebook-controls.xml',check=False)
     adb('shell','run-as',PACKAGE,'rm','-rf','cache/ebook-check-input',check=False)

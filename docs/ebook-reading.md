@@ -53,10 +53,9 @@ toolbox used by notebooks sit above the page, without reserving header/footer ro
   **dictionary** and **clear selection** icons in the toolbox. The pen icon opens
   a handwritten note linked to the selection or current position.
 - The **focus icon** hides controls. Android Back or the small clock restores
-  them; Back also dismisses a selection or panel. To leave the book, use
-  **More → Return to bookshelf**, or press Back twice within two seconds.
+  them; Back also dismisses a selection or panel before leaving the book.
 - Tap the right half or bottom half of the reading area to
-  advance by a page in page-turn or continuous mode; tap the upper-left quarter or the book title to go back. Links and text selections keep
+  advance by a page in page-turn or continuous mode; tap the upper-left quarter to go back. Links and text selections keep
   their normal behavior. Swipes and arrow keys remain available. Use page buttons
   while panning a zoomed fixed page. Icons have accessible names and explanatory labels
   in their menus; text labels remain for chapter titles and settings choices.
