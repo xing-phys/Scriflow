@@ -13,7 +13,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 
-/** Retained system picker / Android Open with entry point for offline books. */
+/** Retained in-app picker / Android Open with entry point for offline books. */
 public final class NotebookEbookImportActivity extends NotebookDisplayActivity {
     private static final int PICK = 2471;
     private Job job;
@@ -96,9 +96,9 @@ public final class NotebookEbookImportActivity extends NotebookDisplayActivity {
     }
     private void pick() {
         if (!resumed || job.busy || job.picking) return;
-        Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*");
+        Intent pick = NotebookFilePicker.open(this, "ebook");
         try { job.picking = true; startActivityForResult(pick, PICK); }
-        catch (android.content.ActivityNotFoundException error) { job.picking = false; job.message = "No Android file picker is installed."; render(); }
+        catch (android.content.ActivityNotFoundException error) { job.picking = false; job.message = "Could not open Files."; render(); }
     }
     @Override protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);

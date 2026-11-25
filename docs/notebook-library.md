@@ -1,4 +1,18 @@
-# Notebook library — 0.10
+# Notebook library
+
+## Current bookshelf folders (0.48.0-beta.1)
+
+The bookshelf, new-folder and Trash controls share the shortcut row. Open a
+folder and use **+ Folder** to create a subfolder; tap the path or press Back to
+return to its parent. Folder names must be unique within their parent. A folder
+can be removed while keeping its notebooks and child folders in the parent;
+resolve a same-name folder conflict first. Ebooks directly in a removed folder
+also return to its parent. Move dialogs show full folder paths.
+
+The catalog writes version 3 with parent IDs and reads existing version 1 and 2
+catalogs, treating their folders as root folders. An older APK cannot read a
+catalog after this version writes it. Notebook page and editable-backup formats
+are unchanged. The remaining sections describe the original 0.10 milestone.
 
 ## Behavior
 

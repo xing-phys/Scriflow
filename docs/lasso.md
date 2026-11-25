@@ -156,6 +156,7 @@ On disposable notes, check:
 
 **Export…** prepares SVG, PNG, JPEG, WebP, or PDF from the selected pressure
 outlines. The crop excludes paper, figures, and unselected strokes. Vector
-formats retain vector ink; PNG/WebP preserve transparency. Save through the
-system picker; cancelling leaves the prepared file available for retry. See
+formats retain vector ink; PNG/WebP preserve transparency. Choose the format
+beside the selection and save through Scriflow's Files; cancelling returns to the
+note. See
 [figures and workspace](figures-and-workspace.md) for details.

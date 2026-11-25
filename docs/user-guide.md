@@ -235,9 +235,9 @@ without a separate editor or Apply button. **⋮ → Figures…** remains availa
 SVG is rasterized into the stored PNG figure.
 Lasso actions now include **Export…** for SVG, PNG, JPEG, WebP, or PDF.
 
-Use the **overlapping-notes button in the toolbox** for a left/right/top/bottom
-split or floating window. With several notes open, it toggles a tray containing
-**+** and any minimized notes. Tap inside a note with the stylus to edit it.
+Use the **notebook-plus button in the toolbox** for a left/right/top/bottom
+split or floating window. Browse bookshelf folders in the compact note picker.
+With several notes open, the button opens a tray for adding or restoring notes. Tap inside a note with the stylus to edit it.
 The notes share one toolbox; the top-left status island shows the active note’s
 title, page and zoom. Fingers independently scroll and pinch every note.
 Tap the lower-left corner control for placement and closing options; tap the
@@ -619,7 +619,7 @@ substitute for editable backup/restore.
 ## Editable backups and restore
 
 In the library, **Backup** beside a notebook saves an editable `.inkbook`
-archive through Android's file picker. Keep it outside the app's private
+archive through Scriflow's Files browser. Keep it outside the app's private
 storage and retain another copy on a separate device if the notes matter.
 
 **Restore backup** above the library list validates an archive and adds a

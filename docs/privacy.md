@@ -186,10 +186,11 @@ saved PDFs and backups also keep the content they contained when created.
 
 ## Exports and backups
 
-Figure import, selected-ink export, PDF export and editable backup use Android's system file picker. Scriflow
-receives access to the location you choose rather than requesting broad storage
-permission. If you choose a cloud-backed file provider, that provider handles
-the transfer and its own privacy terms apply.
+Figure, PDF, ebook, font and backup imports and exports use Scriflow's Files
+browser. It requests shared-storage access: Android 10 uses storage permissions
+and newer Android versions use All files access. The picker browses mounted
+shared storage, not cloud document providers. The writable transfer provider is
+private to Scriflow; file sharing uses separate read-only URI grants.
 
 - PDFs contain notebook names and visible page content; they are for reading
   and sharing, rather than restoring an editable notebook. Exports from imported

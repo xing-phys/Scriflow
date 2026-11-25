@@ -194,6 +194,12 @@ public final class NotebookSymbols {
                 polygon(out, false, 3, 7, 16, 7, 16, 21, 3, 21);
                 line(out, 7, 3, 21, 3, 21, 17);
                 break;
+            case "OPEN_NOTES":
+                // A lined notebook and plus sign communicate opening another note.
+                polygon(out, false, 3, 5, 15, 5, 15, 21, 3, 21);
+                line(out, 7, 9, 12, 9); line(out, 7, 12, 12, 12); line(out, 7, 15, 11, 15);
+                line(out, 18, 2, 18, 10); line(out, 14, 6, 22, 6);
+                break;
             case "MINIMIZE":
                 line(out, 5, 19, 19, 19);
                 break;

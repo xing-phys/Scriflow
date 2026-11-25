@@ -19,6 +19,7 @@ public final class NotebookCatalogTest {
     public static void main(String[] args) throws Exception {
         try {
             legacyAndMetadataOnlyPaths();
+            nestedFolderFormatAndMigration();
             createRenameSelectAndImmutableStates();
             unicodeNamesAndInvalidInput();
             invalidChangesNeverMutateFiles();
@@ -47,6 +48,33 @@ public final class NotebookCatalogTest {
         File missing = new File(directory, "not-created");
         new NotebookCatalog(missing).load();
         check(!missing.exists(), "default library does not create directory");
+    }
+
+    private static void nestedFolderFormatAndMigration() throws Exception {
+        File directory = directory();
+        ByteArrayOutputStream payloadBytes = new ByteArrayOutputStream();
+        DataOutputStream payload = new DataOutputStream(payloadBytes);
+        payload.writeInt(1); payload.writeInt(1); payload.writeInt(1);
+        payload.writeInt(7); byte[] folderName = utf("Research"); payload.writeInt(folderName.length); payload.write(folderName);
+        payload.writeInt(1); byte[] noteName = utf("Notes"); payload.writeInt(noteName.length); payload.write(noteName);
+        payload.writeInt(7); payload.writeInt(NotebookCatalog.ACTIVE); payload.flush();
+        byte[] raw = payloadBytes.toByteArray(); CRC32 crc = new CRC32(); crc.update(raw);
+        try (DataOutputStream file = new DataOutputStream(Files.newOutputStream(new File(directory, "library.nbl").toPath()))) {
+            file.writeInt(0x4e424c31); file.writeInt(2); file.writeInt(raw.length); file.writeInt(~raw.length);
+            file.write(raw); file.writeInt((int) crc.getValue());
+        }
+        NotebookCatalog catalog = new NotebookCatalog(directory); NotebookCatalog.State old = catalog.load();
+        check(old.folders.get(0).parentId == 0 && old.entries.get(0).folderId == 7, "version 2 folders migrate to the root without moving notes");
+        List<NotebookCatalog.Folder> nested = Arrays.asList(new NotebookCatalog.Folder(7, "Research"),
+            new NotebookCatalog.Folder(8, "Notes", 7), new NotebookCatalog.Folder(9, "Notes", 8));
+        catalog.save(old.entries, 1, nested);
+        NotebookCatalog.State restored = new NotebookCatalog(directory).load();
+        check(restored.folders.equals(nested) && NotebookFolders.path(restored.folders, 9).equals("Research / Notes / Notes"),
+            "nested names and parent links survive serialization");
+        expectIo(() -> catalog.save(old.entries, 1, Arrays.asList(new NotebookCatalog.Folder(1,"A",2), new NotebookCatalog.Folder(2,"B",1))));
+        expectIo(() -> catalog.save(old.entries, 1, Arrays.asList(new NotebookCatalog.Folder(7,"Research"), new NotebookCatalog.Folder(8,"Child",99))));
+        expectIo(() -> catalog.save(old.entries, 1, Arrays.asList(new NotebookCatalog.Folder(7,"Research"), new NotebookCatalog.Folder(8,"x",7), new NotebookCatalog.Folder(9,"X",7))));
+        check(new NotebookCatalog(directory).load().folders.equals(nested), "invalid hierarchies never replace a valid catalog");
     }
 
     private static void createRenameSelectAndImmutableStates() throws Exception {

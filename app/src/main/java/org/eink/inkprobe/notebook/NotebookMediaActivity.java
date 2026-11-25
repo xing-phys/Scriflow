@@ -19,8 +19,6 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -29,14 +27,15 @@ public final class NotebookMediaActivity extends NotebookDisplayActivity {
     private static final int PICK = 2510;
     private static final String[] FORMATS = {"SVG", "PNG", "JPEG", "WebP", "PDF"};
     private static final String[] EXTENSIONS = {"svg", "png", "jpg", "webp", "pdf"};
-    private static final String[] TYPES = {"image/svg+xml", "image/png", "image/jpeg", "image/webp", "application/pdf"};
     private Job job;
     private TextView status;
     private LinearLayout actions;
     private LinearLayout root;
     private boolean awaiting, resumed;
+    private android.app.AlertDialog errorDialog;
     private final Runnable nextStep = this::advance;
     @Override public void onCreate(Bundle saved) {
+        if (!getIntent().getBooleanExtra("import", false)) setTheme(android.R.style.Theme_Translucent_NoTitleBar);
         super.onCreate(saved);
         getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
         getWindow().setWindowAnimations(0);
@@ -47,6 +46,7 @@ public final class NotebookMediaActivity extends NotebookDisplayActivity {
             job.number = getIntent().getIntExtra("page", 1);
             job.pageId = getIntent().getStringExtra("pageId");
             job.source = getIntent().getStringExtra("source");
+            job.format = Math.max(0, Math.min(FORMATS.length - 1, getIntent().getIntExtra("format", 1)));
             if (saved != null) {
                 job.format = saved.getInt("format", 1);
                 job.prepared = checkedFile(saved.getString("prepared"));
@@ -60,12 +60,12 @@ public final class NotebookMediaActivity extends NotebookDisplayActivity {
         }
         awaiting = saved != null && saved.getBoolean("awaiting");
         root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.WHITE); root.setPadding(24, 20, 24, 20);
+        root.setBackgroundColor(job.importing ? Color.WHITE : Color.TRANSPARENT); root.setPadding(24, 20, 24, 20);
         TextView title = new TextView(this); title.setText(job.importing ? "Insert figure" : "Export selected ink");
-        title.setTextColor(Color.BLACK); title.setTextSize(20); addScreenHeader(root, title);
+        title.setTextColor(Color.BLACK); title.setTextSize(20); if (job.importing) addScreenHeader(root, title);
         status = new TextView(this); status.setTextColor(Color.BLACK); status.setTextSize(16);
-        root.addView(status, new LinearLayout.LayoutParams(-1, 0, 1));
-        actions = new LinearLayout(this); actions.setOrientation(LinearLayout.VERTICAL); root.addView(actions);
+        if (job.importing) root.addView(status, new LinearLayout.LayoutParams(-1, 0, 1));
+        actions = new LinearLayout(this); actions.setOrientation(LinearLayout.VERTICAL); if (job.importing) root.addView(actions);
         setContentView(root);
     }
     private File checkedFile(String name) {
@@ -82,30 +82,38 @@ public final class NotebookMediaActivity extends NotebookDisplayActivity {
         resumed = false; root.removeCallbacks(nextStep); job.listener = null; super.onPause();
     }
     private void render() {
-        status.setText(job.message); actions.removeAllViews();
+        if (!resumed || isFinishing()) return;
         if (job.importing) {
+            status.setText(job.message); actions.removeAllViews();
             if (job.failed && !job.busy) {
                 add("Choose another image…", () -> pick(true)); add("Back to note", this::onBackPressed);
             }
-            root.removeCallbacks(nextStep); root.post(nextStep); return;
+        } else if (job.failed && !job.busy && errorDialog == null) {
+            errorDialog = new android.app.AlertDialog.Builder(this).setTitle("Export selected ink")
+                .setMessage(job.message).setNegativeButton("Close", (dialog, which) -> finishExport())
+                .setPositiveButton("Retry", (dialog, which) -> {
+                    job.failed = false; job.pickerStarted = false;
+                    if (job.prepared == null) job.prepare(job.format); else pick(false);
+                }).setOnCancelListener(dialog -> finishExport()).create();
+            errorDialog.setOnDismissListener(dialog -> errorDialog = null);
+            NotebookUi.show(errorDialog);
         }
-        if (job.busy) return;
-        if (!job.complete) {
-            if (job.importing) add("Choose image…", () -> pick(true));
-            else {
-                for (int i = 0; i < FORMATS.length; i++) {
-                    final int format = i;
-                    add("Prepare " + FORMATS[i], () -> job.prepare(format));
-                }
-                if (job.prepared != null) add("Save " + FORMATS[job.format] + "…", () -> pick(false));
-            }
-        }
-        add("Back to note", this::onBackPressed);
+        root.removeCallbacks(nextStep); root.post(nextStep);
     }
     private void advance() {
-        if (!resumed || isFinishing() || isDestroyed() || !root.isAttachedToWindow() || !job.importing) return;
-        if (job.complete) { finish(); overridePendingTransition(0, 0); }
-        else if (!job.busy && !awaiting && !job.pickerStarted && !job.failed) pick(true);
+        if (!resumed || isFinishing() || isDestroyed() || !root.isAttachedToWindow()) return;
+        if (job.complete) {
+            if (!job.importing) { job.cleanupSource(); android.widget.Toast.makeText(this, "Selected ink saved", android.widget.Toast.LENGTH_SHORT).show(); }
+            finish(); overridePendingTransition(0, 0); return;
+        }
+        if (job.busy || awaiting || job.failed) return;
+        if (job.importing) { if (!job.pickerStarted) pick(true); }
+        else if (job.prepared == null) job.prepare(job.format);
+        else if (!job.pickerStarted) pick(false);
+    }
+    private void finishExport() {
+        if (job.prepared != null) { job.prepared.delete(); job.prepared = null; }
+        job.cleanupSource(); finish(); overridePendingTransition(0, 0);
     }
     private void add(String label, Runnable action) {
         NotebookButton button = new NotebookButton(this); button.setText(label);
@@ -113,14 +121,13 @@ public final class NotebookMediaActivity extends NotebookDisplayActivity {
     }
     private void pick(boolean importing) {
         if (awaiting) return;
-        Intent intent = new Intent(importing ? Intent.ACTION_OPEN_DOCUMENT : Intent.ACTION_CREATE_DOCUMENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE); intent.setType(importing ? "*/*" : TYPES[job.format]);
-        if (!importing) intent.putExtra(Intent.EXTRA_TITLE, "selected-ink." + EXTENSIONS[job.format]);
+        Intent intent = importing ? NotebookFilePicker.open(this, "image")
+            : NotebookFilePicker.save(this, "selected-ink." + EXTENSIONS[job.format]);
         try {
-            awaiting = true; if (importing) { job.pickerStarted = true; job.failed = false; }
+            awaiting = true; job.pickerStarted = true; job.failed = false;
             startActivityForResult(intent, PICK);
         } catch (android.content.ActivityNotFoundException error) {
-            awaiting = false; job.failed = true; job.message = "No system file picker is available."; render();
+            awaiting = false; job.failed = true; job.message = "Could not open Files."; render();
         }
     }
     @Override protected void onActivityResult(int request, int result, Intent data) {
@@ -130,6 +137,7 @@ public final class NotebookMediaActivity extends NotebookDisplayActivity {
         if (result == RESULT_OK && data != null && data.getData() != null) {
             if (job.importing) job.insert(data.getData()); else job.save(data.getData());
         } else if (job.importing) { finish(); overridePendingTransition(0, 0); }
+        else finishExport();
     }
     @Override public Object onRetainNonConfigurationInstance() { return job; }
     @Override protected void onSaveInstanceState(Bundle state) {
@@ -141,7 +149,7 @@ public final class NotebookMediaActivity extends NotebookDisplayActivity {
     }
     @Override public void onBackPressed() {
         if (job.busy) return;
-        if (job.prepared != null) job.prepared.delete();
+        if (!job.importing) { finishExport(); return; }
         job.cleanupSource(); super.onBackPressed();
     }
     private static final class Job {
@@ -158,7 +166,7 @@ public final class NotebookMediaActivity extends NotebookDisplayActivity {
         Job(android.content.Context context, boolean importing) {
             this.context = context.getApplicationContext(); this.importing = importing;
             message = importing ? "Opening image picker…"
-                : "Choose an export format. SVG and PDF keep vector handwriting; PNG and WebP have a transparent background, JPEG has white paper.";
+                : "Preparing selected ink…";
         }
         void changed() { if (listener != null) listener.run(); }
         void fail(Exception error) { busy = false; failed = true; message = error.getMessage() == null ? "Transfer failed. Please retry." : error.getMessage(); changed(); }
@@ -188,7 +196,7 @@ public final class NotebookMediaActivity extends NotebookDisplayActivity {
             catch (IOException ignored) { }
         }
         void prepare(int selectedFormat) {
-            busy = true; message = "Preparing " + FORMATS[selectedFormat] + "…"; changed();
+            format = selectedFormat; busy = true; message = "Preparing " + FORMATS[selectedFormat] + "…"; changed();
             files.execute(() -> {
                 File destination = null;
                 try {

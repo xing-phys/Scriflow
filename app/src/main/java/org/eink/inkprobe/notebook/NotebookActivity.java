@@ -1954,7 +1954,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         if (selection == null) return;
         if (action == NotebookSelectionTools.Action.AI_CHAT) { appendAiSelection(null, new ArrayList<>(selection.strokes)); return; }
         if (action == NotebookSelectionTools.Action.COPY) { session.copy(selection); selectionTools.copied(); return; }
-        if (action == NotebookSelectionTools.Action.EXPORT) { exportSelection(); return; }
+        if (action == NotebookSelectionTools.Action.EXPORT) { selectionTools.chooseExport(this::exportSelection); return; }
         if (action == NotebookSelectionTools.Action.MOVE) { moveSelectionToPage(); return; }
         pauseForEdit(true);
         if (shownError != null) return;
@@ -3242,13 +3242,17 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         for (NotebookCatalog.Entry entry:session.entries())
             if (entry.status==NotebookCatalog.ACTIVE && workspace.find(entry.id)==null) choices.add(entry);
         if (choices.isEmpty()) { Toast.makeText(this,"No other notebooks available",Toast.LENGTH_SHORT).show(); return; }
-        String[] labels=new String[choices.size()];for(int i=0;i<labels.length;i++)labels[i]=choices.get(i).name;
         final int[] choice={-1};
-        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Open floating note")
-            .setItems(labels,(menu,index)->choice[0]=index).setNegativeButton("Cancel",null).create();
+        AlertDialog dialog=new NotebookNotePicker(this, "Open floating note", session.folders(), choices, id -> choice[0]=id).dialog();
         viewMenu=dialog;dialog.setOnDismissListener(closed->{viewMenu=null;
-            if(active&&choice[0]>=0)openIndependentNote(choices.get(choice[0]).id);});
+            if(active&&choice[0]>=0)openIndependentNote(choice[0]);});
         showNoteDialog(dialog);
+        roundNotePicker(dialog);
+    }
+
+    private void roundNotePicker(AlertDialog dialog) {
+        if (dialog.getWindow() != null) dialog.getWindow().setBackgroundDrawable(
+            NotebookUi.rounded(getResources().getDisplayMetrics().density, 14));
     }
 
     /** Only an explicit selection is allowed to open the first notebook in an AI workspace. */
@@ -3324,22 +3328,21 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         for (NotebookCatalog.Entry entry : session.entries())
             if (entry.status == NotebookCatalog.ACTIVE && workspace.find(entry.id) == null) choices.add(entry);
         if (choices.isEmpty()) { Toast.makeText(this, "Create another note in the library first", Toast.LENGTH_LONG).show(); return; }
-        String[] labels = new String[choices.size()];
-        for (int i = 0; i < labels.length; i++) labels[i] = choices.get(i).name;
         pauseForEdit(); final int[] choice = {-1};
-        AlertDialog dialog = new AlertDialog.Builder(this).setTitle(floating ? "Open floating note" : "Open another note")
-            .setItems(labels, (menu, index) -> choice[0] = index).setNegativeButton("Cancel", null).create();
+        AlertDialog dialog = new NotebookNotePicker(this, floating ? "Open floating note" : "Open another note",
+            session.folders(), choices, id -> choice[0] = id).dialog();
         viewMenu = dialog;
         dialog.setOnDismissListener(closed -> {
             viewMenu = null; if (!active) return;
             resumeThen(() -> {
                 if (choice[0] < 0) return;
-                int id = choices.get(choice[0]).id;
+                int id = choice[0];
                 if (floating) changeWorkspace(() -> workspace.add(id, NotebookWorkspace.Position.FLOATING));
                 else chooseCompanionPosition(id);
             });
         });
         showNoteDialog(dialog);
+        roundNotePicker(dialog);
     }
 
     private void chooseCompanionPosition(int notebook) {
@@ -3451,7 +3454,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         },"ai-selection").start();
     }
 
-    private void exportSelection() {
+    private void exportSelection(int format) {
         if (selection == null || selection.isEmpty()) return;
         NotebookPage source = NotebookPage.empty().withSize(viewport.pageWidth(selectionPage), viewport.pageHeight(selectionPage))
             .withStrokes(selection.strokes);
@@ -3462,7 +3465,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
                 return;
             }
             if (error != null) { Toast.makeText(this, error.getMessage(), Toast.LENGTH_LONG).show(); editing = false; installViewport(); return; }
-            startActivity(new Intent(this, NotebookMediaActivity.class).putExtra("source", file.getPath()));
+            startActivity(new Intent(this, NotebookMediaActivity.class).putExtra("source", file.getPath()).putExtra("format", format));
         });
     }
 

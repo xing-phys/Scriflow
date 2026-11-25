@@ -9,8 +9,8 @@ described below remains in use.
 
 Open a notebook and tap **⋮**, then **Export PDF**. Every page in the notebook
 is exported in order. Preparation shows the page being processed. When ready,
-the Android save picker opens with the notebook name as the suggested filename.
-Choose a location and tap Save; wait until the app shows **PDF saved**, then
+Scriflow's Files browser opens with the notebook name as the suggested filename.
+Choose a folder and tap Save here; wait until the app shows **PDF saved**, then
 tap **Done** to return to writing.
 
 Cancelling the picker keeps the prepared PDF available through **Save PDF**.

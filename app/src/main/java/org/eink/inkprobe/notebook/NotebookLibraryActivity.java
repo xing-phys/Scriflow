@@ -103,24 +103,22 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
             if (!canAct()) return;
             startActivity(new Intent(this, NotebookFilesActivity.class)); overridePendingTransition(0, 0);
         });
-        root.addView(shortcuts);
-        LinearLayout navigation = new LinearLayout(this); navigation.setGravity(Gravity.CENTER_VERTICAL);
-        NotebookBrowserIconButton home = new NotebookBrowserIconButton(this, NotebookIconDrawable.Icon.LIBRARY, "Bookshelf", () -> navigate(0, false));
-        navigation.addView(home, new LinearLayout.LayoutParams(dp(44), dp(44)));
-        path = label("", 13); path.setSingleLine(true); path.setEllipsize(TextUtils.TruncateAt.END);
-        path.setTextColor(Color.WHITE); path.setGravity(Gravity.CENTER); path.setPadding(dp(12), 0, dp(12), 0);
-        path.setMaxWidth(dp(200));
-        android.graphics.drawable.GradientDrawable currentTab = NotebookUi.rounded(getResources().getDisplayMetrics().density, 7);
-        currentTab.setColor(Color.BLACK); path.setBackground(currentTab);
-        LinearLayout.LayoutParams tabSpace = new LinearLayout.LayoutParams(-2, dp(38)); tabSpace.leftMargin = dp(6);
-        navigation.addView(path, tabSpace);
-        navigation.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1));
+        addShortcut(shortcuts, "Bookshelf", NotebookIconDrawable.Icon.LIBRARY, () -> navigate(0, false));
         folderButton = new NotebookBrowserIconButton(this, NotebookIconDrawable.Icon.NEW_FOLDER, "+ Folder", this::createFolder);
-        navigation.addView(folderButton, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        LinearLayout.LayoutParams folderSpace = new LinearLayout.LayoutParams(dp(44), dp(44)); folderSpace.leftMargin = dp(7);
+        shortcuts.addView(folderButton, folderSpace);
         trashButton = new NotebookBrowserIconButton(this, NotebookIconDrawable.Icon.DELETE, "Trash", () -> navigate(0, true));
-        LinearLayout.LayoutParams trashSpace = new LinearLayout.LayoutParams(dp(44), dp(44)); trashSpace.leftMargin = dp(6);
-        navigation.addView(trashButton, trashSpace);
-        root.addView(navigation);
+        LinearLayout.LayoutParams trashSpace = new LinearLayout.LayoutParams(dp(44), dp(44)); trashSpace.leftMargin = dp(7);
+        shortcuts.addView(trashButton, trashSpace);
+        android.widget.HorizontalScrollView shortcutScroll = new android.widget.HorizontalScrollView(this);
+        shortcutScroll.setHorizontalScrollBarEnabled(false); shortcutScroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        shortcutScroll.addView(shortcuts); root.addView(shortcutScroll);
+        path = label("", 13); path.setSingleLine(true); path.setEllipsize(TextUtils.TruncateAt.MIDDLE);
+        path.setTextColor(Color.BLACK); path.setPadding(0, 0, dp(12), 0);
+        path.setOnClickListener(v -> { if (inTrash) navigate(0, false); else {
+            NotebookCatalog.Folder folder = NotebookFolders.find(session.folders(), currentFolder);
+            if (folder != null) navigate(folder.parentId, false);
+        }});
         selectionBar = new LinearLayout(this); selectionBar.setGravity(Gravity.CENTER_VERTICAL);
         selectionBar.setPadding(0, dp(6), 0, dp(4));
         selectionCount = label("", 13); selectionCount.setTypeface(null, Typeface.BOLD);
@@ -134,7 +132,10 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         LinearLayout.LayoutParams cancelSpace = new LinearLayout.LayoutParams(dp(44), dp(44)); cancelSpace.leftMargin = dp(6);
         selectionBar.addView(cancelSelection, cancelSpace); selectionBar.setVisibility(View.GONE);
         root.addView(selectionBar);
-        status = label("Opening bookshelf…", 12); root.addView(status, new LinearLayout.LayoutParams(-1, dp(26)));
+        LinearLayout location = new LinearLayout(this); location.setGravity(Gravity.CENTER_VERTICAL);
+        location.addView(path, new LinearLayout.LayoutParams(-2, dp(26)));
+        status = label("Opening bookshelf…", 12); location.addView(status, new LinearLayout.LayoutParams(0, dp(26), 1));
+        root.addView(location);
         rows = new GridView(this); rows.setBackgroundColor(Color.WHITE);
         rows.setStretchMode(GridView.STRETCH_COLUMN_WIDTH);
         rows.setSelector(new ColorDrawable(Color.TRANSPARENT)); rows.setDrawSelectorOnTop(false);
@@ -212,9 +213,9 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         int columns = thumbnails ? NotebookSettings.bookshelfColumns(this, NotebookSettings.landscape(this))
             : NotebookSettings.landscape(this) ? 2 : 1;
         rows.setNumColumns(columns); rows.setVerticalSpacing(dp(thumbnails ? 4 : 6));
-        if (!inTrash && currentFolder == 0) {
-            items.add(ShelfFolder.SAVED_WEBSITES);
-            items.addAll(session.folders());
+        if (!inTrash) {
+            if (currentFolder == 0) items.add(ShelfFolder.SAVED_WEBSITES);
+            for (NotebookCatalog.Folder folder : session.folders()) if (folder.parentId == currentFolder) items.add(folder);
         }
         int trashed = 0, count = 0;
         for (NotebookCatalog.Entry entry : session.entries()) {
@@ -229,12 +230,12 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
             if(inTrash?book.trashed:!book.trashed&&folder==currentFolder){items.add(book);bookCount++;}
         }
         selection.retain(items); updateSelectionBar();
-        path.setText(inTrash ? "Trash" : currentFolder == 0 ? "" : folderName(currentFolder));
+        path.setText(inTrash ? "Trash ›" : currentFolder == 0 ? "" : "‹ " + NotebookFolders.path(session.folders(), currentFolder));
         path.setVisibility(inTrash || currentFolder != 0 ? View.VISIBLE : View.GONE);
         String trashLabel = "Trash (" + trashed + ")";
         trashButton.setContentDescription(trashLabel); trashButton.setTooltipText(trashLabel);
         trashButton.setVisibility(inTrash ? View.GONE : View.VISIBLE);
-        folderButton.setVisibility(inTrash || currentFolder != 0 ? View.GONE : View.VISIBLE);
+        folderButton.setVisibility(inTrash ? View.GONE : View.VISIBLE);
         status.setOnClickListener(null);
         status.setText(inTrash ? (count+bookCount) + " deleted items · Restore or delete permanently from ⋮"
             : count + " notebooks · "+bookCount+" ebooks" + (items.isEmpty() ? " · Create a notebook or import a book." : " · ⋮ for actions · Hold to select"));
@@ -244,10 +245,6 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
     private boolean hasFolder(int id) {
         for (NotebookCatalog.Folder folder : session.folders()) if (folder.id == id) return true;
         return false;
-    }
-    private String folderName(int id) {
-        for (NotebookCatalog.Folder folder : session.folders()) if (folder.id == id) return folder.name;
-        return "Bookshelf";
     }
     private void navigate(int folder, boolean trash) {
         if (!canAct()) return;
@@ -296,7 +293,7 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         if (!canAct() || selection.size() == 0) return;
         List<NotebookCatalog.Folder> folders = session.folders();
         String[] names = new String[folders.size() + 1]; names[0] = "Bookshelf (no folder)";
-        for (int i = 0; i < folders.size(); i++) names[i + 1] = folders.get(i).name;
+        for (int i = 0; i < folders.size(); i++) names[i + 1] = NotebookFolders.path(folders, folders.get(i).id);
         AlertDialog menu = new AlertDialog.Builder(this).setTitle("Move selected items")
             .setItems(names, (dialog, which) -> performSelection(NotebookLibrary.BulkAction.MOVE, which == 0 ? 0 : folders.get(which - 1).id))
             .setNegativeButton("Cancel", null).create(); showStaticDialog(menu);
@@ -369,7 +366,7 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
                     .setPositiveButton("Rename",(d,n)->{String label=input.getText().toString();changeBook(()->ebookStore.rename(book.id,label));}).create();showStaticDialog(rename);
             }else if(which==1){
                 List<NotebookCatalog.Folder> folders=session.folders();String[] names=new String[folders.size()+1];names[0]="Bookshelf (no folder)";
-                for(int i=0;i<folders.size();i++)names[i+1]=folders.get(i).name;
+                for(int i=0;i<folders.size();i++)names[i+1]=NotebookFolders.path(folders,folders.get(i).id);
                 AlertDialog move=new AlertDialog.Builder(this).setTitle("Move ebook").setItems(names,(d,n)->changeBook(()->ebookStore.move(book.id,n==0?0:folders.get(n-1).id))).setNegativeButton("Cancel",null).create();showStaticDialog(move);
             }else changeBook(()->ebookStore.trash(book.id,true));
         }).setNegativeButton("Close",null).create();showStaticDialog(menu);
@@ -384,7 +381,7 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
     private void moveNotebook(NotebookCatalog.Entry entry) {
         List<NotebookCatalog.Folder> folders = session.folders();
         String[] names = new String[folders.size() + 1]; names[0] = "Bookshelf (no folder)";
-        for (int i = 0; i < folders.size(); i++) names[i + 1] = folders.get(i).name;
+        for (int i = 0; i < folders.size(); i++) names[i + 1] = NotebookFolders.path(folders, folders.get(i).id);
         AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Move “" + entry.name + "”")
             .setItems(names, (choice, which) -> change(callback -> session.moveNotebook(entry.id,
                 which == 0 ? 0 : folders.get(which - 1).id, callback))).setNegativeButton("Cancel", null).create();
@@ -392,7 +389,7 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
     }
     private void createFolder() {
         if (!canAct()) return;
-        nameDialog("New folder", "", 0, name -> change(callback -> session.createFolder(name, callback)));
+        nameDialog("New folder", "", 0, name -> change(callback -> session.createFolder(name, currentFolder, callback)));
     }
     private void folderActions(NotebookCatalog.Folder folder) {
         if (!canAct()) return;
@@ -400,9 +397,31 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
             .setItems(new String[]{"Rename folder", "Remove folder (keep items)"}, (choice, which) -> {
                 if (which == 0) nameDialog("Rename folder", folder.name, folder.id,
                     name -> change(callback -> session.renameFolder(folder.id, name, callback)));
-                else change(callback -> session.deleteFolder(folder.id, callback));
+                else removeFolder(folder);
             }).setNegativeButton("Close", null).create();
         showStaticDialog(dialog);
+    }
+
+    private void removeFolder(NotebookCatalog.Folder folder) {
+        if (!canAct()) return;
+        busy = true; clearPreviews(); final int request = generation;
+        session.deleteFolder(folder.id, (page, error) -> {
+            if (error != null) {
+                if (active && request == generation) { busy = false; render(); showProblem(error); }
+                return;
+            }
+            // Catalog and ebook metadata are independent. Move ebook references before
+            // reloading the shelf; an interrupted move leaves each ebook recoverable at root.
+            NotebookEbookTasks.run(() -> {
+                for (NotebookEbookStore.Book book : ebookStore.list())
+                    if (book.folderId == folder.id) ebookStore.move(book.id, folder.parentId);
+                return null;
+            }, (ignored, failure) -> {
+                if (active && request == generation) {
+                    busy = false; refresh(); if (failure != null) showProblem(failure);
+                }
+            });
+        });
     }
 
     private void clearPreviews() {
@@ -803,7 +822,10 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
             try { name = NotebookCatalog.normalizedName(field.getText().toString()); }
             catch (IllegalArgumentException error) { field.setError(error.getMessage()); return; }
             if (title.toLowerCase(java.util.Locale.ROOT).contains("folder")) {
-                for (NotebookCatalog.Folder folder : session.folders()) if (folder.id != notebookId && folder.name.equalsIgnoreCase(name)) {
+                int parent = currentFolder;
+                if (notebookId != 0) { NotebookCatalog.Folder existingFolder = NotebookFolders.find(session.folders(), notebookId);
+                    if (existingFolder != null) parent = existingFolder.parentId; }
+                for (NotebookCatalog.Folder folder : session.folders()) if (folder.id != notebookId && folder.parentId == parent && folder.name.equalsIgnoreCase(name)) {
                     field.setError("A folder with this name already exists"); return;
                 }
             }
@@ -830,7 +852,7 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         Bundle restored = dialogDraft; dialogDraft = null;
         if ("create".equals(restored.getString("kind"))) createDialog(restored);
         else if ("folderCreate".equals(restored.getString("kind"))) {
-            nameDialog("New folder", restored.getString("name", ""), 0, name -> change(callback -> session.createFolder(name, callback)));
+            nameDialog("New folder", restored.getString("name", ""), 0, name -> change(callback -> session.createFolder(name, currentFolder, callback)));
         } else if ("folderRename".equals(restored.getString("kind"))) {
             int id = restored.getInt("notebookId");
             if (hasFolder(id)) nameDialog("Rename folder", restored.getString("name", ""), id,
@@ -895,7 +917,11 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
     @Override public void onBackPressed() {
         if (selection.active()) { cancelSelection(); return; }
-        if (currentFolder != 0 || inTrash) { navigate(0, false); return; }
+        if (inTrash) { navigate(0, false); return; }
+        if (currentFolder != 0) {
+            NotebookCatalog.Folder folder = NotebookFolders.find(session.folders(), currentFolder);
+            navigate(folder == null ? 0 : folder.parentId, false); return;
+        }
         super.onBackPressed(); overridePendingTransition(0, 0);
     }
 }

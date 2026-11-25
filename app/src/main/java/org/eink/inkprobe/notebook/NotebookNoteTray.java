@@ -35,7 +35,8 @@ final class NotebookNoteTray {
         row.setPadding(dp(4), dp(4), dp(4), dp(4));
         GradientDrawable background = new GradientDrawable(); background.setColor(Color.WHITE);
         background.setStroke(dp(1), Color.BLACK); background.setCornerRadius(dp(12)); row.setBackground(background);
-        NotebookIconButton add = new NotebookIconButton(context, NotebookIconDrawable.Icon.PLUS, addName);
+        NotebookIconButton add = new NotebookIconButton(context, restoreIcon == NotebookIconDrawable.Icon.PAPER_BLANK
+            ? NotebookIconDrawable.Icon.OPEN_NOTES : NotebookIconDrawable.Icon.PLUS, addName);
         add.setTooltipText(addName);
         add.setOnClickListener(v -> listener.add()); row.addView(add, new LinearLayout.LayoutParams(dp(32), dp(32)));
         int count = 1;

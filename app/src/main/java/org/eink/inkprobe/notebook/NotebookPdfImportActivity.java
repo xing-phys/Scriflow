@@ -89,10 +89,10 @@ public final class NotebookPdfImportActivity extends NotebookDisplayActivity {
     }
     private void pick() {
         if (!resumed || isFinishing() || isDestroyed() || !root.isAttachedToWindow() || !job.flow.beginPicker()) return;
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/pdf");
+        Intent intent = NotebookFilePicker.open(this, "pdf");
         try { startActivityForResult(intent, PICK_PDF); }
         catch (android.content.ActivityNotFoundException error) {
-            job.flow.failed(); job.message = "No system file picker is available."; render();
+            job.flow.failed(); job.message = "Could not open Files."; render();
         }
     }
     @Override protected void onActivityResult(int request, int result, Intent data) {

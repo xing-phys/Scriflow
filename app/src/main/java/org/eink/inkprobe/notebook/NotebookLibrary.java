@@ -150,15 +150,17 @@ public final class NotebookLibrary {
         });
     }
 
-    public void createFolder(String name) throws IOException {
+    public void createFolder(String name) throws IOException { createFolder(name, 0); }
+    public void createFolder(String name, int parent) throws IOException {
         execute(() -> {
             requireCatalog(); requireWritable();
             if (state.folders.size() >= NotebookCatalog.MAX_NOTEBOOKS) throw new IOException("The bookshelf supports up to 200 folders");
-            String checkedName = checkedFolderName(name, 0);
+            if (parent != 0) folderIndex(parent);
+            String checkedName = checkedFolderName(name, 0, parent);
             int id = 1;
             List<NotebookCatalog.Folder> folders = new ArrayList<>(state.folders);
             for (NotebookCatalog.Folder folder : folders) id = Math.max(id, folder.id + 1);
-            folders.add(new NotebookCatalog.Folder(id, checkedName));
+            folders.add(new NotebookCatalog.Folder(id, checkedName, parent));
             saveMetadata(state.entries, folders);
         });
     }
@@ -168,19 +170,29 @@ public final class NotebookLibrary {
             requireCatalog(); requireWritable();
             List<NotebookCatalog.Folder> folders = new ArrayList<>(state.folders);
             int index = folderIndex(id);
-            folders.set(index, new NotebookCatalog.Folder(id, checkedFolderName(name, id))); saveMetadata(state.entries, folders);
+            int parent = folders.get(index).parentId;
+            folders.set(index, new NotebookCatalog.Folder(id, checkedFolderName(name, id, parent), parent)); saveMetadata(state.entries, folders);
         });
     }
 
-    /** Removing a folder keeps its notebooks and restores them to the bookshelf root. */
+    /** Removing a folder keeps its contents in the former parent. */
     public void deleteFolder(int id) throws IOException {
         execute(() -> {
             requireCatalog(); requireWritable();
             List<NotebookCatalog.Folder> folders = new ArrayList<>(state.folders);
+            int parent = folders.get(folderIndex(id)).parentId;
+            for (NotebookCatalog.Folder child : folders) if (child.parentId == id)
+                for (NotebookCatalog.Folder sibling : folders)
+                    if (sibling.parentId == parent && sibling.id != id && sibling.name.equalsIgnoreCase(child.name))
+                        throw new IOException("A folder with this name already exists in the destination");
             folders.remove(folderIndex(id));
+            for (int i = 0; i < folders.size(); i++) {
+                NotebookCatalog.Folder child = folders.get(i);
+                if (child.parentId == id) folders.set(i, new NotebookCatalog.Folder(child.id, child.name, parent));
+            }
             List<NotebookCatalog.Entry> entries = new ArrayList<>(state.entries);
             for (int i = 0; i < entries.size(); i++) if (entries.get(i).folderId == id)
-                entries.set(i, entries.get(i).moved(0));
+                entries.set(i, entries.get(i).moved(parent));
             saveMetadata(entries, folders);
         });
     }
@@ -295,10 +307,10 @@ public final class NotebookLibrary {
         throw new IOException("Folder is no longer available");
     }
 
-    private String checkedFolderName(String name, int exceptId) throws IOException {
+    private String checkedFolderName(String name, int exceptId, int parent) throws IOException {
         String checked = NotebookCatalog.normalizedName(name);
         for (NotebookCatalog.Folder folder : state.folders)
-            if (folder.id != exceptId && folder.name.toLowerCase(java.util.Locale.ROOT).equals(checked.toLowerCase(java.util.Locale.ROOT)))
+            if (folder.id != exceptId && folder.parentId == parent && folder.name.toLowerCase(java.util.Locale.ROOT).equals(checked.toLowerCase(java.util.Locale.ROOT)))
                 throw new IOException("A folder with this name already exists");
         return checked;
     }

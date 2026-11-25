@@ -6,6 +6,18 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.48.0-beta.1 — Bookshelf folders and in-app file picking (2026-11-25)
+
+- Put bookshelf, folder and trash actions on the shelf's existing shortcut row.
+  Create folders at any level and navigate parents from the shelf or note picker.
+- Choose PDF, ebook, backup, image and font imports and export destinations in
+  Scriflow's Files. New exports cannot silently overwrite existing files.
+- Offer selected-ink formats next to the lasso selection; use a compact rounded,
+  folder-aware dialog and a clearer icon for opening another note.
+- VersionCode 127. The library catalog advances to version 3 and reads versions
+  1 and 2; earlier APKs cannot read a catalog written by this version. The beta
+  label is at the owner's request. Physical tablet acceptance is pending.
+
 ## 0.47.0-alpha.2 — HTTP website access (2026-11-21)
 
 - Open, bookmark, restore and save explicitly entered HTTP websites; addresses

@@ -168,7 +168,8 @@ final class NotebookSession {
     void renameNotebook(int id, String name, Callback callback) {
         submit(() -> document.renameNotebook(id, name), callback);
     }
-    void createFolder(String name, Callback callback) { submit(() -> document.createFolder(name), callback); }
+    void createFolder(String name, Callback callback) { createFolder(name, 0, callback); }
+    void createFolder(String name, int parent, Callback callback) { submit(() -> document.createFolder(name, parent), callback); }
     void renameFolder(int id, String name, Callback callback) { submit(() -> document.renameFolder(id, name), callback); }
     void deleteFolder(int id, Callback callback) { submit(() -> document.deleteFolder(id), callback); }
     void moveNotebook(int id, int folder, Callback callback) { submit(() -> document.moveNotebook(id, folder), callback); }

@@ -215,17 +215,13 @@ public final class NotebookPdfExportActivity extends NotebookDisplayActivity {
         autoPicker = false;
         awaitingPicker = true;
         message = null;
-        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT)
-            .addCategory(Intent.CATEGORY_OPENABLE)
-            .setType("application/pdf")
-            .putExtra(Intent.EXTRA_TITLE, suggestedName(notebookName))
-            .addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
+        Intent intent = NotebookFilePicker.save(this, suggestedName(notebookName)).addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
         try {
             startActivityForResult(intent, CREATE_PDF);
             overridePendingTransition(0, 0);
         } catch (ActivityNotFoundException | SecurityException error) {
             awaitingPicker = false;
-            message = "Couldn’t open a document picker. Tap Save PDF to try again.";
+            message = "Couldn’t open Files. Tap Save PDF to try again.";
         }
         render();
     }

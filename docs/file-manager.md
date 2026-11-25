@@ -66,8 +66,11 @@ the remaining contents before retrying.
 
 Tap a PDF to import and open an independent notebook copy in Scriflow. Supported
 ebooks open in Scriflow's book reader. Other files use Android's Open with chooser.
-The bookshelf import shortcuts also use Android's document picker, which can
-offer installed document providers beyond shared tablet storage. Share supports up to 100 individual files;
+Imports and exports use this same Files browser. Choose a file, or open a
+folder, enter a name and tap **Save here**. Existing files are not replaced;
+choose a different name if one already exists. These pickers require the Files
+storage permission and browse mounted shared storage, not cloud document providers.
+Share supports up to 100 individual files;
 directory sharing and archive creation/extraction are not included. Installed
 apps can handle additional file types. Open/share uses temporary, read-only
 Android content-URI grants for the selected files, without exposing app-private

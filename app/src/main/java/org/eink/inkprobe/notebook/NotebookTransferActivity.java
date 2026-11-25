@@ -9,7 +9,7 @@ import android.view.WindowManager;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-/** System document picker access; no broad storage permission and no interaction with live ink. */
+/** File transfer controller; storage work stays off the live ink thread. */
 public final class NotebookTransferActivity extends NotebookDisplayActivity {
     private static final int PICK = 2401;
     private NotebookTransfer job;
@@ -52,11 +52,9 @@ public final class NotebookTransferActivity extends NotebookDisplayActivity {
     }
     private void pick() {
         if (job.busy || job.complete || awaiting) return;
-        Intent intent = new Intent(job.restoring ? Intent.ACTION_OPEN_DOCUMENT : Intent.ACTION_CREATE_DOCUMENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE); intent.setType(job.restoring ? "*/*" : "application/zip");
-        if (!job.restoring) intent.putExtra(Intent.EXTRA_TITLE, "notebook.inkbook");
+        Intent intent = job.restoring ? NotebookFilePicker.open(this, "backup") : NotebookFilePicker.save(this, "notebook.inkbook");
         try { awaiting = true; startActivityForResult(intent, PICK); }
-        catch (android.content.ActivityNotFoundException error) { awaiting = false; status.setText("No system file picker is available."); }
+        catch (android.content.ActivityNotFoundException error) { awaiting = false; status.setText("Could not open Files."); }
     }
     @Override protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);

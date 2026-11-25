@@ -9,7 +9,7 @@ cross-page dragging. Its latest UI and exact release APK remain physically untes
 
 ## Insert and edit figures
 
-Open **⋮ → Insert figure…** to go directly to the system file picker. Choosing
+Open **⋮ → Insert figure…** to go directly to Scriflow's Files browser. Choosing
 an image inserts it at the current page’s center and returns to the note
 automatically. Cancelling returns without changing the note; failures offer retry.
 Tap a figure with one finger to select it, then drag its body to move it in the
@@ -46,10 +46,10 @@ are not linked or modified. Figures survive reopening, page duplication,
 ## Export a lasso selection
 
 Select handwriting with Lasso, then choose **Export…** in the nearby action
-panel. Prepare **SVG, PNG, JPEG, WebP, or PDF**, then choose **Save…** and a
-location in the system picker. A cancelled picker retains the prepared file
-for retry. A failed provider write retains the prepared file and offers retry;
-the failed external destination may be incomplete.
+panel. Choose **SVG, PNG, JPEG, WebP, or PDF** in the small menu beside the
+selection, then choose a folder and file name in Scriflow's Files. Cancelling
+returns to the note. A failed write offers retry; an incomplete destination may
+remain. Existing files are not overwritten.
 
 Only selected strokes are exported, without page rules, PDF backgrounds,
 figures, or the selection outline. The crop follows the native pressure-shaped
@@ -60,10 +60,11 @@ capped at 2,048 pixels on their longest edge. Export does not change the note.
 
 ## Open and manage notes
 
-Tap the **overlapping-notes button in the toolbox**. With one note open, select
+Tap the **notebook-plus button in the toolbox**. Browse the bookshelf folders
+in the rounded picker, or use its circular close button. With one note open, select
 another notebook and choose **Left, Right, Top, Bottom, or Floating window**.
 With several notes open, the button toggles a small tray beside that button:
-**+** opens another floating note. Each minimized note has its own page-icon
+The notebook-plus icon opens another floating note. Each minimized note has its own page-icon
 button to restore it.
 Each icon identifies its notebook through its tooltip/accessibility name.
 Only notebooks not already in the workspace appear in the picker.

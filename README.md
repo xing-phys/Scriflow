@@ -26,7 +26,14 @@ pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
 stays in front, window operations retain the main editor, and PDF import opens
 the file picker directly before opening the imported note.
 
-The **[0.47.0-alpha.2 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.47.0-alpha.2)**
+The **[0.48.0-beta.1 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.48.0-beta.1)**
+adds nested bookshelf folders, a compact shelf toolbar and folder-aware note
+picker, and uses Scriflow's own Files browser for imports and exports. Selected
+ink offers its export formats beside the selection. This beta is published at
+the owner's request; the new interactions and earlier alpha changes still need
+physical tablet acceptance. See [release notes](docs/releases/0.48.0-beta.1.md).
+
+The preceding **[0.47.0-alpha.2 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.47.0-alpha.2)**
 opens explicitly entered HTTP websites, identifies their unencrypted connections,
 and lets taps in continuous PDF and note reading advance by a screenful with a
 per-notebook adjustable overlap. Physical tablet acceptance remains pending.
@@ -58,7 +65,7 @@ adds independent page-turn/continuous, single/double-page, and scroll-direction
 choices for PDFs and notes, and improves finger-tap navigation in all readers.
 It also includes two-column ebook spreads and an expandable contents tree.
 Browser sign-in windows retain their connection to the original page. Real X/Google sign-in and the new
-reading views still need acceptance on the supported tablet before beta.
+reading views still need acceptance on the supported tablet.
 
 The preceding **[0.43.0-alpha.2 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.43.0-alpha.2)**
 improves password-protected **Screen cast** for lectures. Capture/JPEG/network
@@ -207,7 +214,7 @@ individually sized Markdown use **page format 9**; other pages continue to use
 format 8. Older APKs cannot read format-9 pages or backups containing them.
 Preserve independent backups before updating.
 The new reading and Markdown interactions await tablet acceptance; 0.33.2
-remains the latest stable release. Download the alpha's signed APK and SHA-256
+remains the latest stable release. Download the beta's signed APK and SHA-256
 file from its release page.
 
 Double tapping the **M-Pencil body** switches Pen/Eraser and briefly shows the

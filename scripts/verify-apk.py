@@ -262,6 +262,12 @@ def verify_manifest(manifest, badging, variant, version):
             and bool(file_provider.attributes.get('android:grantUriPermissions'))
             and file_provider.attributes.get('android:authorities') == PACKAGE + '.tabletfiles',
             'Shared files must use an unexported provider with individual URI grants.')
+    transfer_provider = next((item for item in components if component_name(item) == PACKAGE + '.notebook.NotebookTransferProvider'), None)
+    require(transfer_provider is not None and transfer_provider.tag == 'provider'
+            and transfer_provider.attributes.get('android:exported') == 0
+            and not transfer_provider.attributes.get('android:grantUriPermissions', 0)
+            and transfer_provider.attributes.get('android:authorities') == PACKAGE + '.transfers',
+            'In-app transfer URIs must remain private and cannot be granted to other apps.')
     for component in components:
         if component_name(component) in NOTEBOOK_SCREENS:
             # ActivityInfo.SCREEN_ORIENTATION_BEHIND is 3: preserve direction while launching.

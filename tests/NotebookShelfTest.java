@@ -13,6 +13,7 @@ public final class NotebookShelfTest {
     public static void main(String[] args) throws Exception {
         try {
             foldersTrashAndPreview();
+            nestedFolderOperations();
             permanentDeleteLegacyAndReuse();
             purgeCannotTouchOtherDirectories();
             failedTrashPublicationAndRetry();
@@ -54,6 +55,29 @@ public final class NotebookShelfTest {
         check(cold.folders().isEmpty() && cold.entries().get(0).folderId == 0 && cold.entries().get(1).folderId == 0, "removing folder keeps active and trashed notebooks at root");
         cold.restoreNotebook(1); cold.openNotebook(1);
         check(cold.current().id.equals(first) && cold.current().strokes.size() == 1, "restoring after folder removal preserves writing");
+    }
+
+    private static void nestedFolderOperations() throws Exception {
+        File root = root(); NotebookLibrary library = ready(root);
+        library.createFolder("Parent"); int parent = library.folders().get(0).id;
+        library.createFolder("Child", parent); int child = library.folders().get(1).id;
+        library.createFolder("Grandchild", child); int grandchild = library.folders().get(2).id;
+        library.createFolder("Child");
+        library.moveNotebook(1, child); library.renameFolder(child, "Nested");
+        check(library.folders().get(1).parentId == parent && library.entries().get(0).folderId == child, "rename preserves a folder's parent and notebook contents");
+        NotebookLibrary restarted = catalog(root);
+        check(NotebookFolders.path(restarted.folders(), grandchild).equals("Parent / Nested / Grandchild"), "nested folder path survives restart");
+        restarted.deleteFolder(child);
+        check(restarted.entries().get(0).folderId == parent && NotebookFolders.find(restarted.folders(), grandchild).parentId == parent,
+            "removing a nested folder keeps notebooks and subfolders in its parent");
+        restarted.deleteFolder(parent);
+        check(restarted.entries().get(0).folderId == 0 && NotebookFolders.find(restarted.folders(), grandchild).parentId == 0,
+            "removing a root folder keeps its contents at the bookshelf root");
+        File collisionRoot = root(); NotebookLibrary collision = ready(collisionRoot);
+        collision.createFolder("Parent"); int id = collision.folders().get(0).id;
+        collision.createFolder("Same", id); collision.createFolder("Same");
+        expect(() -> collision.deleteFolder(id));
+        check(catalog(collisionRoot).folders().size() == 3, "a conflicting reparent leaves every folder intact");
     }
 
     private static void permanentDeleteLegacyAndReuse() throws Exception {

@@ -98,7 +98,7 @@ public final class NotebookFloatingTools {
                 view.getParent().requestDisallowInterceptTouchEvent(false);
             return consumed;
         });
-        add(Action.NOTES, NotebookIconDrawable.Icon.NOTES, reading?"Bookmarks and reading notes":"Open notes and minimized windows");
+        add(Action.NOTES, reading ? NotebookIconDrawable.Icon.NOTES : NotebookIconDrawable.Icon.OPEN_NOTES, reading?"Bookmarks and reading notes":"Open notes and minimized windows");
         add(Action.ZEN, NotebookIconDrawable.Icon.FULLSCREEN, "Enter Zen mode");
         add(Action.OUTLINE, NotebookIconDrawable.Icon.OUTLINE, reading?"Contents":"Table of contents; add and edit outline");
         add(Action.ORIENTATION, NotebookIconDrawable.Icon.LAYOUT_VERTICAL, "Switch to vertical tools");

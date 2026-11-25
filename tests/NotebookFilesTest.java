@@ -31,6 +31,14 @@ public final class NotebookFilesTest {
             List<File> selected = files.selection(Arrays.asList(folder, nested, paper, folder));
             check(selected.size() == 1 && selected.get(0).equals(folder), "Overlapping selections are processed once");
 
+            File reserved = files.reserveFile(folder, "export.svg");
+            check(reserved.isFile() && reserved.length() == 0, "Export reserves a new file in the selected folder");
+            Files.write(reserved.toPath(), "keep".getBytes(StandardCharsets.UTF_8));
+            fails(() -> files.reserveFile(folder, "export.svg"), "Export cannot replace an existing file");
+            check(read(reserved).equals("keep"), "A conflicting export preserves existing bytes");
+            fails(() -> files.reserveFile(root, "../outside"), "Export rejects path traversal");
+            reserved.delete();
+
             for (String name : new String[]{"", " ", ".", "..", "../escape", "a/b", "a\\b", "line\nbreak", "nul\0"})
                 fails(() -> NotebookFiles.name(name), "Unsafe file name is rejected");
             fails(() -> files.createFolder(root, "Physics notes"), "Creating a folder never reuses an existing one");

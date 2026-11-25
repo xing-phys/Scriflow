@@ -128,6 +128,16 @@ public final class NotebookFiles {
         return dot <= 0 ? "" : name.substring(dot + 1).toLowerCase(Locale.ROOT);
     }
 
+    /** Reserve a new export destination without replacing an existing entry. */
+    public File reserveFile(File parent, String value) throws IOException {
+        File directory = checked(parent, true);
+        if (!directory.isDirectory()) throw new IOException("The destination folder is unavailable.");
+        File target = checked(new File(directory, name(value)), false);
+        try { Files.createFile(target.toPath()); }
+        catch (java.nio.file.FileAlreadyExistsException exists) { throw new IOException("A file with this name already exists."); }
+        return target;
+    }
+
     public File createFolder(File parent, String value) throws IOException {
         File target = checked(new File(checked(parent, true), name(value)), false);
         Files.createDirectory(target.toPath()); return target;

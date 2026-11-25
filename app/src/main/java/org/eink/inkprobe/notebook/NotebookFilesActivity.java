@@ -45,7 +45,9 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
     private HorizontalScrollView path;
     private LinearLayout pathParts;
     private String renderedPath;
-    private EditText search;
+    private EditText search, saveName;
+    private String pickerMode, pickerFilter;
+    private LinearLayout saveBar;
     private LinearLayout selectionBar, clipboardBar, accessPanel, footer;
     private NotebookButton up, homeButton, optionsButton, searchAction, searchClose, stop;
     private NotebookBrowserIconButton presentation;
@@ -66,6 +68,8 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
+        pickerMode = getIntent().getStringExtra(NotebookFilePicker.MODE);
+        pickerFilter = getIntent().getStringExtra(NotebookFilePicker.FILTER);
         thumbnails = NotebookCollectionLayout.thumbnails(this, "files");
         Object retained = getLastNonConfigurationInstance();
         job = retained instanceof NotebookFilesJob ? (NotebookFilesJob) retained : new NotebookFilesJob(this);
@@ -86,8 +90,8 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
         LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Color.WHITE); root.setPadding(dp(16), dp(10), dp(16), dp(8));
         LinearLayout header = row();
-        header.addView(icon("Bookshelf", NotebookIconDrawable.Icon.LIBRARY, this::bookshelf), new LinearLayout.LayoutParams(dp(44), dp(42)));
-        TextView title = label("Files", 21); title.setTypeface(null, Typeface.BOLD); title.setPadding(dp(12), 0, 0, 0);
+        header.addView(icon(picking() ? "Cancel file selection" : "Bookshelf", picking() ? NotebookIconDrawable.Icon.CLOSE : NotebookIconDrawable.Icon.LIBRARY, this::bookshelf), new LinearLayout.LayoutParams(dp(44), dp(42)));
+        TextView title = label("save".equals(pickerMode) ? "Save file" : "open".equals(pickerMode) ? "Choose file" : "Files", 21); title.setTypeface(null, Typeface.BOLD); title.setPadding(dp(12), 0, 0, 0);
         header.addView(title, new LinearLayout.LayoutParams(0, dp(44), 1));
         header.addView(deviceSettingsIsland(), new LinearLayout.LayoutParams(-2, dp(32))); root.addView(header);
 
@@ -155,6 +159,13 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
         empty = label("", 16); empty.setGravity(Gravity.CENTER); empty.setPadding(dp(24), dp(24), dp(24), dp(24));
         body.addView(list, new FrameLayout.LayoutParams(-1, -1)); body.addView(empty, new FrameLayout.LayoutParams(-1, -1));
         list.setEmptyView(empty); root.addView(body, new LinearLayout.LayoutParams(-1, 0, 1));
+        saveBar = row();
+        saveName = new EditText(this); saveName.setSingleLine(true); saveName.setTextSize(15);
+        saveName.setHint("File name"); saveName.setContentDescription("File name");
+        saveName.setText(saved == null ? getIntent().getStringExtra(NotebookFilePicker.NAME) : saved.getString("saveName"));
+        saveBar.addView(saveName, new LinearLayout.LayoutParams(0, dp(48), 1));
+        saveBar.addView(button("Save here", NotebookIconDrawable.Icon.SAVE, this::saveHere), spaced(110, 44));
+        root.addView(saveBar);
         footer = row(); status = label("", 12); status.setMaxLines(3);
         footer.addView(status, new LinearLayout.LayoutParams(0, -2, 1));
         stop = icon("Stop", NotebookIconDrawable.Icon.STOP, () -> { if (job.busy) job.cancel(); });
@@ -173,6 +184,7 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
     }
     @Override public Object onRetainNonConfigurationInstance() { return job; }
     @Override protected void onSaveInstanceState(Bundle state) {
+        state.putString("saveName", saveName.getText().toString());
         state.putString("folder", job.folder); state.putString("query", job.query);
         state.putBoolean("searching", searching);
         state.putString("searchDraft", search.getText().toString()); state.putString("sort", job.sort.name());
@@ -198,6 +210,7 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
         String presentationLabel = thumbnails ? "Show files as list" : "Show file thumbnails";
         presentation.setSymbol(thumbnails ? NotebookIconDrawable.Icon.OUTLINE : NotebookIconDrawable.Icon.OVERVIEW, presentationLabel);
         accessPanel.setVisibility(access ? View.GONE : View.VISIBLE);
+        saveBar.setVisibility(access && "save".equals(pickerMode) ? View.VISIBLE : View.GONE);
         selectionBar.setVisibility(access && job.selecting ? View.VISIBLE : View.GONE);
         clipboardBar.setVisibility(access && !job.clipboard.isEmpty() ? View.VISIBLE : View.GONE);
         selectedCount.setText(job.selected.size() + " selected");
@@ -220,6 +233,7 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
                 }
             }
         } else if (access) for (NotebookFiles.Entry entry : job.listing.entries) {
+            if ("open".equals(pickerMode) && !entry.directory && !NotebookFilePicker.accepts(pickerFilter, entry.file.getName())) continue;
             String detail = (entry.directory ? "" : Formatter.formatFileSize(this, entry.bytes) + " · ")
                 + DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(new Date(entry.modified));
             if (!job.query.isEmpty()) detail += " · " + displayPath(entry.file.getParentFile());
@@ -360,6 +374,13 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
 
     private void options() {
         if (!ready()) return;
+        if (picking()) {
+            String[] actions = {"New folder", "Sort by…", job.hidden ? "Hide hidden files" : "Show hidden files", "Refresh"};
+            show(new AlertDialog.Builder(this).setTitle("Files").setItems(actions, (d, which) -> {
+                if (which == 0) { if (job.folder == null) problem("Open a storage location first."); else editName(null); }
+                else if (which == 1) sort(); else if (which == 2) { job.hidden = !job.hidden; job.refresh(); } else job.refresh();
+            }).setNegativeButton("Close", null).create()); return;
+        }
         String[] choices = {"New folder", "Select files", "Sort by…", job.hidden ? "Hide hidden files" : "Show hidden files", "Refresh"};
         show(new AlertDialog.Builder(this).setTitle("Files").setItems(choices, (d, which) -> {
             if (which == 0) { if (job.folder == null) problem("Open a storage location first."); else editName(null); }
@@ -379,7 +400,12 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
         if (!ready()) return;
         if (job.selecting && !item.root) { toggle(item); return; }
         if (item.directory) navigate(item.file);
-        else if (NotebookFileStorage.mime(item.file).equals("application/pdf")) {
+        else if ("open".equals(pickerMode)) {
+            try { setResult(RESULT_OK, new Intent().setData(NotebookTransferProvider.uri(this, item.file))); finish(); overridePendingTransition(0, 0); }
+            catch (IOException | SecurityException error) { problem(error.getMessage()); }
+        } else if ("save".equals(pickerMode)) {
+            Toast.makeText(this, "Choose a new file name below", Toast.LENGTH_SHORT).show();
+        } else if (NotebookFileStorage.mime(item.file).equals("application/pdf")) {
             try {
                 startActivity(new Intent(this, NotebookPdfImportActivity.class).setAction(Intent.ACTION_VIEW)
                     .setDataAndType(NotebookFileProvider.uri(this, item.file), "application/pdf"));
@@ -413,7 +439,7 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
         }).setNegativeButton("Cancel", null).create());
     }
     private void toggle(Row item) {
-        if (!ready() || item.root) return;
+        if (!ready() || item.root || picking()) return;
         job.selecting = true; String path = item.file.getAbsolutePath();
         if (!job.selected.remove(path)) job.selected.add(path); render();
     }
@@ -538,7 +564,7 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
             info.addView(name); TextView detail = label(item.detail, 12); detail.setSingleLine(true); detail.setEllipsize(TextUtils.TruncateAt.MIDDLE); info.addView(detail);
             info.setOnClickListener(v -> open(item)); info.setOnLongClickListener(v -> { toggle(item); return true; });
             row.addView(info, new LinearLayout.LayoutParams(0, -2, 1));
-            if (!item.root) row.addView(icon("Actions for " + item.title, NotebookIconDrawable.Icon.MORE, () -> fileActions(item)), new LinearLayout.LayoutParams(dp(44), dp(44)));
+            if (!item.root && !picking()) row.addView(icon("Actions for " + item.title, NotebookIconDrawable.Icon.MORE, () -> fileActions(item)), new LinearLayout.LayoutParams(dp(44), dp(44)));
             return row;
         }
 
@@ -558,11 +584,24 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
             TextView name = label(item.title, 14); name.setMaxLines(2); name.setEllipsize(TextUtils.TruncateAt.END);
             name.setOnClickListener(v -> open(item)); name.setOnLongClickListener(v -> { toggle(item); return true; });
             footer.addView(name, new LinearLayout.LayoutParams(0, dp(48), 1));
-            if (!item.root) footer.addView(icon("Actions for " + item.title, NotebookIconDrawable.Icon.MORE, () -> fileActions(item)), new LinearLayout.LayoutParams(dp(40), dp(40)));
+            if (!item.root && !picking()) footer.addView(icon("Actions for " + item.title, NotebookIconDrawable.Icon.MORE, () -> fileActions(item)), new LinearLayout.LayoutParams(dp(40), dp(40)));
             card.addView(footer);
             TextView detail = label(item.detail, 11); detail.setSingleLine(true); detail.setEllipsize(TextUtils.TruncateAt.END);
             card.addView(detail, new LinearLayout.LayoutParams(-1, dp(20))); return card;
         }
+    }
+    private boolean picking() { return "open".equals(pickerMode) || "save".equals(pickerMode); }
+    private void saveHere() {
+        if (!ready()) return;
+        if (job.folder == null || !job.query.isEmpty()) { problem("Open a destination folder and clear search first."); return; }
+        try {
+            String name = NotebookFiles.name(saveName.getText().toString());
+            NotebookFiles files = NotebookFileStorage.files(this);
+            File file = files.reserveFile(new File(job.folder), name);
+            try { setResult(RESULT_OK, new Intent().setData(NotebookTransferProvider.uri(this, file))); }
+            catch (IOException | SecurityException error) { file.delete(); throw error; }
+            finish(); overridePendingTransition(0, 0);
+        } catch (IOException | SecurityException error) { problem(error.getMessage()); }
     }
     private void bookshelf() {
         if (job.busy) { Toast.makeText(this, "Wait for the operation or tap Stop", Toast.LENGTH_SHORT).show(); return; }

@@ -18,6 +18,7 @@ final class NotebookSelectionTools {
     private final Context context;
     private final GridLayout content;
     private final PopupWindow popup;
+    private PopupWindow exportMenu;
     private final Runnable boundsChanged;
     private final Rect bounds = new Rect();
     private int layer = WindowManager.LayoutParams.TYPE_APPLICATION_PANEL;
@@ -87,8 +88,39 @@ final class NotebookSelectionTools {
         item.width = dp(28); item.height = dp(28); item.rightMargin = dp(2); item.bottomMargin = dp(2);
         return item;
     }
+    void chooseExport(java.util.function.IntConsumer selected) {
+        if (exportMenu != null && exportMenu.isShowing()) { exportMenu.dismiss(); return; }
+        View anchor = buttons.get(Action.EXPORT);
+        if (!anchor.isAttachedToWindow()) return;
+        android.widget.LinearLayout menu = new android.widget.LinearLayout(context);
+        menu.setOrientation(android.widget.LinearLayout.VERTICAL);
+        menu.setPadding(dp(4), dp(4), dp(4), dp(4));
+        menu.setBackground(NotebookUi.rounded(context.getResources().getDisplayMetrics().density, 9));
+        String[] formats = {"SVG", "PNG", "JPEG", "WebP", "PDF"};
+        for (int i = 0; i < formats.length; i++) {
+            final int format = i;
+            android.widget.TextView item = new android.widget.TextView(context);
+            item.setText(formats[i]); item.setTextSize(14); item.setTextColor(android.graphics.Color.BLACK);
+            item.setGravity(Gravity.CENTER_VERTICAL); item.setPadding(dp(12), 0, dp(12), 0);
+            item.setOnClickListener(v -> { exportMenu.dismiss(); selected.accept(format); });
+            menu.addView(item, new android.widget.LinearLayout.LayoutParams(-1, dp(38)));
+        }
+        int width = dp(116), height = dp(198);
+        int[] location = new int[2]; anchor.getLocationOnScreen(location);
+        android.util.DisplayMetrics screen = context.getResources().getDisplayMetrics();
+        int x = location[0] + anchor.getWidth() + dp(4);
+        if (x + width > screen.widthPixels) x = Math.max(0, location[0] - width - dp(4));
+        int y = Math.max(0, Math.min(location[1], screen.heightPixels - height));
+        exportMenu = new PopupWindow(menu, width, height, true);
+        exportMenu.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT));
+        exportMenu.setOutsideTouchable(true); exportMenu.setAnimationStyle(0); exportMenu.setElevation(0);
+        exportMenu.setWindowLayoutType(WindowManager.LayoutParams.TYPE_APPLICATION_SUB_PANEL);
+        exportMenu.setClippingEnabled(true); exportMenu.setIsLaidOutInScreen(true);
+        exportMenu.setEnterTransition(null); exportMenu.setExitTransition(null);
+        NotebookPopupHost.show(exportMenu, anchor, Gravity.TOP | Gravity.LEFT, x, y);
+    }
     Rect bounds() { return new Rect(bounds); }
-    void hide() { if (popup.isShowing()) popup.dismiss(); clearBounds(); }
+    void hide() { if (exportMenu != null) { exportMenu.dismiss(); exportMenu = null; } if (popup.isShowing()) popup.dismiss(); clearBounds(); }
     private void clearBounds() { if (!bounds.isEmpty()) { bounds.setEmpty(); boundsChanged.run(); } }
     void copied() { Toast.makeText(context, "Ink copied", Toast.LENGTH_SHORT).show(); }
     private int dp(int value) { return Math.round(value * context.getResources().getDisplayMetrics().density); }

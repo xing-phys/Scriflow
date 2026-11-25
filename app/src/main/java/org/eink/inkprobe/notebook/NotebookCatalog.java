@@ -22,22 +22,24 @@ public final class NotebookCatalog {
     public static final int MAX_NOTEBOOKS = 200;
     public static final int MAX_NAME_CODE_POINTS = 80;
     private static final int MAGIC = 0x4e424c31; // NBL1
-    private static final int VERSION = 2;
+    private static final int VERSION = 3;
     private static final int MAX_NAME_BYTES = MAX_NAME_CODE_POINTS * 4;
     private static final int MAX_PAYLOAD_BYTES = 16 + MAX_NOTEBOOKS * (28 + 2 * MAX_NAME_BYTES);
     public static final int ACTIVE = 0, TRASH = 1, PURGING = 2, PURGED = 3;
 
     public static final class Folder {
-        public final int id;
+        public final int id, parentId;
         public final String name;
-        public Folder(int id, String name) {
-            if (id < 1) throw new IllegalArgumentException("Invalid folder ID");
-            this.id = id; this.name = normalizedName(name);
+        public Folder(int id, String name) { this(id, name, 0); }
+        public Folder(int id, String name, int parentId) {
+            if (id < 1 || parentId < 0 || id == parentId) throw new IllegalArgumentException("Invalid folder ID or parent");
+            this.id = id; this.name = normalizedName(name); this.parentId = parentId;
         }
         @Override public boolean equals(Object other) {
-            return other instanceof Folder && id == ((Folder) other).id && name.equals(((Folder) other).name);
+            return other instanceof Folder && id == ((Folder) other).id
+                && parentId == ((Folder) other).parentId && name.equals(((Folder) other).name);
         }
-        @Override public int hashCode() { return 31 * id + name.hashCode(); }
+        @Override public int hashCode() { return 31 * (31 * id + name.hashCode()) + parentId; }
     }
 
     public static final class Entry {
@@ -239,8 +241,18 @@ public final class NotebookCatalog {
         java.util.Set<Integer> folderIds = new java.util.HashSet<>();
         java.util.Set<String> names = new java.util.HashSet<>();
         for (Folder folder : folders) {
-            if (folder == null || !folderIds.add(folder.id) || !names.add(folder.name.toLowerCase(java.util.Locale.ROOT)))
-                throw new IOException("Folder names and IDs must be unique");
+            if (folder == null || !folderIds.add(folder.id)
+                    || !names.add(folder.parentId + "\0" + folder.name.toLowerCase(java.util.Locale.ROOT)))
+                throw new IOException("Folder IDs and sibling names must be unique");
+        }
+        for (Folder folder : folders) {
+            if (folder.parentId != 0 && !folderIds.contains(folder.parentId)) throw new IOException("Folder parent is missing");
+            java.util.Set<Integer> ancestors = new java.util.HashSet<>();
+            Folder cursor = folder;
+            while (cursor != null) {
+                if (!ancestors.add(cursor.id)) throw new IOException("Folder hierarchy contains a cycle");
+                cursor = NotebookFolders.find(folders, cursor.parentId);
+            }
         }
         for (int i = 0; i < copy.size(); i++) {
             Entry entry = copy.get(i);
@@ -255,7 +267,7 @@ public final class NotebookCatalog {
             if (file.length() < 28 || file.length() > MAX_PAYLOAD_BYTES + 20L) throw new CorruptCatalogException("Incomplete or oversized notebook library");
             if (file.readInt() != MAGIC) throw new CorruptCatalogException("Unsupported notebook library header");
             int version = file.readInt();
-            if (version != 1 && version != VERSION) throw new CorruptCatalogException("Unsupported notebook library version");
+            if (version < 1 || version > VERSION) throw new CorruptCatalogException("Unsupported notebook library version");
             int length = file.readInt();
             if (length < 8 || length > MAX_PAYLOAD_BYTES || file.readInt() != ~length || file.length() != length + 20L) {
                 throw new CorruptCatalogException("Notebook library length check failed");
@@ -272,7 +284,8 @@ public final class NotebookCatalog {
                 if (folderCount < 0 || folderCount > MAX_NOTEBOOKS) throw new CorruptCatalogException("Invalid folder count");
                 for (int i = 0; i < folderCount; i++) {
                     int id = input.readInt(); String name = readName(input);
-                    try { folders.add(new Folder(id, name)); }
+                    int parent = version >= 3 ? input.readInt() : 0;
+                    try { folders.add(new Folder(id, name, parent)); }
                     catch (IllegalArgumentException error) { throw new CorruptCatalogException("Invalid folder"); }
                 }
             }
@@ -300,7 +313,7 @@ public final class NotebookCatalog {
         data.writeInt(state.selectedId);
         data.writeInt(state.folders.size());
         for (Folder folder : state.folders) {
-            data.writeInt(folder.id); writeName(data, folder.name);
+            data.writeInt(folder.id); writeName(data, folder.name); data.writeInt(folder.parentId);
         }
         for (Entry entry : state.entries) {
             data.writeInt(entry.id);

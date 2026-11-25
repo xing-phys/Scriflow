@@ -164,15 +164,14 @@ public class NotebookEbookActivity extends NotebookDisplayActivity {
         });
     }
     private void pickFont() {
-        try{startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"),FONT);}
-        catch(ActivityNotFoundException error){problem("No Android file picker is installed.");}
+        try{startActivityForResult(NotebookFilePicker.open(this, "font"),FONT);}
+        catch(ActivityNotFoundException error){problem("Could not open Files.");}
     }
     private void export(JSONObject message) {
         String contents=message.optString("text");if(contents.getBytes(StandardCharsets.UTF_8).length>NotebookEbookStore.MAX_STATE_BYTES){problem("This notes export exceeds 2 MiB.");return;}
         pendingExport=contents;
-        Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType(message.optString("mime","application/json"))
-            .putExtra(Intent.EXTRA_TITLE,title.replaceAll("[/\\\\\\p{Cntrl}]","_")+"-"+new File(message.optString("name","notes.json")).getName());
-        try{startActivityForResult(intent,EXPORT);}catch(ActivityNotFoundException error){pendingExport=null;problem("No Android document destination picker is installed.");}
+        Intent intent=NotebookFilePicker.save(this, title.replaceAll("[/\\\\\\p{Cntrl}]","_")+"-"+new File(message.optString("name","notes.json")).getName());
+        try{startActivityForResult(intent,EXPORT);}catch(ActivityNotFoundException error){pendingExport=null;problem("Could not open Files.");}
     }
     @Override protected void onActivityResult(int request,int result,Intent data) {
         super.onActivityResult(request,result,data);if(result!=RESULT_OK||data==null||data.getData()==null){if(request==EXPORT)pendingExport=null;return;}

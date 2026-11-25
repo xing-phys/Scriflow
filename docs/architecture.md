@@ -95,8 +95,8 @@ The app still keeps history only within the running process, up to 100 actions p
 
 ## Editable backup and restore
 
-Library rows have **Backup**. **Restore backup** accepts `.inkbook` files through Android's
-system picker, with no broad storage permission. The archive is a ZIP with a binary `manifest`
+Library rows have **Backup**. **Restore backup** accepts `.inkbook` files through Scriflow's
+Files browser, using the app's shared-storage permission. The archive is a ZIP with a binary `manifest`
 (magic `INKB`, version 1, Java modified-UTF notebook name, page count), followed in order by
 `pages/1.nbk` ... `pages/N.nbk`. Entries contain canonical snapshots, not journals or filesystem
 paths. Checksums, page bounds, duplicate IDs, entry order, counts, and resource limits are checked.

@@ -96,7 +96,7 @@ linked native notebooks implement a simpler model with independent writing space
 ## Storage, export and limits
 
 **More → Export reading notes** saves JSON annotations/settings or Markdown
-notes through Android's destination picker. JSON includes book identity, text
+notes through Scriflow's Files browser. JSON includes book identity, text
 anchors, bookmarks, notes and native notebook IDs; importing that JSON is not
 implemented in this alpha. Handwriting remains in ordinary notebooks and can be
 backed up as `.inkbook` files from the bookshelf. Those backups do not include
