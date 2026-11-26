@@ -30,9 +30,9 @@ final class NotebookNotePicker {
         this.context = context; this.folders = folders; this.entries = entries; this.selected = selected;
         FrameLayout frame = new FrameLayout(context);
         LinearLayout body = new LinearLayout(context); body.setOrientation(LinearLayout.VERTICAL);
-        body.setPadding(dp(8), dp(6), dp(8), dp(6));
-        TextView heading = label(title, 17); heading.setTypeface(null, Typeface.BOLD);
-        body.addView(heading, new LinearLayout.LayoutParams(-1, dp(34)));
+        body.setPadding(dp(8), dp(8), dp(8), dp(6));
+        TextView heading = label(title, 18); heading.setTypeface(null, Typeface.BOLD);
+        body.addView(heading, new LinearLayout.LayoutParams(-1, dp(40)));
         location = label("", 13); location.setSingleLine(true); location.setOnClickListener(v -> up());
         body.addView(location, new LinearLayout.LayoutParams(-1, dp(32)));
         scroll = new ScrollView(context); scroll.setFillViewport(false);

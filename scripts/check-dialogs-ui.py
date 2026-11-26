@@ -10,6 +10,7 @@ import tempfile
 import time
 import uuid
 import xml.etree.ElementTree as ET
+from PIL import Image
 
 PACKAGE = 'org.eink.inkprobe'
 SERIAL = os.environ.get('ANDROID_SERIAL', 'emulator-5554')
@@ -79,6 +80,17 @@ def same_row(first, second):
     return min(a[3], b[3]) > max(a[1], b[1])
 
 
+def tap_choice(label, timeout=30):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        for node in tree().iter('node'):
+            if node.get('text', '').removeprefix('✓ ') == label:
+                tap_node(node)
+                return
+        time.sleep(.2)
+    raise AssertionError('Reading choice not found: ' + label)
+
+
 def bounds(node):
     return list(map(int, re.findall(r'\d+', node.get('bounds'))))
 
@@ -97,6 +109,15 @@ def check(condition, message):
 
 def screenshot(name):
     (OUTPUT / name).write_bytes(adb('exec-out', 'screencap', '-p'))
+
+
+def has_top_border(name, title):
+    with Image.open(OUTPUT / name).convert('RGB') as image:
+        left, right = image.width // 4, 3 * image.width // 4
+        for y in range(4, min(bounds(title)[1], image.height)):
+            if sum(max(image.getpixel((x, y))) < 120 for x in range(left, right)) > (right - left) * .9:
+                return True
+    return False
 
 
 def wait_json(name, predicate=lambda value: True):
@@ -242,11 +263,22 @@ try:
     check(True, 'Adding, editing-mode navigation and closing the note outline still work')
     shell('am', 'start', '-W', '-f', '0x20000000', '-n', PACKAGE + '/.notebook.NotebookReadingSelfTestActivity',
           '--ez', 'openReading', 'true')
-    title = locate('Reading view'); close = locate('Close reading settings')
-    check(bounds(close)[1] > bounds(title)[1], 'Reading settings places its circular close control below the heading')
+    locate('Reading view'); tap('Double page'); locate('✓ Double page')
+    tap('Cover, then 2–3'); locate('✓ Cover, then 2–3')
+    check(True, 'Reading settings stays open and updates multiple selected options')
     screenshot('reading-settings.png')
-    before = wait_json('reading-ui-state.json')['time']; tap('Close reading settings')
+    before = wait_json('reading-ui-state.json')['time']; shell('input', 'tap', '1300', '1500')
     wait_json('reading-ui-state.json', lambda value: value.get('editable') and value.get('time', 0) > before)
+    shell('am', 'start', '-W', '-f', '0x20000000', '-n', PACKAGE + '/.notebook.NotebookReadingSelfTestActivity',
+          '--ez', 'openInfo', 'true')
+    title = locate('This page'); export = locate('Export PDF'); reset = locate('Reset tools'); close = locate('Close')
+    check(all(same_row(title, control) for control in (export, reset, close)) and bounds(title)[0] < bounds(export)[0] < bounds(reset)[0] < bounds(close)[0],
+          'Page information places its export, reset and close icons beside the title')
+    screenshot('page-information.png')
+    check(has_top_border('page-information.png', title), 'Page information has a visible top border above its title')
+    before = wait_json('reading-ui-state.json')['time']; tap('Reset tools')
+    wait_json('reading-ui-state.json', lambda value: value.get('editable') and value.get('time', 0) > before)
+    check(True, 'Reset tools closes the information panel and returns to the note')
     remove_notebook(NOTE_NAME, notebook_id)
     notebook_id = 0
 
@@ -258,7 +290,7 @@ try:
     shell('pm', 'grant', PACKAGE, 'android.permission.WRITE_EXTERNAL_STORAGE', check=False)
     adb('push', str(pdf), '/sdcard/Download/' + PDF_NAME + '.pdf')
     shell('am', 'start', '-W', '-n', PACKAGE + '/.notebook.NotebookLibraryActivity')
-    tap('Import PDF'); tap('Downloads'); tap(PDF_NAME + '.pdf')
+    tap('Files'); tap('Downloads'); tap(PDF_NAME + '.pdf')
     deadline = time.monotonic() + 40
     while time.monotonic() < deadline:
         tasks = shell('dumpsys', 'activity', 'activities')
@@ -277,6 +309,37 @@ try:
     before = wait_json('reading-ui-state.json')['time']; tap('Close')
     wait_json('reading-ui-state.json', lambda value: value.get('editable') and value.get('time', 0) > before)
     check(True, 'Imported PDF contents uses the same working compact outline dialog')
+    shell('am', 'start', '-W', '-f', '0x20000000', '-n', PACKAGE + '/.notebook.NotebookReadingSelfTestActivity',
+          '--ez', 'openReading', 'true')
+    locate('Reading view'); check(not any(n.get('content-desc') == 'Close reading settings' for n in tree().iter('node')), 'PDF reading settings has no redundant close button')
+    tap_choice('Double page'); locate('✓ Double page'); tap_choice('Cover, then 2–3'); locate('✓ Cover, then 2–3')
+    check(True, 'PDF reading settings accepts multiple changes without dismissing')
+    tap_choice('Single page'); tap_choice('Pages 1–2'); tap_choice('Off')
+    before = wait_json('reading-ui-state.json')['time']; shell('input', 'tap', '1300', '1500')
+    wait_json('reading-ui-state.json', lambda value: value.get('editable') and value.get('time', 0) > before)
+    shell('am', 'start', '-W', '-f', '0x20000000', '-n', PACKAGE + '/.notebook.NotebookReadingSelfTestActivity',
+          '--ez', 'openReading', 'true')
+    locate('✓ Single page'); locate('✓ Pages 1–2'); locate('✓ Off')
+    tap_choice('Double page'); tap_choice('Cover, then 2–3'); tap_choice('Manual…')
+    # Crop uses a non-focusable popup, so UI Automator cannot enumerate its controls.
+    crop = wait_json('reading-ui-state.json', lambda value: value.get('cropWidth', 0) > 0)
+    x = round(crop['cropLeft'] + crop['cropWidth'] - 54 * crop['density'])
+    y = round(crop['cropTop'] + crop['cropHeight'] - 23 * crop['density'])
+    before = crop['time']; shell('input', 'tap', str(x), str(y))
+    wait_json('reading-ui-state.json', lambda value: value.get('editable') and value.get('time', 0) > before)
+    shell('am', 'start', '-W', '-f', '0x20000000', '-n', PACKAGE + '/.notebook.NotebookReadingSelfTestActivity',
+          '--ez', 'openReading', 'true')
+    locate('✓ Double page'); locate('✓ Cover, then 2–3'); locate('✓ Off')
+    check(True, 'Canceling a crop preserves other choices and the previous crop mode')
+    before = wait_json('reading-ui-state.json')['time']; shell('input', 'tap', '1300', '1500')
+    wait_json('reading-ui-state.json', lambda value: value.get('editable') and value.get('time', 0) > before)
+    shell('am', 'start', '-W', '-f', '0x20000000', '-n', PACKAGE + '/.notebook.NotebookReadingSelfTestActivity',
+          '--ez', 'openInfo', 'true')
+    title = locate('This page'); locate('Export PDF'); locate('Reset tools'); locate('Close')
+    screenshot('pdf-page-information.png')
+    check(has_top_border('pdf-page-information.png', title), 'PDF page information has a visible top border')
+    tap('Export PDF'); locate('Save here')
+    check(True, 'The PDF page information export icon opens the in-app save picker')
     remove_notebook(PDF_NAME, pdf_id)
     pdf_id = 0
     (OUTPUT / 'result.json').write_text(json.dumps({'passed': True, 'checks': CHECKS}, indent=2) + '\n')

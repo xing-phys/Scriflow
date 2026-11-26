@@ -46,6 +46,12 @@ it does not arbitrarily change the patch number or signing identity.
 
 ## Before publishing
 
+**0.48.0-beta.4** (versionCode **130**) refines shelf thumbnails, reading and
+page-information controls, and retains an active cast across screen sleep when
+Android allows it. Validate Files-based PDF/ebook opening, multi-choice reading
+settings, cast pause/resume and private-frame clearing. Build and publish the
+signed APK and checksum; physical MatePad and e-ink acceptance remain pending.
+
 **0.48.0-beta.3** (versionCode **129**) refines bookshelf/chat/contents
 controls and remembers per-site microphone decisions. Verify bookshelf history,
 selected chat and floating layout, Files and Trash icon bars, note/PDF contents,

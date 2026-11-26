@@ -40,7 +40,7 @@ public final class NotebookReadingFixtureActivity extends Activity {
                             if(error3!=null){report(id,error3.toString());return;}
                             session.selectPage(1,(first,error4)->{
                                 report(id,error4==null?"":error4.toString());
-                                if(error4==null)startActivity(new Intent(this,NotebookReadingSelfTestActivity.class));
+                                if(error4==null)startActivity(new Intent(this,NotebookReadingSelfTestActivity.class).putExtra("freshFixture",true));
                                 finish();
                             });
                         });

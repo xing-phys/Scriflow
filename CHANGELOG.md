@@ -6,6 +6,20 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.48.0-beta.4 — Compact shelf and reading controls (2026-11-26)
+
+- Shrink bookshelf shortcuts, place the directory in a bordered breadcrumb,
+  and open PDFs and ebooks through Files instead of duplicate import buttons.
+- Keep thumbnail, name, actions and last-opened time inside rounded cards.
+  Notebook opening times are recorded from this version onward.
+- Center and enlarge dialog titles; move page-information export, reset and
+  close actions into its header. Keep reading settings open across choices.
+- Pause an active screen cast and clear viewer frames while the screen sleeps;
+  resume the same session after unlock when Android and Wi-Fi keep it alive.
+  Android still requires consent for each new screen-capture session.
+- VersionCode 130; notebook, catalog, ebook, backup and chat formats are unchanged.
+  Physical tablet and e-ink acceptance remain pending.
+
 ## 0.48.0-beta.3 — Compact actions and remembered permissions (2026-11-26)
 
 - Keep bookshelf chat history over the bookshelf; put its close control and the

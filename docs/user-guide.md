@@ -20,7 +20,8 @@ then enter the password. Return to a note or reading page on the tablet to share
 Multiple browsers can watch independently. The viewer is read-only. Settings
 and cast controls stay private; leaving Scriflow pauses the feed. Use **Stop
 casting** in the panel or notification to end all sessions. Turning the screen
-off or losing Wi-Fi stops casting. HTTP is not encrypted; use trusted Wi-Fi.
+off pauses casting until you return; losing Wi-Fi stops the session. HTTP is not
+encrypted; use trusted Wi-Fi.
 See [Screen cast](screen-cast.md) for connection help and limits.
 
 ## Notebooks and pages
@@ -60,9 +61,8 @@ keep their original coordinates and PDF printing scale.
 
 ## Ebooks and adjustable text
 
-Use the **Import book** homepage icon to import DRM-free EPUB, MOBI/AZW3, DjVu, FB2,
-zipped FB2, CBZ, HTML or TXT. Supported files also open from **Files** and
-Android's Open with / Share menus. Ebooks appear beside PDFs and notes, with
+Open a DRM-free EPUB, MOBI/AZW3, DjVu, FB2, zipped FB2, CBZ, HTML or TXT file
+from **Files**, or from Android's Open with / Share menus. Ebooks appear beside PDFs and notes, with
 shared folders, selection and Trash.
 The movable icon toolbox provides text/layout settings, contents, search,
 bookmarks and notes; floating corner bars provide page navigation and status.
@@ -74,7 +74,7 @@ Use Android Back to return, or Notes to reopen handwriting and return to its
 text. **More → Write on a fixed copy of this view** creates a one-page PDF for
 direct writing on the current layout. This captures only the visible view.
 See [Books and adjustable text](ebook-reading.md) for the complete controls,
-backup/export behavior and format limits. PDFs retain the Import PDF workflow.
+backup/export behavior and format limits. Open PDFs from Files to create PDF notebooks.
 
 ## Browser and saved websites
 
@@ -259,6 +259,7 @@ storage compatibility, and remaining hardware checks.
 ## PDF crop, page views, contrast and dictionary
 
 Open **⋮ → Reading view** (the page-with-lines icon) in the top-left bar.
+Make as many choices as needed; tap outside the panel to apply and close it.
 Choose **Continuous** or **Page turns**, independently choose **Single page**
 or **Double page**, and choose **Vertical** or **Horizontal** for continuous
 scrolling. Tap the right or bottom half to advance, or the upper-left quarter
@@ -285,7 +286,7 @@ for behavior, storage and validation limits.
 
 ## Zoom and screen orientation
 
-For PDFs, choose **Import PDF** in the library. Each PDF becomes a separate
+For PDFs, open a PDF in **Files**. Each PDF becomes a separate
 notebook with editable handwriting and its own retained source file. Finger
 taps follow PDF links; the stylus writes over them. Open **Outline** to navigate
 imported bookmarks or add, edit, and remove your own headings. Use the arrows
@@ -424,7 +425,8 @@ the actions are open. The circles have small gaps; on narrow panes, additional
 rows stay in the lane to the right of the bar. Select an action, tap the page,
 or press Back to close the actions and restore the three dots. Tap a figure
 directly to move, resize, rotate or delete it; there is no figure-chooser action.
-Hold an icon for its tooltip. Page information also offers **Reset tools**.
+Hold an icon for its tooltip. Page information has **Export PDF**, **Reset tools**,
+and **Close** icons beside its title.
 Reset expands the dock and returns it to its initial horizontal
 position near the top center, below the status islands. Touching controls has
 no ripple or pressed inversion; the page stays writable outside the tools.
@@ -644,9 +646,9 @@ depending on it for migration. See [privacy](privacy.md) for storage details.
 
 ## PDF export
 
-In an open notebook, choose **three-dot menu → Export PDF**. All pages prepare
-in order, including writing and blank/lined backgrounds, then the Android save
-picker asks for a filename and location. Wait for **PDF saved**. Cancelling the
+In an open notebook, choose **three-dot menu → Page information → Export PDF**.
+All pages prepare in order, including writing and blank/lined backgrounds, then
+Scriflow's Files picker asks for a filename and location. Wait for **PDF saved**. Cancelling the
 location picker lets you choose again without preparing the PDF again.
 
 PDFs contain sharp vector outlines from the native pressure brush, preserve

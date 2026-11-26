@@ -1,10 +1,9 @@
 # PDF notebooks, outlines, and view history
 
-Choose **Import PDF** in the library to open the system file picker directly.
-Select a PDF and wait for import to finish; the imported notebook opens
-automatically, named after the file. There is no separate Choose PDF or success
-confirmation screen. Cancelling the picker returns to the library. Import
-failures offer an explicit retry. The app keeps a private, unchanged copy of the
+Open **Files** from the bookshelf, then tap a PDF. Wait for import to finish;
+the imported notebook opens automatically, named after the file. There is no
+separate Choose PDF or success confirmation screen. Import failures offer an
+explicit retry. The app keeps a private, unchanged copy of the
 source file; moving or deleting the selected external file does not affect the
 notebook.
 

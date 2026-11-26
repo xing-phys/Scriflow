@@ -127,7 +127,7 @@ try:
     print('PASS: Real GeckoView touch taps turn forward and back in a spread.',flush=True)
     value=chrome(lambda v:not v['panel'] and v['left'][2]>v['left'][0]);x,y,width,height=value['home']
     adb('shell','input','tap',str(x+width//2),str(y+height//2))
-    find(label('Import book'))
+    find(label('Scriflow'))
     print('PASS: Tapping the book title returns to the bookshelf.',flush=True)
     deadline=time.monotonic()+10
     while True:

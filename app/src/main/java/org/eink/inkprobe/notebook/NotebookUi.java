@@ -89,9 +89,10 @@ final class NotebookUi {
         float density = context.getResources().getDisplayMetrics().density;
         int inset = Math.round(12 * density);
         LinearLayout row = new LinearLayout(context); row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(inset, Math.round(4 * density), inset, Math.round(4 * density));
+        row.setPadding(inset, Math.round(6 * density), inset, Math.round(6 * density));
         TextView label = new TextView(context); label.setText(title); label.setTextColor(Color.BLACK);
-        label.setTextSize(16); label.setTypeface(null, android.graphics.Typeface.BOLD);
+        label.setTextSize(18); label.setTypeface(null, android.graphics.Typeface.BOLD);
+        label.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         label.setSingleLine(true); label.setEllipsize(android.text.TextUtils.TruncateAt.END);
         row.addView(label, new LinearLayout.LayoutParams(0, Math.round(40 * density), 1));
         return row;
@@ -190,7 +191,7 @@ final class NotebookUi {
         }
         TextView title = dialog.findViewById(dialog.getContext().getResources()
             .getIdentifier("alertTitle", "id", "android"));
-        if (title != null) { title.setTextSize(16); title.setTypeface(null, android.graphics.Typeface.BOLD); }
+        if (title != null) { title.setTextSize(18); title.setTypeface(null, android.graphics.Typeface.BOLD); }
         TextView message = dialog.findViewById(android.R.id.message);
         if (message != null) message.setTextSize(13);
     }

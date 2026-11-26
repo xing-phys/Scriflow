@@ -24,9 +24,16 @@ It retains figures/lasso export, two split panes plus multiple floating notes,
 the toolbox notes tray and stylus-tap editing focus. Inactive notes scroll and
 pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
 stays in front, window operations retain the main editor, and PDF import opens
-the file picker directly before opening the imported note.
+PDFs open through Scriflow's Files browser as annotated notes.
 
-The **[0.48.0-beta.3 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.48.0-beta.3)**
+The **[0.48.0-beta.4 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.48.0-beta.4)**
+compacts the bookshelf and its breadcrumb, refreshes thumbnail cards, and keeps
+reading settings open for several choices. Page-information actions are in its
+header. An active cast pauses during screen sleep and can resume after unlock;
+Android still asks for permission when a new capture session starts. Physical
+tablet acceptance remains pending. See [release notes](docs/releases/0.48.0-beta.4.md).
+
+The preceding **[0.48.0-beta.3 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.48.0-beta.3)**
 keeps chat history over the bookshelf, puts contents actions in the heading,
 uses compact icon bars for item actions, and remembers website microphone
 permissions. Chat windows and bookshelf navigation also have a more compact
@@ -353,7 +360,7 @@ the page-plus icon inserts a page after the current page. The grid opens page th
 Tap an already-selected Pen or Eraser icon to adjust its width. Drag the
 six-dot grip to move the tools, tap it to collapse/expand them, or use the
 direction icon to rotate them.
-Use **Import PDF** in the library to make a PDF notebook. The outline icon
+Open a PDF in **Files** to make a PDF notebook. The outline icon
 opens imported headings and lets you add your own; the disclosure arrows fold
 nested headings. Finger taps follow PDF links. Previous/next view icons appear
 at the lower right only when available, or beside a floating note's minimize

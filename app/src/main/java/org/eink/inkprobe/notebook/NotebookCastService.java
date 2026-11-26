@@ -273,7 +273,13 @@ public final class NotebookCastService extends Service {
         @Override public void onLinkPropertiesChanged(Network changed, LinkProperties properties) { if (wifi != null && wifi.network.equals(changed) && !wifi.matches(NotebookCastService.this)) finish("Wi-Fi address changed. Start casting again."); }
     };
     private final BroadcastReceiver screenOff = new BroadcastReceiver() {
-        @Override public void onReceive(Context context, Intent intent) { finish("Casting stopped when the screen turned off."); }
+        @Override public void onReceive(Context context, Intent intent) {
+            if (Intent.ACTION_SCREEN_OFF.equals(intent.getAction())) {
+                // Keep Android's existing capture session, but immediately revoke and clear its frames.
+                // The foreground visibility lease permits capture again only after the screen is unlocked.
+                visibility = 0; lastLease = 0; updateCapture();
+            } else finish("Casting stopped when the device shut down.");
+        }
     };
     private final DisplayManager.DisplayListener displayListener = new DisplayManager.DisplayListener() {
         @Override public void onDisplayAdded(int id) { }

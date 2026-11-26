@@ -30,7 +30,7 @@ final class NotebookTransfer {
     private void changed() { main.post(() -> { if (listener != null) listener.run(); }); }
     void prepare(int id) {
         busy = true; message = "Preparing editable backup…"; changed();
-        session.openNotebook(id, (page, error) -> {
+        session.openNotebookForTransfer(id, (page, error) -> {
             if (error != null || cancelled) { fail(error); return; }
             final File file;
             try { file = File.createTempFile("notebook-backup-", ".inkbook", context.getCacheDir()); }

@@ -47,9 +47,12 @@ not saved in preferences or backups. Casting never starts automatically.
   Brief app-owned popup handoffs retain the last safe picture while new pixels
   are blocked, avoiding a display restart for every tool popup. Settings and
   genuine app-background transitions clear immediately.
-- Turning off or locking the display, disconnecting Wi-Fi, changing the Wi-Fi
-  address or Android stopping capture ends the session. Start again after
-  reconnecting; the panel displays the current address.
+- Turning off or locking the display clears the shared frame and pauses the
+  current session. Unlock and return to Scriflow to resume it without starting
+  a new session. Android may still end a capture session independently.
+- Disconnecting Wi-Fi, changing the Wi-Fi address, stopping the cast, or Android
+  stopping capture ends the session. Android requires consent again when a new
+  capture session begins.
 - This is a **local HTTP connection without transport encryption**. The
   password prevents unauthenticated viewing, but does not protect against
   traffic interception on an untrusted network. Use trusted Wi-Fi. Do not

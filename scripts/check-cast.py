@@ -239,10 +239,15 @@ try:
         if b'inet ' in adb('shell', 'ip', '-4', 'addr', 'show', 'wlan0'):
             break
         time.sleep(.3)
-    start_cast(); adb('shell', 'input', 'keyevent', 'KEYCODE_SLEEP')
-    time.sleep(.5); adb('shell', 'input', 'keyevent', 'KEYCODE_WAKEUP'); adb('shell', 'wm', 'dismiss-keyguard')
-    check(find(lambda n: 'screen turned off' in n.get('text', '')).get('text') != '', 'Turning off the display stops capture and discards authorization')
     start_cast()
+    code, headers, _ = http('POST', '/login', body={'password': PASSWORD})
+    sleep_cookie = headers['set-cookie'].split(';')[0]
+    tap(match('Done')); tap(match('Done')); find(match('Scriflow')); frame(sleep_cookie)
+    adb('shell', 'input', 'keyevent', 'KEYCODE_SLEEP')
+    check(frame(sleep_cookie, 204)[2] == b'', 'Turning off the screen clears shared frames without ending the cast')
+    adb('shell', 'input', 'keyevent', 'KEYCODE_WAKEUP'); adb('shell', 'wm', 'dismiss-keyguard')
+    find(match('Scriflow')); frame(sleep_cookie)
+    check(True, 'Unlocking resumes the same cast without another Android permission prompt')
     ui_pid = adb('shell', 'pidof', PACKAGE).strip().decode()
     adb('shell', 'su', '0', 'kill', '-9', ui_pid)
     stopped = False

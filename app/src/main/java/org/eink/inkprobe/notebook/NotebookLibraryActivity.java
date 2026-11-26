@@ -89,25 +89,20 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         header.addView(deviceSettingsIsland(), new LinearLayout.LayoutParams(-2, dp(32)));
         root.addView(header);
         LinearLayout shortcutBar = new LinearLayout(this); shortcutBar.setGravity(Gravity.CENTER_VERTICAL);
-        shortcutBar.setPadding(0, dp(6), 0, dp(8));
+        shortcutBar.setPadding(0, dp(4), 0, dp(6));
         addShortcut(shortcutBar, "Bookshelf", NotebookIconDrawable.Icon.LIBRARY, () -> navigate(0, false));
         path = label("", 13); path.setSingleLine(true); path.setEllipsize(TextUtils.TruncateAt.MIDDLE);
-        path.setTextColor(Color.BLACK); path.setPadding(dp(6), 0, dp(8), 0);
+        path.setTextColor(Color.BLACK); path.setPadding(dp(8), 0, dp(8), 0);
+        path.setBackground(NotebookUi.rounded(getResources().getDisplayMetrics().density, 7));
         path.setOnClickListener(v -> { if (inTrash) navigate(0, false); else {
             NotebookCatalog.Folder folder = NotebookFolders.find(session.folders(), currentFolder);
             if (folder != null) navigate(folder.parentId, false);
         }});
-        shortcutBar.addView(path, new LinearLayout.LayoutParams(0, dp(44), 1));
+        LinearLayout.LayoutParams pathSpace = new LinearLayout.LayoutParams(0, dp(34), 1);
+        pathSpace.leftMargin = dp(4); pathSpace.rightMargin = dp(4); shortcutBar.addView(path, pathSpace);
         LinearLayout shortcuts = new LinearLayout(this); shortcuts.setGravity(Gravity.CENTER_VERTICAL);
         addShortcut(shortcuts, "Notebook", NotebookIconDrawable.Icon.PLUS, this::createNotebook);
         addShortcut(shortcuts, "Quick A5 note", NotebookIconDrawable.Icon.ADD_PAGE, () -> createNotebook("Note " + (session.entries().size() + 1), NotebookPaperSize.A5));
-        addShortcut(shortcuts, "Import PDF", NotebookIconDrawable.Icon.READING, () -> {
-            if (!canAct()) return;
-            startActivity(new Intent(this, NotebookPdfImportActivity.class)); overridePendingTransition(0, 0);
-        });
-        addShortcut(shortcuts,"Import book",NotebookIconDrawable.Icon.FONT_SIZE,()->{
-            if(canAct())startActivity(new Intent(this,NotebookEbookImportActivity.class));
-        });
         addShortcut(shortcuts, "Restore backup", NotebookIconDrawable.Icon.RETRY, () -> transfer(true, 0));
         addShortcut(shortcuts, "AI chat", NotebookIconDrawable.Icon.AI_CHAT, this::openAiChat);
         addShortcut(shortcuts, "Browser", NotebookIconDrawable.Icon.BROWSER, this::openBrowser);
@@ -116,10 +111,10 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
             startActivity(new Intent(this, NotebookFilesActivity.class)); overridePendingTransition(0, 0);
         });
         folderButton = new NotebookBrowserIconButton(this, NotebookIconDrawable.Icon.NEW_FOLDER, "+ Folder", this::createFolder);
-        LinearLayout.LayoutParams folderSpace = new LinearLayout.LayoutParams(dp(44), dp(44)); folderSpace.leftMargin = dp(7);
+        LinearLayout.LayoutParams folderSpace = new LinearLayout.LayoutParams(dp(34), dp(34)); folderSpace.leftMargin = dp(2);
         shortcuts.addView(folderButton, folderSpace);
         trashButton = new NotebookBrowserIconButton(this, NotebookIconDrawable.Icon.DELETE, "Trash", () -> navigate(0, true));
-        LinearLayout.LayoutParams trashSpace = new LinearLayout.LayoutParams(dp(44), dp(44)); trashSpace.leftMargin = dp(7);
+        LinearLayout.LayoutParams trashSpace = new LinearLayout.LayoutParams(dp(34), dp(34)); trashSpace.leftMargin = dp(2);
         shortcuts.addView(trashButton, trashSpace);
         android.widget.HorizontalScrollView shortcutScroll = new android.widget.HorizontalScrollView(this);
         shortcutScroll.setHorizontalScrollBarEnabled(false); shortcutScroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
@@ -237,7 +232,7 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
             if(inTrash?book.trashed:!book.trashed&&folder==currentFolder){items.add(book);bookCount++;}
         }
         selection.retain(items); updateSelectionBar();
-        path.setText(inTrash ? "Trash ›" : currentFolder == 0 ? "" : "‹ " + NotebookFolders.path(session.folders(), currentFolder));
+        path.setText(inTrash ? "Trash ›" : currentFolder == 0 ? "Bookshelf" : "‹ " + NotebookFolders.path(session.folders(), currentFolder));
         path.setEnabled(inTrash || currentFolder != 0);
         String trashLabel = "Trash (" + trashed + ")";
         trashButton.setContentDescription(trashLabel); trashButton.setTooltipText(trashLabel);
@@ -510,6 +505,7 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         private final LinearLayout title;
         private final NotebookButton nameButton;
         private final NotebookIconButton menu;
+        private final TextView opened;
         private final CheckBox selected;
         private final View preview;
         private int boundRevision = -1;
@@ -517,11 +513,14 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         ShelfCell(int type) {
             super(NotebookLibraryActivity.this);
             this.type = type;
-            setOrientation(LinearLayout.VERTICAL); setBackgroundColor(Color.WHITE);
+            setOrientation(LinearLayout.VERTICAL);
+            if (type == 0) setBackgroundColor(Color.WHITE);
+            else { setBackground(NotebookUi.rounded(getResources().getDisplayMetrics().density, 8));
+                setPadding(dp(5), dp(5), dp(5), dp(5)); setClipToOutline(true); }
             setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
             if (type == 1 || type == 3) {
                 TextView image = label("", 13); image.setGravity(Gravity.CENTER);
-                image.setBackground(NotebookUi.border(getResources().getDisplayMetrics().density)); preview = image;
+                image.setBackground(NotebookUi.rounded(getResources().getDisplayMetrics().density, 5)); preview = image;
             } else if (type == 2) {
                 NotebookPageThumbnail image = new NotebookPageThumbnail(NotebookLibraryActivity.this);
                 image.setLabelVisible(false); preview = image;
@@ -541,7 +540,7 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
             selected.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             title.addView(selected, new LinearLayout.LayoutParams(dp(32), -1));
             nameButton = button("", () -> openShelfItem(getTag()));
-            if (type == 0) nameButton.setBackground(null);
+            nameButton.setBackground(null);
             nameButton.setSingleLine(true); nameButton.setEllipsize(TextUtils.TruncateAt.END);
             nameButton.setGravity(Gravity.START | Gravity.CENTER_VERTICAL); nameButton.setTextSize(type == 0 ? 14 : 12);
             nameButton.setOnLongClickListener(v -> { beginSelection(getTag()); return true; });
@@ -549,7 +548,10 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
             menu = new NotebookIconButton(NotebookLibraryActivity.this, NotebookIconDrawable.Icon.MORE_VERTICAL, "Manage item");
             menu.setOnClickListener(v -> manageShelfItem(getTag(), v));
             title.addView(menu, new LinearLayout.LayoutParams(dp(40), -1));
-            addView(title, new LinearLayout.LayoutParams(-1, type == 0 ? 0 : dp(28), type == 0 ? 1 : 0));
+            addView(title, new LinearLayout.LayoutParams(-1, type == 0 ? 0 : dp(38), type == 0 ? 1 : 0));
+            opened = label("", 10); opened.setSingleLine(true); opened.setEllipsize(TextUtils.TruncateAt.END);
+            opened.setPadding(dp(4), 0, dp(4), 0);
+            if (type != 0) addView(opened, new LinearLayout.LayoutParams(-1, dp(20)));
         }
 
         void bind(Object item) {
@@ -578,8 +580,16 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
             menu.setContentDescription("Manage " + (folder ? "folder " :book?"ebook ": "notebook ") + name);
             if (type != 0) {
                 LinearLayout.LayoutParams titleLayout = (LinearLayout.LayoutParams) title.getLayoutParams();
-                int titleHeight = Math.min(dp(28), Math.max(1, height / 3));
+                int titleHeight = Math.min(dp(40), Math.max(dp(24), height / 4));
                 if (titleLayout.height != titleHeight) { titleLayout.height = titleHeight; title.setLayoutParams(titleLayout); }
+                ViewGroup.LayoutParams openedSize = opened.getLayoutParams();
+                int openedHeight = Math.min(dp(20), Math.max(dp(14), height / 8));
+                if (openedSize.height != openedHeight) { openedSize.height = openedHeight; opened.setLayoutParams(openedSize); }
+                opened.setVisibility(folder ? View.GONE : View.VISIBLE);
+                if (!folder) {
+                    long when = book ? ((NotebookEbookStore.Book)item).opened : session.lastOpened(((NotebookCatalog.Entry)item).id);
+                    opened.setText(when > 0 ? "Last opened · " + java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT).format(new java.util.Date(when)) : "Last opened · —");
+                }
                 if(book){
                     NotebookEbookStore.Book entry=(NotebookEbookStore.Book)item;
                     TextView image=(TextView)preview;image.setText(entry.format.toUpperCase(java.util.Locale.ROOT)+"\n"+entry.title);
@@ -935,8 +945,8 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
     }
     private void addShortcut(LinearLayout row, String text, NotebookIconDrawable.Icon icon, Runnable action) {
         NotebookIconButton control=new NotebookIconButton(this,icon,text);control.setTooltipText(text);control.setOnClickListener(v->action.run());
-        LinearLayout.LayoutParams item = new LinearLayout.LayoutParams(dp(44), dp(44));
-        if (row.getChildCount() > 0) item.leftMargin = dp(7);
+        LinearLayout.LayoutParams item = new LinearLayout.LayoutParams(dp(34), dp(34));
+        if (row.getChildCount() > 0) item.leftMargin = dp(2);
         row.addView(control, item);
     }
     private TextView label(String text, int size) {

@@ -160,6 +160,9 @@ try:
     check(bounds(shelf)[2] <= bounds(breadcrumb)[0] and bounds(breadcrumb)[2] <= bounds(first)[0]
           and max(bounds(shelf)[1], bounds(breadcrumb)[1], bounds(first)[1]) < min(bounds(shelf)[3], bounds(breadcrumb)[3], bounds(first)[3]),
           'Bookshelf, breadcrumb, and right-hand actions share one row')
+    check(bounds(breadcrumb)[2] - bounds(breadcrumb)[0] >= 3 * (bounds(shelf)[2] - bounds(shelf)[0])
+          and find('Import PDF') is None and find('Import book') is None,
+          'Compact shortcuts leave room for the breadcrumb and omit redundant import buttons')
     screenshot('folder-toolbar.png')
     new_folder(CHILD)
     tap('Open folder ' + CHILD)
@@ -181,6 +184,21 @@ try:
     shell('am', 'force-stop', PACKAGE)
     shell('am', 'start', '-W', '-n', PACKAGE + '/.notebook.NotebookLibraryActivity')
     locate('Open folder Saved websites')
+    tap_node(locate('; tap to open settings', contains=True))
+    tap_node(locate('Thumbnails', contains=True)); tap('Done')
+    tap_target = scroll_to('Manage notebook ' + NOTE)
+    root = tree()
+    cards = []
+    for node in root.iter('node'):
+        descendants = list(node.iter('node'))
+        if (any(n.get('content-desc') == 'Manage notebook ' + NOTE for n in descendants)
+                and any(n.get('text', '').startswith('Last opened · ') and not n.get('text', '').endswith('—') for n in descendants)):
+            cards.append(node)
+    check(bool(cards), 'Thumbnail card shows its notebook name, manage button and real last-opened time together')
+    screenshot('thumbnail-card.png')
+    tap_node(locate('; tap to open settings', contains=True))
+    tap_node(locate('List', contains=True)); tap('Done')
+    locate('Open folder Saved websites')
     tap_node(scroll_to('Manage notebook ' + NOTE)); tap('Move to Trash')
     wait_absent('Manage notebook ' + NOTE)
     tap_node(locate('Trash (', contains=True))
@@ -198,7 +216,17 @@ try:
     locate('Manage deleted item ' + NOTE)
     tap('Manage notebook ' + NOTE); tap('Restore notebook')
     check(True, 'Canceling permanent deletion and restoring the notebook both work')
+    deleted_id = note_id
     remove_note(); note_id = 0
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        value = shell('run-as', PACKAGE, 'cat', 'shared_prefs/notebook-opened.xml', check=False)
+        if not value or all(node.get('name') != str(deleted_id) for node in ET.fromstring(value)):
+            break
+        time.sleep(.2)
+    else:
+        raise AssertionError('Deleted notebook retained its last-opened timestamp')
+    check(True, 'Permanent deletion clears the timestamp before its notebook slot can be reused')
 
     # Set up one disposable remembered origin, then change it through real Settings UI.
     shell('am', 'force-stop', PACKAGE)

@@ -3,8 +3,8 @@
 Scriflow shows ebooks directly on the homepage alongside PDF
 notebooks and handwritten notes, in the same list or thumbnail layout. Existing
 imports appear automatically; there is no separate Books folder and no reimport
-is needed. Use the **Import book** homepage icon, open a supported file from
-**Files**, or use Android's **Open with** / **Share** menu.
+is needed. Open a supported file from **Files**, or use Android's **Open with** /
+**Share** menu.
 
 Import copies the original into private storage. Moving or deleting the tablet
 file does not break the imported book. Identical imports reuse its reading data.
@@ -20,7 +20,7 @@ confirm permanent deletion. Removing a folder keeps its items on the homepage.
 | TXT, HTML, HTM | Adjustable local text; UTF-8, UTF-16 BOM, GB18030 fallback |
 | CBZ | Fixed comic pages |
 | DJVU, DJV | Fixed bundled DjVu pages; existing text layers when available |
-| PDF | Existing **Import PDF** notebook workflow and direct handwriting |
+| PDF | Open in **Files** to create a notebook with direct handwriting |
 
 The reader does not bypass DRM. Encrypted MOBI/PalmDoc and EPUB encryption other
 than supported font obfuscation produce an error asking for a DRM-free copy.

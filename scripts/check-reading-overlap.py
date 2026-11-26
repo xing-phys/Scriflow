@@ -40,7 +40,9 @@ def state(predicate=lambda s:True):
     def sample():
         value=private_json('reading-ui-state.json')
         return value if value and predicate(value) else None
-    return wait(sample,'The reader did not reach the expected viewport state')
+    try:return wait(sample,'The reader did not reach the expected viewport state')
+    except AssertionError as error:
+        raise AssertionError(str(error)+': '+repr(private_json('reading-ui-state.json'))) from error
 
 
 def nodes():
@@ -81,17 +83,24 @@ try:
     book=fixture['id']
     if fixture.get('error'):raise AssertionError(fixture['error'])
     start=state(lambda s:s['editable'] and s['singlePage']==0)
+    if abs(start['scroll'])>=1:raise AssertionError('Unexpected initial scroll: '+repr(start))
+    check(abs(start['scroll'])<1,'The disposable notebook starts at the top in a clean test workspace')
     open_menu();find(lambda n:n.get('text')=='Tap overlap · 10%')
+    check(not any(n.get('content-desc')=='Close reading settings' for n in nodes()), 'Reading settings has no redundant close button')
     slider=find(lambda n:n.get('class')=='android.widget.SeekBar' and n.get('content-desc','').startswith('Continuous reading tap overlap'))
     tap(slider)
     label=find(lambda n:n.get('text','').startswith('Tap overlap · ') and n.get('text')!='Tap overlap · 10%').get('text')
     overlap=int(re.search(r'(\d+)%',label).group(1));check(25<=overlap<=55,'The overlap slider changes its displayed percentage')
-    tap(find(lambda n:n.get('content-desc')=='Close reading settings'))
-    state(lambda s:s['editable'])
+    before=state()['time'];adb('shell','input','tap','1300','1500')
+    after=state(lambda s:s['editable'] and s['time']>before)
+    if abs(after['scroll']-start['scroll'])>=1:raise AssertionError('Dismissal changed scroll: '+repr((start,after)))
+    check(abs(after['scroll']-start['scroll'])<1,'Dismissing the reading menu does not scroll the page')
     open_menu();find(lambda n:n.get('text')==label)
     check(True,'The chosen overlap is retained when the reading menu reopens')
-    tap(find(lambda n:n.get('content-desc')=='Close reading settings'))
-    start=state(lambda s:s['editable'] and s['singlePage']==0 and abs(s['scroll'])<1)
+    before=state()['time'];adb('shell','input','tap','1300','1500')
+    start=state(lambda s:s['editable'] and s['singlePage']==0 and s['time']>before)
+    if abs(start['scroll'])>=1:raise AssertionError('Reopening changed scroll: '+repr(start))
+    check(abs(start['scroll'])<1,'Reopening and dismissing the menu leaves the page at the top')
     adb('shell','input','tap',str(int(start['width']*.8)),str(int(start['height']*.45)))
     moved=state(lambda s:s['editable'] and s['time']>start['time'] and s['scroll']>1)
     expected=start['height']*(100-overlap)/100
@@ -100,6 +109,11 @@ try:
     state(lambda s:s['editable'] and s['time']>moved['time'] and abs(s['scroll'])<1)
     check(True,'An upper-left tap moves back to the previous screenful')
     open_menu();tap(find(lambda n:n.get('text')=='Page turns'))
+    find(lambda n:n.get('text')=='✓ Page turns')
+    tap(find(lambda n:n.get('text')=='Double page'));find(lambda n:n.get('text')=='✓ Double page')
+    check(True,'Changing several reading choices leaves the panel open')
+    tap(find(lambda n:n.get('text')=='Single page'))
+    adb('shell','input','tap','1300','1500')
     paged=state(lambda s:s['editable'] and s['singlePage']==1)
     adb('shell','input','tap',str(int(paged['width']*.8)),str(int(paged['height']*.45)))
     state(lambda s:s['editable'] and s['time']>paged['time'] and s['singlePage']==2)

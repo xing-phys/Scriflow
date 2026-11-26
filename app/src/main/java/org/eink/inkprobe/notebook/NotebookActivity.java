@@ -90,6 +90,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     private boolean readingFlowKnown;
     private NotebookReadingMenu readingMenu;
     private Float readingPreviewContrast;
+    private NotebookReadingSettings cropCancellationSettings;
     private NotebookCropEditor cropEditor;
     private NotebookPdfReading.Request cropPreviewRequest;
     private boolean changingWorkspace, workspaceLayoutPending, layingOutWorkspace, noteStackRaised;
@@ -582,6 +583,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             if (!active || request != generation) return;
             page = loaded;
             if (loaded == null) { showError(error); return; }
+            session.markOpened(session.notebookId());
             openCanvas(loaded);
             if (error != null) showError(error);
         });
@@ -3356,7 +3358,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             resumeThen(() -> {
                 if (choice[0] < 0) return;
                 int id = choice[0];
-                if (floating) changeWorkspace(() -> workspace.add(id, NotebookWorkspace.Position.FLOATING));
+                if (floating) changeWorkspace(() -> { workspace.add(id, NotebookWorkspace.Position.FLOATING); session.markOpened(id); });
                 else chooseCompanionPosition(id);
             });
         });
@@ -3376,7 +3378,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             resumeThen(() -> { if (choice[0] >= 0) changeWorkspace(() -> {
                 NotebookWorkspace.Pane pane = workspace.find(notebook);
                 NotebookWorkspace.Position position = NotebookWorkspace.Position.values()[choice[0]];
-                if (pane == null) workspace.add(notebook, position); else workspace.place(pane, position);
+                if (pane == null) { workspace.add(notebook, position); session.markOpened(notebook); } else workspace.place(pane, position);
             }); });
         });
         showNoteDialog(dialog);
@@ -3539,9 +3541,9 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         final int book=session.notebookId();
         readingMenu=new NotebookReadingMenu(this,workspaceRoot,session.readingSettings(book),current!=null&&current.pdfPage>0,value->{
             readingPreviewContrast=value;pdfBackgrounds.setContrast(value);
-        },value->savePreviewContrast(book,value),(settings,area)->{
+        },value->savePreviewContrast(book,value),(settings,cancellation)->{
             readingMenu=null;if(!active||request!=generation)return;
-            if(area&&current!=null&&current.pdfPage>0)editCropArea(current,settings);
+            if(cancellation!=null&&current!=null&&current.pdfPage>0)editCropArea(current,settings,cancellation);
             else applyReadingSettings(settings);
         });
         readingMenu.show(notebookStatusBounds);
@@ -3577,13 +3579,14 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         scrolling = true; installViewport();
     }
 
-    private void editCropArea(NotebookPage current,NotebookReadingSettings settings){
+    private void editCropArea(NotebookPage current,NotebookReadingSettings settings,NotebookReadingSettings cancellation){
+        cropCancellationSettings=cancellation;
         final int request=generation,number=activePage;final File source=session.pdfSource();
-        if(source==null){applyReadingSettings(session.readingSettings(session.notebookId()).contrast(settings.contrast));return;}
+        if(source==null){cropCancellationSettings=null;applyReadingSettings(cancellation);return;}
         cropPreviewRequest=NotebookPdfReading.preview(source,current.pdfPage,current.width,current.height,(bitmap,error)->{
             cropPreviewRequest=null;
             if(!active||request!=generation){if(bitmap!=null)bitmap.recycle();return;}
-            if(error!=null){Toast.makeText(this,error.getMessage(),Toast.LENGTH_LONG).show();applyReadingSettings(session.readingSettings(session.notebookId()).contrast(settings.contrast));return;}
+            if(error!=null){Toast.makeText(this,error.getMessage(),Toast.LENGTH_LONG).show();cropCancellationSettings=null;applyReadingSettings(cancellation);return;}
             NotebookCropBox box=settings.manual(number,current.id);
             if(box.equals(NotebookCropBox.FULL)){
                 NotebookCropBox detected=NotebookPdfReading.cached(source,current.pdfPage,NotebookCropBox.FULL);
@@ -3591,8 +3594,8 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             }
             View anchor=canvas.getWidth()<dp(260)||canvas.getHeight()<dp(300)?workspaceRoot:canvas;
             cropEditor=new NotebookCropEditor(this,anchor,bitmap,box,number,(result,scope)->{
-                cropEditor=null;if(!active||request!=generation)return;
-                if(result==null){applyReadingSettings(session.readingSettings(session.notebookId()).contrast(settings.contrast));}
+                cropEditor=null;cropCancellationSettings=null;if(!active||request!=generation)return;
+                if(result==null){applyReadingSettings(cancellation);}
                 else applyReadingSettings(settings.area(scope,current.id,result));
             });
             cropEditor.show();
@@ -3994,33 +3997,40 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             + "\n\nTap the selected Pen icon to open a small width slider. Slide the point and release to apply. The slider stays open for further adjustments; start writing, tap outside, or press Back to close. Current thickness: " + NotebookPenConfig.label(penWidth) + ". The small line below the pencil previews its width. Settings offers fixed width on the page (default) or fixed width on the screen while writing. Existing strokes keep their captured shape in either mode."
             + "\n\nExport PDF saves all pages in this notebook, including their paper backgrounds and handwriting.";
         final boolean[] exporting = {false};
-        AlertDialog info = new AlertDialog.Builder(this).setTitle("This page")
-            .setMessage(message).setPositiveButton("Done", null)
-            .setNegativeButton("Reset tools", (choice, which) -> {
-                toolsX = 0.5f; toolsY = 0f;
-                placeToolsBelowStatus = true;
-                floatingTools.setVertical(false);
-                floatingTools.setCollapsed(false);
-                getPreferences(MODE_PRIVATE).edit().putFloat("toolsX", toolsX).putFloat("toolsY", toolsY)
-                    .putBoolean("toolsVertical", false).putBoolean("toolsCollapsed", false).apply();
-            })
-            .setNeutralButton("Export PDF", (choice, which) -> {
-                exporting[0] = true;
-                session.load((loaded, error) -> {
-                    if (!active || request != generation) return;
-                    if (error != null) { showError(error); return; }
-                    startActivity(new Intent(this, NotebookPdfExportActivity.class)
-                        .putExtra("notebookId", session.notebookId())
-                        .putExtra("notebookName", session.notebookName())
-                        .putExtra("pageCount", session.pageCount()));
-                    overridePendingTransition(0, 0);
-                });
-            }).create();
+        LinearLayout title = NotebookUi.dialogTitle(this, "This page");
+        LinearLayout.LayoutParams titleSize = (LinearLayout.LayoutParams) title.getChildAt(0).getLayoutParams();
+        titleSize.width = -2; titleSize.weight = 0; title.getChildAt(0).setLayoutParams(titleSize);
+        final AlertDialog[] owner = {null};
+        NotebookUi.titleAction(title, NotebookIconDrawable.Icon.EXPORT, "Export PDF", () -> {
+            exporting[0] = true; owner[0].dismiss();
+            session.load((loaded, error) -> {
+                if (!active || request != generation) return;
+                if (error != null) { showError(error); return; }
+                startActivity(new Intent(this, NotebookPdfExportActivity.class)
+                    .putExtra("notebookId", session.notebookId())
+                    .putExtra("notebookName", session.notebookName())
+                    .putExtra("pageCount", session.pageCount()));
+                overridePendingTransition(0, 0);
+            });
+        });
+        NotebookUi.titleAction(title, NotebookIconDrawable.Icon.RETRY, "Reset tools", () -> {
+            toolsX = 0.5f; toolsY = 0f; placeToolsBelowStatus = true;
+            floatingTools.setVertical(false); floatingTools.setCollapsed(false);
+            getPreferences(MODE_PRIVATE).edit().putFloat("toolsX", toolsX).putFloat("toolsY", toolsY)
+                .putBoolean("toolsVertical", false).putBoolean("toolsCollapsed", false).apply();
+            owner[0].dismiss();
+        });
+        NotebookUi.titleAction(title, NotebookIconDrawable.Icon.CLOSE, "Close", () -> owner[0].dismiss());
+        AlertDialog info = new AlertDialog.Builder(this).setCustomTitle(title).setMessage(message).create();
+        owner[0] = info;
         info.setOnDismissListener(dialog -> {
             if (!exporting[0] && active && request == generation)
                 session.load((loaded, error) -> finishEdit(request, loaded, error));
         });
         showStaticDialog(info);
+        Rect visible = new Rect(); workspaceRoot.getWindowVisibleDisplayFrame(visible);
+        if (info.getWindow() != null && visible.width() > 0 && visible.height() > 0)
+            info.getWindow().setLayout(Math.min(dp(650), Math.max(1, visible.width()-dp(24))), Math.max(1, visible.height()-dp(120)));
     }
 
     private void showStaticDialog(AlertDialog dialog) {
@@ -4028,8 +4038,14 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     }
 
     @Override protected void onPause() {
-        if (readingMenu != null && readingPreviewContrast != null)
-            savePreviewContrast(session.notebookId(), readingPreviewContrast);
+        NotebookReadingSettings pendingReading = readingMenu != null ? readingMenu.selectedSettings() : cropCancellationSettings;
+        if (pendingReading != null) {
+            int book = session.notebookId();
+            session.saveReadingSettings(book, pendingReading, error -> {
+                if (error != null && active && session.notebookId() == book)
+                    Toast.makeText(this, error.getMessage(), Toast.LENGTH_LONG).show();
+            });
+        }
         writingGate.suspend();
         if(aiNotebookPicker!=null)aiNotebookPicker.dismiss();
         writingHistory = false;
@@ -4128,6 +4144,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         clearPdfText();
         if(readingMenu!=null){readingMenu.retire();readingMenu=null;}
         readingPreviewContrast=null;
+        cropCancellationSettings=null;
         if(cropEditor!=null){cropEditor.retire();cropEditor=null;}
         if(cropPreviewRequest!=null){cropPreviewRequest.cancel();cropPreviewRequest=null;}
         for(NotebookPdfReading.Request request:cropRequests.values())request.cancel();cropRequests.clear();cropFailures.clear();
@@ -4171,7 +4188,8 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         if(cropEditor!=null||cropPreviewRequest!=null){
             if(cropEditor!=null){cropEditor.retire();cropEditor=null;}
             if(cropPreviewRequest!=null){cropPreviewRequest.cancel();cropPreviewRequest=null;}
-            if(readingPreviewContrast!=null)applyReadingSettings(session.readingSettings(session.notebookId()).contrast(readingPreviewContrast));
+            if(cropCancellationSettings!=null){NotebookReadingSettings cancellation=cropCancellationSettings;cropCancellationSettings=null;applyReadingSettings(cancellation);}
+            else if(readingPreviewContrast!=null)applyReadingSettings(session.readingSettings(session.notebookId()).contrast(readingPreviewContrast));
             else {editing=false;installViewport();}
             return;
         }

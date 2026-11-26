@@ -22,7 +22,10 @@ Titles truncate within their column.
 
 Settings → Bookshelf switches between **List** and **Thumbnails**. The thumbnail
 grid fits the selected number of rows in the available bookshelf height and
-continues by scrolling for more notebooks. Rows and columns are independent:
+continues by scrolling for more notebooks. Each rounded card contains its preview,
+name, actions and last-opened time. Notebook opening times are recorded from
+this version onward; an em dash means an earlier opening time is unavailable.
+Rows and columns are independent:
 
 | Setting | Portrait default | Landscape default | Range |
 | --- | --- | --- | --- |

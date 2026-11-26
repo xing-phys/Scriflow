@@ -78,6 +78,15 @@ final class NotebookSession {
         document = new NotebookLibrary(directory);
     }
 
+    private android.content.SharedPreferences openedTimes() { return context.getSharedPreferences("notebook-opened", Context.MODE_PRIVATE); }
+    long lastOpened(int id) { return openedTimes().getLong(Integer.toString(id), 0); }
+    void markOpened(int id) { if (id > 0) openedTimes().edit().putLong(Integer.toString(id), System.currentTimeMillis()).apply(); }
+    private void forgetOpened(List<Integer> ids) {
+        android.content.SharedPreferences.Editor edit = openedTimes().edit();
+        for (int id : ids) edit.remove(Integer.toString(id));
+        edit.apply();
+    }
+
     NotebookPage current() { return page; }
     boolean isSaving() { return pending.get() != 0; }
     IOException error() { return problem; }
@@ -153,8 +162,10 @@ final class NotebookSession {
             (page, error) -> callback.complete(selected[0], error));
     }
     void list(Callback callback) { submit(() -> { prepareInitialPaper(); document.loadCatalog(); }, callback); }
-    void openNotebook(int id, Callback callback) {
-        submit(() -> { document.openNotebook(id); windowIds = Collections.emptyList(); navigationBook = 0; }, callback);
+    void openNotebook(int id, Callback callback) { openNotebook(id, true, callback); }
+    void openNotebookForTransfer(int id, Callback callback) { openNotebook(id, false, callback); }
+    private void openNotebook(int id, boolean record, Callback callback) {
+        submit(() -> { document.openNotebook(id); if (record) markOpened(id); windowIds = Collections.emptyList(); navigationBook = 0; }, callback);
     }
     void createNotebook(String name, Callback callback) {
         createNotebook(name, NotebookPaperSize.A5, callback);
@@ -163,7 +174,7 @@ final class NotebookSession {
         createNotebook(name, paperSize, 0, callback);
     }
     void createNotebook(String name, NotebookPaperSize paperSize, int folderId, Callback callback) {
-        submit(() -> { document.createNotebook(name, paperSize, folderId); windowIds = Collections.emptyList(); navigationBook = 0; }, callback);
+        submit(() -> { document.createNotebook(name, paperSize, folderId); markOpened(document.notebookId()); windowIds = Collections.emptyList(); navigationBook = 0; }, callback);
     }
     void renameNotebook(int id, String name, Callback callback) {
         submit(() -> document.renameNotebook(id, name), callback);
@@ -182,11 +193,11 @@ final class NotebookSession {
         submit(() -> { document.manageNotebooks(selected, action, folder); windowIds = Collections.emptyList(); navigationBook = 0; }, callback);
     }
     void permanentlyDeleteNotebook(int id, Callback callback) {
-        submit(() -> { document.permanentlyDeleteNotebook(id); windowIds = Collections.emptyList(); navigationBook = 0; }, callback);
+        submit(() -> { document.permanentlyDeleteNotebook(id); forgetOpened(Collections.singletonList(id)); windowIds = Collections.emptyList(); navigationBook = 0; }, callback);
     }
     void permanentlyDeleteNotebooks(List<Integer> ids, Callback callback) {
         final List<Integer> selected = new ArrayList<>(ids);
-        submit(() -> { document.permanentlyDeleteNotebooks(selected); windowIds = Collections.emptyList(); navigationBook = 0; }, callback);
+        submit(() -> { document.permanentlyDeleteNotebooks(selected); forgetOpened(selected); windowIds = Collections.emptyList(); navigationBook = 0; }, callback);
     }
     void initializeSize(int width, int height, Callback callback) {
         submit(() -> { document.initializeSize(width, height); navigationBook = 0; }, callback);

@@ -85,7 +85,7 @@ public final class NotebookCastActivity extends NotebookDisplayActivity {
         stop = button("Stop casting", () -> { NotebookCastController.stopCasting(this); refresh(); });
         body.addView(stop, new LinearLayout.LayoutParams(-1, dp(48)));
         body.addView(label("Open the complete http:// address shown above in the other device's browser, then enter the password. Viewers can watch; writing and controls stay on the tablet.", 14));
-        body.addView(label("Return to a note, book or browser page to share. Settings and these controls stay private. Leaving Scriflow pauses the feed; turning the screen off or losing Wi-Fi stops casting.", 14));
+        body.addView(label("Return to a note, book or browser page to share. Settings and these controls stay private. Leaving Scriflow or turning the screen off pauses the feed. It resumes when you return; losing Wi-Fi stops casting.", 14));
         body.addView(label("Use trusted Wi-Fi: this local HTTP connection is not encrypted. Guest networks may block devices from reaching each other. No Internet connection is required.", 13));
         scroll.addView(body); root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1)); setContentView(root); refresh();
     }
