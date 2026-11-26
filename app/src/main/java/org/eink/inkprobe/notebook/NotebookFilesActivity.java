@@ -39,6 +39,7 @@ import java.util.List;
 
 /** E-ink file browser for shared tablet storage, separate from the notebook bookshelf. */
 public final class NotebookFilesActivity extends NotebookDisplayActivity {
+    static final String SHOW_DOWNLOADS = "showDownloadsFolder";
     private static final int STORAGE_PERMISSION = 2410;
     private NotebookFilesJob job;
     private TextView status, empty, selectedCount, clipboardCount;
@@ -74,6 +75,8 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
         thumbnails = NotebookCollectionLayout.thumbnails(this, "files");
         Object retained = getLastNonConfigurationInstance();
         job = retained instanceof NotebookFilesJob ? (NotebookFilesJob) retained : new NotebookFilesJob(this);
+        if (retained == null && saved == null && getIntent().getBooleanExtra(SHOW_DOWNLOADS, false))
+            job.folder = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).getAbsolutePath();
         if (!(retained instanceof NotebookFilesJob) && saved != null) {
             job.folder = saved.getString("folder"); job.query = saved.getString("query", "");
             job.hidden = saved.getBoolean("hidden"); job.move = saved.getBoolean("move");

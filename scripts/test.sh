@@ -12,6 +12,8 @@ python3 -m unittest discover -s tests -p 'test_browser_maintenance.py'
 bash scripts/test-cast.sh
 javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookFiles.java tests/NotebookFilesTest.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookReleaseVersion.java tests/NotebookReleaseVersionTest.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookUpdateSource.java tests/NotebookUpdateSourceTest.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookFileTypes.java tests/NotebookFileTypesTest.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookEbookStore.java tests/NotebookEbookStoreTest.java \
   app/src/main/java/org/eink/inkprobe/CallbackTiming.java \
@@ -109,6 +111,9 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   tests/NotebookViewHistoryTest.java \
   tests/NotebookOutlineTreeTest.java \
   tests/NotebookLinkTapGestureTest.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookDefaultName.java tests/NotebookDefaultNameTest.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookDownloadName.java tests/NotebookDownloadNameTest.java \
+  app/src/main/java/org/eink/inkprobe/notebook/NotebookDownloadStream.java tests/NotebookDownloadStreamTest.java \
   tests/NotebookCatalogTest.java tests/NotebookLibraryTest.java tests/NotebookShelfTest.java tests/NotebookShelfSelectionTest.java tests/NotebookPaperSizeTest.java \
   tests/NotebookWebsitesTest.java tests/NotebookWebsiteArchiveFixture.java tests/NotebookBrowserUiTest.java tests/NotebookBrowserLibraryTest.java \
   tests/NotebookViewportTest.java tests/NotebookViewportZoomTest.java tests/NotebookScrollStoreTest.java \
@@ -119,6 +124,8 @@ javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   tests/NotebookPenSliderCloseTest.java tests/NotebookRegionEraserTest.java tests/NotebookRegionEraserInteractionTest.java tests/NotebookEraserTest.java tests/NotebookEraserCommitTest.java tests/NotebookFoundationTest.java \
   tests/NotebookStrokeScaleTest.java tests/NotebookViewportSaveTest.java
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookFilesTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookReleaseVersionTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookUpdateSourceTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookFileTypesTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookEbookStoreTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookWritingGateTest
@@ -179,6 +186,9 @@ java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookLinkTapGestureT
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookCatalogTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookLibraryTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookShelfTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookDefaultNameTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookDownloadNameTest
+java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookDownloadStreamTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookWebsitesTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookBrowserUiTest
 java -ea -cp build/host-tests org.eink.inkprobe.notebook.NotebookToolSettingsTest

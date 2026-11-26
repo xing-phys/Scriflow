@@ -42,6 +42,9 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
     private final String archive;
     private WebExtension extension;
     private WebExtension.Port pagePort;
+    private WebExtension.Port previousDocumentPort;
+    private String previousDocumentUrl;
+    private boolean previousDocumentPainted, previousDocumentReadable, skipExternalStop;
     private String bootstrap, url, title = "", pendingUrl;
     private GeckoSession.SessionState sessionState, pendingState;
     private History history = new History(new ArrayList<>(), -1);
@@ -118,11 +121,17 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
         session.setProgressDelegate(new GeckoSession.ProgressDelegate() {
             @Override public void onPageStart(GeckoSession owner, String value) {
                 if (closed || internal(value)) return;
+                skipExternalStop = false;
+                if (pagePort != null && url != null) {
+                    previousDocumentPort = pagePort; previousDocumentUrl = url;
+                    previousDocumentPainted = painted; previousDocumentReadable = readable;
+                }
                 prompts.close(); media.reset(); cancelCapture(); pagePort = null; painted = readable = notified = false;
                 url = value; listener.onPageStarted(NotebookGeckoPage.this, value);
             }
             @Override public void onPageStop(GeckoSession owner, boolean success) {
                 if (closed || url == null || internal(url)) return;
+                if (skipExternalStop) { skipExternalStop = false; return; }
                 if (fresh) { fresh = false; session.purgeHistory(); back = forward = false; }
                 if (success || painted && pagePort != null) listener.onPageFinished(NotebookGeckoPage.this, url);
                 else listener.onError(NotebookGeckoPage.this, "Couldn’t finish loading this page. Tap Reload to retry.");
@@ -146,8 +155,17 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
             @Override public void onKill(GeckoSession owner) { if (!closed) listener.onRendererGone(NotebookGeckoPage.this); }
             @Override public void onCloseRequest(GeckoSession owner) { if(!closed&&popup)listener.onWindowClose(NotebookGeckoPage.this); }
             @Override public void onExternalResponse(GeckoSession owner, WebResponse response) {
-                if (response.body != null) try { response.body.close(); } catch (IOException ignored) { }
-                if (!closed) listener.onDownload(NotebookGeckoPage.this);
+                if (closed) { if (response.body != null) try { response.body.close(); } catch (IOException ignored) { } return; }
+                if (pagePort == null && previousDocumentPort != null && previousDocumentUrl != null) {
+                    url = previousDocumentUrl; pagePort = previousDocumentPort;
+                    painted = previousDocumentPainted; readable = previousDocumentReadable; notified = true;
+                    previousDocumentPort = null; previousDocumentUrl = null; skipExternalStop = true;
+                    listener.onPageStarted(NotebookGeckoPage.this, url);
+                    listener.onHistoryChanged(NotebookGeckoPage.this, url);
+                    listener.onPageFinished(NotebookGeckoPage.this, url);
+                    listener.onDocumentReady(NotebookGeckoPage.this, url);
+                }
+                listener.onDownload(NotebookGeckoPage.this, response.body, response.uri, response.headers, response.statusCode);
             }
         });
         session.setPermissionDelegate(media);
@@ -233,6 +251,7 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
                 } else message(owner, message);
             }
             @Override public void onDisconnect(WebExtension.Port owner) {
+                if (previousDocumentPort == owner) { previousDocumentPort = null; previousDocumentUrl = null; }
                 if (pagePort == owner) {
                     pagePort = null; cancelCapture();
                     for(Consumer<Boolean> callback:new ArrayList<>(popupRequests.values()))callback.accept(false);popupRequests.clear();
@@ -254,7 +273,8 @@ final class NotebookGeckoPage extends NotebookBrowserEngine {
             String source = message.optString("url");
             if (!allowed(source, true) || url == null || !NotebookBrowserAddress.withoutFragment(source).equals(NotebookBrowserAddress.withoutFragment(url))) return;
             if (pagePort != port) { cancelCapture(); notified = false; port.postMessage(json("type", "hello")); }
-            pagePort = port; readable = message.optBoolean("readable"); documentReady(); return;
+            pagePort = port; previousDocumentPort = null; previousDocumentUrl = null;
+            readable = message.optBoolean("readable"); documentReady(); return;
         }
         if (port != pagePort) return;
         String type = message.optString("type"), id = message.optString("id");

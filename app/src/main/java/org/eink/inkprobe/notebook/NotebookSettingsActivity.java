@@ -17,6 +17,7 @@ import java.util.Map;
 public final class NotebookSettingsActivity extends NotebookDisplayActivity {
     private NotebookButton pinchChoice, screenChoice;
     private NotebookAiSettingsSection aiSettings;
+    private NotebookAboutSection about;
     private final Map<NotebookSettings.Orientation, NotebookButton> choices = new EnumMap<>(NotebookSettings.Orientation.class);
     private final Map<NotebookPenConfig.WidthMode, NotebookButton> widthChoices = new EnumMap<>(NotebookPenConfig.WidthMode.class);
     private final Map<NotebookSettings.BookshelfView, NotebookButton> shelfChoices = new EnumMap<>(NotebookSettings.BookshelfView.class);
@@ -35,6 +36,8 @@ public final class NotebookSettingsActivity extends NotebookDisplayActivity {
         ScrollView scroll = new ScrollView(this); scroll.setBackgroundColor(Color.WHITE);
         scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
         LinearLayout body = column();
+
+        about = new NotebookAboutSection(this, body);
 
         section(body, "Text size");
         textSizeRow(body, "AI chat replies", true);
@@ -219,9 +222,9 @@ public final class NotebookSettingsActivity extends NotebookDisplayActivity {
         update.run(); return control;
     }
 
-    @Override protected void onResume() { super.onResume(); updateChoices(); }
+    @Override protected void onResume() { super.onResume(); updateChoices(); if(about!=null)about.resume(); }
     @Override protected boolean allowScreenCast() { return false; }
-    @Override protected void onPause() { if (aiSettings!=null) aiSettings.cancelModels(); super.onPause(); }
+    @Override protected void onPause() { if (aiSettings!=null) aiSettings.cancelModels(); if(about!=null)about.pause(); super.onPause(); }
 
     private void updateChoices() {
         if (pinchChoice != null) pinchChoice.setText("Two-finger zoom: " + (NotebookSettings.pinchZoomEnabled(this) ? "On" : "Off"));

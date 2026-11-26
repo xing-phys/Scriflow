@@ -35,6 +35,7 @@ public abstract class NotebookDisplayActivity extends Activity implements Notebo
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        NotebookUpdates.get(this); // Recover interrupted downloads and clean up successful updates.
         Display display = getWindowManager().getDefaultDisplay();
         int displayRotation = display.getRotation();
         Point physicalSize = new Point(); display.getRealSize(physicalSize);

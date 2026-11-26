@@ -492,6 +492,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     @Override protected void onResume() {
         super.onResume();
         resumeBrowserNotes();
+        if (discardReplacedPanes().contains(viewNotebookId)) viewNotebookId = 0;
         resumeToolSettings();
         if (!independentAi && session.notebookId() != viewNotebookId) {
             viewNotebookId = session.notebookId();
@@ -2968,6 +2969,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
                 }
             }
         }
+        discardReplacedPanes();
         if (!independentAi) { ensureWorkspace(); restoreWorkspaceView(); }
         noteTray = new NotebookNoteTray(this, new NotebookNoteTray.Listener() {
             public void add() { trayAction(() -> openCompanion(true)); }
@@ -2982,6 +2984,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
 
     private void initializeIndependentWorkspace() {
         workspace.restore(restoredIndependentNotes);
+        discardReplacedPanes();
         workspace.setFloatingBase(true);
         if (workspace.find(independentEditorId) == null) independentEditorId = 0;
     }
@@ -2991,10 +2994,26 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         if (workspace.find(session.notebookId()) == null) {
             for (NotebookCompanion window : noteWindows.values()) window.close();
             noteWindows.clear(); workspace.restore(null);
-            workspace.add(session.notebookId(), NotebookWorkspace.Position.FLOATING);
+            addWorkspacePane(session.notebookId(), NotebookWorkspace.Position.FLOATING);
         }
         NotebookWorkspace.Pane editor=workspace.find(session.notebookId());
         if (aiWindows == null || !aiWindows.retainsMainChat()) editor.collapsed = false;
+    }
+
+    private NotebookWorkspace.Pane addWorkspacePane(int id, NotebookWorkspace.Position position) {
+        NotebookWorkspace.Pane pane = workspace.add(id, position); pane.generation = session.notebookGeneration(id); return pane;
+    }
+
+    private List<Integer> discardReplacedPanes() {
+        List<Integer> removed = workspace.discardReplaced(session::notebookGeneration);
+        for (int id : removed) {
+            workspaceHistories.remove(id);
+            if (independentEditorId == id) independentEditorId = 0;
+            for (NotebookWorkspace.Pane pane : new ArrayList<>(noteWindows.keySet())) if (pane.notebookId == id) {
+                NotebookCompanion window = noteWindows.remove(pane); if (window != null) window.close();
+            }
+        }
+        return removed;
     }
 
     private void restoreWorkspaceView() {
@@ -3025,7 +3044,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         for (NotebookCompanion window : noteWindows.values()) window.close();
         noteWindows.clear(); disposeCanvas(true); page = null; viewport = null; pages.clear(); viewportBuffer.clear();
         workspaceHistories.clear(); resetIndependentView();
-        workspace.restore(shared.layout); workspace.setFloatingBase(true);
+        workspace.restore(shared.layout); discardReplacedPanes(); workspace.setFloatingBase(true);
         independentEditorId = workspace.find(shared.editor) == null ? 0 : shared.editor;
         viewNotebookId = independentEditorId; browserNotesRevision = shared.revision;
         positionWorkspaceBackground();
@@ -3303,7 +3322,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             Toast.makeText(this,"Could not open that notebook",Toast.LENGTH_LONG).show();startIndependentAi();return;
         }
         NotebookWorkspace.Pane pane=workspace.find(id);
-        if(pane==null)pane=workspace.add(id,NotebookWorkspace.Position.FLOATING);
+        if(pane==null)pane=addWorkspacePane(id,NotebookWorkspace.Position.FLOATING);
         if(reveal)pane.collapsed=false;
         workspace.setFloatingBase(true);independentEditorId=id;viewNotebookId=id;
         if(reveal){resetIndependentView();viewHistory.restore(id,workspaceHistories.get(id));}
@@ -3355,7 +3374,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             resumeThen(() -> {
                 if (choice[0] < 0) return;
                 int id = choice[0];
-                if (floating) changeWorkspace(() -> { workspace.add(id, NotebookWorkspace.Position.FLOATING); session.markOpened(id); });
+                if (floating) changeWorkspace(() -> { addWorkspacePane(id, NotebookWorkspace.Position.FLOATING); session.markOpened(id); });
                 else chooseCompanionPosition(id);
             });
         });
@@ -3375,7 +3394,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             resumeThen(() -> { if (choice[0] >= 0) changeWorkspace(() -> {
                 NotebookWorkspace.Pane pane = workspace.find(notebook);
                 NotebookWorkspace.Position position = NotebookWorkspace.Position.values()[choice[0]];
-                if (pane == null) { workspace.add(notebook, position); session.markOpened(notebook); } else workspace.place(pane, position);
+                if (pane == null) { addWorkspacePane(notebook, position); session.markOpened(notebook); } else workspace.place(pane, position);
             }); });
         });
         showNoteDialog(dialog);

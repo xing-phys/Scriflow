@@ -65,8 +65,15 @@ public final class NotebookWorkspaceTest {
         check(restored.find(2).zoom == 3.25f && restored.find(2).centerY == 1.1f && restored.find(2).page == 7, "Zoom and page center survive recreation");
         pane.zoom = .1f; restored.restore(state.encode()); check(restored.find(2).zoom == .1f, "Minimum editor pinch zoom survives restoration");
         pane.zoom = 12; restored.restore(state.encode()); check(restored.find(2).zoom == 12, "Height-fit zoom above eight survives restoration");
-        restored.restore("1\nmalformed\n" + state.encode().substring(2));
+        restored.restore("2\nmalformed\n" + state.encode().substring(2));
         check(restored.panes().size() == 3, "Damaged preference entry does not discard other notes");
+        String legacy = "1\n1,4,FLOATING,false,0.5,0.2,0.2,0.5,0.5,true,2.0,0.5,0.5\n";
+        restored.restore(legacy);
+        check(restored.find(1) != null && restored.find(1).generation == 0 && restored.find(1).page == 4, "Legacy layouts retain their original view");
+        check(restored.discardReplaced(id -> id == 1 ? 1 : 0).contains(1) && restored.find(1) == null, "A reused notebook slot cannot inherit the old view");
+        restored.restore(state.encode()); restored.find(2).generation = 7;
+        check(restored.discardReplaced(id -> id == 2 ? 7 : 0).isEmpty(), "The same notebook retains its saved view");
+        check(restored.discardReplaced(id -> id == 2 ? 8 : 0).size() == 1 && restored.find(1) != null && restored.find(3) != null, "Replacing one notebook preserves the other panes");
         restored.restore("unknown"); check(restored.panes().isEmpty(), "Unknown layout version starts empty");
     }
     private static void box(NotebookWorkspace.Box a, NotebookWorkspace.Box b, String message) { check(a.x == b.x && a.y == b.y && a.width == b.width && a.height == b.height, message); }

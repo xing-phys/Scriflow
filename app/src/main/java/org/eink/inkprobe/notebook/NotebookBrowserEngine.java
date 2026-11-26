@@ -17,7 +17,7 @@ abstract class NotebookBrowserEngine extends FrameLayout {
         void onTitle(NotebookBrowserEngine view, String title);
         void onError(NotebookBrowserEngine view, String message);
         void onRendererGone(NotebookBrowserEngine view);
-        void onDownload(NotebookBrowserEngine view);
+        void onDownload(NotebookBrowserEngine view, java.io.InputStream body, String url, java.util.Map<String,String> headers, int status);
         default void onNewTab(NotebookBrowserEngine view, String url) { view.loadUrl(url); }
         default NotebookBrowserEngine onNewWindow(NotebookBrowserEngine view, String url) { return null; }
         default void onWindowClose(NotebookBrowserEngine view) { }

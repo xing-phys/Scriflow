@@ -15,7 +15,7 @@ import static org.eink.inkprobe.notebook.NotebookBrowserUi.*;
 final class NotebookBrowserHome extends ScrollView {
     interface Actions {
         void open(String url); void add(); void manage(NotebookBrowserLibrary.Link link);
-        void bookmarks(); void history(); void settings(); void tabs(); void newTab();
+        void bookmarks(); void history(); void downloads(); void settings(); void tabs(); void newTab();
         void savedWebsites(); void bookshelf(); void openTab(String id); void closeTab(String id);
     }
     private final Actions actions;
@@ -82,10 +82,10 @@ final class NotebookBrowserHome extends ScrollView {
 
     private void renderShortcuts() {
         Context c = getContext(); shortcuts.removeAllViews();
-        NotebookIconDrawable.Icon[] symbols = {NotebookIconDrawable.Icon.BOOKMARK, NotebookIconDrawable.Icon.HISTORY, NotebookIconDrawable.Icon.TABS,
+        NotebookIconDrawable.Icon[] symbols = {NotebookIconDrawable.Icon.BOOKMARK, NotebookIconDrawable.Icon.HISTORY, NotebookIconDrawable.Icon.DOWNLOAD, NotebookIconDrawable.Icon.TABS,
             NotebookIconDrawable.Icon.PLUS, NotebookIconDrawable.Icon.FOLDER, NotebookIconDrawable.Icon.NEW_FOLDER, NotebookIconDrawable.Icon.SETTINGS, NotebookIconDrawable.Icon.LIBRARY};
-        String[] names = {"Bookmarks", "History", "Tabs", "New tab", "Saved websites", "Add shortcut", "Browser data", "Bookshelf"};
-        Runnable[] clicks = {actions::bookmarks, actions::history, actions::tabs, actions::newTab, actions::savedWebsites, actions::add, actions::settings, actions::bookshelf};
+        String[] names = {"Bookmarks", "History", "Downloads", "Tabs", "New tab", "Saved websites", "Add shortcut", "Browser data", "Bookshelf"};
+        Runnable[] clicks = {actions::bookmarks, actions::history, actions::downloads, actions::tabs, actions::newTab, actions::savedWebsites, actions::add, actions::settings, actions::bookshelf};
         int columns = Math.max(1, Math.min(symbols.length, contentWidth() / dp(c, 54))); LinearLayout line = null;
         for (int i = 0; i < symbols.length; i++) {
             if (i % columns == 0) { line = row(c); shortcuts.addView(line, new LinearLayout.LayoutParams(-1, dp(c, 48))); }

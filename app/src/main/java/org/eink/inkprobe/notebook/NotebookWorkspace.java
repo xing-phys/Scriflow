@@ -9,6 +9,8 @@ public final class NotebookWorkspace {
     public enum Position { LEFT, RIGHT, TOP, BOTTOM, FLOATING }
     public static final class Pane {
         public final int notebookId;
+        /** Distinguishes a newly created notebook from an older one that reused its slot. */
+        public long generation;
         public int page = 1;
         public Position position = Position.FLOATING;
         public boolean collapsed, hasView;
@@ -113,20 +115,21 @@ public final class NotebookWorkspace {
     }
     /** A compact, versioned preference value. No document data is stored here. */
     public String encode() {
-        StringBuilder value = new StringBuilder("1\n");
+        StringBuilder value = new StringBuilder("2\n");
         for (Pane p : panes) value.append(p.notebookId).append(',').append(p.page).append(',').append(p.position.name())
             .append(',').append(p.collapsed).append(',').append(p.split).append(',').append(p.x).append(',').append(p.y)
             .append(',').append(p.width).append(',').append(p.height).append(',').append(p.hasView).append(',').append(p.zoom)
-            .append(',').append(p.centerX).append(',').append(p.centerY).append('\n');
+            .append(',').append(p.centerX).append(',').append(p.centerY).append(',').append(p.generation).append('\n');
         return value.toString();
     }
     public void restore(String value) {
         panes.clear();
-        if (value == null || !value.startsWith("1\n")) return;
+        if (value == null || !(value.startsWith("1\n") || value.startsWith("2\n"))) return;
+        boolean legacy = value.startsWith("1\n");
         for (String line : value.substring(2).split("\n")) {
             try {
                 String[] f = line.split(",");
-                if (f.length != 13) continue;
+                if (f.length != (legacy ? 13 : 14)) continue;
                 int id = Integer.parseInt(f[0]);
                 if (id <= 0 || find(id) != null) continue;
                 Pane p = new Pane(id); p.page = Math.max(1, Integer.parseInt(f[1])); p.position = Position.valueOf(f[2]);
@@ -136,6 +139,7 @@ public final class NotebookWorkspace {
                 p.hasView = Boolean.parseBoolean(f[9]); p.zoom = Float.parseFloat(f[10]);
                 if (!NotebookPage.finite(p.zoom) || p.zoom <= 0) p.zoom = 1;
                 p.centerX = clamp(Float.parseFloat(f[11]), 0, 1); p.centerY = clamp(Float.parseFloat(f[12]), -1, 2);
+                if (!legacy) { p.generation = Long.parseLong(f[13]); if (p.generation < 0) continue; }
                 panes.add(p);
             } catch (IllegalArgumentException ignored) { /* Ignore only the damaged preference entry. */ }
         }
@@ -143,6 +147,14 @@ public final class NotebookWorkspace {
         for (Pane p : panes) if ((externalBase || p != base()) && p.position != Position.FLOATING) {
             if (dock == null) dock = p; else p.position = Position.FLOATING;
         }
+    }
+    /** Remove only panes whose notebook has since been permanently replaced. */
+    public List<Integer> discardReplaced(java.util.function.IntToLongFunction generations) {
+        List<Integer> removed = new ArrayList<>();
+        for (Pane pane : new ArrayList<>(panes)) if (pane.generation != generations.applyAsLong(pane.notebookId)) {
+            removed.add(pane.notebookId); close(pane);
+        }
+        return removed;
     }
     static float clamp(float value, float low, float high) { return NotebookPage.finite(value) ? Math.max(low, Math.min(high, value)) : low; }
 }

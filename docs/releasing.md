@@ -46,6 +46,13 @@ it does not arbitrarily change the patch number or signing identity.
 
 ## Before publishing
 
+**0.49.0-rc.1** (versionCode **132**) adds browser downloads, larger notebook
+previews, time-based unnamed notes and notebook-identity-safe workspace restore.
+It also adds Settings → About and verified in-app update installation. Validate
+browser transfers, collisions, interruption and Files access, together
+with naming and shelf layouts on the connected MatePad. Publish the permanent-key
+APK and checksum as the requested RC; retain 0.33.2 as Latest stable.
+
 **0.48.0-beta.5** (versionCode **131**) fixes delayed reading-view updates and
 refines page-information and bookshelf controls. Verify live note/PDF redraws
 while the panel remains open, crop and contrast, thumbnail image/name/date

@@ -74,6 +74,7 @@ public final class NotebookBrowserSelfTestActivity extends NotebookBrowserActivi
         String tabText = intent.getStringExtra("tabText"); if (tabText != null) { click(workspaceToolsView(), "Browser tabs"); textClick(browserDebugRoot(), tabText); }
         String text = intent.getStringExtra("textClick"); if (text != null) textClick(browserDebugRoot(), text);
         String url = intent.getStringExtra("navigate"); if (url != null) { fill(workspaceToolsView(), "Website address", url); click(workspaceToolsView(), "Browse website address"); }
+        String fixtureUrl = intent.getStringExtra("fixtureNavigate"); if (fixtureUrl != null) browserDebugNavigate(fixtureUrl);
         String fragment = intent.getStringExtra("fragment");
         if (fragment != null && fragment.matches("[A-Za-z0-9_-]+")) jump(getWindow().getDecorView(), fragment);
         if (intent.getBooleanExtra("recreate", false)) { recreate(); return; }

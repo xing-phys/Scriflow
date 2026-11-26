@@ -26,7 +26,12 @@ pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
 stays in front, window operations retain the main editor, and PDF import opens
 PDFs open through Scriflow's Files browser as annotated notes.
 
-The **[0.48.0-beta.5 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.48.0-beta.5)**
+The **[0.49.0-rc.1 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.49.0-rc.1)**
+adds browser downloads and an in-app download manager, an About screen with update
+checks, larger notebook previews, and compact time-based names for unnamed notes. See the
+[release notes](docs/releases/0.49.0-rc.1.md).
+
+The preceding **[0.48.0-beta.5 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.48.0-beta.5)**
 applies reading-view changes while its panel stays open. Thumbnail previews open
 items, while their names and dates show actions; list overflow icons are simpler.
 Page-information actions align at the top right. Physical tablet acceptance

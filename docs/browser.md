@@ -72,8 +72,17 @@ normal mobile layout, JavaScript and fonts, including MathJax and KaTeX.
 Ordinary website dialogs and HTML selection controls use native dialogs.
 User-initiated new-window links open another tab; automatic popups are
 blocked. Use Tabs to open an independent tab explicitly. Image pasting into
-website editors is supported. File downloads, file-picker uploads and
-password-manager integration are outside this version.
+website editors is supported. File-picker uploads and password-manager
+integration are outside this version.
+
+Downloads use the website's original response, including its current session,
+and are saved in the tablet's **Downloads** folder. Open **Downloads** from the
+browser menu or start page to see progress, cancel a transfer, open its file,
+remove a history entry, or delete a file. The folder button opens Scriflow's
+Files in Downloads. Matching filenames receive a different name instead of
+overwriting an existing file. Transfers can continue while another Scriflow
+screen is open. If Android stops the app before a transfer completes, start that
+download again from its website. Removing a history entry keeps its file.
 The bundled engine increases APK size. Its separate cookie profile may require
 signing into websites again after updating from the earlier WebView browser.
 

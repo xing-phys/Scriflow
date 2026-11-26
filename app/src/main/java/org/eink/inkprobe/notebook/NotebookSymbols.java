@@ -21,6 +21,10 @@ public final class NotebookSymbols {
     public static void draw(String icon, Sink out) {
         if (icon == null || out == null) throw new IllegalArgumentException("Missing icon or sink");
         switch (icon) {
+            case "DOWNLOAD":
+                line(out, 12, 3, 12, 15); line(out, 7, 10, 12, 15, 17, 10);
+                line(out, 4, 16, 4, 21, 20, 21, 20, 16);
+                break;
             case "OPEN_FILE":
                 line(out, 13, 3, 20, 3, 20, 10); line(out, 20, 3, 10, 13);
                 line(out, 17, 13, 17, 20, 4, 20, 4, 7, 11, 7);

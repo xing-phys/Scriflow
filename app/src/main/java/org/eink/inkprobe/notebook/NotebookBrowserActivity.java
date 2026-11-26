@@ -27,7 +27,7 @@ import java.util.Date;
 public class NotebookBrowserActivity extends NotebookActivity {
     @Override protected boolean isBrowserWorkspace() { return true; }
 
-    static final String SAVED_ID = "savedWebsiteId", INITIAL_URL = "websiteUrl";
+    static final String SAVED_ID = "savedWebsiteId", INITIAL_URL = "websiteUrl", SHOW_DOWNLOADS = "showBrowserDownloads";
     private FrameLayout content;
     private TextView title, status, hint;
     private View saveShield;
@@ -39,6 +39,7 @@ public class NotebookBrowserActivity extends NotebookActivity {
     private NotebookWebsites.Pending pendingSave;
     private String archiveUrl, currentUrl;
     private boolean offline, loading, failed, pageReady, saving, resumed, clearHistoryOnFinish;
+    private boolean pendingDownloads;
     private long navigation, saveSequence;
     private Runnable archiveTimeout;
     private int restoreX, restoreY;
@@ -46,6 +47,7 @@ public class NotebookBrowserActivity extends NotebookActivity {
     private Runnable scrollRestore;
     private final Runnable saveReadingPosition = this::saveReadingPosition;
     private AlertDialog shownDialog;
+    private NotebookDownloadDialog downloadDialog;
     private LinearLayout tabRows;
     private android.widget.ScrollView tabScroll;
     private NotebookBrowserHome startPage;
@@ -164,6 +166,7 @@ public class NotebookBrowserActivity extends NotebookActivity {
                 public void manage(NotebookBrowserLibrary.Link link) { pinnedActions(link); }
                 public void bookmarks() { NotebookBrowserActivity.this.bookmarks(false, false); }
                 public void history() { openHistory(); }
+                public void downloads() { showDownloads(); }
                 public void settings() { openBrowserData(); }
                 public void tabs() { showTabs(); }
                 public void newTab() {
@@ -484,8 +487,13 @@ public class NotebookBrowserActivity extends NotebookActivity {
             if (!offline && pageReady && !saving) status.setText(value);
         }
         @Override public void onError(NotebookBrowserEngine view, String message) { PageState state = pageState(view); state.loading = false; state.ready = false; state.failed = true; if (view == web && !home) fail(message); }
-        @Override public void onDownload(NotebookBrowserEngine view) {
-            message("File download", "Use another browser to download this file. Save keeps the currently displayed web page for offline reading.");
+        @Override public void onDownload(NotebookBrowserEngine view, java.io.InputStream body, String url, java.util.Map<String,String> headers, int statusCode) {
+            if (offline) { if (body != null) try { body.close(); } catch (IOException ignored) { } return; }
+            try {
+                String name = NotebookDownloads.get(NotebookBrowserActivity.this).start(body, url,
+                    headers == null ? java.util.Collections.emptyMap() : headers, statusCode);
+                if (resumed) Toast.makeText(NotebookBrowserActivity.this, "Downloading " + name, Toast.LENGTH_SHORT).show();
+            } catch (IOException error) { if (resumed) message("Download", error.getMessage()); }
         }
         @Override public void onNewTab(NotebookBrowserEngine view, String url) {
             if (offline || view != web || saving || !NotebookBrowserAddress.isWebUrl(url)) return;
@@ -528,6 +536,7 @@ public class NotebookBrowserActivity extends NotebookActivity {
     }
 
     protected final View browserDebugRoot() { return shownDialog != null && shownDialog.isShowing() ? shownDialog.getWindow().getDecorView() : getWindow().getDecorView(); }
+    protected final void browserDebugNavigate(String url) { if (!offline && NotebookBrowserAddress.isWebUrl(url)) navigate(url); }
     protected void onBrowserDocumentReady() { }
     protected final void browserDebugScrollTo(int x, int y) {
         if ((getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0 && web != null) {
@@ -619,6 +628,15 @@ public class NotebookBrowserActivity extends NotebookActivity {
         if (!offline && home) refreshHome();
         microphone.resumed(true);
         if (!offline) microphone.askOnce();
+        if (getIntent().getBooleanExtra(SHOW_DOWNLOADS, false)) { pendingDownloads = true; getIntent().removeExtra(SHOW_DOWNLOADS); }
+        if (pendingDownloads) content.postDelayed(this::showPendingDownloads, 150);
+    }
+
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        if (intent.getBooleanExtra(SHOW_DOWNLOADS, false)) {
+            pendingDownloads = true; if (resumed) content.postDelayed(this::showPendingDownloads, 150);
+        }
     }
 
     @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
@@ -631,6 +649,7 @@ public class NotebookBrowserActivity extends NotebookActivity {
         // Keep every live engine and document. The existing note/Gecko size callbacks relayout their surfaces.
         if (tabRows != null && tabScroll != null) renderTabs();
         if (shownDialog != null && tabRows != null) shownDialog.getWindow().setLayout(dp(tabDialogWidth()), -2);
+        if (downloadDialog != null) downloadDialog.resize();
     }
     @Override protected void onPause() {
         content.removeCallbacks(saveReadingPosition); saveReadingPosition();
@@ -857,13 +876,22 @@ public class NotebookBrowserActivity extends NotebookActivity {
     }
     private void openHistory() { if (!waitForSave()) startActivityForResult(new Intent(this, NotebookBrowserHistoryActivity.class), LINKS_RESULT); }
     private void openBrowserData() { if (!waitForSave()) startActivity(new Intent(this, NotebookBrowserDataActivity.class).putExtra("host", currentUrl)); }
+    private void showDownloads() {
+        if (isFinishing() || isDestroyed() || !resumed) return;
+        if (shownDialog != null) shownDialog.dismiss();
+        downloadDialog = new NotebookDownloadDialog(this); shownDialog = downloadDialog.show();
+    }
+    private void showPendingDownloads() {
+        if (!pendingDownloads || !resumed) return;
+        pendingDownloads = false; showDownloads();
+    }
     private void browserMenu() {
         if (waitForSave()) return;
-        shownDialog = new AlertDialog.Builder(this).setTitle("Browser").setItems(new String[]{"Bookmarks", "Bookmark this page", "Pin this page", "Browsing history", "Browser data settings", "Copy page address", "Share page address", "Open in another browser"}, (dialog, at) -> {
-            if (at == 0) bookmarks(false, false); else if (at == 1) bookmarks(true, false); else if (at == 2) bookmarks(true, true); else if (at == 3) openHistory(); else if (at == 4) openBrowserData(); else {
+        shownDialog = new AlertDialog.Builder(this).setTitle("Browser").setItems(new String[]{"Bookmarks", "Bookmark this page", "Pin this page", "Browsing history", "Downloads", "Browser data settings", "Copy page address", "Share page address", "Open in another browser"}, (dialog, at) -> {
+            if (at == 0) bookmarks(false, false); else if (at == 1) bookmarks(true, false); else if (at == 2) bookmarks(true, true); else if (at == 3) openHistory(); else if (at == 4) { dialog.dismiss(); content.post(this::showDownloads); } else if (at == 5) openBrowserData(); else {
                 String url = offline && savedPage != null ? savedPage.url : !home && web != null ? web.getUrl() : null; if (!NotebookBrowserAddress.isWebUrl(url)) return;
-                if (at == 5) { ((android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(android.content.ClipData.newPlainText("Website address", url)); Toast.makeText(this, "Website address copied", Toast.LENGTH_SHORT).show(); }
-                else if (at == 6) startActivity(Intent.createChooser(new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, url), "Share website"));
+                if (at == 6) { ((android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(android.content.ClipData.newPlainText("Website address", url)); Toast.makeText(this, "Website address copied", Toast.LENGTH_SHORT).show(); }
+                else if (at == 7) startActivity(Intent.createChooser(new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, url), "Share website"));
                 else try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); } catch (android.content.ActivityNotFoundException error) { message("Open website", "No other browser is installed."); }
             }
         }).create(); NotebookUi.show(shownDialog);

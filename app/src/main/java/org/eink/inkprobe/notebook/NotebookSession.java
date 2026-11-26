@@ -79,6 +79,13 @@ final class NotebookSession {
     }
 
     private android.content.SharedPreferences openedTimes() { return context.getSharedPreferences("notebook-opened", Context.MODE_PRIVATE); }
+    long notebookGeneration(int id) { return context.getSharedPreferences("notebook-generations", Context.MODE_PRIVATE).getLong(Integer.toString(id), 0); }
+    private void reserveNotebookGeneration(int id) throws IOException {
+        if (id <= 0) return; // The library reports the full or unloaded catalog itself.
+        long old = notebookGeneration(id), next = old == Long.MAX_VALUE ? 1 : old + 1;
+        if (!context.getSharedPreferences("notebook-generations", Context.MODE_PRIVATE).edit().putLong(Integer.toString(id), next).commit())
+            throw new IOException("Could not reserve the new notebook's identity.");
+    }
     long lastOpened(int id) { return openedTimes().getLong(Integer.toString(id), 0); }
     void markOpened(int id) { if (id > 0) openedTimes().edit().putLong(Integer.toString(id), System.currentTimeMillis()).apply(); }
     private void forgetOpened(List<Integer> ids) {
@@ -174,7 +181,7 @@ final class NotebookSession {
         createNotebook(name, paperSize, 0, callback);
     }
     void createNotebook(String name, NotebookPaperSize paperSize, int folderId, Callback callback) {
-        submit(() -> { document.createNotebook(name, paperSize, folderId); markOpened(document.notebookId()); windowIds = Collections.emptyList(); navigationBook = 0; }, callback);
+        submit(() -> { document.loadCatalog(); reserveNotebookGeneration(document.availableNotebookId()); document.createNotebook(name, paperSize, folderId); markOpened(document.notebookId()); windowIds = Collections.emptyList(); navigationBook = 0; }, callback);
     }
     void renameNotebook(int id, String name, Callback callback) {
         submit(() -> document.renameNotebook(id, name), callback);
@@ -454,7 +461,7 @@ final class NotebookSession {
     void importBackup(NotebookBackup.Restored restored, TransferCallback callback) {
         submit(() -> {
             try {
-                document.loadCatalog(); document.importNotebook(restored); document.load();
+                document.loadCatalog(); reserveNotebookGeneration(document.availableNotebookId()); document.importNotebook(restored); document.load();
                 windowIds = Collections.emptyList(); navigationBook = 0;
             } catch (OutOfMemoryError error) {
                 // A restore intent/directory may already have been published. Preserve it for normal library recovery.

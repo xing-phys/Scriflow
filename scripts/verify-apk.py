@@ -40,8 +40,8 @@ DIAGNOSTICS = {PACKAGE + '.MainActivity', PACKAGE + '.notebook.NotebookSelfTestA
 # Microphone and Android-10 storage access are requested at runtime. The file
 # manager uses the special All files access setting on newer Android versions.
 PERMISSIONS = {'android.permission.ACCESS_NETWORK_STATE', 'android.permission.INTERNET',
-               'android.permission.FOREGROUND_SERVICE', 'android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION',
-               'android.permission.RECORD_AUDIO',
+               'android.permission.FOREGROUND_SERVICE', 'android.permission.FOREGROUND_SERVICE_DATA_SYNC', 'android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION',
+               'android.permission.RECORD_AUDIO', 'android.permission.REQUEST_INSTALL_PACKAGES',
                'android.permission.READ_EXTERNAL_STORAGE', 'android.permission.WRITE_EXTERNAL_STORAGE',
                'android.permission.MANAGE_EXTERNAL_STORAGE',
                'android.permission.WAKE_LOCK', 'android.permission.MODIFY_AUDIO_SETTINGS',
@@ -253,6 +253,26 @@ def verify_manifest(manifest, badging, variant, version):
             and cast_service.attributes.get('android:process') in {':cast', PACKAGE + ':cast'}
             and cast_service.attributes.get('android:foregroundServiceType') == 32,
             'Screen capture requires an unexported mediaProjection foreground service.')
+    download_service = next((item for item in components if component_name(item) == PACKAGE + '.notebook.NotebookDownloadService'), None)
+    require(download_service is not None and download_service.tag == 'service'
+            and download_service.attributes.get('android:exported') == 0
+            and download_service.attributes.get('android:foregroundServiceType') == 1,
+            'Downloads require an unexported dataSync foreground service.')
+    update_service = next((item for item in components if component_name(item) == PACKAGE + '.notebook.NotebookUpdateService'), None)
+    require(update_service is not None and update_service.tag == 'service'
+            and update_service.attributes.get('android:exported') == 0
+            and update_service.attributes.get('android:foregroundServiceType') == 1,
+            'Updates require an unexported dataSync foreground service.')
+    update_provider = next((item for item in components if component_name(item) == PACKAGE + '.notebook.NotebookUpdateProvider'), None)
+    require(update_provider is not None and update_provider.tag == 'provider'
+            and update_provider.attributes.get('android:exported') == 0
+            and bool(update_provider.attributes.get('android:grantUriPermissions'))
+            and update_provider.attributes.get('android:authorities') == PACKAGE + '.updates',
+            'Update installers require an unexported provider with individual read grants.')
+    cleanup_receiver = next((item for item in components if component_name(item) == PACKAGE + '.notebook.NotebookUpdateCleanupReceiver'), None)
+    require(cleanup_receiver is not None and cleanup_receiver.tag == 'receiver'
+            and cleanup_receiver.attributes.get('android:exported') == 0,
+            'Update cleanup must use a private package-replacement receiver.')
     cast_screen = next((item for item in components if component_name(item) == PACKAGE + '.notebook.NotebookCastActivity'), None)
     require(cast_screen is not None and cast_screen.tag == 'activity' and cast_screen.attributes.get('android:exported') == 0,
             'Casting controls must be private to the app.')

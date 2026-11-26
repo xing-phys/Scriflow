@@ -102,7 +102,7 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         pathSpace.leftMargin = dp(4); pathSpace.rightMargin = dp(4); shortcutBar.addView(path, pathSpace);
         LinearLayout shortcuts = new LinearLayout(this); shortcuts.setGravity(Gravity.CENTER_VERTICAL);
         addShortcut(shortcuts, "Notebook", NotebookIconDrawable.Icon.PLUS, this::createNotebook);
-        addShortcut(shortcuts, "Quick A5 note", NotebookIconDrawable.Icon.ADD_PAGE, () -> createNotebook("Note " + (session.entries().size() + 1), NotebookPaperSize.A5));
+        addShortcut(shortcuts, "Quick A5 note", NotebookIconDrawable.Icon.ADD_PAGE, () -> createNotebook(NotebookDefaultName.now(), NotebookPaperSize.A5));
         addShortcut(shortcuts, "Restore backup", NotebookIconDrawable.Icon.RETRY, () -> transfer(true, 0));
         addShortcut(shortcuts, "AI chat", NotebookIconDrawable.Icon.AI_CHAT, this::openAiChat);
         addShortcut(shortcuts, "Browser", NotebookIconDrawable.Icon.BROWSER, this::openBrowser);
@@ -522,7 +522,7 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
             setOrientation(LinearLayout.VERTICAL);
             if (type == 0) setBackgroundColor(Color.WHITE);
             else { setBackground(NotebookUi.rounded(getResources().getDisplayMetrics().density, 8));
-                setPadding(dp(5), dp(5), dp(5), dp(5)); setClipToOutline(true); }
+                setPadding(dp(3), dp(3), dp(3), dp(3)); setClipToOutline(true); }
             setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
             if (type == 1 || type == 3) {
                 TextView image = label("", 13); image.setGravity(Gravity.CENTER);
@@ -592,10 +592,10 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
             menu.setContentDescription("Manage " + (folder ? "folder " :book?"ebook ": "notebook ") + name);
             if (type != 0) {
                 LinearLayout.LayoutParams titleLayout = (LinearLayout.LayoutParams) title.getLayoutParams();
-                int titleHeight = Math.min(dp(40), Math.max(dp(24), height / 4));
+                int titleHeight = Math.min(dp(28), Math.max(dp(18), height / 6));
                 if (titleLayout.height != titleHeight) { titleLayout.height = titleHeight; title.setLayoutParams(titleLayout); }
                 ViewGroup.LayoutParams openedSize = opened.getLayoutParams();
-                int openedHeight = Math.min(dp(20), Math.max(dp(14), height / 8));
+                int openedHeight = Math.min(dp(16), Math.max(dp(12), height / 10));
                 if (openedSize.height != openedHeight) { openedSize.height = openedHeight; opened.setLayoutParams(openedSize); }
                 opened.setVisibility(folder ? View.GONE : View.VISIBLE);
                 if (!folder) {
@@ -799,7 +799,10 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         showStaticDialog(dialog);
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             final String normalized;
-            try { normalized = NotebookCatalog.normalizedName(name.getText().toString()); }
+            try {
+                String value = name.getText().toString();
+                normalized = NotebookDefaultName.blank(value) ? NotebookDefaultName.now() : NotebookCatalog.normalizedName(value);
+            }
             catch (IllegalArgumentException error) { name.setError(error.getMessage()); return; }
             NotebookPaperSize paper;
             if (sizes.getSelectedItemPosition() < NotebookPaperSize.PRESETS.size()) {

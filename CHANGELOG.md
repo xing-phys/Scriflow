@@ -6,6 +6,20 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.49.0-rc.1 — Browser downloads and larger notebook previews (2026-11-26)
+
+- Download website files to the tablet's Downloads folder, manage progress and
+  history in Scriflow, and open the folder in Files. Existing downloads are not
+  overwritten; interrupted responses can be downloaded again from their website.
+- Give notebook thumbnail previews more space and name new unnamed notes using
+  `yyMM.ddHHx`, with `x` the minute divided into six-minute intervals.
+- Keep saved note-window positions tied to a notebook's identity when a deleted
+  notebook's slot is reused. Existing workspace preferences are migrated.
+- Show the installed version in Settings → About, check official releases,
+  download and verify updates in the app, and optionally delete the installer
+  after Android successfully installs it.
+- VersionCode 132; notebook, catalog, ebook, backup and chat formats are unchanged.
+
 ## 0.48.0-beta.5 — Live reading controls and compact shelf cards (2026-11-26)
 
 - Redraw note and PDF reading layouts and contrast while the settings panel stays

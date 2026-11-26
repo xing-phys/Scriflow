@@ -25,6 +25,7 @@ public final class NotebookWorkspaceActivationTest {
             "interface Callback {void complete(NotebookPage page,IOException error);}",
             "final ArrayDeque<Runnable> queue=new ArrayDeque<>(); final List<String> events=new ArrayList<>();",
             "final NotebookWorkspace workspace=new NotebookWorkspace(); final Session session=new Session();",
+            "NotebookWorkspace.Pane addWorkspacePane(int id,NotebookWorkspace.Position position){return workspace.add(id,position);}",
             "AIWindows aiWindows;",
             "final Map<NotebookWorkspace.Pane,NotebookCompanion> noteWindows=new LinkedHashMap<>();",
             "final NotebookViewHistory viewHistory=new NotebookViewHistory(); final Map<Integer,byte[]> workspaceHistories=new HashMap<>();",

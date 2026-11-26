@@ -50,7 +50,7 @@ public final class NotebookBrowserUiTest {
         check(online.find(8).collapsed&&resumed.editor==0,"returning online respects offline minimization");
         online.close(online.find(8));NotebookBrowserNotes.Snapshot closed=notes.save(live,online.encode(),0);
         NotebookBrowserNotes restarted=new NotebookBrowserNotes(closed.layout,closed.editor,closed.revision);
-        check(restarted.claim(new Object()).layout.equals("1\n")&&restarted.current().editor==0,"a persisted closed workspace stays closed after process restart");
+        check(restarted.claim(new Object()).layout.equals("2\n")&&restarted.current().editor==0,"a persisted closed workspace stays closed after process restart");
         check(notes.save(live,closed.layout,closed.editor)==closed,"unchanged metadata does not churn the shared revision");
         notes.release(live);check(notes.save(live,first.layout,first.editor)==closed,"a destroyed owner cannot overwrite saved state");
     }
