@@ -2701,6 +2701,9 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             entries.clear(); entries.addAll(session.outline());
             currentHeading[0] = NotebookOutlineTree.current(entries, session::pageNumber, currentPage, currentFraction);
             visible.clear(); visible.addAll(NotebookOutlineTree.visible(entries, collapsed));
+            ViewGroup.LayoutParams listSize = list.getLayoutParams();
+            int height = Math.min(dp(320), visible.size() * dp(44));
+            if (listSize.height != height) { listSize.height = height; list.setLayoutParams(listSize); }
             adapter.notifyDataSetChanged();
             hint.setText(entries.isEmpty() ? "Your outline is empty. Add a heading at the current view."
                 : editMode[0] ? "Tap a heading to edit, delete, or reorder it."

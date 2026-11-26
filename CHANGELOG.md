@@ -6,6 +6,15 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.48.0-beta.2 — Consistent compact dialogs (2026-11-26)
+
+- Match chat history, note and PDF contents, other app dialogs, ebook panels,
+  and reading settings to the rounded note picker with circular close controls.
+  Keep destructive confirmations and other actions available.
+- Fit chat-history and contents lists to their visible entries where possible.
+- VersionCode 128; notebook, catalog, ebook, backup and chat formats are unchanged.
+  Physical tablet and e-ink acceptance remain pending.
+
 ## 0.48.0-beta.1 — Bookshelf folders and in-app file picking (2026-11-25)
 
 - Put bookshelf, folder and trash actions on the shelf's existing shortcut row.

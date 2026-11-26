@@ -46,6 +46,12 @@ it does not arbitrarily change the patch number or signing identity.
 
 ## Before publishing
 
+**0.48.0-beta.2** (versionCode **128**) refines shared dialogs in the ongoing
+beta cycle. Verify chat history, note/PDF outline actions, list dialogs,
+reading settings and ebook panels, including cancellation and confirmation.
+Build and publish the signed APK and checksum; retain 0.33.2 as Latest stable.
+Physical MatePad and e-ink acceptance remain pending.
+
 **0.43.0-alpha.2** (versionCode **118**) improves lecture casting without
 putting pixel/encoding work in the pen/UI heap. Validate the private process,
 input-aware/readback budgets, idle suspension, waiting-frame authorization and

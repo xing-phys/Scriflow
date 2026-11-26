@@ -26,7 +26,13 @@ pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
 stays in front, window operations retain the main editor, and PDF import opens
 the file picker directly before opening the imported note.
 
-The **[0.48.0-beta.1 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.48.0-beta.1)**
+The **[0.48.0-beta.2 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.48.0-beta.2)**
+uses consistent rounded dialogs and compact circular close controls for chat
+history, note and PDF contents, and other app menus. Ebook and reading-settings
+panels follow the same style. Physical tablet acceptance remains pending. See
+[release notes](docs/releases/0.48.0-beta.2.md).
+
+The preceding **[0.48.0-beta.1 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.48.0-beta.1)**
 adds nested bookshelf folders, a compact shelf toolbar and folder-aware note
 picker, and uses Scriflow's own Files browser for imports and exports. Selected
 ink offers its export formats beside the selection. This beta is published at

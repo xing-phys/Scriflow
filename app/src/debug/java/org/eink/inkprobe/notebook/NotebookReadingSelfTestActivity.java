@@ -11,7 +11,8 @@ public final class NotebookReadingSelfTestActivity extends NotebookActivity {
                 java.lang.reflect.Method ready=NotebookActivity.class.getDeclaredMethod("canEdit");ready.setAccessible(true);
                 org.json.JSONObject result=new org.json.JSONObject().put("time",System.currentTimeMillis()).put("width",viewport.width).put("height",viewport.height)
                     .put("scroll",scroll).put("maxScroll",viewport.maxScroll()).put("pan",viewport.pan).put("singlePage",viewport.singlePage)
-                    .put("navigationPage",viewport.navigationPage(scroll)).put("editable",ready.invoke(NotebookReadingSelfTestActivity.this));
+                    .put("navigationPage",viewport.navigationPage(scroll)).put("editable",ready.invoke(NotebookReadingSelfTestActivity.this))
+                    .put("notebookId",((NotebookSession)value(NotebookActivity.class,"session",NotebookReadingSelfTestActivity.this)).notebookId());
                 try(java.io.FileOutputStream output=new java.io.FileOutputStream(new java.io.File(getCacheDir(),"reading-ui-state.json"))){output.write(result.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));}
             }
         }catch(Exception ignored){}
@@ -24,6 +25,13 @@ public final class NotebookReadingSelfTestActivity extends NotebookActivity {
     @Override protected void onPause(){testHandler.removeCallbacks(report);super.onPause();}
     @Override protected void onNewIntent(android.content.Intent intent){
         super.onNewIntent(intent);
+        if(intent.getBooleanExtra("openOutline",false)) {
+            testHandler.postDelayed(()->{try{
+                java.lang.reflect.Method outline=NotebookActivity.class.getDeclaredMethod("showOutline");
+                outline.setAccessible(true);outline.invoke(this);
+            }catch(Exception error){android.util.Log.e("ReadingSelfTest","Cannot open outline",error);}},500);
+            return;
+        }
         if(!intent.getBooleanExtra("openReading",false))return;
         testHandler.postDelayed(()->{
             try{

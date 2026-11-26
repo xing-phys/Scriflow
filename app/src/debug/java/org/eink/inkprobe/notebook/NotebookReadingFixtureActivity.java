@@ -29,14 +29,18 @@ public final class NotebookReadingFixtureActivity extends Activity {
             session.createNotebook(name,(created,createError)->{
                 if(createError!=null){report(0,createError.toString());return;}
                 int id=session.notebookId();
-                session.addPage(1,(second,error2)->{
-                    if(error2!=null){report(id,error2.toString());return;}
-                    session.addPage(2,(third,error3)->{
-                        if(error3!=null){report(id,error3.toString());return;}
-                        session.selectPage(1,(first,error4)->{
-                            report(id,error4==null?"":error4.toString());
-                            if(error4==null)startActivity(new Intent(this,NotebookReadingSelfTestActivity.class));
-                            finish();
+                // A reused disposable notebook slot can retain earlier view preferences.
+                session.saveReadingSettings(id,NotebookReadingSettings.DEFAULT,settingsError->{
+                    if(settingsError!=null){report(id,settingsError.toString());return;}
+                    session.addPage(1,(second,error2)->{
+                        if(error2!=null){report(id,error2.toString());return;}
+                        session.addPage(2,(third,error3)->{
+                            if(error3!=null){report(id,error3.toString());return;}
+                            session.selectPage(1,(first,error4)->{
+                                report(id,error4==null?"":error4.toString());
+                                if(error4==null)startActivity(new Intent(this,NotebookReadingSelfTestActivity.class));
+                                finish();
+                            });
                         });
                     });
                 });

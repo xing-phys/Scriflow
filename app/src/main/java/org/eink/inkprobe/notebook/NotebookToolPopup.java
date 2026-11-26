@@ -43,9 +43,8 @@ final class NotebookToolPopup {
         if (!workspace.isAttachedToWindow() || workspace.getWidth() <= 0 || workspace.getHeight() <= 0) return;
         // Set the initial window position before attaching it. Moving a shown
         // Android 10 dialog can leave cached accessibility bounds at its old origin.
-        dialog.create();
+        NotebookUi.prepareDialog(dialog);
         Window window = dialog.getWindow();
-        NotebookUi.prepare(window);
         window.addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN | WindowManager.LayoutParams.FLAG_FULLSCREEN);
         View decor = window.getDecorView();
         int width = Math.min(Math.round(320 * workspace.getResources().getDisplayMetrics().density), workspace.getWidth());

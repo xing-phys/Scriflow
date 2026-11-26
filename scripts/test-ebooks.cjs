@@ -73,7 +73,20 @@ const check=(condition,message)=>{assert(condition,message);assertions++;console
     await epub.page.close();
     const restored=await open('quantum.epub','epub',saved);probe=await restored.probe();
     check(probe.annotations[0].value===anchor&&probe.settings.size===34&&probe.fraction>0,'A new reader restores annotations, settings and reading progress');
-    await restored.reply({type:'command',action:'contents'});await restored.page.waitForSelector('#panel[open]');check((await restored.page.$$('.contents-title')).length===2,'Contents lists both EPUB chapters');await restored.page.click('#close-panel');
+    await restored.reply({type:'command',action:'contents'});await restored.page.waitForSelector('#panel[open]');
+    check((await restored.page.$$('.contents-title')).length===2,'Contents lists both EPUB chapters');
+    const panelGeometry=await restored.page.evaluate(()=>{
+      const panel=document.querySelector('#panel'),close=document.querySelector('#close-panel');
+      const p=panel.getBoundingClientRect(),c=close.getBoundingClientRect();
+      const title=document.querySelector('.contents-title').getBoundingClientRect();
+      return {radius:getComputedStyle(panel).borderTopLeftRadius,closeRadius:getComputedStyle(close).borderTopLeftRadius,
+        bottom:p.bottom-c.bottom,right:p.right-c.right,contentRight:title.right,closeLeft:c.left};
+    });
+    check(panelGeometry.radius==='14px'&&panelGeometry.closeRadius==='50%'&&panelGeometry.bottom>=0&&panelGeometry.bottom<=16
+      &&panelGeometry.right>=0&&panelGeometry.right<=16&&panelGeometry.contentRight<=panelGeometry.closeLeft,
+      'Reader panels have rounded corners and a clear circular close control at bottom right');
+    await restored.page.click('#close-panel');
+    check(!(await restored.page.$eval('#panel',e=>e.open)),'The circular reader-panel control closes the panel');
     await restored.reply({type:'command',action:'search'});await restored.page.waitForSelector('input[aria-label="Search book text"]');await restored.page.type('input[aria-label="Search book text"]','entanglement');await restored.page.evaluate(()=>[...document.querySelectorAll('#panel-content button')].find(b=>b.textContent==='Find').click());
     await restored.page.waitForFunction(()=>document.querySelectorAll('#panel-content div button').length>0,{timeout:30000});check(true,'Full-book search returns actual text locations');await restored.page.click('#close-panel');
     let beforeBack=restored.messages.length;await restored.reply({type:'back'});await new Promise(r=>setTimeout(r,100));

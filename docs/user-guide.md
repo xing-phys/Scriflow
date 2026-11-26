@@ -221,6 +221,11 @@ image drafts. Remove unwanted image chips with ×, add a question, then tap the 
 Use an image-capable model for ink/images. Keys are encrypted on the tablet. See
 [AI chat](ai-chat.md) for provider setup, recovery, limits and privacy.
 
+Rounded app dialogs, including chat history and the note/PDF contents list,
+use a circular **×** to close. The heading-editing and confirmation actions
+remain available beside it. Ebook and reading-settings panels use the same
+close control.
+
 ## Figures and multiple notes
 
 Use **⋮ → Insert figure…** for SVG or Android-supported images. The file picker

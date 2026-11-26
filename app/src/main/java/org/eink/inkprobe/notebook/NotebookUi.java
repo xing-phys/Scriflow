@@ -18,6 +18,7 @@ import android.view.ViewGroup;
 
 /** Shared flat e-ink window styling, including the window's Material shadow. */
 final class NotebookUi {
+    private static final String COMPACT_CLOSE_TAG = "scriflow-dialog-close";
     private NotebookUi() { }
 
     static GradientDrawable border(float density) {
@@ -89,15 +90,77 @@ final class NotebookUi {
         window.setDimAmount(0f);
         window.setWindowAnimations(0);
         window.setElevation(0f);
-        window.setBackgroundDrawable(border(window.getContext().getResources().getDisplayMetrics().density));
+        window.setBackgroundDrawable(rounded(window.getContext().getResources().getDisplayMetrics().density, 14));
         View decor = window.getDecorView();
+        // Custom list backgrounds can otherwise paint over the window's bottom edge.
+        GradientDrawable outline = rounded(window.getContext().getResources().getDisplayMetrics().density, 14);
+        outline.setColor(Color.TRANSPARENT); decor.setForeground(outline);
         decor.setElevation(0f); decor.setTranslationZ(0f); decor.setStateListAnimator(null);
     }
 
-    static void show(AlertDialog dialog) {
+    /** Prepare before measuring as well as before showing anchored tool dialogs. */
+    static void prepareDialog(AlertDialog dialog) {
         dialog.create();
-        prepare(dialog.getWindow());
+        Window window = dialog.getWindow();
+        prepare(window);
+        if (window == null || !(window.getDecorView() instanceof FrameLayout)) return;
+        FrameLayout decor = (FrameLayout) window.getDecorView();
+        if (decor.findViewWithTag(COMPACT_CLOSE_TAG) != null) return;
+        Button negative = dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
+        Button positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+        Button neutral = dialog.getButton(AlertDialog.BUTTON_NEUTRAL);
+        Button dismiss = isDismiss(negative) ? negative
+            : isDone(positive) ? positive : null;
+        if (dismiss == null || !(dismiss.getParent() instanceof ViewGroup)) return;
+        boolean otherActions = dismiss != positive && visible(positive) || dismiss != neutral && visible(neutral)
+            || dismiss != negative && visible(negative);
+        ViewGroup bar = (ViewGroup) dismiss.getParent();
+        float density = dialog.getContext().getResources().getDisplayMetrics().density;
+        int size = Math.round(40 * density), margin = Math.round(8 * density);
+        String label = dismiss.getText().toString();
+        NotebookIconButton close = new NotebookIconButton(dialog.getContext(), NotebookIconDrawable.Icon.CLOSE, label);
+        close.setTag(COMPACT_CLOSE_TAG); close.setTooltipText(label);
+        // Route through Android's original button to retain its listener and dismiss ordering.
+        close.setOnClickListener(v -> dismiss.performClick());
+        dismiss.setVisibility(View.GONE);
+        if (otherActions) {
+            ViewGroup.LayoutParams dimensions = bar instanceof LinearLayout
+                ? new LinearLayout.LayoutParams(size, size) : new ViewGroup.LayoutParams(size, size);
+            bar.addView(close, dimensions);
+        } else {
+            int panelId = dialog.getContext().getResources().getIdentifier("buttonPanel", "id", "android");
+            View panel = panelId == 0 ? null : dialog.findViewById(panelId);
+            if (panel != null) panel.setVisibility(View.GONE); else bar.setVisibility(View.GONE);
+            reserveCloseSpace(dialog, size + margin);
+            FrameLayout.LayoutParams corner = new FrameLayout.LayoutParams(size, size, Gravity.BOTTOM | Gravity.RIGHT);
+            corner.rightMargin = margin; corner.bottomMargin = margin; decor.addView(close, corner);
+        }
+    }
+
+    private static boolean visible(Button button) {
+        return button != null && button.getVisibility() == View.VISIBLE;
+    }
+    private static boolean isDismiss(Button button) {
+        if (!visible(button)) return false;
+        String text = button.getText().toString();
+        return "Cancel".equalsIgnoreCase(text) || "Close".equalsIgnoreCase(text) || "Done".equalsIgnoreCase(text);
+    }
+    private static boolean isDone(Button button) {
+        return visible(button) && "Done".equalsIgnoreCase(button.getText().toString());
+    }
+    private static void reserveCloseSpace(AlertDialog dialog, int space) {
+        View custom = dialog.findViewById(android.R.id.custom);
+        View content = custom instanceof ViewGroup && ((ViewGroup) custom).getChildCount() > 0
+            ? custom : dialog.getListView() != null ? dialog.getListView() : dialog.findViewById(android.R.id.message);
+        if (content != null) content.setPaddingRelative(content.getPaddingStart(), content.getPaddingTop(),
+            content.getPaddingEnd() + space, content.getPaddingBottom());
+    }
+
+    static void show(AlertDialog dialog) {
+        prepareDialog(dialog);
         dialog.show();
+        // Some Android themes finish creating their buttons only after show().
+        prepareDialog(dialog);
         if (dialog.getListView() != null)
             dialog.getListView().setSelector(new ColorDrawable(Color.TRANSPARENT));
         for (int which : new int[]{AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE, AlertDialog.BUTTON_NEUTRAL}) {

@@ -13,11 +13,12 @@ foliate-view { display: block; height: 100%; width: 100%; }
 foliate-view::part(filter) { background: white; color: black; }
 #notice { position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); max-width: 80vw; max-height: 25vh; overflow-y: auto; margin: 0; padding: 6px 12px; border: 1px solid #000; border-radius: 6px; background: #fff; font-size: 13px; white-space: pre-wrap; }
 #notice:empty { display: none; }
-dialog { width: min(94vw,650px); max-height: 86dvh; border: 2px solid #000; border-radius: 8px; padding: 0; color: #000; background: #fff; }
-dialog::backdrop { background: #fff9; }
-dialog header { display: flex; align-items: center; gap: 10px; padding: 10px; border-bottom: 1px solid #000; }
+dialog { width: min(94vw,650px); max-height: 86dvh; border: 2px solid #000; border-radius: 14px; padding: 0; color: #000; background: #fff; }
+dialog::backdrop { background: transparent; }
+dialog header { display: flex; align-items: center; gap: 10px; padding: 10px; }
+#close-panel { position: absolute; right: 8px; bottom: 8px; z-index: 2; width: 40px; height: 40px; min-height: 40px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
 dialog header strong { flex: 1; font-size: 18px; }
-dialog section { overflow-y: auto; max-height: 72dvh; padding: 12px; }
+dialog section { overflow-y: auto; max-height: 72dvh; padding: 12px 58px 12px 12px; }
 dialog section > button { width: 100%; display: block; text-align: left; margin: 6px 0; white-space: normal; }
 dialog label { display: flex; align-items: center; gap: 14px; padding: 7px 0; }
 dialog label span { width: 115px; flex-shrink: 0; }

@@ -3,7 +3,6 @@ package org.eink.inkprobe.notebook;
 import android.app.Activity;
 import android.content.res.ColorStateList;
 import android.graphics.*;
-import android.graphics.drawable.GradientDrawable;
 import android.view.*;
 import android.widget.*;
 import java.util.Locale;
@@ -15,11 +14,10 @@ final class NotebookReadingMenu {
     private NotebookReadingSettings settings;private boolean retired,cropArea;
     NotebookReadingMenu(Activity activity,View anchor,NotebookReadingSettings initial,boolean pdf,java.util.function.Consumer<Float> previewContrast,java.util.function.Consumer<Float> saveContrast,Listener listener){
         this.activity=activity;this.anchor=anchor;this.settings=initial;this.listener=listener;
-        LinearLayout content=new LinearLayout(activity);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(dp(12),dp(8),dp(12),dp(10));
-        GradientDrawable background=new GradientDrawable();background.setColor(Color.WHITE);background.setStroke(dp(1),Color.BLACK);background.setCornerRadius(dp(6));content.setBackground(background);
+        LinearLayout content=new LinearLayout(activity);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(dp(12),dp(8),dp(52),dp(10));
         LinearLayout heading=new LinearLayout(activity);heading.setGravity(Gravity.CENTER_VERTICAL);
         TextView title=label("Reading view",15);title.setTypeface(null,Typeface.BOLD);heading.addView(title,new LinearLayout.LayoutParams(0,dp(30),1));
-        NotebookIconButton close=new NotebookIconButton(activity,NotebookIconDrawable.Icon.CLOSE,"Close reading settings");heading.addView(close,new LinearLayout.LayoutParams(dp(28),dp(28)));content.addView(heading);
+        NotebookIconButton close=new NotebookIconButton(activity,NotebookIconDrawable.Icon.CLOSE,"Close reading settings");content.addView(heading);
         content.addView(label("Navigation",13));
         LinearLayout flow=new LinearLayout(activity);
         add(flow,(initial.paged?"":"✓ ")+"Continuous",()->chooseFlow(false));
@@ -66,7 +64,11 @@ final class NotebookReadingMenu {
             content.addView(label("Applies to PDF text and images. Ink is unchanged.",11));
         }
         ScrollView scroll=new ScrollView(activity);scroll.setFillViewport(false);scroll.addView(content);
-        popup=new PopupWindow(scroll,1,1,true);popup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+        FrameLayout frame=new FrameLayout(activity);frame.setBackground(NotebookUi.rounded(activity.getResources().getDisplayMetrics().density,14));
+        frame.addView(scroll,new FrameLayout.LayoutParams(-1,-2));
+        FrameLayout.LayoutParams corner=new FrameLayout.LayoutParams(dp(40),dp(40),Gravity.BOTTOM|Gravity.RIGHT);
+        corner.rightMargin=dp(8);corner.bottomMargin=dp(8);frame.addView(close,corner);
+        popup=new PopupWindow(frame,1,1,true);popup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
         popup.setWindowLayoutType(WindowManager.LayoutParams.TYPE_APPLICATION_SUB_PANEL);
         popup.setOutsideTouchable(true);popup.setClippingEnabled(false);popup.setIsLaidOutInScreen(true);popup.setAnimationStyle(0);popup.setElevation(0);
         popup.setEnterTransition(null);popup.setExitTransition(null);popup.setInputMethodMode(PopupWindow.INPUT_METHOD_NOT_NEEDED);

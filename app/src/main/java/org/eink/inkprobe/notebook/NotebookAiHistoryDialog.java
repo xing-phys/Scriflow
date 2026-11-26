@@ -30,7 +30,7 @@ final class NotebookAiHistoryDialog {
         TextView description=label("Loading saved chats…",12);body.addView(description);
         ListView list=new ListView(activity);list.setBackgroundColor(Color.WHITE);list.setCacheColorHint(Color.WHITE);
         list.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));list.setOverScrollMode(View.OVER_SCROLL_NEVER);
-        body.addView(list,new LinearLayout.LayoutParams(-1,Math.min(dp(420),Math.max(dp(160),anchor.getHeight()-dp(160)))));
+        body.addView(list,new LinearLayout.LayoutParams(-1,dp(76)));
         dialog=new AlertDialog.Builder(activity).setTitle("Chat history").setView(body).setNegativeButton("Close",null).create();
         dialog.setOnDismissListener(d->close());NotebookUi.show(dialog);load(list,description);
     }
@@ -38,6 +38,10 @@ final class NotebookAiHistoryDialog {
         worker.history(configs,(entries,error)->{
             if(closed)return;if(error!=null){description.setText(error);return;}
             description.setText(entries.isEmpty()?"No saved chats yet. Messages and drafts are saved automatically.":"Saved on this device · newest first");
+            int maxHeight = Math.min(dp(420), Math.max(dp(76), anchor.getHeight() - dp(160)));
+            ViewGroup.LayoutParams size = list.getLayoutParams();
+            size.height = (int) Math.min(maxHeight, (long) entries.size() * dp(76)); list.setLayoutParams(size);
+            list.setVisibility(entries.isEmpty() ? View.GONE : View.VISIBLE);
             list.setAdapter(new BaseAdapter(){
                 public int getCount(){return entries.size();}public Object getItem(int position){return entries.get(position);}public long getItemId(int position){return position;}
                 public View getView(int position,View convert,ViewGroup parent){

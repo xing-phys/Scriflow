@@ -170,6 +170,8 @@ session while keeping the previous window, without a deletion prompt. Untouched
 empty sessions are not added to history. Close chat is in the bottom-left
 options menu. The toolbox icon opens the tray; it does not close conversations.
 
+The history box uses a circular **×** at the bottom right to close it.
+
 Tap the **history list icon in the toolbox AI tray** to find earlier sessions,
 shared across notebooks and providers. Rows show an automatic title from the
 first question or draft, provider/model, last activity time, message count and
