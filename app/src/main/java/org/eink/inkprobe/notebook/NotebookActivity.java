@@ -89,7 +89,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     private final HashSet<UUID> cropFailures=new HashSet<>();
     private boolean readingFlowKnown;
     private NotebookReadingMenu readingMenu;
-    private Float readingPreviewContrast;
+    private NotebookReadingSettings readingPreviewSettings;
     private NotebookReadingSettings cropCancellationSettings;
     private NotebookCropEditor cropEditor;
     private NotebookPdfReading.Request cropPreviewRequest;
@@ -775,7 +775,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
 
     private NotebookViewport createViewport(int width, int height, float pan) {
         List<NotebookViewport.Size> sizes = session.pageSizes();
-        NotebookReadingSettings settings=session.readingSettings(session.notebookId());
+        NotebookReadingSettings settings=currentReadingSettings();
         NotebookViewport result;
         if (sizes.size() == session.pageCount())
             result=new NotebookViewport(NotebookPdfReading.layout(sizes,session.pdfSource(),settings),width,height,dp(12),zoom,pan);
@@ -799,7 +799,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     }
 
     private boolean prepareCrop(){
-        NotebookReadingSettings settings=session.readingSettings(session.notebookId());
+        NotebookReadingSettings settings=currentReadingSettings();
         if(session.pdfSource()==null||settings.crop==NotebookReadingSettings.Crop.NONE||settings.crop==NotebookReadingSettings.Crop.MANUAL)return true;
         boolean ready=true;HashSet<UUID> visibleIds=new HashSet<>();
         for(int number:viewport.visiblePages(scrollY)){
@@ -810,7 +810,10 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             final int request=generation;
             cropRequests.put(current.id,NotebookPdfReading.crop(session.pdfSource(),current.pdfPage,current.width,current.height,area,(box,error)->{
                 cropRequests.remove(current.id);
-                if(!active||request!=generation||!settings.equals(session.readingSettings(session.notebookId())))return;
+                if(!active||request!=generation)return;
+                NotebookReadingSettings now=currentReadingSettings();
+                NotebookCropBox nowArea=now.crop==NotebookReadingSettings.Crop.AUTO?NotebookCropBox.FULL:now.manual(number,current.id);
+                if(now.crop!=settings.crop||!area.equals(nowArea))return;
                 if(error!=null){cropFailures.add(current.id);Toast.makeText(this,error.getMessage(),Toast.LENGTH_LONG).show();}
                 refreshReadingViewport();
             }));
@@ -823,13 +826,6 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     private void backgroundsChanged() {
         if (!active || shownError != null) return;
         tiles.clear(); selectionTiles.clear(); selectionTilePages.clear();
-        if (readingMenu != null && editing && ink != null && viewport != null && preparePdfBackgrounds()) {
-            try {
-                // The settings panel owns a paused editor. Repost the completed PDF
-                // tiles without resuming pen input or closing the panel.
-                ink.updateViewport(viewport.compose(pages, scrollY), this::drawPaper);
-            } catch (RuntimeException error) { showError(new IOException("Could not preview PDF contrast", error)); }
-        }
         if (figureEditor != null) figureEditor.update(viewport, pages, scrollY);
         if (selectionDrag.isActive()) { selectionBackgroundDirty = true; scheduleSelectionFrame(); }
         else if (dragging || figureNavigationPreview) schedulePreview();
@@ -842,8 +838,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         File source = session.pdfSource();
         if (viewport == null) return true;
         if(!prepareCrop())return false;
-        pdfBackgrounds.setContrast(readingPreviewContrast == null
-            ? session.readingSettings(session.notebookId()).contrast : readingPreviewContrast);
+        pdfBackgrounds.setContrast(currentReadingSettings().contrast);
         List<NotebookPdfTiles.Tile> visible = new ArrayList<>();
         HashSet<Integer> sourcePages = new HashSet<>();
         if (source != null) for (int id : viewport.visiblePages(scrollY)) {
@@ -911,7 +906,8 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
     }
 
     private void installViewport() {
-        if (!active || dragging || figureNavigationPreview || editing || changingWorkspace || viewport == null || shownError != null) return;
+        boolean readingPreview = editing && readingMenu != null;
+        if (!active || dragging || figureNavigationPreview || editing && !readingPreview || changingWorkspace || viewport == null || shownError != null) return;
         if (settleRead) { requestWindow(); return; }
         for (int id : viewport.visiblePages(scrollY)) if (!pages.containsKey(id)) { requestWindow(); return; }
         if (!preparePdfBackgrounds()) return;
@@ -930,6 +926,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
                 firstViewport = false;
             } else if (!ink.updateViewport(composed, this::drawPaper)) {
                 if (shownError != null) return;
+                if (readingPreview) return;
                 // Retire a rare unsettled private native stroke. Recreate at the same anchor.
                 NotebookPage seed = page;
                 reopenPosition = new NotebookScrollStore.State(viewport.anchorPage(scrollY), viewport.anchorFraction(scrollY));
@@ -943,7 +940,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             }
             scrolling = false; cleanupInk = false;
             updatePageLabel(); updateControls();
-            ink.start();
+            if (!readingPreview) ink.start();
             if (savePosition) { savePosition = false; persistPosition(); }
             scheduleSaveState();
         } catch (Exception error) { showError(new IOException("Could not display the notebook viewport", error)); }
@@ -3539,42 +3536,57 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         NotebookPage current=pages.get(activePage);final int request=generation;
         if(session.readingError(session.notebookId())!=null)Toast.makeText(this,"View settings could not be read. Choosing a setting will save a new copy.",Toast.LENGTH_LONG).show();
         final int book=session.notebookId();
-        readingMenu=new NotebookReadingMenu(this,workspaceRoot,session.readingSettings(book),current!=null&&current.pdfPage>0,value->{
-            readingPreviewContrast=value;pdfBackgrounds.setContrast(value);
-        },value->savePreviewContrast(book,value),(settings,cancellation)->{
-            readingMenu=null;if(!active||request!=generation)return;
-            if(cancellation!=null&&current!=null&&current.pdfPage>0)editCropArea(current,settings,cancellation);
-            else applyReadingSettings(settings);
+        readingPreviewSettings=session.readingSettings(book);
+        readingMenu=new NotebookReadingMenu(this,workspaceRoot,readingPreviewSettings,current!=null&&current.pdfPage>0,new NotebookReadingMenu.Listener(){
+            public void changed(NotebookReadingSettings settings){
+                if(!active||request!=generation||session.notebookId()!=book)return;
+                NotebookReadingSettings previous=currentReadingSettings();
+                readingPreviewSettings=settings;updateReadingDisplay(previous,settings);
+            }
+            public void close(NotebookReadingSettings settings,NotebookReadingSettings cancellation){
+                readingMenu=null;if(!active||request!=generation)return;
+                if(cancellation!=null&&current!=null&&current.pdfPage>0)editCropArea(current,settings,cancellation);
+                else applyReadingSettings(settings);
+            }
         });
         readingMenu.show(notebookStatusBounds);
     }
 
-    private void savePreviewContrast(int book, float value) {
-        NotebookReadingSettings saved = session.readingSettings(book).contrast(value);
-        session.saveReadingSettings(book, saved, error -> {
-            if (error != null && active && session.notebookId() == book)
-                Toast.makeText(this, error.getMessage(), Toast.LENGTH_LONG).show();
-        });
+    private NotebookReadingSettings currentReadingSettings() {
+        return readingPreviewSettings!=null?readingPreviewSettings:session.readingSettings(session.notebookId());
+    }
+
+    private void updateReadingDisplay(NotebookReadingSettings old,NotebookReadingSettings settings){
+        boolean layout=old.paged!=settings.paged||old.doublePage!=settings.doublePage||old.horizontal!=settings.horizontal
+            ||old.cover!=settings.cover||old.crop!=settings.crop||!old.odd.equals(settings.odd)
+            ||!old.even.equals(settings.even)||!old.pages.equals(settings.pages);
+        if(layout){
+            for(NotebookPdfReading.Request pending:cropRequests.values())pending.cancel();cropRequests.clear();cropFailures.clear();
+            zoomFit=settings.paged?NotebookViewport.Fit.PAGE:NotebookViewport.Fit.WIDTH;
+            readingFlowKnown=true;refreshReadingViewport();
+        }else if(old.contrast!=settings.contrast){
+            pdfBackgrounds.setContrast(settings.contrast);scrolling=true;installViewport();
+        }
     }
 
     private void applyReadingSettings(NotebookReadingSettings settings){
         final int request=generation,book=session.notebookId();NotebookReadingSettings old=session.readingSettings(book);
-        if(old.equals(settings)){resumeAfterReadingPreview();return;}
+        if(old.equals(settings)){
+            NotebookReadingSettings shown=currentReadingSettings();readingPreviewSettings=null;
+            updateReadingDisplay(shown,old);resumeAfterReadingPreview();return;
+        }
         session.saveReadingSettings(book,settings,error->{
             if(!active||request!=generation||session.notebookId()!=book)return;
-            readingPreviewContrast=null;
-            if(error!=null){Toast.makeText(this,error.getMessage(),Toast.LENGTH_LONG).show();resumeAfterReadingPreview();return;}
-            for(NotebookPdfReading.Request pending:cropRequests.values())pending.cancel();cropRequests.clear();cropFailures.clear();
-            if(old.paged!=settings.paged||old.doublePage!=settings.doublePage||old.horizontal!=settings.horizontal||old.cover!=settings.cover||old.crop!=settings.crop||!old.odd.equals(settings.odd)||!old.even.equals(settings.even)||!old.pages.equals(settings.pages))
-                zoomFit=settings.paged?NotebookViewport.Fit.PAGE:NotebookViewport.Fit.WIDTH;
-            readingFlowKnown=true;editing=false;
+            NotebookReadingSettings shown=currentReadingSettings();readingPreviewSettings=null;
+            if(error!=null){Toast.makeText(this,error.getMessage(),Toast.LENGTH_LONG).show();updateReadingDisplay(shown,old);resumeAfterReadingPreview();return;}
+            updateReadingDisplay(shown,settings);
             for(Map.Entry<NotebookWorkspace.Pane,NotebookCompanion> entry:noteWindows.entrySet())if(entry.getKey().notebookId==book)entry.getValue().refreshReadingSettings();
-            refreshReadingViewport();
+            resumeAfterReadingPreview();
         });
     }
 
     private void resumeAfterReadingPreview() {
-        readingPreviewContrast = null; editing = false;
+        editing = false;
         // A pending tile request must complete the normal viewport restoration.
         scrolling = true; installViewport();
     }
@@ -3998,8 +4010,6 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             + "\n\nExport PDF saves all pages in this notebook, including their paper backgrounds and handwriting.";
         final boolean[] exporting = {false};
         LinearLayout title = NotebookUi.dialogTitle(this, "This page");
-        LinearLayout.LayoutParams titleSize = (LinearLayout.LayoutParams) title.getChildAt(0).getLayoutParams();
-        titleSize.width = -2; titleSize.weight = 0; title.getChildAt(0).setLayoutParams(titleSize);
         final AlertDialog[] owner = {null};
         NotebookUi.titleAction(title, NotebookIconDrawable.Icon.EXPORT, "Export PDF", () -> {
             exporting[0] = true; owner[0].dismiss();
@@ -4143,7 +4153,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         if(restingPaper!=null){restingPaper.close();restingPaper=null;}
         clearPdfText();
         if(readingMenu!=null){readingMenu.retire();readingMenu=null;}
-        readingPreviewContrast=null;
+        readingPreviewSettings=null;
         cropCancellationSettings=null;
         if(cropEditor!=null){cropEditor.retire();cropEditor=null;}
         if(cropPreviewRequest!=null){cropPreviewRequest.cancel();cropPreviewRequest=null;}
@@ -4189,7 +4199,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
             if(cropEditor!=null){cropEditor.retire();cropEditor=null;}
             if(cropPreviewRequest!=null){cropPreviewRequest.cancel();cropPreviewRequest=null;}
             if(cropCancellationSettings!=null){NotebookReadingSettings cancellation=cropCancellationSettings;cropCancellationSettings=null;applyReadingSettings(cancellation);}
-            else if(readingPreviewContrast!=null)applyReadingSettings(session.readingSettings(session.notebookId()).contrast(readingPreviewContrast));
+            else if(readingPreviewSettings!=null)applyReadingSettings(readingPreviewSettings);
             else {editing=false;installViewport();}
             return;
         }

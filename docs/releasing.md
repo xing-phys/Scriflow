@@ -46,6 +46,12 @@ it does not arbitrarily change the patch number or signing identity.
 
 ## Before publishing
 
+**0.48.0-beta.5** (versionCode **131**) fixes delayed reading-view updates and
+refines page-information and bookshelf controls. Verify live note/PDF redraws
+while the panel remains open, crop and contrast, thumbnail image/name/date
+actions, and list overflow icons. Physical MatePad and e-ink acceptance remain
+pending.
+
 **0.48.0-beta.4** (versionCode **130**) refines shelf thumbnails, reading and
 page-information controls, and retains an active cast across screen sleep when
 Android allows it. Validate Files-based PDF/ebook opening, multi-choice reading

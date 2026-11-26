@@ -108,9 +108,15 @@ try:
     adb('shell','input','tap',str(int(start['width']*.15)),str(int(start['height']*.2)))
     state(lambda s:s['editable'] and s['time']>moved['time'] and abs(s['scroll'])<1)
     check(True,'An upper-left tap moves back to the previous screenful')
-    open_menu();tap(find(lambda n:n.get('text')=='Page turns'))
+    open_menu();before=state();tap(find(lambda n:n.get('text')=='Page turns'))
     find(lambda n:n.get('text')=='✓ Page turns')
+    paged_preview=state(lambda s:s['menuOpen'] and s['previewReady'] and s['singlePage']>0
+                        and s['viewportUpdates']>before['viewportUpdates'])
+    check(not paged_preview['editable'],'Page-turn layout is redrawn while the menu stays open and ink is paused')
     tap(find(lambda n:n.get('text')=='Double page'));find(lambda n:n.get('text')=='✓ Double page')
+    spread=state(lambda s:s['menuOpen'] and s['previewReady'] and s['spread']
+                 and s['viewportUpdates']>paged_preview['viewportUpdates'])
+    check(not spread['editable'],'Double-page layout is redrawn immediately behind the menu')
     check(True,'Changing several reading choices leaves the panel open')
     tap(find(lambda n:n.get('text')=='Single page'))
     adb('shell','input','tap','1300','1500')

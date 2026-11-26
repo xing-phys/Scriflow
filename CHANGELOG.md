@@ -6,6 +6,16 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.48.0-beta.5 — Live reading controls and compact shelf cards (2026-11-26)
+
+- Redraw note and PDF reading layouts and contrast while the settings panel stays
+  open; keep handwriting paused until the panel closes.
+- Align page-information actions on the right of its title row.
+- Open thumbnail items from their previews and show actions from their names or
+  dates. Remove the date label and draw list overflow as uncircled dots.
+- VersionCode 131; notebook, catalog, ebook, backup and chat formats are unchanged.
+  Physical tablet and e-ink acceptance remain pending.
+
 ## 0.48.0-beta.4 — Compact shelf and reading controls (2026-11-26)
 
 - Shrink bookshelf shortcuts, place the directory in a bordered breadcrumb,

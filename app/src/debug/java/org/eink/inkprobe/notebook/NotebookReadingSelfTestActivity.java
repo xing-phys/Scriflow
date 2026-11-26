@@ -16,8 +16,17 @@ public final class NotebookReadingSelfTestActivity extends NotebookActivity {
                 java.lang.reflect.Method ready=NotebookActivity.class.getDeclaredMethod("canEdit");ready.setAccessible(true);
                 org.json.JSONObject result=new org.json.JSONObject().put("time",System.currentTimeMillis()).put("width",viewport.width).put("height",viewport.height)
                     .put("scroll",scroll).put("maxScroll",viewport.maxScroll()).put("pan",viewport.pan).put("singlePage",viewport.singlePage)
+                    .put("spread",viewport.spread).put("cover",viewport.cover).put("horizontal",viewport.horizontal)
                     .put("navigationPage",viewport.navigationPage(scroll)).put("editable",ready.invoke(NotebookReadingSelfTestActivity.this))
                     .put("notebookId",((NotebookSession)value(NotebookActivity.class,"session",NotebookReadingSelfTestActivity.this)).notebookId());
+                NotebookReadingMenu menu=(NotebookReadingMenu)value(NotebookActivity.class,"readingMenu",NotebookReadingSelfTestActivity.this);
+                NotebookInkBackend backend=(NotebookInkBackend)value(NotebookActivity.class,"ink",NotebookReadingSelfTestActivity.this);
+                result.put("menuOpen",menu!=null).put("previewReady",menu!=null
+                    && !(Boolean)value(NotebookActivity.class,"scrolling",NotebookReadingSelfTestActivity.this)
+                    && !(Boolean)value(NotebookActivity.class,"settleRead",NotebookReadingSelfTestActivity.this)
+                    && !(Boolean)value(NotebookActivity.class,"fetching",NotebookReadingSelfTestActivity.this))
+                    .put("viewportUpdates",backend instanceof NotebookBrowserTestInk?((NotebookBrowserTestInk)backend).viewportUpdates():-1);
+                if(menu!=null)result.put("crop",menu.selectedSettings().crop.name()).put("contrast",menu.selectedSettings().contrast);
                 NotebookCropEditor crop=(NotebookCropEditor)value(NotebookActivity.class,"cropEditor",NotebookReadingSelfTestActivity.this);
                 if(crop!=null&&crop.isShown()&&crop.getWidth()>0&&crop.getHeight()>0){
                     int[] position=new int[2];crop.getLocationOnScreen(position);

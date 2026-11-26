@@ -36,8 +36,8 @@ New figures and lasso drops fit within the displayed area.
 
 ## Navigation and page layout
 
-Open **Reading view** and choose each setting independently. The panel remains
-open while you make several choices; tap outside it to apply them and close it.
+Open **Reading view** and choose each setting independently. Changes appear in
+the document immediately while the panel remains open. Tap outside to close it.
 Manual and semi-auto crop open the crop editor immediately.
 
 - **Navigation:** Continuous or Page turns.

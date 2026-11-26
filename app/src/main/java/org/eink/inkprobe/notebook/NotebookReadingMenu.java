@@ -9,11 +9,14 @@ import java.util.Locale;
 
 /** Anchored reading preferences; the note and its native writing surface stay in place. */
 final class NotebookReadingMenu {
-    interface Listener{void close(NotebookReadingSettings settings,NotebookReadingSettings cropCancellation);}
+    interface Listener{
+        void changed(NotebookReadingSettings settings);
+        void close(NotebookReadingSettings settings,NotebookReadingSettings cropCancellation);
+    }
     private final Activity activity;private final View anchor;private final PopupWindow popup;private final Listener listener;
     private NotebookReadingSettings settings,cropCancellation;private boolean retired;
     private final java.util.List<Runnable> choiceUpdates=new java.util.ArrayList<>();
-    NotebookReadingMenu(Activity activity,View anchor,NotebookReadingSettings initial,boolean pdf,java.util.function.Consumer<Float> previewContrast,java.util.function.Consumer<Float> saveContrast,Listener listener){
+    NotebookReadingMenu(Activity activity,View anchor,NotebookReadingSettings initial,boolean pdf,Listener listener){
         this.activity=activity;this.anchor=anchor;this.settings=initial;this.listener=listener;
         LinearLayout content=new LinearLayout(activity);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(dp(12),dp(8),dp(12),dp(10));
         LinearLayout heading=new LinearLayout(activity);heading.setGravity(Gravity.CENTER_VERTICAL);
@@ -42,7 +45,7 @@ final class NotebookReadingMenu {
         overlap.setContentDescription("Continuous reading tap overlap, percentage of the visible screen");
         overlap.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
             public void onStartTrackingTouch(SeekBar s){}public void onStopTrackingTouch(SeekBar s){}
-            public void onProgressChanged(SeekBar s,int value,boolean user){settings=settings.tapOverlap(value);overlapValue.setText("Tap overlap · "+value+"%");}
+            public void onProgressChanged(SeekBar s,int value,boolean user){overlapValue.setText("Tap overlap · "+value+"%");change(settings.tapOverlap(value));}
         });
         content.addView(overlap,new LinearLayout.LayoutParams(-1,dp(36)));
         if(pdf){
@@ -57,11 +60,11 @@ final class NotebookReadingMenu {
             slider.setProgressBackgroundTintList(ColorStateList.valueOf(0xffbbbbbb));slider.setStateListAnimator(null);
             slider.setContentDescription("PDF contrast; larger values darken text and images");
             slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
-                public void onStartTrackingTouch(SeekBar s){}public void onStopTrackingTouch(SeekBar s){saveContrast.accept(settings.contrast);}
-                public void onProgressChanged(SeekBar s,int n,boolean user){float factor=(n+4)/20f;settings=settings.contrast(factor);value.setText(contrastLabel(factor));previewContrast.accept(factor);}
+                public void onStartTrackingTouch(SeekBar s){}public void onStopTrackingTouch(SeekBar s){}
+                public void onProgressChanged(SeekBar s,int n,boolean user){float factor=(n+4)/20f;value.setText(contrastLabel(factor));change(settings.contrast(factor));}
             });
             content.addView(slider,new LinearLayout.LayoutParams(-1,dp(36)));
-            LinearLayout reset=new LinearLayout(activity);add(reset,"Reset contrast",()->{slider.setProgress(16);saveContrast.accept(settings.contrast);});content.addView(reset);
+            LinearLayout reset=new LinearLayout(activity);add(reset,"Reset contrast",()->slider.setProgress(16));content.addView(reset);
             content.addView(label("Applies to PDF text and images. Ink is unchanged.",11));
         }
         ScrollView scroll=new ScrollView(activity);scroll.setFillViewport(false);scroll.addView(content);
@@ -74,12 +77,19 @@ final class NotebookReadingMenu {
         popup.setOnDismissListener(()->{if(!retired){retired=true;listener.close(settings,cropCancellation);}});
     }
     private void cropButton(LinearLayout row,String text,NotebookReadingSettings.Crop mode,boolean area){
-        choice(row,text,()->settings.crop==mode,()->{if(area)cropCancellation=settings;settings=settings.crop(mode);refreshChoices();if(area)popup.dismiss();});
+        choice(row,text,()->settings.crop==mode,()->{
+            if(area){cropCancellation=settings;settings=settings.crop(mode);popup.dismiss();}
+            else change(settings.crop(mode));
+        });
     }
-    private void chooseFlow(boolean paged){settings=settings.paged(paged);refreshChoices();}
-    private void choosePages(boolean doublePage){settings=settings.doublePage(doublePage);refreshChoices();}
-    private void chooseCover(boolean value){settings=settings.cover(value);refreshChoices();}
-    private void chooseDirection(boolean horizontal){settings=settings.horizontal(horizontal);refreshChoices();}
+    private void chooseFlow(boolean paged){change(settings.paged(paged));}
+    private void choosePages(boolean doublePage){change(settings.doublePage(doublePage));}
+    private void chooseCover(boolean value){change(settings.cover(value));}
+    private void chooseDirection(boolean horizontal){change(settings.horizontal(horizontal));}
+    private void change(NotebookReadingSettings value){
+        if(settings.equals(value))return;
+        settings=value;refreshChoices();listener.changed(settings);
+    }
     private void choice(LinearLayout row,String text,java.util.function.BooleanSupplier selected,Runnable action){
         NotebookButton button=add(row,"",action);
         Runnable update=()->button.setText((selected.getAsBoolean()?"✓ ":"")+text);

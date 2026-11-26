@@ -240,7 +240,8 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         folderButton.setVisibility(inTrash ? View.GONE : View.VISIBLE);
         status.setOnClickListener(null);
         status.setText(inTrash ? (count+bookCount) + " deleted items · Restore or delete permanently from ⋮"
-            : count + " notebooks · "+bookCount+" ebooks" + (items.isEmpty() ? " · Create a notebook or import a book." : " · ⋮ for actions · Hold to select"));
+            : count + " notebooks · "+bookCount+" ebooks" + (items.isEmpty() ? " · Create a notebook or import a book."
+                : thumbnails ? " · Tap name or date for actions · Hold to select" : " · ⋮ for actions · Hold to select"));
         adapter.notifyDataSetChanged(); schedulePreviews();
     }
 
@@ -499,6 +500,11 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         else if (item instanceof NotebookCatalog.Entry) notebookActions((NotebookCatalog.Entry) item, anchor);
     }
 
+    private void tapShelfMetadata(Object item, View anchor) {
+        if (selection.active() || item == ShelfFolder.SAVED_WEBSITES) openShelfItem(item);
+        else manageShelfItem(item, anchor);
+    }
+
     /** Rebind data without replacing pressed children when GridView relays out its first cell. */
     private final class ShelfCell extends LinearLayout {
         final int type;
@@ -540,17 +546,21 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
             selected.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             title.addView(selected, new LinearLayout.LayoutParams(dp(32), -1));
             nameButton = button("", () -> openShelfItem(getTag()));
+            nameButton.setOnClickListener(v -> { if (type == 0) openShelfItem(getTag()); else tapShelfMetadata(getTag(), v); });
             nameButton.setBackground(null);
             nameButton.setSingleLine(true); nameButton.setEllipsize(TextUtils.TruncateAt.END);
             nameButton.setGravity(Gravity.START | Gravity.CENTER_VERTICAL); nameButton.setTextSize(type == 0 ? 14 : 12);
             nameButton.setOnLongClickListener(v -> { beginSelection(getTag()); return true; });
             title.addView(nameButton, new LinearLayout.LayoutParams(0, -1, 1));
             menu = new NotebookIconButton(NotebookLibraryActivity.this, NotebookIconDrawable.Icon.MORE_VERTICAL, "Manage item");
+            if (type == 0) menu.setCircleVisible(false);
             menu.setOnClickListener(v -> manageShelfItem(getTag(), v));
             title.addView(menu, new LinearLayout.LayoutParams(dp(40), -1));
             addView(title, new LinearLayout.LayoutParams(-1, type == 0 ? 0 : dp(38), type == 0 ? 1 : 0));
             opened = label("", 10); opened.setSingleLine(true); opened.setEllipsize(TextUtils.TruncateAt.END);
             opened.setPadding(dp(4), 0, dp(4), 0);
+            opened.setOnClickListener(v -> tapShelfMetadata(getTag(), v));
+            opened.setOnLongClickListener(v -> { beginSelection(getTag()); return true; });
             if (type != 0) addView(opened, new LinearLayout.LayoutParams(-1, dp(20)));
         }
 
@@ -565,7 +575,7 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
             boolean book=item instanceof NotebookEbookStore.Book;
             boolean folder = websites || item instanceof NotebookCatalog.Folder;
             selected.setVisibility(selection.active() && NotebookShelfSelection.selectable(item) ? View.VISIBLE : View.GONE);
-            selected.setChecked(selection.contains(item)); menu.setVisibility(selection.active() || websites ? View.GONE : View.VISIBLE);
+            selected.setChecked(selection.contains(item)); menu.setVisibility(type != 0 || selection.active() || websites ? View.GONE : View.VISIBLE);
             String name = websites ? "Saved websites" :book?((NotebookEbookStore.Book)item).title: folder ? ((NotebookCatalog.Folder) item).name : ((NotebookCatalog.Entry) item).name;
             String shown = name;
             if (!shown.contentEquals(nameButton.getText())) nameButton.setText(shown);
@@ -576,6 +586,8 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
             }
             nameButton.setContentDescription(selection.active() && !folder
                 ? (selection.contains(item) ? "Selected " : "Not selected ") + name
+                : type != 0 && !websites && !selection.active()
+                    ? "Manage " + (folder ? "folder " : book ? "ebook " : "notebook ") + name
                 : (folder ? "Open folder " :inTrash?"Manage deleted item ":book?"Open ebook ": "Open notebook ") + name);
             menu.setContentDescription("Manage " + (folder ? "folder " :book?"ebook ": "notebook ") + name);
             if (type != 0) {
@@ -588,7 +600,11 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
                 opened.setVisibility(folder ? View.GONE : View.VISIBLE);
                 if (!folder) {
                     long when = book ? ((NotebookEbookStore.Book)item).opened : session.lastOpened(((NotebookCatalog.Entry)item).id);
-                    opened.setText(when > 0 ? "Last opened · " + java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT).format(new java.util.Date(when)) : "Last opened · —");
+                    String date = when > 0 ? java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT).format(new java.util.Date(when)) : "—";
+                    opened.setText(date);
+                    opened.setContentDescription((selection.active()
+                        ? (selection.contains(item) ? "Selected " : "Not selected ")
+                        : "Manage " + (book ? "ebook " : "notebook ")) + name + ", last opened " + date);
                 }
                 if(book){
                     NotebookEbookStore.Book entry=(NotebookEbookStore.Book)item;

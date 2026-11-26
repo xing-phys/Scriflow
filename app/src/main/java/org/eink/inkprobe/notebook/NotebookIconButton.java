@@ -19,6 +19,7 @@ public final class NotebookIconButton extends View {
     private boolean available = true;
     private boolean toolSelected;
     private boolean selectable;
+    private boolean circleVisible = true;
     private float penWidthPreview;
     private CharSequence accessibleName;
     private final int touchSlop;
@@ -75,6 +76,12 @@ public final class NotebookIconButton extends View {
 
     public boolean isToolSelected() { return toolSelected; }
 
+    /** Keep the full touch target while drawing only the icon. */
+    public void setCircleVisible(boolean visible) {
+        if (circleVisible == visible) return;
+        circleVisible = visible; invalidate();
+    }
+
     @Override public void setContentDescription(CharSequence value) {
         accessibleName = value;
         updateAccessibleName();
@@ -92,15 +99,17 @@ public final class NotebookIconButton extends View {
     @Override protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         // Pressed, focused, hovered, and unavailable all draw exactly the same pixels.
-        float stroke = dpFloat(toolSelected ? 3f : 1f);
-        float radius = Math.max(0, (Math.min(dp(36), Math.min(getWidth(), getHeight())) - stroke) / 2f);
-        paint.setColor(Color.WHITE);
-        paint.setStyle(Paint.Style.FILL);
-        canvas.drawCircle(getWidth() / 2f, getHeight() / 2f, radius, paint);
-        paint.setColor(Color.BLACK);
-        paint.setStrokeWidth(stroke);
-        paint.setStyle(Paint.Style.STROKE);
-        canvas.drawCircle(getWidth() / 2f, getHeight() / 2f, radius, paint);
+        if (circleVisible) {
+            float stroke = dpFloat(toolSelected ? 3f : 1f);
+            float radius = Math.max(0, (Math.min(dp(36), Math.min(getWidth(), getHeight())) - stroke) / 2f);
+            paint.setColor(Color.WHITE);
+            paint.setStyle(Paint.Style.FILL);
+            canvas.drawCircle(getWidth() / 2f, getHeight() / 2f, radius, paint);
+            paint.setColor(Color.BLACK);
+            paint.setStrokeWidth(stroke);
+            paint.setStyle(Paint.Style.STROKE);
+            canvas.drawCircle(getWidth() / 2f, getHeight() / 2f, radius, paint);
+        }
         int size = Math.max(1, Math.min(dp(20), Math.min(getWidth(), getHeight()) - dp(12)));
         int left = (getWidth() - size) / 2;
         int top = (getHeight() - size) / 2 - (penWidthPreview > 0 ? dp(2) : 0);

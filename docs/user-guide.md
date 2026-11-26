@@ -28,7 +28,9 @@ See [Screen cast](screen-cast.md) for connection help and limits.
 
 Open **Scriflow** to see the library. Tap **My Notebook** to open existing
 pages, or **+ Notebook** to create and open a named notebook. Tap **⋮** beside
-a notebook for Rename, Move to folder, Backup, or Move to Trash. **Rename** changes
+a notebook in list view for Rename, Move to folder, Backup, or Move to Trash.
+In thumbnail view, tap the preview to open it or tap the name or opening time
+for its actions. **Rename** changes
 its title without moving its files. Names may contain up to 80 Unicode
 characters; the library supports up to 200 notebooks. Tap the **notebook name**
 in the editor's top-left bar to return to the library. Each notebook remembers its own
@@ -259,7 +261,8 @@ storage compatibility, and remaining hardware checks.
 ## PDF crop, page views, contrast and dictionary
 
 Open **⋮ → Reading view** (the page-with-lines icon) in the top-left bar.
-Make as many choices as needed; tap outside the panel to apply and close it.
+Changes appear immediately; make as many choices as needed, then tap outside
+the panel to close it.
 Choose **Continuous** or **Page turns**, independently choose **Single page**
 or **Double page**, and choose **Vertical** or **Horizontal** for continuous
 scrolling. Tap the right or bottom half to advance, or the upper-left quarter

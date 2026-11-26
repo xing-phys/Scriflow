@@ -23,7 +23,9 @@ Titles truncate within their column.
 Settings → Bookshelf switches between **List** and **Thumbnails**. The thumbnail
 grid fits the selected number of rows in the available bookshelf height and
 continues by scrolling for more notebooks. Each rounded card contains its preview,
-name, actions and last-opened time. Notebook opening times are recorded from
+name and last-opened time. Tap the preview to open the item; tap its name or
+time for the action bar. A folder's name opens its actions and its preview opens
+the folder. Notebook opening times are recorded from
 this version onward; an em dash means an earlier opening time is unavailable.
 Rows and columns are independent:
 

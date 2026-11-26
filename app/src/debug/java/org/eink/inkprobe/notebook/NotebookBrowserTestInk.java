@@ -17,7 +17,7 @@ final class NotebookBrowserTestInk implements NotebookInkBackend {
     private NotebookPage page;
     private PaperRenderer paper;
     private boolean alive = true, wanted, ready, viewPaper, fingerStream;
-    private int width, height;
+    private int width, height, viewportUpdates;
     NotebookBrowserTestInk(Context context, NotebookPage initial, Listener listener) {
         this.listener = listener; page = initial;
         view = new View(context) {
@@ -79,7 +79,8 @@ final class NotebookBrowserTestInk implements NotebookInkBackend {
     public void redrawAfterOverlayChange(){view.invalidate();}
     public void setPage(NotebookPage value){page=value;view.invalidate();}
     public void setPaperRenderer(PaperRenderer renderer){paper=renderer;view.invalidate();}
-    public boolean updateViewport(NotebookPage value,PaperRenderer renderer){setPage(value);setPaperRenderer(renderer);return true;}
+    public boolean updateViewport(NotebookPage value,PaperRenderer renderer){viewportUpdates++;setPage(value);setPaperRenderer(renderer);return true;}
+    int viewportUpdates(){return viewportUpdates;}
     public boolean showScrollPreview(Bitmap preview){return true;}
     public List<NotebookPage.Stroke> snapshotNativeStrokes(){return page.strokes;}
 }

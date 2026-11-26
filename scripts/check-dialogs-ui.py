@@ -10,7 +10,7 @@ import tempfile
 import time
 import uuid
 import xml.etree.ElementTree as ET
-from PIL import Image
+from PIL import Image, ImageChops
 
 PACKAGE = 'org.eink.inkprobe'
 SERIAL = os.environ.get('ANDROID_SERIAL', 'emulator-5554')
@@ -118,6 +118,13 @@ def has_top_border(name, title):
             if sum(max(image.getpixel((x, y))) < 120 for x in range(left, right)) > (right - left) * .9:
                 return True
     return False
+
+
+def changed_page_pixels(before, after):
+    with Image.open(OUTPUT / before).convert('RGB') as first, Image.open(OUTPUT / after).convert('RGB') as second:
+        region = (first.width * 3 // 5, first.height // 8, first.width - 20, first.height * 7 // 8)
+        diff = ImageChops.difference(first.crop(region), second.crop(region)).convert('L')
+        return sum(diff.histogram()[10:])
 
 
 def wait_json(name, predicate=lambda value: True):
@@ -272,8 +279,9 @@ try:
     shell('am', 'start', '-W', '-f', '0x20000000', '-n', PACKAGE + '/.notebook.NotebookReadingSelfTestActivity',
           '--ez', 'openInfo', 'true')
     title = locate('This page'); export = locate('Export PDF'); reset = locate('Reset tools'); close = locate('Close')
-    check(all(same_row(title, control) for control in (export, reset, close)) and bounds(title)[0] < bounds(export)[0] < bounds(reset)[0] < bounds(close)[0],
-          'Page information places its export, reset and close icons beside the title')
+    check(all(same_row(title, control) for control in (export, reset, close)) and bounds(title)[2] <= bounds(export)[0] < bounds(reset)[0] < bounds(close)[0]
+          and bounds(export)[0] > 700,
+          'Page information aligns its export, reset and close icons at the top right')
     screenshot('page-information.png')
     check(has_top_border('page-information.png', title), 'Page information has a visible top border above its title')
     before = wait_json('reading-ui-state.json')['time']; tap('Reset tools')
@@ -312,8 +320,36 @@ try:
     shell('am', 'start', '-W', '-f', '0x20000000', '-n', PACKAGE + '/.notebook.NotebookReadingSelfTestActivity',
           '--ez', 'openReading', 'true')
     locate('Reading view'); check(not any(n.get('content-desc') == 'Close reading settings' for n in tree().iter('node')), 'PDF reading settings has no redundant close button')
-    tap_choice('Double page'); locate('✓ Double page'); tap_choice('Cover, then 2–3'); locate('✓ Cover, then 2–3')
-    check(True, 'PDF reading settings accepts multiple changes without dismissing')
+    tap_choice('Single page'); tap_choice('Pages 1–2'); tap_choice('Off')
+    baseline = wait_json('reading-ui-state.json', lambda value: value.get('menuOpen') and value.get('previewReady') and not value.get('spread'))
+    time.sleep(.4); screenshot('pdf-reading-single.png')
+    tap_choice('Double page'); locate('✓ Double page')
+    spread = wait_json('reading-ui-state.json', lambda value: value.get('menuOpen') and value.get('previewReady') and value.get('spread')
+                       and value.get('viewportUpdates', 0) > baseline['viewportUpdates'])
+    check(not spread['editable'], 'PDF double-page layout redraws immediately with the panel open and ink paused')
+    time.sleep(.4); screenshot('pdf-reading-double.png')
+    check(changed_page_pixels('pdf-reading-single.png', 'pdf-reading-double.png') > 1000,
+          'PDF page pixels change visibly before the reading panel closes')
+    tap_choice('Cover, then 2–3'); locate('✓ Cover, then 2–3')
+    cover = wait_json('reading-ui-state.json', lambda value: value.get('menuOpen') and value.get('previewReady') and value.get('cover')
+                      and value.get('viewportUpdates', 0) > spread['viewportUpdates'])
+    check(True, 'PDF cover layout redraws immediately without dismissing the panel')
+    tap_choice('Auto')
+    auto = wait_json('reading-ui-state.json', lambda value: value.get('menuOpen') and value.get('previewReady') and value.get('crop') == 'AUTO'
+                     and value.get('viewportUpdates', 0) > cover['viewportUpdates'])
+    check(True, 'PDF auto-crop redraws while reading settings remains open')
+    tap_choice('Off')
+    uncropped = wait_json('reading-ui-state.json', lambda value: value.get('menuOpen') and value.get('previewReady') and value.get('crop') == 'NONE'
+                          and value.get('viewportUpdates', 0) > auto['viewportUpdates'])
+    slider = locate('PDF contrast; larger values darken text and images')
+    tap_node(slider)
+    contrast = wait_json('reading-ui-state.json', lambda value: value.get('menuOpen') and value.get('previewReady')
+                         and abs(value.get('contrast', 1) - uncropped['contrast']) > .1
+                         and value.get('viewportUpdates', 0) > uncropped['viewportUpdates'])
+    check(True, 'PDF contrast redraws while the panel stays open')
+    tap('Reset contrast')
+    wait_json('reading-ui-state.json', lambda value: value.get('menuOpen') and value.get('previewReady')
+              and abs(value.get('contrast', 0) - 1) < .01 and value.get('viewportUpdates', 0) > contrast['viewportUpdates'])
     tap_choice('Single page'); tap_choice('Pages 1–2'); tap_choice('Off')
     before = wait_json('reading-ui-state.json')['time']; shell('input', 'tap', '1300', '1500')
     wait_json('reading-ui-state.json', lambda value: value.get('editable') and value.get('time', 0) > before)
@@ -335,7 +371,9 @@ try:
     wait_json('reading-ui-state.json', lambda value: value.get('editable') and value.get('time', 0) > before)
     shell('am', 'start', '-W', '-f', '0x20000000', '-n', PACKAGE + '/.notebook.NotebookReadingSelfTestActivity',
           '--ez', 'openInfo', 'true')
-    title = locate('This page'); locate('Export PDF'); locate('Reset tools'); locate('Close')
+    title = locate('This page'); export = locate('Export PDF'); reset = locate('Reset tools'); close = locate('Close')
+    check(all(same_row(title, control) for control in (export, reset, close)) and bounds(title)[2] <= bounds(export)[0]
+          and bounds(export)[0] > 700, 'PDF page-information actions align at the top right')
     screenshot('pdf-page-information.png')
     check(has_top_border('pdf-page-information.png', title), 'PDF page information has a visible top border')
     tap('Export PDF'); locate('Save here')

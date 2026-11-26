@@ -18,6 +18,7 @@ REMOTE = '/data/local/tmp/scriflow-shelf-' + TOKEN
 ROOT = 'Shelf' + TOKEN
 CHILD = 'Nested' + TOKEN
 RENAMED = 'Renamed' + TOKEN
+THUMB_FOLDER = 'Thumbnail' + TOKEN
 NOTE = 'ReadingOverlap-' + TOKEN
 ORIGIN = 'https://ui-fixture.example'
 OUTPUT = Path('build/shelf-permissions-check')
@@ -186,16 +187,45 @@ try:
     locate('Open folder Saved websites')
     tap_node(locate('; tap to open settings', contains=True))
     tap_node(locate('Thumbnails', contains=True)); tap('Done')
-    tap_target = scroll_to('Manage notebook ' + NOTE)
+    locate('Tap name or date for actions', contains=True)
+    new_folder(THUMB_FOLDER)
+    tap('Manage folder ' + THUMB_FOLDER); locate('Rename folder'); shell('input', 'keyevent', 'KEYCODE_BACK')
+    tap('Open folder ' + THUMB_FOLDER); locate('‹ ' + THUMB_FOLDER)
+    tap('‹ ' + THUMB_FOLDER)
+    tap('Manage folder ' + THUMB_FOLDER); tap('Remove folder (keep items)')
+    wait_absent('Manage folder ' + THUMB_FOLDER)
+    check(True, 'Thumbnail folders open from their previews and expose actions from their names')
+    name = scroll_to('Manage notebook ' + NOTE)
     root = tree()
     cards = []
     for node in root.iter('node'):
         descendants = list(node.iter('node'))
         if (any(n.get('content-desc') == 'Manage notebook ' + NOTE for n in descendants)
-                and any(n.get('text', '').startswith('Last opened · ') and not n.get('text', '').endswith('—') for n in descendants)):
+                and any(n.get('content-desc') == 'Open notebook ' + NOTE for n in descendants)
+                and any(n.get('content-desc', '').startswith('Manage notebook ' + NOTE + ', last opened ')
+                        and n.get('text', '') not in ('', '—') and 'Last opened' not in n.get('text', '') for n in descendants)):
             cards.append(node)
-    check(bool(cards), 'Thumbnail card shows its notebook name, manage button and real last-opened time together')
+    check(bool(cards), 'Thumbnail card contains its preview, name and opening time without a redundant label')
+    card = min(cards, key=lambda node: (bounds(node)[2] - bounds(node)[0]) * (bounds(node)[3] - bounds(node)[1]))
+    check(sum(n.get('content-desc') == 'Manage notebook ' + NOTE for n in card.iter('node')) == 1,
+          'Thumbnail card has no separate three-dot control')
     screenshot('thumbnail-card.png')
+    tap_node(name); locate('Move to Trash'); shell('input', 'keyevent', 'KEYCODE_BACK')
+    date = locate('Manage notebook ' + NOTE + ', last opened ', contains=True)
+    tap_node(date); locate('Rename'); shell('input', 'keyevent', 'KEYCODE_BACK')
+    check(True, 'Tapping the thumbnail name or date opens the item action bar')
+    tap_node(locate('Open notebook ' + NOTE))
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        tasks = shell('dumpsys', 'activity', 'activities')
+        if any('mResumedActivity' in line and PACKAGE + '/.notebook.NotebookActivity' in line for line in tasks.splitlines()):
+            break
+        time.sleep(.2)
+    else:
+        raise AssertionError('Tapping the notebook preview did not open the notebook')
+    check(True, 'Tapping the thumbnail preview opens the notebook')
+    shell('am', 'force-stop', PACKAGE)
+    shell('am', 'start', '-W', '-n', PACKAGE + '/.notebook.NotebookLibraryActivity')
     tap_node(locate('; tap to open settings', contains=True))
     tap_node(locate('List', contains=True)); tap('Done')
     locate('Open folder Saved websites')
