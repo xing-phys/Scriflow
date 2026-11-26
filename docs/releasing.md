@@ -46,6 +46,12 @@ it does not arbitrarily change the patch number or signing identity.
 
 ## Before publishing
 
+**0.48.0-beta.3** (versionCode **129**) refines bookshelf/chat/contents
+controls and remembers per-site microphone decisions. Verify bookshelf history,
+selected chat and floating layout, Files and Trash icon bars, note/PDF contents,
+and Allow/Block in Settings. Build and publish the signed APK and checksum;
+physical MatePad and e-ink acceptance remain pending.
+
 **0.48.0-beta.2** (versionCode **128**) refines shared dialogs in the ongoing
 beta cycle. Verify chat history, note/PDF outline actions, list dialogs,
 reading settings and ebook panels, including cancellation and confirmation.

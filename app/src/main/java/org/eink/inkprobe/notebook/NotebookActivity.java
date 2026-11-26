@@ -532,9 +532,21 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         layoutWorkspace(); updateControls(); showFloatingTools(); aiWindows.resume();
         if (pendingAiLaunch != null) {
             String launch=pendingAiLaunch;pendingAiLaunch=null;
-            if (launch.equals("history")) aiWindows.historyFromShelf(); else aiWindows.newMainFromShelf();
+            if (launch.equals("history")) aiWindows.historyFromShelf(); else if (launch.equals("selected")) openSelectedChatFromShelf(); else aiWindows.newMainFromShelf();
         }
         if (pendingIndependentNoteId > 0 && workspaceInteractive()) openIndependentNote(pendingIndependentNoteId);
+    }
+
+    private void openSelectedChatFromShelf() {
+        Intent intent = getIntent();
+        try {
+            String id = intent.getStringExtra("aiSession"); NotebookAiHistory.validateId(id);
+            NotebookAiConfig config = new NotebookAiConfig(NotebookAiConfig.Provider.valueOf(intent.getStringExtra("aiProvider")),
+                intent.getStringExtra("aiProviderId"), intent.getStringExtra("aiBaseUrl"), intent.getStringExtra("aiModel"), "", null);
+            aiWindows.selectedMainFromShelf(config, id, intent.getBooleanExtra("aiRebind", false));
+        } catch (IllegalArgumentException | NullPointerException error) {
+            Toast.makeText(this, "Could not open the saved chat", Toast.LENGTH_LONG).show(); finish();
+        }
     }
 
     private boolean resumeDictionaryEditor(){
@@ -667,7 +679,7 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
                             pendingHideNotes=false;changeWorkspace(()->{for(NotebookWorkspace.Pane pane:workspace.panes())pane.collapsed=true;});return;
                         }
                         if(pendingAiLaunch!=null){String launch=pendingAiLaunch;pendingAiLaunch=null;
-                            if(launch.equals("history"))aiWindows.historyFromShelf();else aiWindows.newMainFromShelf();}
+                            if(launch.equals("history"))aiWindows.historyFromShelf();else if(launch.equals("selected"))openSelectedChatFromShelf();else aiWindows.newMainFromShelf();}
                     }
                     if (whenReady != null && canEdit()) {
                         Runnable action = whenReady; whenReady = null; main.post(action);
@@ -2709,9 +2721,13 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
                 : editMode[0] ? "Tap a heading to edit, delete, or reorder it."
                 : "Tap a heading to jump; use the arrows to collapse or expand. Hold to edit.");
         };
-        outlineMenu = new AlertDialog.Builder(this).setTitle("Table of contents")
-            .setView(content).setNegativeButton("Close", null)
-            .setPositiveButton("Add heading", null).setNeutralButton("Edit headings", null).create();
+        LinearLayout title = NotebookUi.dialogTitle(this, "Table of contents");
+        NotebookIconButton edit = NotebookUi.titleAction(title, NotebookIconDrawable.Icon.PEN, "Edit headings", () -> {
+            editMode[0] = !editMode[0]; refresh[0].run();
+        });
+        NotebookUi.titleAction(title, NotebookIconDrawable.Icon.PLUS, "Add heading", () -> showOutlineEditor(null, refresh[0]));
+        NotebookUi.titleAction(title, NotebookIconDrawable.Icon.CLOSE, "Close", () -> { if (outlineMenu != null) outlineMenu.dismiss(); });
+        outlineMenu = new AlertDialog.Builder(this).setCustomTitle(title).setView(content).create();
         AlertDialog dialog = outlineMenu;
         list.setOnItemClickListener((parent, row, position, id) -> {
             NotebookOutline.Entry entry = entries.get(visible.get(position));
@@ -2735,11 +2751,11 @@ public class NotebookActivity extends NotebookDisplayActivity implements Noteboo
         refresh[0].run(); showStaticDialog(dialog);
         int selectedRow = visible.indexOf(currentHeading[0]);
         if (selectedRow >= 0) list.setSelection(selectedRow);
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> showOutlineEditor(null, refresh[0]));
-        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
+        edit.setOnClickListener(v -> {
             editMode[0] = !editMode[0];
-            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setText(editMode[0] ? "Browse headings" : "Edit headings");
-            refresh[0].run();
+            String name = editMode[0] ? "Browse headings" : "Edit headings";
+            edit.setIcon(editMode[0] ? NotebookIconDrawable.Icon.OUTLINE : NotebookIconDrawable.Icon.PEN);
+            edit.setContentDescription(name); edit.setTooltipText(name); refresh[0].run();
         });
     }
 

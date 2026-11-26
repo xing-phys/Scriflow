@@ -8,7 +8,7 @@ import java.util.function.Supplier;
 import org.mozilla.geckoview.GeckoResult;
 import org.mozilla.geckoview.GeckoSession;
 
-/** Foreground HTTPS microphone requests require both app permission and this document's consent. */
+/** Foreground HTTPS microphone requests require Android permission and consent for the exact origin. */
 final class NotebookBrowserMedia implements GeckoSession.PermissionDelegate {
     private final Activity activity;
     private final NotebookMicrophone microphone;
@@ -37,6 +37,8 @@ final class NotebookBrowserMedia implements GeckoSession.PermissionDelegate {
         MediaSource selected = null;
         for (MediaSource source : audio) if (source.type == MediaSource.TYPE_AUDIO && source.source == MediaSource.SOURCE_MICROPHONE) { selected = source; break; }
         if (selected == null) { callback.reject(); return; }
+        int decision = NotebookWebsitePermissions.get(activity, origin);
+        if (decision == NotebookWebsitePermissions.BLOCK) { callback.reject(); return; }
         if (!microphone.granted()) {
             long expected = document;
             microphone.request(granted -> {
@@ -46,16 +48,19 @@ final class NotebookBrowserMedia implements GeckoSession.PermissionDelegate {
             });
             return;
         }
-        if (origin.equals(approved)) { callback.grant(null, selected); return; }
-        MediaSource source = selected; long expected = document; boolean[] accepted = {false};
+        if (decision == NotebookWebsitePermissions.ALLOW) { approved = origin; callback.grant(null, selected); return; }
+        MediaSource source = selected; long expected = document; int[] choice = {NotebookWebsitePermissions.ASK};
         AlertDialog prompt = new AlertDialog.Builder(activity).setTitle("Allow microphone?")
-            .setMessage(origin + " wants to use the microphone for voice input.")
-            .setNegativeButton("Don't allow", null).setPositiveButton("Allow", (value, which) -> accepted[0] = true).create();
+            .setMessage(origin + " wants to use the microphone for voice input. You can change this website’s permission in Settings.")
+            .setNegativeButton("Don't allow", (value, which) -> choice[0] = NotebookWebsitePermissions.BLOCK)
+            .setPositiveButton("Allow", (value, which) -> choice[0] = NotebookWebsitePermissions.ALLOW).create();
         dialog = prompt;
         prompt.setOnDismissListener(value -> {
             if (dialog == prompt) dialog = null;
-            if (accepted[0] && expected == document && allowed.getAsBoolean() && microphone.granted()
-                    && origin.equals(NotebookBrowserAddress.origin(address.get()))) { approved = origin; callback.grant(null, source); }
+            boolean current = expected == document && allowed.getAsBoolean() && microphone.granted()
+                && origin.equals(NotebookBrowserAddress.origin(address.get()));
+            if (current && choice[0] != NotebookWebsitePermissions.ASK) NotebookWebsitePermissions.set(activity, origin, choice[0]);
+            if (current && choice[0] == NotebookWebsitePermissions.ALLOW) { approved = origin; callback.grant(null, source); }
             else callback.reject();
         });
         NotebookUi.show(prompt);
@@ -63,7 +68,9 @@ final class NotebookBrowserMedia implements GeckoSession.PermissionDelegate {
 
     @Override public GeckoResult<Integer> onContentPermissionRequest(GeckoSession session, ContentPermission permission) {
         boolean voicePlayback = permission.permission == PERMISSION_AUTOPLAY_AUDIBLE && allowed.getAsBoolean()
-            && microphone.granted() && !approved.isEmpty() && approved.equals(NotebookBrowserAddress.origin(permission.uri));
+            && microphone.granted() && !approved.isEmpty() && approved.equals(NotebookBrowserAddress.origin(permission.uri))
+            && approved.equals(NotebookBrowserAddress.origin(address.get()))
+            && NotebookWebsitePermissions.get(activity, approved) == NotebookWebsitePermissions.ALLOW;
         return GeckoResult.fromValue(voicePlayback ? ContentPermission.VALUE_ALLOW : ContentPermission.VALUE_DENY);
     }
 

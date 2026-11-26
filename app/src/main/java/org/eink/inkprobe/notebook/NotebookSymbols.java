@@ -21,6 +21,14 @@ public final class NotebookSymbols {
     public static void draw(String icon, Sink out) {
         if (icon == null || out == null) throw new IllegalArgumentException("Missing icon or sink");
         switch (icon) {
+            case "OPEN_FILE":
+                line(out, 13, 3, 20, 3, 20, 10); line(out, 20, 3, 10, 13);
+                line(out, 17, 13, 17, 20, 4, 20, 4, 7, 11, 7);
+                break;
+            case "SHARE":
+                circle(out, 5, 12, 2.5f, false); circle(out, 19, 5, 2.5f, false); circle(out, 19, 19, 2.5f, false);
+                line(out, 7.5f, 11, 16.5f, 6); line(out, 7.5f, 13, 16.5f, 18);
+                break;
             case "HOME":
                 line(out, 2, 11, 12, 3, 22, 11);
                 line(out, 5, 9, 5, 21, 10, 21, 10, 14, 14, 14, 14, 21, 19, 21, 19, 9);
@@ -189,6 +197,14 @@ public final class NotebookSymbols {
                 line(out, 9, 11, 16, 11);
                 line(out, 9, 14.5f, 16, 14.5f);
                 line(out, 9, 18, 16, 18);
+                break;
+            case "NOTEBOOK":
+                // A single bound notebook, distinct from the overlapping-copy symbol.
+                polygon(out, false, 4, 3, 20, 3, 20, 21, 4, 21);
+                line(out, 8, 3, 8, 21); line(out, 11, 8, 17, 8); line(out, 11, 12, 17, 12);
+                break;
+            case "MORE_VERTICAL":
+                circle(out, 12, 5, 1.6f); circle(out, 12, 12, 1.6f); circle(out, 12, 19, 1.6f);
                 break;
             case "NOTES":
                 polygon(out, false, 3, 7, 16, 7, 16, 21, 3, 21);

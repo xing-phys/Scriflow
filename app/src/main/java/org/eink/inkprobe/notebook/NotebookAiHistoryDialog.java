@@ -31,7 +31,9 @@ final class NotebookAiHistoryDialog {
         ListView list=new ListView(activity);list.setBackgroundColor(Color.WHITE);list.setCacheColorHint(Color.WHITE);
         list.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));list.setOverScrollMode(View.OVER_SCROLL_NEVER);
         body.addView(list,new LinearLayout.LayoutParams(-1,dp(76)));
-        dialog=new AlertDialog.Builder(activity).setTitle("Chat history").setView(body).setNegativeButton("Close",null).create();
+        LinearLayout title=NotebookUi.dialogTitle(activity,"Chat history");
+        NotebookUi.titleAction(title,NotebookIconDrawable.Icon.CLOSE,"Close",this::close);
+        dialog=new AlertDialog.Builder(activity).setCustomTitle(title).setView(body).create();
         dialog.setOnDismissListener(d->close());NotebookUi.show(dialog);load(list,description);
     }
     private void load(ListView list,TextView description){

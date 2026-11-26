@@ -77,9 +77,10 @@ summarized to fit a model.
 ## Chat windows
 
 From the bookshelf, tap **AI chat**, then **New chat** or **Open chat history**.
-The conversation opens as the main window in an independent workspace, with no
-notes open or minimized. To open a note, tap the toolbox notes button and choose
-one; it appears as a floating window with both corner controls. Only notes you
+History first appears over the bookshelf; selecting a saved session opens it as
+the main window in an independent workspace, with no notes open or minimized.
+A new chat also opens directly as the main window. To open a note, tap the
+toolbox notes button and choose one; it appears as a floating window with both corner controls. Only notes you
 explicitly minimize appear in the notes tray. Closing or minimizing the main
 chat returns to the bookshelf.
 
@@ -90,6 +91,10 @@ minimized chat's tooltip/accessibility name identifies its title and model.
 The tray remains available when no chat windows are open, so History does not
 require creating a blank conversation. **+** uses the selected default model.
 Each new window starts a new session without replacing or stopping other chats.
+
+Floating chat windows have rounded corners. Two controls sit to each side of
+the message bubble, leaving the field and model name inside the bubble. Long
+messages expand within it.
 
 Chats and notes share their actual corner controls, gestures and window geometry:
 
@@ -170,7 +175,7 @@ session while keeping the previous window, without a deletion prompt. Untouched
 empty sessions are not added to history. Close chat is in the bottom-left
 options menu. The toolbox icon opens the tray; it does not close conversations.
 
-The history box uses a circular **×** at the bottom right to close it.
+The history box uses a circular **×** in the top-right title row to close it.
 
 Tap the **history list icon in the toolbox AI tray** to find earlier sessions,
 shared across notebooks and providers. Rows show an automatic title from the

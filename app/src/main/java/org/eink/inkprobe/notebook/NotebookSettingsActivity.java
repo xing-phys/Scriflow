@@ -109,6 +109,15 @@ public final class NotebookSettingsActivity extends NotebookDisplayActivity {
         }), new LinearLayout.LayoutParams(-2, dp(40)));
         hint(body, "Share Scriflow on the same Wi-Fi with a password. Open the tablet's address on your Mac, phone or tablet.");
 
+        section(body, "Website microphone permissions");
+        body.addView(button("Manage website permissions…", this::websiteMicrophonePermissions), new LinearLayout.LayoutParams(-2, dp(40)));
+        body.addView(button("Android app permission…", () -> {
+            android.content.Intent intent = new android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                android.net.Uri.parse("package:" + getPackageName()));
+            startActivity(intent);
+        }), new LinearLayout.LayoutParams(-2, dp(40)));
+        hint(body, "Allow or block microphone access for each website. Android's app permission also controls access.");
+
         aiSettings = new NotebookAiSettingsSection(this, body);
         FrameLayout centered = new FrameLayout(this);
         centered.addView(body, new FrameLayout.LayoutParams(-1, -2, Gravity.TOP | Gravity.CENTER_HORIZONTAL));
@@ -119,6 +128,32 @@ public final class NotebookSettingsActivity extends NotebookDisplayActivity {
         });
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(root); updateChoices();
+    }
+
+    private void websiteMicrophonePermissions() {
+        java.util.List<String> origins = NotebookWebsitePermissions.origins(this);
+        if (origins.isEmpty()) {
+            NotebookUi.show(new android.app.AlertDialog.Builder(this).setTitle("Website microphone permissions")
+                .setMessage("No website permissions saved yet. Websites will ask before using the microphone.")
+                .setPositiveButton("Done", null).create());
+            return;
+        }
+        String[] labels = new String[origins.size()];
+        for (int i = 0; i < origins.size(); i++) {
+            String origin = origins.get(i);
+            labels[i] = origin + (NotebookWebsitePermissions.get(this, origin) == NotebookWebsitePermissions.ALLOW ? " · Allowed" : " · Blocked");
+        }
+        NotebookUi.show(new android.app.AlertDialog.Builder(this).setTitle("Website microphone permissions")
+            .setItems(labels, (dialog, which) -> websiteMicrophonePermission(origins.get(which)))
+            .setNegativeButton("Close", null).create());
+    }
+    private void websiteMicrophonePermission(String origin) {
+        String[] choices = {"Allow", "Block", "Ask next time"};
+        NotebookUi.show(new android.app.AlertDialog.Builder(this).setTitle(origin)
+            .setItems(choices, (dialog, which) -> {
+                int state = which == 0 ? NotebookWebsitePermissions.ALLOW : which == 1 ? NotebookWebsitePermissions.BLOCK : NotebookWebsitePermissions.ASK;
+                NotebookWebsitePermissions.set(this, origin, state); websiteMicrophonePermissions();
+            }).setNegativeButton("Cancel", null).create());
     }
 
     private void shelfGridRow(LinearLayout body, boolean landscape) {

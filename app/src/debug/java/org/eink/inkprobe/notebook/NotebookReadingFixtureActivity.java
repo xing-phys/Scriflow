@@ -18,9 +18,11 @@ public final class NotebookReadingFixtureActivity extends Activity {
         session.list((page,error)->{
             if(error!=null){report(0,error.toString());return;}
             if(remove>0){
-                boolean found=false;for(NotebookCatalog.Entry entry:session.entries())if(entry.id==remove&&name.equals(entry.name))found=true;
-                if(!found){report(0,"Fixture not found");return;}
-                session.trashNotebook(remove,(ignored,trashError)->{
+                NotebookCatalog.Entry found=null;for(NotebookCatalog.Entry entry:session.entries())if(entry.id==remove&&name.equals(entry.name))found=entry;
+                if(found==null){report(0,"Fixture not found");return;}
+                if(found.status==NotebookCatalog.TRASH){
+                    session.permanentlyDeleteNotebook(remove,(deleted,deleteError)->{report(remove,deleteError==null?"":deleteError.toString());finish();});
+                }else session.trashNotebook(remove,(ignored,trashError)->{
                     if(trashError!=null){report(0,trashError.toString());return;}
                     session.permanentlyDeleteNotebook(remove,(deleted,deleteError)->{report(remove,deleteError==null?"":deleteError.toString());finish();});
                 });

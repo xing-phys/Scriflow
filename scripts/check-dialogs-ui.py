@@ -16,6 +16,8 @@ SERIAL = os.environ.get('ANDROID_SERIAL', 'emulator-5554')
 TOKEN = uuid.uuid4().hex
 REMOTE = '/data/local/tmp/scriflow-dialog-' + TOKEN
 CHAT = 'files/ai-chat-sessions/' + str(uuid.uuid4())
+SAVED_ID = str(uuid.uuid4())
+SAVED = 'files/ai-chat-sessions/' + SAVED_ID
 CHECKS = []
 NOTE_NAME = 'ReadingOverlap-' + uuid.uuid4().hex[:8]
 PDF_NAME = 'ReadingOverlap-' + uuid.uuid4().hex[:8]
@@ -34,8 +36,15 @@ def shell(*args, check=True):
 
 
 def tree():
-    shell('uiautomator', 'dump', REMOTE + '.xml')
-    return ET.fromstring(adb('exec-out', 'cat', REMOTE + '.xml'))
+    for attempt in range(4):
+        try:
+            shell('uiautomator', 'dump', REMOTE + '.xml')
+            return ET.fromstring(adb('exec-out', 'cat', REMOTE + '.xml'))
+        except (subprocess.CalledProcessError, ET.ParseError):
+            if attempt == 3:
+                raise
+            time.sleep(1)
+
 
 
 def locate(label, timeout=30):
@@ -48,6 +57,26 @@ def locate(label, timeout=30):
             return sorted(found, key=lambda node: node.get('clickable') != 'true')[0]
         time.sleep(.2)
     raise AssertionError('Control not found: ' + label)
+
+
+def locate_prefix(prefix, timeout=30):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        for node in tree().iter('node'):
+            if node.get('content-desc', '').startswith(prefix):
+                return node
+        time.sleep(.2)
+    raise AssertionError('Control not found with prefix: ' + prefix)
+
+
+def tap_node(node):
+    x1, y1, x2, y2 = bounds(node)
+    shell('input', 'tap', str((x1 + x2) // 2), str((y1 + y2) // 2))
+
+
+def same_row(first, second):
+    a, b = bounds(first), bounds(second)
+    return min(a[3], b[3]) > max(a[1], b[1])
 
 
 def bounds(node):
@@ -112,6 +141,14 @@ try:
         adb('push', fixture.name, REMOTE + '.chat')
     shell('run-as', PACKAGE, 'mkdir', '-p', 'files/ai-chat-sessions')
     shell('run-as', PACKAGE, 'cp', REMOTE + '.chat', CHAT + '.chat')
+    with tempfile.TemporaryDirectory() as fixture_dir:
+        java = Path('.tools/jdk-17.0.21+9/bin')
+        subprocess.run([str(java / 'javac'), '-cp', 'build/ai-tests', '-d', str(OUTPUT),
+                        'tests/NotebookAiUiFixture.java'], check=True)
+        subprocess.run([str(java / 'java'), '-cp', str(OUTPUT) + ':build/ai-tests:.tools/ai-tests/json-20240303.jar',
+                        'org.eink.inkprobe.notebook.NotebookAiUiFixture', fixture_dir, SAVED_ID], check=True)
+        adb('push', str(Path(fixture_dir) / 'ai-chat-sessions' / (SAVED_ID + '.chat')), REMOTE + '.saved')
+    shell('run-as', PACKAGE, 'cp', REMOTE + '.saved', SAVED + '.chat')
     shell('am', 'force-stop', PACKAGE)
     shell('am', 'start', '-W', '-n', PACKAGE + '/.notebook.NotebookLibraryActivity')
     tap('AI chat')
@@ -122,9 +159,14 @@ try:
     check(True, 'The circular Cancel control dismisses a choice without selecting an item')
     tap('AI chat')
     tap('Open chat history')
-    locate('Chat history')
+    title = locate('Chat history')
     delete = locate('Delete saved chat: Unreadable saved chat')
     close = locate('Close')
+    tasks = shell('dumpsys', 'activity', 'activities')
+    check(any('mResumedActivity' in line and PACKAGE + '/.notebook.NotebookLibraryActivity' in line for line in tasks.splitlines()),
+          'Chat history stays over the bookshelf without opening a note workspace')
+    check(same_row(title, close) and bounds(close)[0] > bounds(title)[0],
+          'Chat history close button shares the title row')
     delete_bounds, close_bounds = bounds(delete), bounds(close)
     check(delete_bounds[2] <= close_bounds[0] or delete_bounds[0] >= close_bounds[2]
           or delete_bounds[3] <= close_bounds[1] or delete_bounds[1] >= close_bounds[3],
@@ -143,7 +185,36 @@ try:
           'Cancel returns to history with the saved chat present')
     tap('Close')
     locate('Scriflow')
-    check(True, 'Closing chat history releases the workspace and returns to the shelf')
+    check(True, 'Closing chat history leaves the bookshelf visible')
+
+    # Selecting a real saved chat opens the AI workspace only after the selection.
+    tap('AI chat'); tap('Open chat history')
+    tap_node(locate_prefix('Open saved chat: Dialog fixture;'))
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        if any('mResumedActivity' in line and PACKAGE + '/.notebook.NotebookAiActivity' in line
+               for line in shell('dumpsys', 'activity', 'activities').splitlines()):
+            break
+        time.sleep(.5)
+    else:
+        raise AssertionError('Selected chat did not open the AI activity')
+    time.sleep(3)  # Let the chat renderer settle before starting UIAutomator.
+    editor = locate('Message AI')
+    menu = locate('chat options; drag to move floating window')
+    add = locate('Attach a notebook')
+    send = locate('Send message (Ctrl+Enter)')
+    minimize = locate('Minimize chat; drag to resize floating window')
+    tasks = shell('dumpsys', 'activity', 'activities')
+    check(any('mResumedActivity' in line and PACKAGE + '/.notebook.NotebookAiActivity' in line for line in tasks.splitlines()),
+          'Selecting a saved chat opens that chat in the AI workspace')
+    check(bounds(menu)[2] <= bounds(add)[0] and bounds(add)[2] <= bounds(editor)[0]
+          and bounds(editor)[2] <= bounds(send)[0] and bounds(send)[2] <= bounds(minimize)[0],
+          'The four chat controls sit outside the message editor in two pairs')
+    tap('chat options; drag to move floating window'); tap('Position…'); tap('Floating window')
+    locate('Message AI'); screenshot('chat-floating.png')
+    check(True, 'A saved chat can be placed in a floating window')
+    tap('chat options; drag to move floating window'); tap('Close chat')
+    locate('Scriflow')
 
     # The debug reader uses a software ink surface but the production outline UI.
     shell('am', 'force-stop', PACKAGE)
@@ -155,8 +226,9 @@ try:
     notebook_id = fixture['id']
     wait_json('reading-ui-state.json', lambda value: value.get('editable') and value.get('notebookId') == notebook_id)
     open_outline()
-    locate('Add heading'); locate('Edit headings'); close = locate('Close')
-    check(close.get('class') == 'android.widget.Button', 'Note contents retains heading actions and the circular close control')
+    title = locate('Table of contents'); add = locate('Add heading'); edit = locate('Edit headings'); close = locate('Close')
+    check(all(same_row(title, control) for control in (add, edit, close)) and bounds(edit)[0] < bounds(add)[0] < bounds(close)[0],
+          'Note contents places its editing and close icons in the title row')
     screenshot('note-contents-empty.png')
     tap('Add heading')
     tap('Heading title'); shell('input', 'text', 'DialogHeading')
@@ -199,7 +271,8 @@ try:
     shell('am', 'start', '-W', '-n', PACKAGE + '/.notebook.NotebookReadingSelfTestActivity')
     pdf_state = wait_json('reading-ui-state.json', lambda value: value.get('editable'))
     pdf_id = pdf_state['notebookId']
-    open_outline(); locate('Table of contents'); locate('Close'); locate('Add heading'); locate('Edit headings')
+    open_outline(); title = locate('Table of contents'); close = locate('Close'); add = locate('Add heading'); edit = locate('Edit headings')
+    check(all(same_row(title, control) for control in (add, edit, close)), 'PDF contents uses the same compact title controls')
     screenshot('pdf-contents.png')
     before = wait_json('reading-ui-state.json')['time']; tap('Close')
     wait_json('reading-ui-state.json', lambda value: value.get('editable') and value.get('time', 0) > before)
@@ -208,11 +281,15 @@ try:
     pdf_id = 0
     (OUTPUT / 'result.json').write_text(json.dumps({'passed': True, 'checks': CHECKS}, indent=2) + '\n')
     print('Compact dialog Android UI:', len(CHECKS), 'checks passed.', flush=True)
+except BaseException:
+    (OUTPUT / 'failure-screen.png').write_bytes(adb('exec-out', 'screencap', '-p', check=False))
+    (OUTPUT / 'failure-logcat.txt').write_bytes(adb('logcat', '-d', '-t', '1500', check=False))
+    raise
 finally:
     if notebook_id:
         remove_notebook(NOTE_NAME, notebook_id)
     if pdf_id:
         remove_notebook(PDF_NAME, pdf_id)
     shell('rm', '-f', '/sdcard/Download/' + PDF_NAME + '.pdf', check=False)
-    shell('run-as', PACKAGE, 'rm', '-f', CHAT + '.chat', CHAT + '.chat.tmp', CHAT + '.gone', check=False)
-    shell('rm', '-f', REMOTE + '.xml', REMOTE + '.chat', check=False)
+    shell('run-as', PACKAGE, 'rm', '-f', CHAT + '.chat', CHAT + '.chat.tmp', CHAT + '.gone', SAVED + '.chat', SAVED + '.chat.tmp', SAVED + '.gone', check=False)
+    shell('rm', '-f', REMOTE + '.xml', REMOTE + '.chat', REMOTE + '.saved', check=False)

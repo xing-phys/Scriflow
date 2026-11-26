@@ -15,6 +15,7 @@ OUTPUT.mkdir(parents=True, exist_ok=True)
 PACKAGE = 'org.eink.inkprobe'
 REMOTE_XML = '/data/local/tmp/scriflow-files-ui-check.xml'
 checks = []
+bar_checked = False
 
 
 def adb(*args, check=True):
@@ -84,7 +85,25 @@ def check(condition, label):
 
 
 def actions(name, action):
-    tap('Actions for ' + name)
+    global bar_checked
+    anchor = wait_for('Actions for ' + name)
+    tap_node(anchor)
+    if not bar_checked:
+        copy, rename, delete = wait_for('Copy'), wait_for('Rename'), wait_for('Delete…')
+        rectangles = [list(map(int, re.findall(r'\d+', node.get('bounds')))) for node in (anchor, copy, rename, delete)]
+        item, *controls = rectangles
+        check(all(rect[1] == controls[0][1] for rect in controls)
+              and min(abs(controls[0][1]-item[3]), abs(controls[0][3]-item[1])) < 100,
+              'File actions are icon buttons in a compact bar beside the selected item')
+        screenshot = subprocess.run(['adb', 'exec-out', 'screencap', '-p'], capture_output=True, check=True).stdout
+        (OUTPUT / 'item-actions.png').write_bytes(screenshot)
+        left, top, right, bottom = controls[1]
+        x, y = str((left+right)//2), str((top+bottom)//2)
+        adb('shell', 'input', 'swipe', x, y, x, y, '1000')
+        screenshot = subprocess.run(['adb', 'exec-out', 'screencap', '-p'], capture_output=True, check=True).stdout
+        (OUTPUT / 'item-tooltip.png').write_bytes(screenshot)
+        check(wait_for('Copy') is not None, 'Holding an action leaves the menu open')
+        bar_checked = True
     tap(action)
 
 

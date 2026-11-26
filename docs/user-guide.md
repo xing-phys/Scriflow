@@ -31,8 +31,10 @@ a notebook for Rename, Move to folder, Backup, or Move to Trash. **Rename** chan
 its title without moving its files. Names may contain up to 80 Unicode
 characters; the library supports up to 200 notebooks. Tap the **notebook name**
 in the editor's top-left bar to return to the library. Each notebook remembers its own
-reading position. **+ Folder** creates a folder at the bookshelf root; use its
-**⋮** menu to rename or remove it. Removing a folder keeps its notebooks.
+reading position. The **Bookshelf** button and current folder path are at the
+left of the shortcut row; the other actions are at the right. **+ Folder**
+creates a folder in the current location. Use a folder's **⋮** icon bar to
+rename or remove it. Removing a folder keeps its notebooks.
 
 **Trash** holds deleted notebooks. Its **⋮** menu restores a notebook to its
 folder, or permanently deletes its pages and imported PDF after confirmation.
@@ -77,9 +79,11 @@ backup/export behavior and format limits. PDFs retain the Import PDF workflow.
 ## Browser and saved websites
 
 On first entering the online Browser, Scriflow asks Android for microphone permission.
-A website must also ask you to allow its microphone use for the current page.
-This supports website voice input; notes and native AI chat do not yet have
-their own voice input. Android's app settings can revoke microphone access.
+A secure website also asks before using the microphone; your Allow or Block
+choice is remembered for that website. Change it under **Settings → Website
+microphone permissions**, or use Android app settings to revoke app access.
+Website voice input is supported; notes and native AI chat do not yet have
+their own voice input.
 Pen thickness, eraser size and eraser mode are shared across all note workspaces.
 Their popups and the note tray appear near the button you tapped.
 
@@ -173,8 +177,9 @@ defaults** resets the form to its latest fetched values. Fetching again keeps
 your overrides. Thinking defaults to Automatic; unavailable specifications use
 provider defaults. The connection can also be saved before choosing a model.
 
-Tap **AI chat** on the bookshelf to start a new chat or open saved chat history
-as an independent main window with no notes open. Tap the toolbox notes button
+Tap **AI chat** on the bookshelf to start a new chat or show saved chat history
+over the bookshelf. Selecting a saved chat opens an independent main window
+with no notes open. Tap the toolbox notes button
 and choose a note when you want a floating note; only notes you explicitly
 minimize appear in the notes tray. Closing or minimizing the main chat returns
 to the bookshelf. From a note, tap the chat-bubble sparkle
@@ -221,10 +226,9 @@ image drafts. Remove unwanted image chips with ×, add a question, then tap the 
 Use an image-capable model for ink/images. Keys are encrypted on the tablet. See
 [AI chat](ai-chat.md) for provider setup, recovery, limits and privacy.
 
-Rounded app dialogs, including chat history and the note/PDF contents list,
-use a circular **×** to close. The heading-editing and confirmation actions
-remain available beside it. Ebook and reading-settings panels use the same
-close control.
+Chat history has a circular **×** in its title row. The note/PDF contents
+heading also has icon buttons for editing, adding a heading, and closing the
+list. Other rounded dialogs and panels use circular close controls.
 
 ## Figures and multiple notes
 

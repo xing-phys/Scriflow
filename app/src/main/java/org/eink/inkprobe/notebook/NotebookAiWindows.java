@@ -106,6 +106,15 @@ final class NotebookAiWindows {
         // Do not leave an empty AI activity behind when the user returns.
         if(state==null&&independent)listener.mainDismissed();
     }
+    void selectedMainFromShelf(NotebookAiConfig config, String id, boolean rebind) {
+        if (suspended) resume();
+        if (suspended || !listener.allowed() || !listener.contactStart()) return;
+        open(config, id, rebind);
+        NotebookAiWorkspace.Window state = workspace.session(id);
+        if (state != null) makeShelfMain(state);
+        listener.contactEnd();
+        if (state == null && independent) listener.mainDismissed();
+    }
     private void makeShelfMain(NotebookAiWorkspace.Window state){
         workspace.makeMain(state);shelfMainOpened=true;persist();positionAll();listener.workspaceChanged();
     }

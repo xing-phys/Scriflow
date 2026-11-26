@@ -124,10 +124,12 @@ final class NotebookAiChat {
         refresh();
     }
     private void layoutInput(){
-        NotebookAiComposer row=new NotebookAiComposer(activity,composer,controls.menu,add,model,send,controls.minimize);
-        android.graphics.drawable.GradientDrawable outline=new android.graphics.drawable.GradientDrawable();outline.setColor(Color.WHITE);outline.setCornerRadius(dp(14));outline.setStroke(dp(1),Color.BLACK);row.setBackground(outline);row.setPadding(dp(3),dp(2),dp(3),dp(2));
+        View bubble=new View(activity);
+        android.graphics.drawable.GradientDrawable outline=new android.graphics.drawable.GradientDrawable();outline.setColor(Color.WHITE);outline.setCornerRadius(dp(14));outline.setStroke(dp(1),Color.BLACK);bubble.setBackground(outline);
+        NotebookAiComposer row=new NotebookAiComposer(activity,composer,controls.menu,add,model,send,controls.minimize,bubble);
+        row.setPadding(0,dp(2),0,dp(2));
         composer.setBackground(null);composer.setPadding(dp(4),dp(3),dp(4),dp(3));
-        model.setPadding(dp(3),0,dp(3),0);
+        model.setBackground(null);model.setPadding(dp(3),0,dp(3),0);
         content.addView(row,new LinearLayout.LayoutParams(-1,-2));
     }
     private final class ModelTap implements View.OnTouchListener {

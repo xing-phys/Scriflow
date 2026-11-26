@@ -84,6 +84,27 @@ final class NotebookUi {
         }
     }
 
+    /** A compact, accessible title row shared by list dialogs. */
+    static LinearLayout dialogTitle(Context context, String title) {
+        float density = context.getResources().getDisplayMetrics().density;
+        int inset = Math.round(12 * density);
+        LinearLayout row = new LinearLayout(context); row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(inset, Math.round(4 * density), inset, Math.round(4 * density));
+        TextView label = new TextView(context); label.setText(title); label.setTextColor(Color.BLACK);
+        label.setTextSize(16); label.setTypeface(null, android.graphics.Typeface.BOLD);
+        label.setSingleLine(true); label.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        row.addView(label, new LinearLayout.LayoutParams(0, Math.round(40 * density), 1));
+        return row;
+    }
+
+    static NotebookIconButton titleAction(LinearLayout title, NotebookIconDrawable.Icon icon, String name, Runnable action) {
+        Context context = title.getContext();
+        int size = Math.round(40 * context.getResources().getDisplayMetrics().density);
+        NotebookIconButton button = new NotebookIconButton(context, icon, name); button.setTooltipText(name);
+        button.setOnClickListener(v -> action.run()); title.addView(button, new LinearLayout.LayoutParams(size, size));
+        return button;
+    }
+
     static void prepare(Window window) {
         if (window == null) return;
         window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
@@ -169,7 +190,7 @@ final class NotebookUi {
         }
         TextView title = dialog.findViewById(dialog.getContext().getResources()
             .getIdentifier("alertTitle", "id", "android"));
-        if (title != null) title.setTextSize(16);
+        if (title != null) { title.setTextSize(16); title.setTypeface(null, android.graphics.Typeface.BOLD); }
         TextView message = dialog.findViewById(android.R.id.message);
         if (message != null) message.setTextSize(13);
     }

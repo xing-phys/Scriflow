@@ -37,8 +37,10 @@ Android app settings so it can be enabled there.
 
 ## File operations
 
-Each entry's **⋮** menu offers Copy, Move, Rename, Delete, Details and Select.
-Files also offer Open, Open with, and Share. Hold an entry for multi-selection;
+Each entry's **⋮** opens a compact icon bar near it, with Copy, Move, Rename,
+Delete, Details and Select. Files also offer Open, Open with, and Share. Hold an
+icon for its label or use accessibility names. On a narrow screen, swipe the bar
+horizontally to reach the remaining actions. Hold an entry for multi-selection;
 then use the select-all and actions icons. Select all applies to the displayed results.
 
 For **Copy** or **Move**, browse to a destination, clear any search, and tap

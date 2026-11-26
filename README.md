@@ -26,7 +26,14 @@ pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
 stays in front, window operations retain the main editor, and PDF import opens
 the file picker directly before opening the imported note.
 
-The **[0.48.0-beta.2 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.48.0-beta.2)**
+The **[0.48.0-beta.3 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.48.0-beta.3)**
+keeps chat history over the bookshelf, puts contents actions in the heading,
+uses compact icon bars for item actions, and remembers website microphone
+permissions. Chat windows and bookshelf navigation also have a more compact
+layout. Physical tablet acceptance remains pending. See
+[release notes](docs/releases/0.48.0-beta.3.md).
+
+The preceding **[0.48.0-beta.2 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.48.0-beta.2)**
 uses consistent rounded dialogs and compact circular close controls for chat
 history, note and PDF contents, and other app menus. Ebook and reading-settings
 panels follow the same style. Physical tablet acceptance remains pending. See

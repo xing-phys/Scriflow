@@ -50,7 +50,8 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
     private LinearLayout saveBar;
     private LinearLayout selectionBar, clipboardBar, accessPanel, footer;
     private NotebookButton up, homeButton, optionsButton, searchAction, searchClose, stop;
-    private NotebookBrowserIconButton presentation;
+    private NotebookBrowserIconButton presentation, selectedActions;
+    private android.widget.PopupWindow actionBar;
     private GridView list;
     private AlertDialog dialog;
     private boolean resumed, renderingBusy, renderingAccess, thumbnails, searching;
@@ -134,7 +135,8 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
         selectionBar = row(); selectedCount = label("", 13);
         selectionBar.addView(selectedCount, new LinearLayout.LayoutParams(0, dp(42), 1));
         selectionBar.addView(icon("Select all", NotebookIconDrawable.Icon.CHECK, this::selectAll), spaced(44, 42));
-        selectionBar.addView(icon("Actions", NotebookIconDrawable.Icon.MORE, this::selectionActions), spaced(44, 42));
+        selectedActions = icon("Actions", NotebookIconDrawable.Icon.MORE, this::selectionActions);
+        selectionBar.addView(selectedActions, spaced(44, 42));
         selectionBar.addView(icon("Cancel selection", NotebookIconDrawable.Icon.CLOSE, () -> { if (ready()) { job.selecting = false; job.selected.clear(); render(); } }), spaced(44, 42));
         root.addView(selectionBar);
 
@@ -180,6 +182,7 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
     @Override protected void onPause() {
         resumed = false; job.observe(null);
         if (dialog != null) { dialog.dismiss(); dialog = null; }
+        if (actionBar != null) { actionBar.dismiss(); actionBar = null; }
         super.onPause();
     }
     @Override public Object onRetainNonConfigurationInstance() { return job; }
@@ -419,24 +422,31 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
             } catch(IOException | SecurityException error) { problem(error.getMessage()); }
         } else openWith(item.file);
     }
-    private void fileActions(Row item) {
+    private void fileActions(Row item, View anchor) {
         if (!ready() || item.root) return;
         if (job.selecting) { toggle(item); return; }
-        List<String> choices = new ArrayList<>();
-        if (!item.directory) { choices.add("Open"); choices.add("Open with…"); choices.add("Share"); }
-        choices.add("Copy"); choices.add("Move"); choices.add("Rename"); choices.add("Delete…"); choices.add("Details"); choices.add("Select");
-        show(new AlertDialog.Builder(this).setTitle(item.title).setItems(choices.toArray(new String[0]), (d, which) -> {
-            String action = choices.get(which);
-            List<File> files = java.util.Collections.singletonList(item.file);
-            if (action.equals("Open")) open(item);
-            else if (action.equals("Open with…")) openWith(item.file);
-            else if (action.equals("Share")) share(files);
-            else if (action.equals("Copy") || action.equals("Move")) clipboard(files, action.equals("Move"));
-            else if (action.equals("Rename")) editName(item.file);
-            else if (action.equals("Delete…")) confirmDelete(files);
-            else if (action.equals("Details")) details(item);
-            else toggle(item);
-        }).setNegativeButton("Cancel", null).create());
+        List<File> files = java.util.Collections.singletonList(item.file);
+        List<NotebookActionBar.Action> actions = new ArrayList<>();
+        if (!item.directory) {
+            actions.add(NotebookActionBar.action(NotebookIconDrawable.Icon.READING, "Open", () -> open(item)));
+            actions.add(NotebookActionBar.action(NotebookIconDrawable.Icon.OPEN_FILE, "Open with…", () -> openWith(item.file)));
+            actions.add(NotebookActionBar.action(NotebookIconDrawable.Icon.SHARE, "Share", () -> share(files)));
+        }
+        actions.add(NotebookActionBar.action(NotebookIconDrawable.Icon.COPY, "Copy", () -> clipboard(files, false)));
+        actions.add(NotebookActionBar.action(NotebookIconDrawable.Icon.CUT, "Move", () -> clipboard(files, true)));
+        actions.add(NotebookActionBar.action(NotebookIconDrawable.Icon.PEN, "Rename", () -> editName(item.file)));
+        actions.add(NotebookActionBar.action(NotebookIconDrawable.Icon.DELETE, "Delete…", () -> confirmDelete(files)));
+        actions.add(NotebookActionBar.action(NotebookIconDrawable.Icon.INFORMATION, "Details", () -> details(item)));
+        actions.add(NotebookActionBar.action(NotebookIconDrawable.Icon.CHECK, "Select", () -> toggle(item)));
+        showActions(anchor, actions.toArray(new NotebookActionBar.Action[0]));
+    }
+    private void showActions(View anchor, NotebookActionBar.Action... actions) {
+        if (actionBar != null) actionBar.dismiss();
+        actionBar = NotebookActionBar.show(anchor, actions);
+    }
+    private View itemActions(Row item) {
+        NotebookBrowserIconButton more = icon("Actions for " + item.title, NotebookIconDrawable.Icon.MORE, () -> {});
+        more.setOnClickListener(v -> fileActions(item, v)); return more;
     }
     private void toggle(Row item) {
         if (!ready() || item.root || picking()) return;
@@ -453,10 +463,11 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
     private void selectionActions() {
         if (!ready() || job.selected.isEmpty()) return;
         List<File> files = selectedFiles();
-        show(new AlertDialog.Builder(this).setTitle(files.size() + " selected").setItems(new String[]{"Copy", "Move", "Share files", "Delete…"}, (d, which) -> {
-            if (which <= 1) clipboard(files, which == 1);
-            else if (which == 2) share(files); else confirmDelete(files);
-        }).setNegativeButton("Cancel", null).create());
+        showActions(selectedActions,
+            NotebookActionBar.action(NotebookIconDrawable.Icon.COPY, "Copy", () -> clipboard(files, false)),
+            NotebookActionBar.action(NotebookIconDrawable.Icon.CUT, "Move", () -> clipboard(files, true)),
+            NotebookActionBar.action(NotebookIconDrawable.Icon.SHARE, "Share files", () -> share(files)),
+            NotebookActionBar.action(NotebookIconDrawable.Icon.DELETE, "Delete…", () -> confirmDelete(files)));
     }
     private void clipboard(List<File> files, boolean move) {
         job.clipboard.clear(); job.clipboard.addAll(files); job.move = move; job.selected.clear(); job.selecting = false; render();
@@ -564,7 +575,7 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
             info.addView(name); TextView detail = label(item.detail, 12); detail.setSingleLine(true); detail.setEllipsize(TextUtils.TruncateAt.MIDDLE); info.addView(detail);
             info.setOnClickListener(v -> open(item)); info.setOnLongClickListener(v -> { toggle(item); return true; });
             row.addView(info, new LinearLayout.LayoutParams(0, -2, 1));
-            if (!item.root && !picking()) row.addView(icon("Actions for " + item.title, NotebookIconDrawable.Icon.MORE, () -> fileActions(item)), new LinearLayout.LayoutParams(dp(44), dp(44)));
+            if (!item.root && !picking()) row.addView(itemActions(item), new LinearLayout.LayoutParams(dp(44), dp(44)));
             return row;
         }
 
@@ -584,7 +595,7 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
             TextView name = label(item.title, 14); name.setMaxLines(2); name.setEllipsize(TextUtils.TruncateAt.END);
             name.setOnClickListener(v -> open(item)); name.setOnLongClickListener(v -> { toggle(item); return true; });
             footer.addView(name, new LinearLayout.LayoutParams(0, dp(48), 1));
-            if (!item.root && !picking()) footer.addView(icon("Actions for " + item.title, NotebookIconDrawable.Icon.MORE, () -> fileActions(item)), new LinearLayout.LayoutParams(dp(40), dp(40)));
+            if (!item.root && !picking()) footer.addView(itemActions(item), new LinearLayout.LayoutParams(dp(40), dp(40)));
             card.addView(footer);
             TextView detail = label(item.detail, 11); detail.setSingleLine(true); detail.setEllipsize(TextUtils.TruncateAt.END);
             card.addView(detail, new LinearLayout.LayoutParams(-1, dp(20))); return card;

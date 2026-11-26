@@ -59,6 +59,8 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
     private final Runnable loadVisible = this::loadNextPreview;
     private TextView status;
     private AlertDialog shownDialog;
+    private NotebookAiHistoryDialog shelfHistory;
+    private android.widget.PopupWindow actionBar;
     private boolean active, busy;
     private int generation;
     private Bundle dialogDraft;
@@ -86,7 +88,17 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         header.addView(brand, new LinearLayout.LayoutParams(0, dp(42), 1));
         header.addView(deviceSettingsIsland(), new LinearLayout.LayoutParams(-2, dp(32)));
         root.addView(header);
-        LinearLayout shortcuts = new LinearLayout(this); shortcuts.setPadding(0, dp(6), 0, dp(8));
+        LinearLayout shortcutBar = new LinearLayout(this); shortcutBar.setGravity(Gravity.CENTER_VERTICAL);
+        shortcutBar.setPadding(0, dp(6), 0, dp(8));
+        addShortcut(shortcutBar, "Bookshelf", NotebookIconDrawable.Icon.LIBRARY, () -> navigate(0, false));
+        path = label("", 13); path.setSingleLine(true); path.setEllipsize(TextUtils.TruncateAt.MIDDLE);
+        path.setTextColor(Color.BLACK); path.setPadding(dp(6), 0, dp(8), 0);
+        path.setOnClickListener(v -> { if (inTrash) navigate(0, false); else {
+            NotebookCatalog.Folder folder = NotebookFolders.find(session.folders(), currentFolder);
+            if (folder != null) navigate(folder.parentId, false);
+        }});
+        shortcutBar.addView(path, new LinearLayout.LayoutParams(0, dp(44), 1));
+        LinearLayout shortcuts = new LinearLayout(this); shortcuts.setGravity(Gravity.CENTER_VERTICAL);
         addShortcut(shortcuts, "Notebook", NotebookIconDrawable.Icon.PLUS, this::createNotebook);
         addShortcut(shortcuts, "Quick A5 note", NotebookIconDrawable.Icon.ADD_PAGE, () -> createNotebook("Note " + (session.entries().size() + 1), NotebookPaperSize.A5));
         addShortcut(shortcuts, "Import PDF", NotebookIconDrawable.Icon.READING, () -> {
@@ -103,7 +115,6 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
             if (!canAct()) return;
             startActivity(new Intent(this, NotebookFilesActivity.class)); overridePendingTransition(0, 0);
         });
-        addShortcut(shortcuts, "Bookshelf", NotebookIconDrawable.Icon.LIBRARY, () -> navigate(0, false));
         folderButton = new NotebookBrowserIconButton(this, NotebookIconDrawable.Icon.NEW_FOLDER, "+ Folder", this::createFolder);
         LinearLayout.LayoutParams folderSpace = new LinearLayout.LayoutParams(dp(44), dp(44)); folderSpace.leftMargin = dp(7);
         shortcuts.addView(folderButton, folderSpace);
@@ -112,13 +123,8 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         shortcuts.addView(trashButton, trashSpace);
         android.widget.HorizontalScrollView shortcutScroll = new android.widget.HorizontalScrollView(this);
         shortcutScroll.setHorizontalScrollBarEnabled(false); shortcutScroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
-        shortcutScroll.addView(shortcuts); root.addView(shortcutScroll);
-        path = label("", 13); path.setSingleLine(true); path.setEllipsize(TextUtils.TruncateAt.MIDDLE);
-        path.setTextColor(Color.BLACK); path.setPadding(0, 0, dp(12), 0);
-        path.setOnClickListener(v -> { if (inTrash) navigate(0, false); else {
-            NotebookCatalog.Folder folder = NotebookFolders.find(session.folders(), currentFolder);
-            if (folder != null) navigate(folder.parentId, false);
-        }});
+        shortcutScroll.addView(shortcuts); shortcutBar.addView(shortcutScroll, new LinearLayout.LayoutParams(-2, -2));
+        root.addView(shortcutBar);
         selectionBar = new LinearLayout(this); selectionBar.setGravity(Gravity.CENTER_VERTICAL);
         selectionBar.setPadding(0, dp(6), 0, dp(4));
         selectionCount = label("", 13); selectionCount.setTypeface(null, Typeface.BOLD);
@@ -133,7 +139,6 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         selectionBar.addView(cancelSelection, cancelSpace); selectionBar.setVisibility(View.GONE);
         root.addView(selectionBar);
         LinearLayout location = new LinearLayout(this); location.setGravity(Gravity.CENTER_VERTICAL);
-        location.addView(path, new LinearLayout.LayoutParams(-2, dp(26)));
         status = label("Opening bookshelf…", 12); location.addView(status, new LinearLayout.LayoutParams(0, dp(26), 1));
         root.addView(location);
         rows = new GridView(this); rows.setBackgroundColor(Color.WHITE);
@@ -174,6 +179,8 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         captureDialogDraft();
         active = false; ++generation; clearPreviews();
         if (shownDialog != null) { shownDialog.dismiss(); shownDialog = null; }
+        if (shelfHistory != null) { shelfHistory.close(); shelfHistory = null; }
+        if (actionBar != null) { actionBar.dismiss(); actionBar = null; }
         clearDraftFields();
         super.onPause();
     }
@@ -231,7 +238,7 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         }
         selection.retain(items); updateSelectionBar();
         path.setText(inTrash ? "Trash ›" : currentFolder == 0 ? "" : "‹ " + NotebookFolders.path(session.folders(), currentFolder));
-        path.setVisibility(inTrash || currentFolder != 0 ? View.VISIBLE : View.GONE);
+        path.setEnabled(inTrash || currentFolder != 0);
         String trashLabel = "Trash (" + trashed + ")";
         trashButton.setContentDescription(trashLabel); trashButton.setTooltipText(trashLabel);
         trashButton.setVisibility(inTrash ? View.GONE : View.VISIBLE);
@@ -267,20 +274,18 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         selectionActions.setAvailable(selection.size() > 0 && !busy);
     }
     private void cancelSelection() { selection.clear(); selectionChanged(); }
+    private void showActions(View anchor, NotebookActionBar.Action... actions) {
+        if (actionBar != null) actionBar.dismiss();
+        actionBar = NotebookActionBar.show(anchor, actions);
+    }
     private void selectionActions() {
         if (!canAct() || selection.size() == 0) return;
-        if (inTrash) {
-            AlertDialog menu = new AlertDialog.Builder(this).setTitle("Selected items")
-                .setItems(new String[]{"Restore selected items", "Delete selected permanently"}, (dialog, which) -> {
-                    if (which == 0) performSelection(NotebookLibrary.BulkAction.RESTORE, 0); else confirmPermanentSelection();
-                })
-                .setNegativeButton("Cancel", null).create(); showStaticDialog(menu);
-        } else {
-            AlertDialog menu = new AlertDialog.Builder(this).setTitle("Selected items")
-                .setItems(new String[]{"Move to folder…", "Move to Trash"}, (dialog, which) -> {
-                    if (which == 0) moveSelection(); else performSelection(NotebookLibrary.BulkAction.TRASH, 0);
-                }).setNegativeButton("Cancel", null).create(); showStaticDialog(menu);
-        }
+        if (inTrash) showActions(selectionActions,
+            NotebookActionBar.action(NotebookIconDrawable.Icon.RETRY, "Restore selected items", () -> performSelection(NotebookLibrary.BulkAction.RESTORE, 0)),
+            NotebookActionBar.action(NotebookIconDrawable.Icon.DELETE, "Delete selected permanently", this::confirmPermanentSelection));
+        else showActions(selectionActions,
+            NotebookActionBar.action(NotebookIconDrawable.Icon.FOLDER, "Move to folder…", this::moveSelection),
+            NotebookActionBar.action(NotebookIconDrawable.Icon.DELETE, "Move to Trash", () -> performSelection(NotebookLibrary.BulkAction.TRASH, 0)));
     }
     private void confirmPermanentSelection() {
         if (!canAct() || selection.size() == 0 || !inTrash) return;
@@ -324,24 +329,19 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
             busy = false; if(error==null)refresh();else{render();showProblem(error);}
         });
     }
-    private void notebookActions(NotebookCatalog.Entry entry) {
+    private void notebookActions(NotebookCatalog.Entry entry, View anchor) {
         if (!canAct()) return;
         if (entry.status == NotebookCatalog.PURGING) {
             message("Deleting notebook", "Deletion was interrupted. Tap Retry to finish deleting this notebook."); return;
         }
-        boolean trash = entry.status == NotebookCatalog.TRASH;
-        String[] actions = trash ? new String[]{"Restore notebook", "Delete permanently"}
-            : new String[]{"Rename", "Move to folder", "Backup", "Move to Trash"};
-        AlertDialog menu = new AlertDialog.Builder(this).setTitle(entry.name).setItems(actions, (dialog, which) -> {
-            if (trash) {
-                if (which == 0) change(callback -> session.restoreNotebook(entry.id, callback));
-                else confirmPermanentDelete(entry);
-            } else if (which == 0) renameNotebook(entry);
-            else if (which == 1) moveNotebook(entry);
-            else if (which == 2) transfer(false, entry.id);
-            else change(callback -> session.trashNotebook(entry.id, callback));
-        }).setNegativeButton("Close", null).create();
-        showStaticDialog(menu);
+        if (entry.status == NotebookCatalog.TRASH) showActions(anchor,
+            NotebookActionBar.action(NotebookIconDrawable.Icon.RETRY, "Restore notebook", () -> change(callback -> session.restoreNotebook(entry.id, callback))),
+            NotebookActionBar.action(NotebookIconDrawable.Icon.DELETE, "Delete permanently", () -> confirmPermanentDelete(entry)));
+        else showActions(anchor,
+            NotebookActionBar.action(NotebookIconDrawable.Icon.PEN, "Rename", () -> renameNotebook(entry)),
+            NotebookActionBar.action(NotebookIconDrawable.Icon.FOLDER, "Move to folder", () -> moveNotebook(entry)),
+            NotebookActionBar.action(NotebookIconDrawable.Icon.EXPORT, "Backup", () -> transfer(false, entry.id)),
+            NotebookActionBar.action(NotebookIconDrawable.Icon.DELETE, "Move to Trash", () -> change(callback -> session.trashNotebook(entry.id, callback))));
     }
     private interface BookEdit{void run()throws IOException;}
     private void changeBook(BookEdit edit){
@@ -351,10 +351,17 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
             if(error!=null)message("Could not change ebook",error.getMessage());
         });
     }
-    private void ebookActions(NotebookEbookStore.Book book){
-        if(!canAct())return;
-        String[] actions=book.trashed?new String[]{"Restore ebook","Delete permanently"}:new String[]{"Rename","Move to folder","Move to Trash"};
-        AlertDialog menu=new AlertDialog.Builder(this).setTitle(book.title).setItems(actions,(dialog,which)->{
+    private void ebookActions(NotebookEbookStore.Book book, View anchor) {
+        if (!canAct()) return;
+        if (book.trashed) showActions(anchor,
+            NotebookActionBar.action(NotebookIconDrawable.Icon.RETRY, "Restore ebook", () -> performEbookAction(book, 0)),
+            NotebookActionBar.action(NotebookIconDrawable.Icon.DELETE, "Delete permanently", () -> performEbookAction(book, 1)));
+        else showActions(anchor,
+            NotebookActionBar.action(NotebookIconDrawable.Icon.PEN, "Rename", () -> performEbookAction(book, 0)),
+            NotebookActionBar.action(NotebookIconDrawable.Icon.FOLDER, "Move to folder", () -> performEbookAction(book, 1)),
+            NotebookActionBar.action(NotebookIconDrawable.Icon.DELETE, "Move to Trash", () -> performEbookAction(book, 2)));
+    }
+    private void performEbookAction(NotebookEbookStore.Book book, int which) {
             if(book.trashed){
                 if(which==0)changeBook(()->ebookStore.trash(book.id,false));
                 else{AlertDialog confirm=new AlertDialog.Builder(this).setTitle("Permanently delete “"+book.title+"”?")
@@ -369,7 +376,6 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
                 for(int i=0;i<folders.size();i++)names[i+1]=NotebookFolders.path(folders,folders.get(i).id);
                 AlertDialog move=new AlertDialog.Builder(this).setTitle("Move ebook").setItems(names,(d,n)->changeBook(()->ebookStore.move(book.id,n==0?0:folders.get(n-1).id))).setNegativeButton("Cancel",null).create();showStaticDialog(move);
             }else changeBook(()->ebookStore.trash(book.id,true));
-        }).setNegativeButton("Close",null).create();showStaticDialog(menu);
     }
     private void confirmPermanentDelete(NotebookCatalog.Entry entry) {
         AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Permanently delete “" + entry.name + "”?")
@@ -391,15 +397,12 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         if (!canAct()) return;
         nameDialog("New folder", "", 0, name -> change(callback -> session.createFolder(name, currentFolder, callback)));
     }
-    private void folderActions(NotebookCatalog.Folder folder) {
+    private void folderActions(NotebookCatalog.Folder folder, View anchor) {
         if (!canAct()) return;
-        AlertDialog dialog = new AlertDialog.Builder(this).setTitle(folder.name)
-            .setItems(new String[]{"Rename folder", "Remove folder (keep items)"}, (choice, which) -> {
-                if (which == 0) nameDialog("Rename folder", folder.name, folder.id,
-                    name -> change(callback -> session.renameFolder(folder.id, name, callback)));
-                else removeFolder(folder);
-            }).setNegativeButton("Close", null).create();
-        showStaticDialog(dialog);
+        showActions(anchor,
+            NotebookActionBar.action(NotebookIconDrawable.Icon.PEN, "Rename folder", () -> nameDialog("Rename folder", folder.name, folder.id,
+                name -> change(callback -> session.renameFolder(folder.id, name, callback)))),
+            NotebookActionBar.action(NotebookIconDrawable.Icon.DELETE, "Remove folder (keep items)", () -> removeFolder(folder)));
     }
 
     private void removeFolder(NotebookCatalog.Folder folder) {
@@ -479,26 +482,34 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
             startActivity(new Intent(this, NotebookWebsitesActivity.class)); overridePendingTransition(0, 0);
         } else if(item instanceof NotebookEbookStore.Book){
             NotebookEbookStore.Book book=(NotebookEbookStore.Book)item;
-            if(book.trashed)ebookActions(book);else{startActivity(new Intent(this,NotebookEbookActivity.class).putExtra("book",book.id));overridePendingTransition(0,0);}
+            if(book.trashed)ebookActions(book, shelfAnchor(item));else{startActivity(new Intent(this,NotebookEbookActivity.class).putExtra("book",book.id));overridePendingTransition(0,0);}
         } else if (item instanceof NotebookCatalog.Folder) navigate(((NotebookCatalog.Folder) item).id, false);
         else if (item instanceof NotebookCatalog.Entry) {
             NotebookCatalog.Entry entry = (NotebookCatalog.Entry) item;
-            if (entry.status == NotebookCatalog.ACTIVE) openNotebook(entry.id); else notebookActions(entry);
+            if (entry.status == NotebookCatalog.ACTIVE) openNotebook(entry.id); else notebookActions(entry, shelfAnchor(item));
         }
     }
 
-    private void manageShelfItem(Object item) {
+    private View shelfAnchor(Object item) {
+        for (int i = 0; i < rows.getChildCount(); i++) {
+            View child = rows.getChildAt(i);
+            if (child instanceof ShelfCell && child.getTag() == item) return ((ShelfCell) child).menu;
+        }
+        return rows;
+    }
+    private void manageShelfItem(Object item, View anchor) {
         if (!canAct()) return;
-        if (item instanceof NotebookCatalog.Folder) folderActions((NotebookCatalog.Folder) item);
-        else if(item instanceof NotebookEbookStore.Book)ebookActions((NotebookEbookStore.Book)item);
-        else if (item instanceof NotebookCatalog.Entry) notebookActions((NotebookCatalog.Entry) item);
+        if (item instanceof NotebookCatalog.Folder) folderActions((NotebookCatalog.Folder) item, anchor);
+        else if(item instanceof NotebookEbookStore.Book)ebookActions((NotebookEbookStore.Book)item, anchor);
+        else if (item instanceof NotebookCatalog.Entry) notebookActions((NotebookCatalog.Entry) item, anchor);
     }
 
     /** Rebind data without replacing pressed children when GridView relays out its first cell. */
     private final class ShelfCell extends LinearLayout {
         final int type;
         private final LinearLayout title;
-        private final NotebookButton nameButton, menu;
+        private final NotebookButton nameButton;
+        private final NotebookIconButton menu;
         private final CheckBox selected;
         private final View preview;
         private int boundRevision = -1;
@@ -535,9 +546,9 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
             nameButton.setGravity(Gravity.START | Gravity.CENTER_VERTICAL); nameButton.setTextSize(type == 0 ? 14 : 12);
             nameButton.setOnLongClickListener(v -> { beginSelection(getTag()); return true; });
             title.addView(nameButton, new LinearLayout.LayoutParams(0, -1, 1));
-            menu = button("⋮", () -> manageShelfItem(getTag())); menu.setTextSize(18);
-            if (type == 0) menu.setBackground(null);
-            title.addView(menu, new LinearLayout.LayoutParams(dp(30), -1));
+            menu = new NotebookIconButton(NotebookLibraryActivity.this, NotebookIconDrawable.Icon.MORE_VERTICAL, "Manage item");
+            menu.setOnClickListener(v -> manageShelfItem(getTag(), v));
+            title.addView(menu, new LinearLayout.LayoutParams(dp(40), -1));
             addView(title, new LinearLayout.LayoutParams(-1, type == 0 ? 0 : dp(28), type == 0 ? 1 : 0));
         }
 
@@ -557,7 +568,7 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
             String shown = name;
             if (!shown.contentEquals(nameButton.getText())) nameButton.setText(shown);
             if (type == 0) {
-                NotebookIconDrawable icon = new NotebookIconDrawable(folder ? NotebookIconDrawable.Icon.FOLDER :book?NotebookIconDrawable.Icon.READING: NotebookIconDrawable.Icon.NOTES);
+                NotebookIconDrawable icon = new NotebookIconDrawable(folder ? NotebookIconDrawable.Icon.FOLDER :book?NotebookIconDrawable.Icon.READING: NotebookIconDrawable.Icon.NOTEBOOK);
                 int size = dp(18); icon.setBounds(0, 0, size, size);
                 nameButton.setCompoundDrawablesRelative(icon, null, null, null); nameButton.setCompoundDrawablePadding(dp(9));
             }
@@ -644,11 +655,30 @@ public final class NotebookLibraryActivity extends NotebookDisplayActivity {
         AlertDialog dialog = new AlertDialog.Builder(this).setTitle("AI chat")
             .setItems(new String[]{"New chat", "Open chat history"}, (choice, which) -> {
                 if (!canAct()) return;
+                if (which == 1) { showShelfChatHistory(); return; }
                 busy = true;
-                startActivity(new Intent(this, NotebookAiActivity.class).putExtra("aiLaunch", which == 0 ? "new" : "history"));
+                startActivity(new Intent(this, NotebookAiActivity.class).putExtra("aiLaunch", "new"));
                 overridePendingTransition(0, 0);
             }).setNegativeButton("Cancel", null).create();
         showStaticDialog(dialog);
+    }
+
+    private void showShelfChatHistory() {
+        if (!canAct() || shelfHistory != null) return;
+        shelfHistory = new NotebookAiHistoryDialog(this, rows, NotebookAiSettings.publicConfigs(this), new NotebookAiHistoryDialog.Listener() {
+            public void open(NotebookAiConfig config, String id, boolean rebind) {
+                if (!canAct()) return;
+                busy = true;
+                Intent intent = new Intent(NotebookLibraryActivity.this, NotebookAiActivity.class)
+                    .putExtra("aiLaunch", "selected").putExtra("aiSession", id).putExtra("aiRebind", rebind)
+                    .putExtra("aiProvider", config.provider.name()).putExtra("aiProviderId", config.providerId)
+                    .putExtra("aiBaseUrl", config.baseUrl).putExtra("aiModel", config.model);
+                startActivity(intent); overridePendingTransition(0, 0);
+            }
+            public void deleted(String id) { }
+            public void closed() { shelfHistory = null; }
+        });
+        shelfHistory.show();
     }
 
     private void openBrowser() {

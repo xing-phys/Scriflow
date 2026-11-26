@@ -13,12 +13,15 @@ tests and a new signed APK. See [browser maintenance](browser-maintenance.md).
 
 The first online Browser entry asks for Android microphone permission. If you
 decline, it does not ask proactively again; using a website's voice control can
-request permission again. Android app settings can revoke access. A foreground
-HTTPS page must also show its origin in an **Allow microphone?** prompt before
-it can record. Consent lasts for that document, including repeated voice input,
-and resets on a new document. Different origins, hidden tabs, offline pages and
-camera requests cannot receive that consent. Website voice features process
-audio according to that website's terms. Native note/AI voice input is not added.
+request permission again. A foreground HTTPS page's first microphone request
+shows its exact origin in an **Allow microphone?** prompt. Allow and Don't
+allow are remembered for that origin across visits. Under **Settings → Website
+microphone permissions**, choose a remembered site and select **Allow**,
+**Block**, or **Ask next time**; **Android app permission** opens the system
+settings for revoking app-level access. A blocked site cannot start a new
+recording. Different origins, hidden tabs, offline pages and camera requests
+cannot inherit permission. Website voice features process audio according to
+that website's terms. Native note/AI voice input is not added.
 
 Session snapshots use a 15-second periodic interval instead of one second,
 with explicit checkpoints on navigation and when leaving a page. Near-duplicate

@@ -6,6 +6,18 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.48.0-beta.3 — Compact actions and remembered permissions (2026-11-26)
+
+- Keep bookshelf chat history over the bookshelf; put its close control and the
+  note/PDF contents editing controls in their title rows.
+- Align bookshelf navigation and right-side actions, center trash overflow icons,
+  and use anchored icon bars for Files and bookshelf item actions.
+- Place chat controls outside the message bubble and round floating chat windows.
+- Remember microphone Allow or Block per secure website; manage each decision in
+  Settings while retaining Android's app-level permission.
+- VersionCode 129; notebook, catalog, ebook, backup and chat formats are unchanged.
+  Physical tablet and e-ink acceptance remain pending.
+
 ## 0.48.0-beta.2 — Consistent compact dialogs (2026-11-26)
 
 - Match chat history, note and PDF contents, other app dialogs, ebook panels,

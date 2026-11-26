@@ -214,14 +214,15 @@ support. AndroidX declares an app-private signature permission for internal
 receivers. `RECORD_AUDIO` is requested on the first online Browser entry for
 website voice input; microphone hardware is optional. Denial is not proactively
 repeated on each entry. A foreground HTTPS page also needs explicit consent in
-a prompt naming its origin. That consent lasts for its current document and
-is not shared with other origins or offline copies. Android app settings can
-revoke microphone permission. Audio is handled by the website you choose to
-use; Scriflow does not add a native recording or transcription service.
-No camera, location or shared-storage permission is requested.
+a prompt naming its exact origin. Allow or Block is remembered for that origin,
+and can be changed in Settings; other origins and offline copies do not inherit
+it. Android app settings can revoke the app-level microphone permission. Audio
+is handled by the website you choose to use; Scriflow does not add a native
+recording or transcription service. Files requests shared-storage access when
+needed; the app does not request camera or location access.
 Hidden browser sessions suspend media playback and capture-bridge retry timers;
-clocks pause in the background; cleartext
-traffic is disabled. The status bar also shows the
+clocks pause in the background. Explicit HTTP pages are allowed and identified
+as unencrypted. The status bar also shows the
 tablet's time and battery level.
 Following an external PDF link opens another installed app, such as a browser;
 that app handles its network access. Long-pressing a PDF word sends that selected
