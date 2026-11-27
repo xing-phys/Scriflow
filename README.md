@@ -1,453 +1,107 @@
-# Scriflow
+<p align="center">
+  <img src="assets/branding/scriflow-icon.png" alt="Scriflow icon" width="96" height="96">
+</p>
 
-<img src="assets/branding/scriflow-icon.png" alt="Scriflow app icon" width="112" height="112">
+<h1 align="center">Scriflow</h1>
 
-**Handwriting for thinking.**
+<p align="center">
+  <strong>Handwriting for thinking.</strong><br>
+  A quiet workspace for notes, reading, and the ideas in between.<br>
+  Made for the Huawei MatePad Paper.
+</p>
 
-Scriflow brings together *scribe*, *script*, and *scribble* with *flow*: a quiet
-place to draft, calculate, work through a derivation, and follow an idea. It is
-a notebook app for the **Huawei MatePad Paper**, formerly named
-**Scribblow**.
+<p align="center">
+  <strong><a href="https://github.com/xing-phys/Scriflow/releases/tag/v0.49.0-rc.1">Get the release candidate</a></strong>
+  &nbsp; · &nbsp; <a href="https://github.com/xing-phys/Scriflow/releases/latest">Stable release</a>
+  &nbsp; · &nbsp; <a href="docs/user-guide.md">User guide</a>
+  &nbsp; · &nbsp; <a href="#build-and-contribute">Contribute</a>
+</p>
+
+![Scriflow: make room for thought. A handwritten notebook and an annotated PDF are open in the app.](assets/showcase/hero.png)
+
+Scriflow brings handwriting, documents, books, and the web into one e-ink workspace. Sketch an idea, write in the margins of a PDF, keep a reading notebook nearby, and return to it all from your bookshelf. Your notes live on your tablet; there is no Scriflow account or cloud sync.
+
+## See it in action
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="assets/showcase/01-writing.png" alt="A handwritten notebook with a sketch and Scriflow's floating pen tools">
+      <br><strong>Write and explore</strong><br>
+      Give a question, calculation, or sketch room to grow.
+    </td>
+    <td width="50%" valign="top">
+      <img src="assets/showcase/02-pdf.png" alt="An annotated sample PDF open in Scriflow">
+      <br><strong>Read with a pen</strong><br>
+      Add handwriting to PDFs and export a copy with your annotations.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="assets/showcase/03-bookshelf.png" alt="The thumbnail bookshelf with sample notebooks and folders">
+      <br><strong>Keep it together</strong><br>
+      Find notebooks and books in a bookshelf with nested folders.
+    </td>
+    <td width="50%" valign="top">
+      <img src="assets/showcase/04-browser.png" alt="Scriflow's browser showing an original sample webpage with movable controls">
+      <br><strong>Follow your curiosity</strong><br>
+      Browse the web, save pages for offline reading, and keep notes close.
+    </td>
+  </tr>
+</table>
+
+<sub>Screenshots show the 0.49.0 release candidate on an Android emulator with original sample content. The sample handwriting uses synthetic strokes and an emulator software pen; it does not demonstrate physical stylus latency or pressure. The browser displays a locally hosted sample page.</sub>
+
+## A workspace for curious minds
+
+- **Write naturally.** Use pressure-sensitive handwriting, blank or lined paper, adjustable pen and eraser tools, lasso selection, images, and Markdown blocks. Choose standard or custom paper sizes, zoom, and organize pages as you work.
+- **Read and annotate.** Open a PDF as a notebook, write on its pages, navigate its outline, and export the original document with vector annotations. Read DRM-free EPUB, MOBI/AZW3, DjVu, FB2, CBZ, HTML, and TXT books with adjustable reading settings and linked handwritten notes. [PDFs](docs/pdf-reading.md) · [Ebooks](docs/ebook-reading.md)
+- **Think across pages.** Open notes in split or floating windows, arrange the movable toolbox, and keep a reference beside the page you are working on.
+- **Organize your work.** Browse notebooks and ebooks in list or thumbnail view, create nested folders, recover items from Trash, and manage tablet files in the built-in Files browser. [Bookshelf](docs/bookshelf-settings.md) · [Files](docs/file-manager.md)
+- **Explore beyond the page.** Use the built-in browser, save individual pages for offline reading, download files, and manage downloads. Optional AI chat connects to a provider you configure and keeps local conversation history. [Browser](docs/browser.md) · [AI chat](docs/ai-chat.md)
+- **Share your view.** Cast the visible app screen to a browser on the same trusted Wi-Fi network. [Screen cast](docs/screen-cast.md)
 
 ## Compatibility and status
 
-Development and physical testing target **MatePad Paper HMW-W09**, Android
-10/API 29, firmware **HMW-W09 2.1.0.222(C00E170R1P8)**. Handwriting and pressure
-rendering use Huawei APIs already present on that firmware; no proprietary
-Huawei code is bundled. Other tablets and firmware versions are unverified.
+Scriflow is developed and physically tested for the **Huawei MatePad Paper HMW-W09**, running **Android 10 / API 29** and firmware **HMW-W09 2.1.0.222(C00E170R1P8)**. Its native handwriting and pressure rendering rely on Huawei APIs supplied by that firmware. Other devices and firmware versions are unverified.
 
-The latest stable release is **[Scriflow 0.33.2](https://github.com/xing-phys/Scriflow/releases/tag/v0.33.2)**,
-released on 2026-10-29. It adds compact interactive note navigation, writing-only
-history icons, a Zen clock mode, direct figure picking, inline figure editing
-with arbitrary rotation and cross-page dragging, and icon-only action strips.
-It retains figures/lasso export, two split panes plus multiple floating notes,
-the toolbox notes tray and stylus-tap editing focus. Inactive notes scroll and
-pinch continuously; ink and PDF tiles render at the current zoom. The toolbox
-stays in front, window operations retain the main editor, and PDF import opens
-PDFs open through Scriflow's Files browser as annotated notes.
-
-The **[0.49.0-rc.1 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.49.0-rc.1)**
-adds browser downloads and an in-app download manager, an About screen with update
-checks, larger notebook previews, and compact time-based names for unnamed notes. See the
-[release notes](docs/releases/0.49.0-rc.1.md).
-
-The preceding **[0.48.0-beta.5 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.48.0-beta.5)**
-applies reading-view changes while its panel stays open. Thumbnail previews open
-items, while their names and dates show actions; list overflow icons are simpler.
-Page-information actions align at the top right. Physical tablet acceptance
-remains pending. See [release notes](docs/releases/0.48.0-beta.5.md).
-
-The preceding **[0.48.0-beta.4 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.48.0-beta.4)**
-compacts the bookshelf and its breadcrumb, refreshes thumbnail cards, and keeps
-reading settings open for several choices. Page-information actions are in its
-header. An active cast pauses during screen sleep and can resume after unlock;
-Android still asks for permission when a new capture session starts. Physical
-tablet acceptance remains pending. See [release notes](docs/releases/0.48.0-beta.4.md).
-
-The preceding **[0.48.0-beta.3 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.48.0-beta.3)**
-keeps chat history over the bookshelf, puts contents actions in the heading,
-uses compact icon bars for item actions, and remembers website microphone
-permissions. Chat windows and bookshelf navigation also have a more compact
-layout. Physical tablet acceptance remains pending. See
-[release notes](docs/releases/0.48.0-beta.3.md).
-
-The preceding **[0.48.0-beta.2 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.48.0-beta.2)**
-uses consistent rounded dialogs and compact circular close controls for chat
-history, note and PDF contents, and other app menus. Ebook and reading-settings
-panels follow the same style. Physical tablet acceptance remains pending. See
-[release notes](docs/releases/0.48.0-beta.2.md).
-
-The preceding **[0.48.0-beta.1 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.48.0-beta.1)**
-adds nested bookshelf folders, a compact shelf toolbar and folder-aware note
-picker, and uses Scriflow's own Files browser for imports and exports. Selected
-ink offers its export formats beside the selection. This beta is published at
-the owner's request; the new interactions and earlier alpha changes still need
-physical tablet acceptance. See [release notes](docs/releases/0.48.0-beta.1.md).
-
-The preceding **[0.47.0-alpha.2 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.47.0-alpha.2)**
-opens explicitly entered HTTP websites, identifies their unencrypted connections,
-and lets taps in continuous PDF and note reading advance by a screenful with a
-per-notebook adjustable overlap. Physical tablet acceptance remains pending.
-
-The preceding **[0.46.0-alpha.2 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.46.0-alpha.2)**
-restores the original ebook title and Back controls and fixes a reproducible
-error when a chapter detaches during a page turn. The cause of the reported
-unexpected return to the bookshelf remains unconfirmed and needs tablet testing.
-
-The preceding **[0.46.0-alpha.1 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.46.0-alpha.1)**
-adds cover-aware PDF and note spreads, direct file-path
-breadcrumbs and smaller circular buttons. Screen casting briefly holds its last
-image during lasso and eraser contact to reduce competition with native ink.
-This alpha awaits physical tablet acceptance.
-
-The preceding **[0.45.0-alpha.2 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.45.0-alpha.2)**
-centers Files controls, puts search in the navigation row on demand, removes
-routine footer instructions and distinguishes file types with compact icons.
-This alpha awaits physical tablet acceptance.
-
-The preceding **[0.45.0-alpha.1 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.45.0-alpha.1)**
-improves Settings, adds list and thumbnail views to Files and Saved websites,
-and shows open tabs alongside pinned sites on Browser Home. Status indicators
-share the same top-right position throughout the app. This alpha awaits
-physical tablet acceptance.
-
-The preceding **[0.44.0-alpha.2 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.44.0-alpha.2)**
-adds independent page-turn/continuous, single/double-page, and scroll-direction
-choices for PDFs and notes, and improves finger-tap navigation in all readers.
-It also includes two-column ebook spreads and an expandable contents tree.
-Browser sign-in windows retain their connection to the original page. Real X/Google sign-in and the new
-reading views still need acceptance on the supported tablet.
-
-The preceding **[0.43.0-alpha.2 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.43.0-alpha.2)**
-improves password-protected **Screen cast** for lectures. Capture/JPEG/network
-work runs outside the pen/UI process; native-resolution, higher-quality images
-arrive through waiting requests and decoded image swaps. In **Settings → Screen cast**, set a
-password, tap **Start casting** and approve Android capture. Open the displayed
-**http://IP:port/** address in a browser on your Mac, phone or tablet connected
-to the same Wi-Fi, then enter the password. Multiple devices can watch together.
-Settings and cast controls stay private; leaving Scriflow pauses the feed.
-Stop from the panel or notification to disconnect everyone. Use trusted Wi-Fi:
-the local HTTP connection is not encrypted. See [Screen cast](docs/screen-cast.md)
-for controls and limits. The owner confirmed initial casting works; dashed-line
-responsiveness and the new lecture performance still need tablet/Mac retesting.
-
-It retains offline ebooks directly on the homepage alongside PDFs and notes: EPUB,
-MOBI/AZW3, DjVu, FB2, zipped FB2, CBZ, HTML and TXT. Reading uses the existing
-floating corner bars and a movable icon toolbox, with full-screen page content.
-Adjust fonts and layout, navigate contents, search, bookmark, highlight,
-take text notes, use Eudic, and resume reading. Handwriting opens a native
-notebook linked to the passage; an optional one-page PDF copy of the visible
-view supports direct writing. See [Books and adjustable text](docs/ebook-reading.md)
-for formats, controls, export and limits. Physical tablet acceptance is pending.
-
-It retains **Files** on the bookshelf to browse and manage shared tablet storage.
-Open internal storage, available SD/USB drives or common folders; search, sort,
-multi-select, copy, move, rename, create folders, delete with confirmation,
-and open/share files with installed apps. Storage access is requested when
-opening Files. PDFs open directly in Scriflow. See [Tablet files](docs/file-manager.md)
-for controls and limits. Physical tablet acceptance remains pending.
-
-It retains opening PDFs from Android's **Open with** and **Share** menus, accepts readable
-owner-encrypted PDFs, and imports files up to 2 GiB with copy progress and free
-storage checks. Geometry, outline, links and selected-page text no longer load
-every image, font and attachment before reading. The one-time private copy keeps
-PDF notebooks independent of the selected external file. Actual opening passwords
-still require an unlocked copy. Physical tablet acceptance remains pending.
-
-It retains website microphone permission, reduces repeated browser background work,
-places tool popups beside their buttons, and shares pen/eraser settings across
-ordinary notes, AI chat and browser notes. It keeps live browser documents through
-portrait/landscape turns, remembers each saved page's reading position, and leaves
-the tab picker open while closing tabs.
-The single compact toolbox stays above notes and floating AI chats, adds writing
-actions for visible notes, and omits the routine page/tab-count status row.
-Minimizing or closing a browser chat preserves the browser and note workspace.
-
-It retains the current Firefox engine, movable collapsible browser controls,
-clock-only Zen and offline section Back/Forward introduced in alpha.2.
-
-The **Browser** shortcut and permanent **Saved websites** folder are on the
-bookshelf. Browse HTTPS websites with bundled GeckoView, then
-tap **Save** to keep the current page, including captured images and styling.
-Open saved pages from the folder without Wi-Fi; the offline reader blocks
-network loads and scripts. Each save captures one page, rather than crawling
-linked pages. See [Browser and offline websites](docs/browser.md) for controls
-and capture limits. This alpha awaits tablet testing; its signed APK and
-checksum are on the release page.
-
-Bundled-engine maintenance uses weekly update PRs and daily Mozilla security
-advisory checks. See [browser maintenance](docs/browser-maintenance.md) for the
-review, verification and signed-update process.
-
-It also retains the independent AI workspace from 0.39:
-open a new or saved AI chat from the bookshelf in its own workspace, with no
-notes open. Choose a floating note from the toolbox when needed; closing or
-minimizing the main chat returns to the bookshelf. Active floating-note corner
-controls and the lasso action bar use separate layers above the writing surface.
-The shared top status bars now stay above floating notes in this workspace,
-with the shared toolbox above notes and floating chats.
-This alpha also includes
-streamed AI replies and named provider profiles. Multi-selection in Trash
-supports permanent deletion after confirmation. The outline opens at the current
-heading, and the bookshelf and Settings share the note's status pill. This alpha awaits tablet
-testing; its signed APK and checksum are on the release page. Chats made with
-newly added profiles use a header that earlier APKs cannot read; see
-[AI chat](docs/ai-chat.md) for compatibility details.
-
-The **[0.35.0-alpha.8 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.35.0-alpha.8)**
-adds [PDF reading controls](docs/pdf-reading.md): auto/manual/semi-auto cropping,
-odd/even crop areas, optional single-page reading with zoom, adjustable PDF
-contrast, and long-press word selection with Eudic floating lookup. Continuous
-scrolling at Fit width remains the default. Crop and contrast affect display;
-original PDF bytes, saved annotation coordinates and PDF exports are preserved.
-
-The **[0.37.0-alpha.6 prerelease](https://github.com/xing-phys/Scriflow/releases/tag/v0.37.0-alpha.6)**
-adds a per-block Markdown preview font control and fixes raw-text vector layout
-and resize preview scaling. It retains the compact chat composer, independent
-chat and Markdown text-size defaults, and more stable undo/redo controls. It retains freely resizable,
-reflowing Markdown blocks and whole-notebook attachments. It also
-protects [bursts of handwriting](docs/handwriting-priority.md) from automatic
-history, Markdown, chat, clock and inactive-note display updates. These updates
-catch up after native input settles and a 300 ms quiet interval; pen drawing
-and background stroke saving continue immediately. Physical latency acceptance
-remains pending. It retains multiple floating [AI chats](docs/ai-chat.md), using
-the same window controls as floating notes.
-Configure a provider, model and API key in Settings, then tap the chat-bubble
-sparkle in the toolbox for a movable, resizable conversation window. Replies
-reuse the existing offline Markdown/math/code renderer. Presets cover OpenAI,
-Anthropic, Gemini and DeepSeek, with a custom OpenAI-compatible HTTPS option.
-Fetch available models using your URL and key in Settings. Models appear directly
-below Fetch as names with checkboxes and settings gears. Check the ones you want,
-then **Save AI settings**. Each gear opens automatically filled limits, image
-support and thinking options for optional manual edits; **Use fetched defaults**
-resets those edits. Tap the model name at the bottom of a chat
-to choose a saved model for a new session. Append selected handwriting,
-images or Markdown with the chat icon in their selection controls, then press
-Send. Only submitted chat text, selected attachments and their conversation
-history are sent. Use the toolbox AI icon for a tray with **+**, **History** and
-minimized chats. History works even with no windows open. The window has a
-compact message row with **+** for a notebook attachment, a model picker and a
-send arrow. Longer messages expand into a full-width editor above the controls.
-Copy the last reply from the bottom-left
-options menu. Tapping an overlapping floating chat or note brings it to the
-front. Each new window has its own session,
-draft and model. Tap the bottom-left
-corner for options or drag it to move; tap the bottom-right corner to minimize
-or drag it to resize. The same thin outline as notes follows the gesture,
-keeping the top-left corner fixed; content refits on release. All four borders
-retain the separate clipped frame. Position menus include Left, Right, Top,
-Bottom and Floating window; a docked chat reserves space beside the notes.
-Use the tray's history icon to reopen or delete earlier sessions; reopening an already
-open session focuses its window. Closing keeps history, and minimized chats
-retain in-progress replies. Windows and minimized states restore across app
-reopen, rotation and Settings. Tablet acceptance remains pending.
-
-The owner confirmed clear stationary Markdown and figure dragging in alpha.3/4.
-Alpha.5 keeps page rendering in one persistent regular View through scrolling,
-zooming, Zen changes and writing, with transparent native live ink above it.
-This removes the remaining switches back to distorted native paper. The new
-composition and live writing still need physical tablet confirmation.
-
-The toolbox now shows separate, spaced circular buttons without a shared bar.
-The top-left menu opens detached circles to the right of the note bar; the
-three dots disappear and the bar shortens while they are open. Tap figures
-directly to manipulate them. Undo/Redo float beside the right status pill. The compact Zen clock has a transparent inner
-background, leaving its rounded container visible.
-
-Tap the selected Eraser icon to choose Stroke or Region mode. Region mode draws
-a dashed loop like Lasso and erases whole selected handwriting strokes on lift,
-including strokes crossing the loop boundary. Figures and PDF content remain.
-The choice is remembered; the width slider applies to Stroke mode.
-
-It also includes editable [Markdown blocks](docs/markdown-blocks.md) with offline
-MathJax, tables, code, diagrams and CJK fonts. Pages with newly rendered or
-individually sized Markdown use **page format 9**; other pages continue to use
-format 8. Older APKs cannot read format-9 pages or backups containing them.
-Preserve independent backups before updating.
-The new reading and Markdown interactions await tablet acceptance; 0.33.2
-remains the latest stable release. Download the beta's signed APK and SHA-256
-file from its release page.
-
-Double tapping the **M-Pencil body** switches Pen/Eraser and briefly shows the
-selected icon at the top center. The owner accepted the physical switches and
-icons. Earlier connected-tablet checks cover landscape PDF import, multiple floating
-notes, lasso panels, native rendering, sleep/wake and Home/return. The small-pane
-PDF cache fixture uses 64% fewer pixels and releases hidden native readers; see
-the [MatePad audit](docs/matepad-audit-0.33.md) for measurements and limits.
-Other hardware/firmware, overnight battery drain, cover-sensor behavior and
-optical latency remain unverified.
-
-The application ID and permanent signing certificate are retained for in-place
-updates. **0.33.2 writes page format 7 on edit and in new editable backups. Older
-APKs, including 0.33.1, cannot read those pages or new backups.** Existing page
-versions 1–6 and old backups remain readable without rewriting pages on open.
-Keep independent editable backups before updating. See [figures and workspace](docs/figures-and-workspace.md),
-[changelog](CHANGELOG.md), and [device records](docs/device-testing.md).
-
-**0.33.2** makes the top-left bar compact and interactive: tap the note name
-for the bookshelf, the page counter for page management, or the percentage for
-zoom. Previous/next arrows flank the counter, and the three dots expand into
-function icons in the same bar. Undo/Redo live beside the right status bar and
-appear individually after writing; other interactions hide them until writing
-resumes. The toolbox Zen toggle hides the left bar and history while retaining
-a tiny clock with seconds. Tap again to restore the normal display.
-
-Insert figure opens the picker directly and returns to the note. Select a figure
-to move, resize, rotate freely, or copy/cut/delete using nearby icons. Drag across
-pages with edge scrolling, then tap outside to finish. Lasso actions also use
-icons and outside-tap dismissal, without a Done button. See the
-[navigation record](docs/compact-note-navigation.md), [history controls](docs/writing-history-controls.md),
-[Zen mode](docs/zen-mode.md), [inline figures](docs/inline-figures.md) and
-[action icons](docs/icon-actions.md).
-
-The final APK passed **248,470 host assertions in 68 suites**, debug/release
-lint and builds, and permanent-signature checks. Its DEX code matches dev.6;
-release promotion changes only version and documentation metadata.
-**This exact APK and the latest UI/figure interactions remain physically
-untested**, following the owner's instruction to continue without the tablet
-and explicit authorization to release. Earlier connected results do not replace
-acceptance of this APK. See [release notes](docs/releases/0.33.2.md) for scope and limits.
-
-## Features
-
-- Native handwriting with adjustable pen thickness, page/screen width modes,
-  and pressure-preserving ink.
-- Multiple named notebooks, folders and recoverable Trash, compact list/thumbnail
-  bookshelf layouts, blank/lined pages, continuous finger scrolling,
-  thumbnail overview, and direct page jumps.
-- A5 by default for new notes, standard paper sizes and custom dimensions,
-  with matching physical PDF page sizes.
-- Two-finger zoom, a percentage indicator, and fit width/height/page choices.
-- Portrait, landscape, or automatic sensor rotation from Settings.
-- Stroke eraser with an adjustable grey trail, or Region eraser with a dashed
-  loop; both remove whole selected strokes and support undo/redo.
-- Native dashed lasso to select whole strokes on any overlap, move them across
-  pages, duplicate, copy/cut/paste, or delete them, with nearby actions and
-  finger/stylus dragging.
-- Manage pages from the overview: reorder, duplicate, insert blank pages, delete,
-  and undo/redo page changes.
-- Insert images, then move between pages, resize, rotate freely or delete them
-  with undo; include figures in thumbnails, PDF exports and editable backups.
-- Export selected ink as SVG, PNG, JPEG, WebP or PDF.
-- Keep up to two split notes and several floating notes open with one shared toolbox.
-  Tap a note with the stylus to edit it; finger-scroll or pinch any note, and
-  minimize/restore windows through the toolbox notes tray.
-- Automatic saving of completed strokes and editable restoration after reopening.
-- Vector PDF export for sharing and editable `.inkbook` backup/restore.
-- Import PDFs as notebooks, write over their original pages, follow links,
-  and export with original PDF content plus vector ink.
-- Imported and editable note outlines, with previous/next view navigation.
-- Compact circular tools in a movable, rotatable, collapsible dock, plus floating
-  notebook and time/battery/Wi-Fi islands over a full-screen page.
-- Optional floating AI chat with configurable provider/model/endpoint, encrypted
-  API-key storage, automatic model specifications, saved sessions to reopen/delete
-  and Markdown/math replies.
-
-Notes stay on the tablet. Scriflow has no app account, analytics, or cloud sync.
-Optional AI chat sends the text and selected attachments you submit, and that chat's history, directly to
-your configured provider. See [privacy and local storage](docs/privacy.md).
+The screenshots and feature overview describe **[0.49.0-rc.1](https://github.com/xing-phys/Scriflow/releases/tag/v0.49.0-rc.1)**, a release candidate. The RC has been checked on the target tablet and in an emulator; full physical acceptance of all changes is still in progress. The latest stable release is **[0.33.2](https://github.com/xing-phys/Scriflow/releases/tag/v0.33.2)** and does not include all features shown above. See the [RC notes](docs/releases/0.49.0-rc.1.md) and [changelog](CHANGELOG.md) for details.
 
 ## Install and update
 
-Download the signed **[Scriflow 0.33.2 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.33.2/scriflow-0.33.2.apk)**
-from [GitHub Releases](https://github.com/xing-phys/Scriflow/releases/tag/v0.33.2),
-where its file checksum and signing certificate fingerprint are recorded.
-Copy it to the supported tablet, open it with the tablet's file manager, and
-allow installation from that source when prompted.
-Open **Scriflow** from the launcher. Review the app version and signing
-certificate supplied with a release before installing it.
+1. On the supported tablet, download the signed **[0.49.0-rc.1 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.49.0-rc.1/scriflow-0.49.0-rc.1.apk)** and its **[SHA-256 checksum](https://github.com/xing-phys/Scriflow/releases/download/v0.49.0-rc.1/scriflow-0.49.0-rc.1.apk.sha256)**, or choose the [stable release](https://github.com/xing-phys/Scriflow/releases/latest).
+2. Open the APK on the tablet and follow Android's installation prompts. To update an existing installation, use an APK signed with the same certificate; do not uninstall the app to update it.
+3. In the RC, open **Settings → About** to see the installed version and check for updates. You can include preview releases and choose whether to delete a downloaded installer after a successful update. Scriflow verifies the download before Android asks you to confirm installation. [Update details](docs/updating.md)
 
-**Back up your notes before an update or a change of signing identity.** In the
-library, choose **Backup** beside each notebook and save its `.inkbook` file
-outside the app's private storage. Try **Restore backup** to confirm it opens
-as a separate notebook. PDF export is a reading copy, not an editable backup.
+**Back up before updating.** Export each notebook as an editable `.inkbook` backup and keep copies outside the app. A PDF export is a sharing copy, not an editable notebook backup. Backups are unencrypted, and ebook originals, reading state, saved websites, and chat history are separate from notebook backups. Uninstalling Scriflow or clearing its app storage deletes its private data. Newer releases can write formats older APKs cannot read, so keep backups before updating and avoid downgrading without a recovery plan. [Privacy and storage](docs/privacy.md) · [Release signing](docs/releasing.md)
 
-An ordinary update must keep the same application ID and signing certificate.
-The application ID remains `org.eink.inkprobe`, and the existing public signing
-key is retained, so the Scriflow rename can update the released Scribblow app
-in place without moving notebooks. If Android rejects an update because its
-signature differs, stop and follow the [signing migration instructions](docs/releasing.md#moving-from-a-development-key).
-**Uninstalling the app or clearing app storage deletes its private notes.**
-Version 0.32 writes version-2 library catalogs with folder/trash metadata on the
-next catalog change. Earlier APKs cannot read an upgraded library; preserve
-editable backups before updating. Page and backup formats are unchanged.
-Version 0.31-dev.2 writes version-5 pages retaining the exact native width and
-capture scale of new strokes; older APKs cannot read these pages. Existing page
-versions 1–4 remain readable and are not rewritten on open. Old strokes' capture
-scale was never recorded and cannot be recovered reliably. Version-2 editable
-backups include PDF assets and outlines. Version 0.30 added physical paper dimensions. Opening an existing page
-keeps its stored coordinates and previous PDF printing scale.
-Version 0.29 introduces a version-2 page-order index
-when page management is first used; earlier APKs cannot open that managed book.
+## Get started
 
-## Start writing
+1. Open a notebook from the bookshelf or tap **+** to make one. Quick notes use A5 paper; named notebooks can use a preset or custom size.
+2. Write with the stylus, scroll with a finger, and pinch to zoom. Drag the dotted grip to move the toolbox; tap it to collapse or expand the tools.
+3. Open a PDF or supported ebook from **Files**. Use the bookshelf folders to organize it alongside your notes.
+4. Make an editable backup from a notebook's actions and save it somewhere independent of the app.
 
-Open **My Notebook** or choose **+ Notebook**, select a paper size, and create
-the note. New notes default to A5 and open fitted to the screen width. Pinch
-with two fingers to zoom. Write with the stylus and drag with one finger to
-scroll. The top-left **⋮** menu switches blank/lined backgrounds;
-the page-plus icon inserts a page after the current page. The grid opens page thumbnails.
+The [user guide](docs/user-guide.md) explains more controls and workflows; some sections predate the current release candidate. The [documentation directory](docs/) contains focused guides for individual features.
 
-Tap an already-selected Pen or Eraser icon to adjust its width. Drag the
-six-dot grip to move the tools, tap it to collapse/expand them, or use the
-direction icon to rotate them.
-Open a PDF in **Files** to make a PDF notebook. The outline icon
-opens imported headings and lets you add your own; the disclosure arrows fold
-nested headings. Finger taps follow PDF links. Previous/next view icons appear
-at the lower right only when available, or beside a floating note's minimize
-control. Links, outline jumps and page-overview jumps enter view history;
-ordinary scrolling, zoom, and page buttons do not. Both stacks survive rotation.
-Settings offers **Fixed width on page** (default), using native width fitting,
-and **Fixed width on screen**, keeping the nib's screen size while writing.
-Both use direct native AHW. Page mode's native pressure response can vary with
-zoom; identical pressure behavior across zoom is unresolved. Completed ink
-retains its captured geometry in both modes.
-External links ask before opening
-another app. See [PDF notebooks](docs/pdf-import.md).
-The vertical three-dot control beside the top-left percentage expands into icons for image insertion,
-figure editing, the blank/lined background action, and
-**Page information / Export PDF**, which opens save status,
-PDF export, and **Reset tools**. The toolbox notes button opens and restores
-note windows. Tap the time/battery/Wi-Fi area to open
-**Settings** on any app screen, or use **App settings** in the compact zoom menu.
-Settings includes separate portrait/landscape bookshelf rows/columns and page
-overview columns, plus **Keep screen on** while the app is visible. Choose portrait, landscape, or
-sensor rotation there.
-If saving fails, writing pauses and **Not saved · Retry** appears.
+## Privacy and practical limits
 
-See the [user guide](docs/user-guide.md) for controls, saving, backups, and
-troubleshooting.
+Notes work locally. Scriflow has no advertising, analytics, app account, or cloud sync. The browser contacts sites you visit; optional AI chat sends only what you submit to your configured provider, whose policies then apply. Casting uses password-protected local HTTP, which is **not encrypted**; use trusted Wi-Fi. See [privacy and local storage](docs/privacy.md) for details.
 
-## Current limits
-
-- Erasing removes entire touched strokes. Undo/redo keeps up to 100 actions per
-  page while the app process remains alive; it does not survive a process restart.
-- There is no handwriting recognition, typed text, or cloud sync.
-- PDF import supports PDFs with no opening password up to 2 GiB and 1,000 pages,
-  including files protected only by an owner password. Host checks include a
-  384 MiB scan with a 128 MiB heap; Android 10 emulator checks include native
-  previews and PDF intent resolution. Earlier landscape USB checks include a 600-page, 9 MB synthetic PDF;
-  arbitrary complex PDFs and extended sessions remain unverified.
-- Page management keeps at least one page in a notebook. Its separate undo/redo
-  history holds 50 page changes until the process restarts. Removed page files
-  remain in private storage for recovery; current exports/backups exclude them.
-- Very fast passes with the maximum eraser width can lag. Finger scrolling
-  has no inertia or page snapping. Use the tablet's **Refresh now** action
-  when residual images need clearing.
-- Limits are 200 notebooks, 1,000 pages per notebook, and 2 GiB uncompressed
-  per editable backup. These are format/validation limits, not tested practical
-  capacity: large-notebook memory and long-duration performance remain unmeasured.
-- `.inkbook` backups are unencrypted. Keep independent copies somewhere safe.
+Ebooks must be DRM-free. Scriflow does not perform OCR or handwriting recognition. PDF imports support up to 2 GiB and 1,000 pages; larger notebooks and long sessions may be constrained by device resources. See the linked reader guides for format and feature limits.
 
 ## Build and contribute
 
-On Linux x86_64 with a JDK, Python 3.8+, curl, and unzip installed:
+Contributions and thoughtful bug reports are welcome. On Linux x86_64, the project's development workflow starts with:
 
 ```bash
 ./scripts/bootstrap-gradle.sh
-JAVA_HOME="$PWD/.tools/jdk-17.0.21+9" ./gradlew hostTest :app:lint :app:assembleDebug :app:assembleRelease
-```
-
-Contributor checks need no private release key. Without release signing
-credentials, `assembleRelease` produces an unsigned APK. Do not distribute it
-as an installer. The standalone development route remains available:
-
-```bash
-./scripts/bootstrap.sh
 ./scripts/test.sh
 ./scripts/build.sh
 ```
 
-See [Building](docs/building.md), [Contributing](CONTRIBUTING.md), and the
-[release checklist](docs/releasing.md). The [architecture](docs/architecture.md),
-[development history](docs/development-history.md), and
-[name and artwork](docs/branding.md) explain the implementation and its history.
-Report bugs and suggest improvements through the
-[issue forms](https://github.com/xing-phys/Scriflow/issues/new/choose).
+See [Building](docs/building.md) for prerequisites, Gradle and test options; [Contributing](CONTRIBUTING.md) for project conventions; and [Architecture](docs/architecture.md) for the design. Share a reproducible problem or suggestion through [GitHub Issues](https://github.com/xing-phys/Scriflow/issues/new/choose). The [branding guide](docs/branding.md) explains the name and artwork.
 
 ## License
 
-Scriflow's source, documentation, and original artwork are licensed under the
-[MIT License](LICENSE). Third-party build tooling retains its own licenses;
-see [third-party notices](THIRD_PARTY_NOTICES.md). APKs include a copy of the
-MIT license notice.
+Scriflow's source, documentation, and original artwork are available under the [MIT License](LICENSE). Bundled dependencies retain their own licenses; see [Third-party notices](THIRD_PARTY_NOTICES.md).
