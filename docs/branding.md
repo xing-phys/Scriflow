@@ -9,29 +9,43 @@ one word with an initial capital: **Scriflow**. Its tagline remains
 
 ![Scriflow icon](../assets/branding/scriflow-icon.png)
 
-The symbol is one continuous handwritten **S**, retained from the former
-Scribblow identity. Its lower loop suggests a working scribble; the open,
-rising finish expresses movement and continuation. Rounded ends and a generous
-stroke keep it legible at small sizes. Black ink and white paper suit the
-MatePad Paper display without gradients, shadows, or color-dependent details.
+The current symbol is a flowing chalk-drawn **S**, connecting the name Scriflow
+with the action in physics. Its loop and rising finish also evoke a path and an
+integral. The light version is the default: black on white. A white-on-black
+version is available for dark backgrounds.
+
+The icon and derived branding are © 2026 Xing, all rights reserved, and are
+not licensed under MIT. See the [icon rights notice](../LICENSE-ICON.md) before
+using or redistributing this artwork.
 
 ## Artwork and regeneration
 
-- [Source symbol](../assets/branding/scriflow-symbol.svg): scalable artwork with
-  a transparent background, also available as a [512 px PNG](../assets/branding/scriflow-symbol.png).
-- [Standalone icon](../assets/branding/scriflow-icon.svg): white rounded tile
-  with a fine black keyline, also available as a [512 px PNG](../assets/branding/scriflow-icon.png).
-- Android uses a vector foreground and a white adaptive background, plus PNG
+- [Source symbol](../assets/branding/scriflow-symbol.svg): a genuine SVG trace
+  of the selected AI-generated [chalk reference](../assets/branding/scriflow-chalk-reference.png),
+  with a transparent background; also available as a [512 px PNG](../assets/branding/scriflow-symbol.png).
+- [Light icon](../assets/branding/scriflow-icon.svg) and
+  [dark icon](../assets/branding/scriflow-icon-dark.svg): matching white and
+  black rounded tiles, also available as [light PNG](../assets/branding/scriflow-icon.png)
+  and [dark PNG](../assets/branding/scriflow-icon-dark.png). A white-on-transparent
+  [dark-background symbol](../assets/branding/scriflow-symbol-dark.svg) is also provided.
+- Android uses a compact [vector foreground](../assets/branding/scriflow-symbol-android.svg)
+  with a white adaptive background, plus PNG
   fallbacks at 48, 72, 96, 144, and 192 px. The launcher's own mask supplies the
   adaptive icon's outer shape. Artwork fits inside its central safe area. An
   API-33 resource variant supplies the same symbol for themed launcher icons;
   the app's tested firmware target and API-29 build remain unchanged.
+  The compact vector omits fine grains that disappear at launcher size. Night
+  resources provide the white-on-black icon when the Android system theme and
+  launcher support it; there is no in-app launcher-icon toggle. Some launchers
+  cache icons and may keep displaying the previous variant after a theme change.
 
-Edit `assets/branding/scriflow-symbol.svg`, then regenerate with Python 3.8+ and
-Inkscape installed:
+Edit `assets/branding/scriflow-symbol.svg` and, when the shape changes, its
+compact Android counterpart `assets/branding/scriflow-symbol-android.svg`.
+Regenerate the derived assets with Python 3.8+ and Inkscape installed:
 
 ```bash
 python3 tools/build-branding.py
+python3 tools/build-showcase-hero.py
 ```
 
 The generated files are checked in, so building the app does not require

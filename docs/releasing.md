@@ -1,5 +1,11 @@
 # Preparing a Scriflow release
 
+The signed build normally stages its APK under `build/releases`. To prepare a
+local, unpublished variant without replacing an existing artifact, set
+`SCRIFLOW_RELEASE_OUTPUT_DIR` to a different directory when invoking
+`scripts/build-release.sh`. Do not publish a different APK under an existing
+release version or tag.
+
 The local build workflow prepares artifacts without publishing or installing
 them. The first public beta, [0.28.0-beta.1](https://github.com/xing-phys/Scriflow/releases/tag/v0.28.0-beta.1),
 was published as **Scribblow** on 2026-10-26 after the owner's tablet acceptance.

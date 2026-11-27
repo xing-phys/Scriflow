@@ -6,7 +6,8 @@ Android API 29 with Java 8 bytecode. Building successfully does not establish
 support for another device: native writing and pressure rendering require the
 [tested Huawei firmware](../README.md#compatibility-and-status).
 
-Both routes package the root [MIT license](../LICENSE) as `assets/LICENSE` in
+Both routes package the root [MIT license](../LICENSE) as `assets/LICENSE` and
+the separate [icon rights notice](../LICENSE-ICON.md) as `assets/LICENSE-ICON.md` in
 the APK, together with the PDF runtime's upstream licenses and notices. The
 verification helper checks that the packaged MIT license matches the source
 exactly. Runtime dependency attribution is in [Third-party notices](../THIRD_PARTY_NOTICES.md).

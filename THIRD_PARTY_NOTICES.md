@@ -1,8 +1,9 @@
 # Third-party notices
 
-Scriflow's own source, documentation, and original artwork use the
-[MIT License](LICENSE). The third-party files below retain their upstream
-licenses and notices.
+Scriflow's source and documentation use the [MIT License](LICENSE). The
+Scriflow icon and derived branding are excluded from MIT and have a separate
+[rights notice](LICENSE-ICON.md). The third-party files below retain their
+upstream licenses and notices.
 
 ## Gradle Wrapper
 

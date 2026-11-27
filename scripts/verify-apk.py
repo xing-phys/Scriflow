@@ -410,6 +410,9 @@ def main():
                         'APK cast viewer differs from its source: ' + name)
             require(package.read('assets/LICENSE') == (ROOT / 'LICENSE').read_bytes(),
                     'Packaged license differs from the project LICENSE.')
+            require('assets/LICENSE-ICON.md' in package.namelist(), 'APK is missing its icon rights notice.')
+            require(package.read('assets/LICENSE-ICON.md') == (ROOT / 'LICENSE-ICON.md').read_bytes(),
+                    'Packaged icon rights notice differs from the project notice.')
             require('assets/markdown-assets.sha256.json' in package.namelist(), 'APK is missing its offline Markdown assets.')
             markdown_assets = json.loads(package.read('assets/markdown-assets.sha256.json'))
             for name in ('markdown/index.html', 'markdown/renderer.js', 'markdown/mathjax/tex-mml-svg.js',

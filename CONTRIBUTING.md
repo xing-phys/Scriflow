@@ -32,5 +32,6 @@ Review attachments for handwriting, notebook names, device identifiers, and
 other private information. See [privacy](docs/privacy.md). Never include signing
 keys, passwords, local tool directories, or recovery copies in a contribution.
 
-Scriflow uses the [MIT License](LICENSE). Preserve its copyright and license
-notice, and retain applicable [third-party notices](THIRD_PARTY_NOTICES.md).
+Scriflow's code and documentation use the [MIT License](LICENSE). Preserve its
+copyright and license notice, and retain applicable [third-party notices](THIRD_PARTY_NOTICES.md).
+The Scriflow icon and derived branding have a separate [rights notice](LICENSE-ICON.md).

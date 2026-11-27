@@ -70,6 +70,7 @@ tasks.register('prepareMarkdownAssets', Exec) {
 }
 tasks.register('prepareLicenseAssets', Copy) {
     from rootProject.file('LICENSE')
+    from rootProject.file('LICENSE-ICON.md')
     from(rootProject.file('licenses')) {
         include 'pdfbox-android-*', 'bouncycastle-*', 'androidsvg-*', 'geckoview-*'
     }

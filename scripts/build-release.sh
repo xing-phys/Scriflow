@@ -42,7 +42,10 @@ version = dict(line.split('=', 1) for line in Path('app/version.properties').rea
                if '=' in line)['versionName']
 if not re.fullmatch(r'(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-(?:alpha|beta|rc)\.[1-9][0-9]*)?', version):
     raise SystemExit('Use MAJOR.MINOR.PATCH with optional -alpha.N, -beta.N, or -rc.N. See docs/releasing.md.')
-directory = Path('build/releases')
+output_dir = os.environ.get('SCRIFLOW_RELEASE_OUTPUT_DIR')
+if output_dir is not None and not output_dir.strip():
+    raise SystemExit('SCRIFLOW_RELEASE_OUTPUT_DIR must not be empty.')
+directory = Path(output_dir or 'build/releases')
 directory.mkdir(parents=True, exist_ok=True)
 destination = directory / ('scriflow-' + version + '.apk')
 fd, temporary = tempfile.mkstemp(prefix='.release-', dir=directory)

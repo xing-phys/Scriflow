@@ -104,4 +104,4 @@ See [Building](docs/building.md) for prerequisites, Gradle and test options; [Co
 
 ## License
 
-Scriflow's source, documentation, and original artwork are available under the [MIT License](LICENSE). Bundled dependencies retain their own licenses; see [Third-party notices](THIRD_PARTY_NOTICES.md).
+Scriflow's source code and documentation are available under the [MIT License](LICENSE). The Scriflow icon and its derived branding are © 2026 Xing, all rights reserved, and are **not** licensed under MIT; see the [icon rights notice](LICENSE-ICON.md). Bundled dependencies retain their own licenses; see [Third-party notices](THIRD_PARTY_NOTICES.md).

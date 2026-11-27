@@ -12,4 +12,5 @@ browser page are original sample documents; the browser page was served locally.
 `hero.png` combines the unaltered writing and PDF screenshots with the existing
 Scriflow symbol. Regenerate it with `python3 tools/build-showcase-hero.py` using
 Pillow and DejaVu fonts installed. The gallery uses the original emulator
-screenshots directly.
+screenshots directly. The Scriflow symbol embedded in the banner has a separate
+[rights notice](../../LICENSE-ICON.md).
