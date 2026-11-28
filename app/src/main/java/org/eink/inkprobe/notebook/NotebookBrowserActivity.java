@@ -887,11 +887,14 @@ public class NotebookBrowserActivity extends NotebookActivity {
     }
     private void browserMenu() {
         if (waitForSave()) return;
-        shownDialog = new AlertDialog.Builder(this).setTitle("Browser").setItems(new String[]{"Bookmarks", "Bookmark this page", "Pin this page", "Browsing history", "Downloads", "Browser data settings", "Copy page address", "Share page address", "Open in another browser"}, (dialog, at) -> {
+        String[] actions = {"Bookmarks", "Bookmark this page", "Pin this page", "Browsing history", "Downloads",
+            "Browser data settings", "Copy page address", "Share page address", "Open in another browser", "Send link over Wi-Fi…"};
+        shownDialog = new AlertDialog.Builder(this).setTitle("Browser").setItems(actions, (dialog, at) -> {
             if (at == 0) bookmarks(false, false); else if (at == 1) bookmarks(true, false); else if (at == 2) bookmarks(true, true); else if (at == 3) openHistory(); else if (at == 4) { dialog.dismiss(); content.post(this::showDownloads); } else if (at == 5) openBrowserData(); else {
                 String url = offline && savedPage != null ? savedPage.url : !home && web != null ? web.getUrl() : null; if (!NotebookBrowserAddress.isWebUrl(url)) return;
                 if (at == 6) { ((android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(android.content.ClipData.newPlainText("Website address", url)); Toast.makeText(this, "Website address copied", Toast.LENGTH_SHORT).show(); }
                 else if (at == 7) startActivity(Intent.createChooser(new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, url), "Share website"));
+                else if (at == 9) startActivity(new Intent(this, NotebookShareActivity.class).putExtra(NotebookShareActivity.LINK_DRAFT, url));
                 else try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); } catch (android.content.ActivityNotFoundException error) { message("Open website", "No other browser is installed."); }
             }
         }).create(); NotebookUi.show(shownDialog);

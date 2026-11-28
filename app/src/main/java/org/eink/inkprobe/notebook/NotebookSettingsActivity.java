@@ -112,6 +112,11 @@ public final class NotebookSettingsActivity extends NotebookDisplayActivity {
         }), new LinearLayout.LayoutParams(-2, dp(40)));
         hint(body, "Share Scriflow on the same Wi-Fi with a password. Open the tablet's address on your Mac, phone or tablet.");
 
+        section(body, "Wi-Fi Sharing");
+        body.addView(button("Share files and links…", () -> {
+            startActivity(new android.content.Intent(this, NotebookShareActivity.class)); overridePendingTransition(0, 0);
+        }), new LinearLayout.LayoutParams(-2, dp(40)));
+
         section(body, "Website microphone permissions");
         body.addView(button("Manage website permissions…", this::websiteMicrophonePermissions), new LinearLayout.LayoutParams(-2, dp(40)));
         body.addView(button("Android app permission…", () -> {

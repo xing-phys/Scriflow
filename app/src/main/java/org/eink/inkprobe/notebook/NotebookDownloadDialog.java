@@ -16,7 +16,6 @@ import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
-import java.io.File;
 import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -115,12 +114,7 @@ final class NotebookDownloadDialog {
         dialog.dismiss(); activity.startActivity(new Intent(activity, NotebookFilesActivity.class).putExtra(NotebookFilesActivity.SHOW_DOWNLOADS, true));
     }
     private void open(NotebookDownloads.Item item) {
-        Uri uri = Uri.parse(item.uri); String mime = item.mime;
-        String fileMime = NotebookFileStorage.mime(new File(item.name));
-        if ("application/octet-stream".equals(mime)) mime = fileMime;
-        Intent open = new Intent(Intent.ACTION_VIEW).setDataAndType(uri, mime).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        if ("application/pdf".equals(fileMime) || "application/pdf".equals(mime)) open.setClass(activity, NotebookPdfImportActivity.class);
-        else if (NotebookEbookStore.supported(item.name)) open.setClass(activity, NotebookEbookImportActivity.class);
+        Intent open = NotebookFileStorage.downloadIntent(activity, Uri.parse(item.uri), item.name, item.mime);
         try { activity.startActivity(open); dialog.dismiss(); }
         catch (ActivityNotFoundException | SecurityException error) { Toast.makeText(activity, "No app can open this file. Check Downloads in Files.", Toast.LENGTH_LONG).show(); }
     }

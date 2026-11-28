@@ -6,6 +6,18 @@ identify development milestones. Detailed historical verification is in
 [development history](docs/development-history.md); pending checks in those
 records describe their original milestone, not the current acceptance status.
 
+## 0.50.0-alpha.1 — Wi-Fi Sharing (2026-11-28)
+
+- Exchange files and web links with a browser on the same Wi-Fi. On the tablet,
+  start Wi-Fi Sharing in Settings or Files, then enter the displayed pairing
+  code in the other device’s browser.
+- Upload or drop files into the browser. Scriflow saves completed uploads in
+  Downloads → Scriflow Wi-Fi Sharing. Tap a received link to open it in the
+  app’s browser.
+- Choose tablet files or send a link from the Wi-Fi Sharing panel. The built-in
+  browser can prefill the current page’s link for sending.
+- Android versionCode 135. [Wi-Fi Sharing guide](docs/wifi-sharing.md)
+
 ## 0.49.0-rc.1 — Browser downloads and larger notebook previews (2026-11-26)
 
 - Download website files to the tablet's Downloads folder, manage progress and

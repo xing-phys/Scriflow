@@ -69,6 +69,8 @@ The screenshots and feature overview describe **[0.49.0-rc.1](https://github.com
 
 ## Install and update
 
+For two-way file and link transfer, see [Wi-Fi Sharing in 0.50.0-alpha.1](https://github.com/xing-phys/Scriflow/releases/tag/v0.50.0-alpha.1) and the [sharing guide](docs/wifi-sharing.md).
+
 1. On the supported tablet, download the signed **[0.49.0-rc.1 APK](https://github.com/xing-phys/Scriflow/releases/download/v0.49.0-rc.1/scriflow-0.49.0-rc.1.apk)** and its **[SHA-256 checksum](https://github.com/xing-phys/Scriflow/releases/download/v0.49.0-rc.1/scriflow-0.49.0-rc.1.apk.sha256)**, or choose the [stable release](https://github.com/xing-phys/Scriflow/releases/latest).
 2. Open the APK on the tablet and follow Android's installation prompts. To update an existing installation, use an APK signed with the same certificate; do not uninstall the app to update it.
 3. In the RC, open **Settings → About** to see the installed version and check for updates. You can include preview releases and choose whether to delete a downloaded installer after a successful update. Scriflow verifies the download before Android asks you to confirm installation. [Update details](docs/updating.md)

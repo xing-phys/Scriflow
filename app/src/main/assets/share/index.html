@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Scriflow Wi-Fi Sharing</title>
+  <link rel="stylesheet" href="/share.css">
+  <script defer src="/share.js"></script>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <p class="wordmark">Scriflow</p>
+        <h1>Wi-Fi Sharing</h1>
+      </div>
+      <button class="secondary" id="disconnect" type="button" hidden>Disconnect</button>
+    </header>
+    <section class="panel pairing" id="pairing" aria-labelledby="pair-title">
+      <h2 id="pair-title">Connect to the tablet</h2>
+      <form id="pair-form" method="post" action="/connect">
+        <label for="code">Pairing code shown in Scriflow</label>
+        <div class="field-row">
+          <input id="code" name="code" required maxlength="8" minlength="8" autocomplete="off"
+            autocapitalize="characters" spellcheck="false">
+          <button id="connect" type="submit">Connect</button>
+        </div>
+      </form>
+      <p class="feedback" id="pair-status" role="status"></p>
+    </section>
+    <div id="sharing" hidden>
+      <p id="connection" class="connection" role="status">Connected to the tablet</p>
+      <div class="panels">
+        <section class="panel" aria-labelledby="send-title">
+          <h2 id="send-title">Send to tablet</h2>
+          <div class="drop" id="drop">
+            <button type="button" id="choose" class="secondary">Choose files</button>
+            <input id="files" type="file" multiple hidden>
+            <p>or drop files here</p>
+          </div>
+          <progress id="progress" aria-label="File upload progress" hidden></progress>
+          <p id="file-status" class="feedback" role="status"></p>
+          <form id="link-form" method="post" action="/link">
+            <label for="link">Web link</label>
+            <div class="field-row">
+              <input id="link" type="url" placeholder="Paste a web link" maxlength="8192" required
+                autocomplete="off" spellcheck="false">
+              <button id="send-link" type="submit">Send link</button>
+            </div>
+            <p class="hint">You can also drop a web link on this page.</p>
+          </form>
+          <p id="link-status" class="feedback" role="status"></p>
+        </section>
+        <section class="panel" aria-labelledby="receive-title">
+          <h2 id="receive-title">From tablet</h2>
+          <p id="empty" class="hint">Files and links shared from Scriflow appear here.</p>
+          <ul id="incoming"></ul>
+        </section>
+      </div>
+    </div>
+    <footer>Use trusted Wi-Fi. This local HTTP connection is unencrypted.</footer>
+  </main>
+</body>
+</html>

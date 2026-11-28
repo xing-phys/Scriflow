@@ -10,6 +10,7 @@ rm -rf build/host-tests
 mkdir -p build/host-tests
 python3 -m unittest discover -s tests -p 'test_browser_maintenance.py'
 bash scripts/test-cast.sh
+bash scripts/test-share.sh
 javac -encoding UTF-8 -source 8 -target 8 -d build/host-tests \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookFiles.java tests/NotebookFilesTest.java \
   app/src/main/java/org/eink/inkprobe/notebook/NotebookReleaseVersion.java tests/NotebookReleaseVersionTest.java \
@@ -234,4 +235,5 @@ node scripts/test-browser-capture.cjs
 node scripts/test-browser-bridge.cjs
 node scripts/test-browser-popup.cjs
 node scripts/test-cast-viewer.cjs
+node scripts/test-share-page.cjs
 bash scripts/test-pdf-engine.sh

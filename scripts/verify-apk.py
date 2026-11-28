@@ -31,7 +31,7 @@ NOTEBOOK_SCREENS = {PACKAGE + '.notebook.' + name for name in (
     'NotebookBrowserActivity', 'NotebookWebsitesActivity', 'NotebookBrowserBookmarksActivity',
     'NotebookBrowserHistoryActivity', 'NotebookBrowserDataActivity', 'NotebookFilesActivity',
     'NotebookEbookActivity', 'NotebookEbookLibraryActivity', 'NotebookEbookImportActivity',
-    'NotebookTransferActivity', 'NotebookPdfExportActivity', 'NotebookPdfImportActivity')}
+    'NotebookTransferActivity', 'NotebookPdfExportActivity', 'NotebookPdfImportActivity', 'NotebookShareActivity')}
 DIAGNOSTICS = {PACKAGE + '.MainActivity', PACKAGE + '.notebook.NotebookSelfTestActivity',
                PACKAGE + '.notebook.NotebookBrowserSelfTestActivity', PACKAGE + '.notebook.NotebookBrowserDataSelfTestActivity',
                PACKAGE + '.notebook.NotebookBrowserOverlaySelfTestActivity', PACKAGE + '.notebook.NotebookEbookSelfTestActivity',
@@ -276,6 +276,13 @@ def verify_manifest(manifest, badging, variant, version):
     cast_screen = next((item for item in components if component_name(item) == PACKAGE + '.notebook.NotebookCastActivity'), None)
     require(cast_screen is not None and cast_screen.tag == 'activity' and cast_screen.attributes.get('android:exported') == 0,
             'Casting controls must be private to the app.')
+    share_screen = next((item for item in components if component_name(item) == PACKAGE + '.notebook.NotebookShareActivity'), None)
+    share_service = next((item for item in components if component_name(item) == PACKAGE + '.notebook.NotebookShareService'), None)
+    require(share_screen is not None and share_screen.tag == 'activity' and share_screen.attributes.get('android:exported') == 0
+            and share_service is not None and share_service.tag == 'service' and share_service.attributes.get('android:exported') == 0
+            and share_service.attributes.get('android:foregroundServiceType') == 1
+            and bool(share_service.attributes.get('android:stopWithTask')),
+            'Wi-Fi Sharing requires a private panel and dataSync service that stops with the app task.')
     file_provider = next((item for item in components if component_name(item) == PACKAGE + '.notebook.NotebookFileProvider'), None)
     require(file_provider is not None and file_provider.tag == 'provider'
             and file_provider.attributes.get('android:exported') == 0
@@ -408,6 +415,9 @@ def main():
             for name in ('index.html', 'viewer.js', 'viewer.css'):
                 require(package.read('assets/cast/' + name) == (ROOT / 'app/src/main/assets/cast' / name).read_bytes(),
                         'APK cast viewer differs from its source: ' + name)
+            for name in ('index.html', 'share.js', 'share.css'):
+                require(package.read('assets/share/' + name) == (ROOT / 'app/src/main/assets/share' / name).read_bytes(),
+                        'APK sharing page differs from its source: ' + name)
             require(package.read('assets/LICENSE') == (ROOT / 'LICENSE').read_bytes(),
                     'Packaged license differs from the project LICENSE.')
             require('assets/LICENSE-ICON.md' in package.namelist(), 'APK is missing its icon rights notice.')

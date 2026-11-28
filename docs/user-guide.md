@@ -24,6 +24,19 @@ off pauses casting until you return; losing Wi-Fi stops the session. HTTP is not
 encrypted; use trusted Wi-Fi.
 See [Screen cast](screen-cast.md) for connection help and limits.
 
+## Exchange files and links over Wi-Fi
+
+Open **Settings → Wi-Fi Sharing → Share files and links…** and tap **Start
+sharing**. On a device using the same Wi-Fi, open the tablet’s full HTTP address
+in a browser and enter the pairing code. Drop files or a web link on the
+browser page, or use **Choose files** and **Send link**. On the tablet, choose
+files or paste a link to make them available in the connected browser. Tap
+**Open link** for a received URL to open it in Scriflow.
+
+Received files are saved under **Downloads → Scriflow Wi-Fi Sharing**.
+Use the **Stop sharing** button when finished. The local HTTP connection uses
+unencrypted traffic. [Wi-Fi Sharing guide](wifi-sharing.md)
+
 ## Notebooks and pages
 
 Open **Scriflow** to see the library. Tap **My Notebook** to open existing

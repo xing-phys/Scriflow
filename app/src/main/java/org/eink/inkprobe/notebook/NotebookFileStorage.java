@@ -2,7 +2,9 @@ package org.eink.inkprobe.notebook;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
 import android.os.storage.StorageManager;
@@ -69,5 +71,14 @@ final class NotebookFileStorage {
         if (extension.equals("md") || extension.equals("markdown")) return "text/markdown";
         String type = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension);
         return type == null ? "application/octet-stream" : type;
+    }
+
+    static Intent downloadIntent(Context context, Uri uri, String name, String mime) {
+        String fileMime = mime(new File(name));
+        if (mime == null || mime.equals("application/octet-stream")) mime = fileMime;
+        Intent open = new Intent(Intent.ACTION_VIEW).setDataAndType(uri, mime).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        if ("application/pdf".equals(fileMime) || "application/pdf".equals(mime)) open.setClass(context, NotebookPdfImportActivity.class);
+        else if (NotebookEbookStore.supported(name)) open.setClass(context, NotebookEbookImportActivity.class);
+        return open;
     }
 }

@@ -85,7 +85,9 @@
         <activity android:name=".notebook.NotebookPdfExportActivity" android:exported="false" android:screenOrientation="behind" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden" />
         <activity android:name=".notebook.NotebookSettingsActivity" android:exported="false" android:screenOrientation="behind" />
         <activity android:name=".notebook.NotebookCastActivity" android:exported="false" android:screenOrientation="behind" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden" />
+        <activity android:name=".notebook.NotebookShareActivity" android:exported="false" android:screenOrientation="behind" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden" />
         <service android:name=".notebook.NotebookCastService" android:process=":cast" android:exported="false" android:foregroundServiceType="mediaProjection" />
+        <service android:name=".notebook.NotebookShareService" android:exported="false" android:foregroundServiceType="dataSync" android:stopWithTask="true" />
         <service android:name=".notebook.NotebookDownloadService" android:exported="false" android:foregroundServiceType="dataSync" />
         <service android:name=".notebook.NotebookUpdateService" android:exported="false" android:foregroundServiceType="dataSync" />
         <activity android:name=".notebook.NotebookLibraryActivity" android:exported="true" android:screenOrientation="behind">

@@ -11,6 +11,10 @@ final class NotebookDownloadStream {
     private NotebookDownloadStream() { }
 
     static long copy(InputStream input, OutputStream output, long expected, Control control) throws IOException {
+        return copy(input, output, expected, Long.MAX_VALUE, control);
+    }
+
+    static long copy(InputStream input, OutputStream output, long expected, long maximum, Control control) throws IOException {
         byte[] buffer = new byte[64 * 1024]; long total = 0;
         while (true) {
             if (control.cancelled()) throw new InterruptedIOException("Download canceled.");
@@ -18,7 +22,7 @@ final class NotebookDownloadStream {
             if (control.cancelled()) throw new InterruptedIOException("Download canceled.");
             if (count < 0) break;
             if (count == 0) continue;
-            if (total > Long.MAX_VALUE - count) throw new IOException("Download is too large.");
+            if (total > maximum - count) throw new IOException("The file is too large for the available sharing space.");
             output.write(buffer, 0, count); total += count; control.progress(total);
         }
         if (expected >= 0 && total != expected) throw new IOException("The download ended before the expected size was received.");

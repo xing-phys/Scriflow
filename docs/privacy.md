@@ -9,6 +9,20 @@ Markdown rendering do not make network requests. The optional
 Optional [Screen cast](screen-cast.md) serves the visible Scriflow screen to
 password-authorized browsers on the connected Wi-Fi while casting is on.
 
+## Wi-Fi Sharing
+
+Wi-Fi Sharing starts from its own panel and listens on the tablet’s connected
+Wi-Fi IPv4 address. A fresh pairing code authorizes browsers for that session.
+The tablet and browsers exchange items directly over unencrypted HTTP on the
+local network. Use trusted Wi-Fi.
+
+Only files selected with Android’s file picker and links sent from the panel
+are offered to paired browsers. Temporary copies of outgoing files are kept in
+Scriflow’s private cache for the session. Pairing codes, browser sessions and
+links are held in memory. Completed incoming files are saved to **Downloads →
+Scriflow Wi-Fi Sharing** and remain there after Stop. Scriflow opens a received
+link when you tap **Open link**. [Wi-Fi Sharing guide](wifi-sharing.md)
+
 ## Local screen casting
 
 Casting starts only from its controls after Android capture consent, with a

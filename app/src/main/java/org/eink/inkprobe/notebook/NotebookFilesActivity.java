@@ -40,6 +40,7 @@ import java.util.List;
 /** E-ink file browser for shared tablet storage, separate from the notebook bookshelf. */
 public final class NotebookFilesActivity extends NotebookDisplayActivity {
     static final String SHOW_DOWNLOADS = "showDownloadsFolder";
+    static final String SHOW_SHARED_DOWNLOADS = "showSharedDownloadsFolder";
     private static final int STORAGE_PERMISSION = 2410;
     private NotebookFilesJob job;
     private TextView status, empty, selectedCount, clipboardCount;
@@ -75,8 +76,14 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
         thumbnails = NotebookCollectionLayout.thumbnails(this, "files");
         Object retained = getLastNonConfigurationInstance();
         job = retained instanceof NotebookFilesJob ? (NotebookFilesJob) retained : new NotebookFilesJob(this);
-        if (retained == null && saved == null && getIntent().getBooleanExtra(SHOW_DOWNLOADS, false))
-            job.folder = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).getAbsolutePath();
+        if (retained == null && saved == null) {
+            boolean shared = getIntent().getBooleanExtra(SHOW_SHARED_DOWNLOADS, false);
+            if (shared || getIntent().getBooleanExtra(SHOW_DOWNLOADS, false)) {
+                File downloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                File sharing = new File(downloads, NotebookShareStorage.DOWNLOAD_FOLDER);
+                job.folder = shared && sharing.isDirectory() ? sharing.getAbsolutePath() : downloads.getAbsolutePath();
+            }
+        }
         if (!(retained instanceof NotebookFilesJob) && saved != null) {
             job.folder = saved.getString("folder"); job.query = saved.getString("query", "");
             job.hidden = saved.getBoolean("hidden"); job.move = saved.getBoolean("move");
@@ -97,6 +104,9 @@ public final class NotebookFilesActivity extends NotebookDisplayActivity {
         header.addView(icon(picking() ? "Cancel file selection" : "Bookshelf", picking() ? NotebookIconDrawable.Icon.CLOSE : NotebookIconDrawable.Icon.LIBRARY, this::bookshelf), new LinearLayout.LayoutParams(dp(44), dp(42)));
         TextView title = label("save".equals(pickerMode) ? "Save file" : "open".equals(pickerMode) ? "Choose file" : "Files", 21); title.setTypeface(null, Typeface.BOLD); title.setPadding(dp(12), 0, 0, 0);
         header.addView(title, new LinearLayout.LayoutParams(0, dp(44), 1));
+        if (!picking()) header.addView(icon("Wi-Fi Sharing", NotebookIconDrawable.Icon.WIFI, () -> {
+            startActivity(new Intent(this, NotebookShareActivity.class)); overridePendingTransition(0, 0);
+        }), new LinearLayout.LayoutParams(dp(44), dp(42)));
         header.addView(deviceSettingsIsland(), new LinearLayout.LayoutParams(-2, dp(32))); root.addView(header);
 
         LinearLayout navigation = row();
